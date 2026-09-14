@@ -416,6 +416,35 @@ impl Ledger {
         Ok(row.get::<i64, _>("n"))
     }
 
+    /// Mark one ingest unit as fully written, and ask whether it already is.
+    ///
+    /// A row count cannot answer this. The first full LoCoMo run died
+    /// mid-conversation on conv-44 with 79 records and all 62 episodes
+    /// already committed, so both "has any records" and "has all its
+    /// episodes" would have declared it done and skipped the consolidation
+    /// that never ran. Completion is a fact about the *process*, so it is
+    /// recorded as one — an audit event (C9), which is where "what happened
+    /// to this unit" already lives.
+    pub async fn mark_unit_complete(
+        &self,
+        tenant: &str,
+        actor: &ActorId,
+        detail: serde_json::Value,
+    ) -> Result<()> {
+        self.log("unit_complete", None, actor, tenant, detail).await
+    }
+
+    pub async fn unit_is_complete(&self, tenant: &str) -> Result<bool> {
+        let row = sqlx::query(
+            "SELECT COUNT(*) AS n FROM event WHERE kind = 'unit_complete' AND reason = ?",
+        )
+        .bind(tenant)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(sql)?;
+        Ok(row.get::<i64, _>("n") > 0)
+    }
+
     /// Ids whose `prov_source` is NULL and which have not yet been dealt with.
     /// These are invisible to every read path (I2); this is how
     /// [`crate::store::reconcile`] finds them.

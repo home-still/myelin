@@ -208,17 +208,37 @@ class MyelinMemory(Memory):
         self._inserted: set[str] = set()
 
     def insert(self, trajectory: dict[str, object]) -> None:
-        """Assert the trajectory is already in the served memory.
+        """Verify the trajectory's memory is already built; never index here.
 
-        The harness calls this once per haystack trajectory. Building through
-        it would mean re-running the Rust write path over ~43M tokens inside
-        the evaluation loop; the memory is built beforehand by
-        `myelin-eval build`. Accepting the call and doing nothing would be
-        worse than either, because a partially-built memory would then score
-        as if it were complete.
+        The harness calls this once per haystack trajectory. Indexing through
+        it would mean running the Rust write path over ~43M tokens inside the
+        evaluation loop; the memory is built beforehand by `myelin-eval
+        build`. But accepting the call and doing nothing is worse than
+        either, because an unbuilt or mis-tenanted memory would then score as
+        though it were complete — every question answered from an empty
+        evidence set, reported as a legitimate accuracy number.
+
+        So the first call probes the served tenant with the trajectory's own
+        goal text and requires a non-empty result. That is exactly the
+        failure mode worth catching: forgot to build, wrong collection, wrong
+        tenant, server pointed at a different ledger. The goal comes from the
+        haystack, never from the question, so this costs nothing under R6.
         """
         trajectory_id = trajectory.get("id")
         require(isinstance(trajectory_id, str), "trajectory has no string id")
+        if not self._inserted:
+            goal = trajectory.get("goal")
+            probe = goal if isinstance(goal, str) and goal.strip() else "memory"
+            hits = self._session.call_tool(
+                "recall",
+                {"query": probe, "tenant": self.tenant, "k": 1, "budget_tokens": 256},
+            )
+            require(
+                bool(hits.get("items")),
+                f"tenant {self.tenant!r} at {self.url} returned nothing for the first "
+                "haystack trajectory: the memory is not built, or the server is "
+                "serving a different collection/ledger. Run `myelin-eval build` first.",
+            )
         self._inserted.add(str(trajectory_id))
 
     def query(

@@ -24,7 +24,6 @@ use crate::embed::Embedder;
 use crate::error::Result;
 use crate::model::evidence::EvidenceSet;
 use crate::model::query::Recall;
-use crate::model::record::RecordKind;
 use crate::rerank::Reranker;
 use crate::store::ledger::Ledger;
 use crate::store::qdrant::QdrantStore;
@@ -195,11 +194,17 @@ impl<'a> Retriever<'a> {
             // I2 is enforced by `Ledger::get` failing to materialise a record
             // with no source; I3 and validity are re-checked here because the
             // Qdrant payload is a projection that can lag.
-            if record.kind == RecordKind::Episodic && query.kinds.is_none() {
-                // Episodes are raw material; `investigate` reads them
-                // explicitly, `recall` composes facts.
-                continue;
-            }
+            //
+            // Kind is NOT filtered here. `PLAN.md` §7.1 lists `kind?` as an
+            // optional scope predicate, and when the caller supplies one it
+            // is already a Qdrant payload filter applied *before* ranking —
+            // which is the whole point of scope-before-routing (§2 finding
+            // 3, +2.9/+3.1 F1). An earlier draft dropped episodic records
+            // here whenever `kinds` was absent, on the theory that episodes
+            // are raw material for `investigate`. That was wrong twice: it
+            // post-filtered, spending the probe budget on rows it then threw
+            // away, and it made `recall` return nothing at all on an
+            // episodic-only corpus — which is exactly what LME-V2 is.
             if !record.is_admissible_at(now) {
                 continue;
             }

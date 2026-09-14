@@ -103,9 +103,16 @@ fi
 # (PLAN.md 2, finding 2), where fusion is worth 1-2 points.
 #
 # --reranking implies --embedding internally and REQUIRES --pooling rank; the
-# server refuses to start otherwise. -c 8192 is per-slot budget for a
-# (query, document) pair, not a conversation: episodes cap at 512 tokens so
-# even a 25-document batch never approaches it.
+# server refuses to start otherwise.
+#
+# -b/-ub 8192 are NOT decoration. llama.cpp's physical batch defaults to 512
+# and a cross-encoder must process a (query, document) pair in ONE physical
+# batch, so any document over ~500 tokens fails the whole call with
+# `input (575 tokens) is too large to process`. LME-V2 accessibility-tree
+# chunks are ~450-600 tokens, so the default silently made the reranker
+# unusable on that corpus -- found by the first end-to-end query, not by any
+# unit test. 8192 matches the context so no admissible document can exceed
+# it.
 #
 # Opt out with MYELIN_RERANK=0 when only the write path is needed; a loaded
 # reranker costs VRAM continuously and compute only when queried.
@@ -113,7 +120,7 @@ if [ "${MYELIN_RERANK:-1}" = "1" ]; then
 nohup "$LC/llama-server" \
   -m "$K/bge-reranker-v2-m3-Q8_0.gguf" \
   --host "$BIND_HOST" --port "$RERANK_PORT" \
-  -c 8192 -ngl 999 \
+  -c 8192 -b 8192 -ub 8192 -ngl 999 \
   --reranking --pooling rank \
   > /tmp/myelin-rerank.log 2>&1 &
 echo $! > /tmp/myelin-rerank.pid

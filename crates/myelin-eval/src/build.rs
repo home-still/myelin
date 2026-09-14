@@ -15,7 +15,7 @@ use chrono::{DateTime, NaiveDate, NaiveDateTime, TimeZone, Utc};
 use myelin_core::config::MyelinConfig;
 use myelin_core::embed::remote::RemoteEmbedder;
 use myelin_core::llm::openai::OpenAiLlm;
-use myelin_core::model::record::{Scope, SourceRef};
+use myelin_core::model::record::{ActorId, Scope, SourceRef};
 use myelin_core::pipeline::ingest::Turn;
 use myelin_core::pipeline::write::{WritePath, WriteStats};
 use myelin_core::store::ledger::Ledger;
@@ -124,8 +124,26 @@ pub async fn build_locomo(
         wall_secs: 0.0,
     };
 
+    // Resume: skip a conversation the ledger records as fully ingested.
+    //
+    // Not a convenience. A LoCoMo conversation costs ~13 minutes of GPU on a
+    // shared card, and the first full run died at conv-44 after six had
+    // committed. Re-running those six to reach the seventh spends 80 minutes
+    // of someone else's GPU on records the ledger already holds, and the v5
+    // ids mean the work is discarded as duplicates anyway.
+    //
+    // The predicate is the `unit_complete` audit event, NOT a row count:
+    // conv-44 died holding 79 records and all 62 of its episodes, so any
+    // count-based test would have skipped the consolidation that never ran.
+    let mut resumed = 0usize;
+
     for conv in &conversations {
         let scope = Scope::new(format!("locomo/{}", conv.sample_id), "myelin", "locomo");
+        if ledger.unit_is_complete(&scope.tenant).await? {
+            resumed += 1;
+            eprintln!("  {:<8} already ingested, skipping", conv.sample_id);
+            continue;
+        }
         let turns = turns_for(conv);
 
         let mut write = WritePath::new(&llm, &embedder, &store, &ledger);
@@ -149,11 +167,28 @@ pub async fn build_locomo(
             stats.wall_ms as f64 / 1000.0,
         );
 
+        ledger
+            .mark_unit_complete(
+                &scope.tenant,
+                &ActorId::new("myelin-eval"),
+                serde_json::json!({
+                    "turns": stats.turns,
+                    "episodes": stats.episodes,
+                    "added": stats.added,
+                    "wall_ms": stats.wall_ms,
+                }),
+            )
+            .await
+            .context("mark unit complete")?;
+
         report.total.merge(&stats);
         report.per_unit.push((conv.sample_id.clone(), stats));
     }
 
     report.wall_secs = started.elapsed().as_secs_f64();
+    if resumed > 0 {
+        eprintln!("  resumed: {resumed} conversation(s) already in the ledger");
+    }
     Ok(report)
 }
 
