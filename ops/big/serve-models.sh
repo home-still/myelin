@@ -62,13 +62,36 @@ READER_SLOTS="${MYELIN_READER_SLOTS:-4}"
 READER_CTX="${MYELIN_READER_CTX:-16384}"
 EMBED_CTX="${MYELIN_EMBED_CTX:-4096}"
 
-# mmproj is off by default: it costs ~920 MiB and the write path is text-only.
-# Turn it on (MYELIN_MMPROJ=1) for the LME-V2 image-evidence work, which is the
-# only place `PLAN.md` needs vision.
+# mmproj is ON by default. It costs ~920 MiB, and 29 of LongMemEval-V2's 451
+# questions carry a `question_screenshots/*.png`; without it the harness dies
+# on the first one with `image input is not supported`. Dropping those 29
+# would bias G1 rather than save memory. MYELIN_MMPROJ=0 for a text-only run.
 MMPROJ_ARGS=()
-if [ "${MYELIN_MMPROJ:-0}" = "1" ]; then
+if [ "${MYELIN_MMPROJ:-1}" = "1" ]; then
   MMPROJ_ARGS=(--mmproj "$R/mmproj-F16.gguf")
 fi
+
+# Thinking off SERVER-WIDE, not per request.
+#
+# `llm/openai.rs` already sends `enable_thinking: false` on every call, but
+# third-party clients do not. The vendored LongMemEval-V2 harness disables
+# thinking for the READER only, and only when `--model` is the literal string
+# `Qwen/Qwen3.5-9B`; its EVALUATOR path never sends it at all. The judge then
+# spent its whole budget on `reasoning_content`, returned empty content, and
+# the run died with `Empty judgement response from evaluator model.`
+# A server-side default fixes every client at once.
+TEMPLATE_KWARGS='{"enable_thinking":false}'
+
+# Wait for VRAM before loading.
+#
+# Killing a llama-server does not free its VRAM synchronously. A 3-second
+# sleep between kill and reload produced `cudaMalloc failed: out of memory`
+# on a card that reported 22.7 GB free moments later.
+for _ in $(seq 1 30); do
+  free_mib=$(nvidia-smi --query-gpu=memory.free --format=csv,noheader,nounits)
+  [ "$free_mib" -ge 9000 ] && break
+  sleep 2
+done
 
 nohup "$LC/llama-server" \
   -m "$R/Qwen3.5-9B-UD-Q4_K_XL.gguf" \
@@ -77,7 +100,7 @@ nohup "$LC/llama-server" \
   -c "$READER_CTX" -ngl 999 \
   --cache-type-k q8_0 --cache-type-v q8_0 \
   -np "$READER_SLOTS" -cb \
-  --jinja \
+  --jinja --chat-template-kwargs "$TEMPLATE_KWARGS" \
   > /tmp/myelin-reader.log 2>&1 &
 echo $! > /tmp/myelin-reader.pid
 
