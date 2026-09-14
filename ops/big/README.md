@@ -35,6 +35,10 @@ exact invocation that was verified:
 ```bash
 ssh big gpu-tenant claim coding          # see the caveat below — this is not enough
 ssh big bash -s < ops/big/serve-models.sh
+# Overrides MUST be set on the REMOTE side; `ssh` does not forward the
+# environment, so `MYELIN_READER_CTX=65536 ssh big bash -s < ...` silently
+# uses the default and gives each slot 4096 tokens:
+ssh big "MYELIN_READER_CTX=65536 bash -s" < ops/big/serve-models.sh
 ssh -N -L 5810:127.0.0.1:5810 -L 5813:127.0.0.1:5813 big &   # see "firewall"
 # ... work ...
 ssh big bash -s < ops/big/stop-models.sh

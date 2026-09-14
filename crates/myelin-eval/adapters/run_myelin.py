@@ -81,6 +81,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--namespace", default=None)
     parser.add_argument("--k", type=int, default=6)
     parser.add_argument("--budget-tokens", type=int, default=2048)
+    parser.add_argument("--mode", choices=["recall", "investigate"], default="recall")
+    parser.add_argument("--max-steps", type=int, default=4)
     parser.add_argument(
         "--tau-abstain",
         type=float,
@@ -172,6 +174,8 @@ def main() -> None:
             "k": args.k,
             "budget_tokens": args.budget_tokens,
             "tau_abstain": args.tau_abstain,
+            "mode": args.mode,
+            "max_steps": args.max_steps,
         },
     }
     memory_config_path = runtime_dir / "memory_config.json"

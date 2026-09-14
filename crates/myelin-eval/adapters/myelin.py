@@ -178,6 +178,8 @@ class MyelinMemory(Memory):
     | `namespace` | `None` | extra scope predicate |
     | `k` | `6` | evidence-set size |
     | `budget_tokens` | `2048` | compose budget |
+    | `mode` | `recall` | `recall` (fast) or `investigate` (agentic) |
+    | `max_steps` | `4` | `investigate` only: iteration cap |
     | `tau_abstain` | `None` | withhold evidence below this rerank score |
     | `timeout` | `120.0` | per-call seconds |
 
@@ -203,12 +205,24 @@ class MyelinMemory(Memory):
         # Abstention gate. None keeps the server's default (off).
         tau = params.get("tau_abstain")
         self.tau_abstain = None if tau is None else float(tau)
+        # R4: the mode is a query-time parameter against one identical
+        # store, which is the whole reason a leaderboard submission can
+        # present two operating points from one built memory.
+        self.mode = str(params.get("mode", "recall"))
+        require(
+            self.mode in {"recall", "investigate"},
+            f"mode must be 'recall' or 'investigate', got {self.mode!r}",
+        )
+        self.max_steps = int(params.get("max_steps", 4))
         url = params.get("url") or os.getenv("MYELIN_MCP_URL") or "http://127.0.0.1:7446/mcp"
         self.url = str(url)
         self._session = _McpSession(self.url, float(params.get("timeout", 120.0)))
         self._session.initialize()
         tools = self._session.list_tools()
-        require("recall" in tools, f"{self.url} exposes no 'recall' tool (got {tools})")
+        require(
+            self.mode in tools,
+            f"{self.url} exposes no {self.mode!r} tool (got {tools})",
+        )
         self._inserted: set[str] = set()
 
     def insert(self, trajectory: dict[str, object]) -> None:
@@ -233,6 +247,9 @@ class MyelinMemory(Memory):
         if not self._inserted:
             goal = trajectory.get("goal")
             probe = goal if isinstance(goal, str) and goal.strip() else "memory"
+            # Always `recall` here regardless of mode: this is a liveness
+            # check on the store, and paying for an agentic loop to answer
+            # it would cost seconds per run for no extra information.
             hits = self._session.call_tool(
                 "recall",
                 {"query": probe, "tenant": self.tenant, "k": 1, "budget_tokens": 256},
@@ -250,12 +267,18 @@ class MyelinMemory(Memory):
         query: str,
         query_image: str | None = None,
     ) -> list[MemoryContextItem]:
+        # `investigate` names its question field differently: the tool takes
+        # a question to reason about, not a search string to match.
         arguments: dict[str, Any] = {
-            "query": query,
             "tenant": self.tenant,
             "k": self.k,
             "budget_tokens": self.budget_tokens,
         }
+        if self.mode == "investigate":
+            arguments["question"] = query
+            arguments["max_steps"] = self.max_steps
+        else:
+            arguments["query"] = query
         if self.namespace:
             arguments["namespace"] = self.namespace
         if self.tau_abstain is not None:
@@ -264,7 +287,7 @@ class MyelinMemory(Memory):
         # text-only (bge-m3), so forwarding a path the server cannot embed
         # would be a lie in the trace. 29 of 451 questions carry one; they are
         # answered from text evidence like any other.
-        result = self._session.call_tool("recall", arguments)
+        result = self._session.call_tool(self.mode, arguments)
         items = result.get("items", [])
         require(isinstance(items, list), f"recall returned non-list items: {items!r}")
         return items
