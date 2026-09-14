@@ -5,4 +5,8 @@
 //! read side. Fusion lands first because it is pure arithmetic with a measured
 //! reference value, so it can be settled before any model exists.
 
+pub mod consolidate;
+pub mod extract;
 pub mod fuse;
+pub mod index;
+pub mod ingest;

@@ -237,7 +237,7 @@ impl Default for Salience {
 }
 
 /// A graph seed: a phrase node in the bipartite incidence structure (§5.4).
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct EntityRef {
     pub phrase: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]

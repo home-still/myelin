@@ -15,6 +15,8 @@ use async_trait::async_trait;
 
 use crate::error::Result;
 
+pub mod remote;
+
 #[async_trait]
 pub trait Embedder: Send + Sync {
     /// Dimensionality of the dense vectors this embedder produces.
