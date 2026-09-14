@@ -1,0 +1,29 @@
+[package]
+name = "myelin-core"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.88"
+
+[features]
+default = ["remote-embed"]
+remote-embed = []
+# Opts in the tests that talk to a live Qdrant. Off by default so
+# `cargo test --workspace` stays hermetic.
+integration = []
+
+[dependencies]
+anyhow = { workspace = true }
+async-trait = { workspace = true }
+chrono = { workspace = true }
+dirs = { workspace = true }
+figment = { workspace = true }
+qdrant-client = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+uuid = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true }

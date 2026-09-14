@@ -9,8 +9,11 @@
 //   rrf-single-list scores (rank1..n): [0.5, 0.33333334, 0.25, 0.2, 0.16666667, 0.14285715]
 //   cleanup: ok
 //
-// Not a workspace member. Milestone M0 turns this into crates/myelin-core/tests/qdrant_capability.rs.
-// Cargo.toml used:  qdrant-client = { version = "1", features = ["serde"] }, tokio (full), anyhow
+// Not a workspace member; kept as reproducible standalone evidence for
+// docs/research/00-verified-environment.md §3. The four findings above are asserted, and will fail
+// loudly on regression, in crates/myelin-core/tests/qdrant_capability.rs (milestone M0) — run it with
+// `cargo test -p myelin-core --features integration`.
+// Cargo.toml used here:  qdrant-client = { version = "1", features = ["serde"] }, tokio (full), anyhow
 
 use qdrant_client::qdrant::{
     CreateCollectionBuilder, DeleteCollectionBuilder, Distance, MultiVectorComparator,

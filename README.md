@@ -61,3 +61,27 @@ Vocabulary of the field
 
  Still unsolved: multi-session long-horizon tasks; benchmark disagreement (LoCoMo/LongMemEval/BEAM leaders differ, hence "LoCoMo Refined");
  predictable code-quality degradation from lossy compaction; memory as an attack surface (>95% injection success under idealized conditions).
+
+---
+
+## Building & testing
+
+Three-crate workspace: `myelin-core` (backend library), `myelin-mcp` (MCP surface),
+`myelin-eval` (evaluation harness). Build plan in [`PLAN.md`](PLAN.md).
+
+```
+cargo test --workspace                                   # hermetic, no network
+cargo test -p myelin-core --features integration         # requires Qdrant on big
+MYELIN_QDRANT__URL=http://192.168.1.110:6334 cargo test -p myelin-core --features integration
+```
+
+The `integration` feature enables `crates/myelin-core/tests/qdrant_capability.rs`, which asserts
+the four Qdrant 1.19.1 findings the storage design rests on — three retrieval channels in one
+collection, server-side RRF at **k = 1** (not Cormack's 60), gRPC-only multivector rerank, and the
+BM25 IDF scoring identity. Measured in
+[`docs/research/00-verified-environment.md`](docs/research/00-verified-environment.md) §3. Each test
+creates and deletes its own `myelin_test_<fn>_<uuid>` scratch collection and never touches an
+existing one; a failing assertion leaves its scratch collection behind for inspection.
+
+Configuration layers as serialized defaults → `~/.myelin/config.yml` → `MYELIN_`-prefixed
+environment variables, with `__` marking nesting (`MYELIN_QDRANT__URL`, `MYELIN_QDRANT__COLLECTION`).
