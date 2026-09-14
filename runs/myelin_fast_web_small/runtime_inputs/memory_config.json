@@ -1,0 +1,10 @@
+{
+  "memory_type": "myelin",
+  "memory_params": {
+    "url": "http://127.0.0.1:7447/mcp",
+    "tenant": "lme_v2_small/web",
+    "namespace": "lme_v2_small",
+    "k": 6,
+    "budget_tokens": 2048
+  }
+}

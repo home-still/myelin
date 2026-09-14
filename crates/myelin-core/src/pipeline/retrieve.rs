@@ -178,8 +178,17 @@ impl<'a> Retriever<'a> {
             text_by_id.entry(hit.id).or_insert_with(|| hit.text.clone());
         }
 
-        let head: Vec<(uuid::Uuid, f32)> =
-            fused.into_iter().take(self.config.rerank_depth).collect();
+        // `rerank_depth` is a floor on how deep the reranker looks, never a
+        // ceiling on what the caller asked for.
+        //
+        // It used to be a bare `.take(self.config.rerank_depth)`, which
+        // silently capped `k` at 25. An LME-V2 operating-point sweep at
+        // k=60 therefore measured k=25 with a different tie-break and
+        // reported the difference as a finding — both runs came back with
+        // the same ~9,600-token evidence set, which is what gave it away. A
+        // config constant must not quietly overrule a query parameter (R4).
+        let depth = self.config.rerank_depth.max(query.budget.k);
+        let head: Vec<(uuid::Uuid, f32)> = fused.into_iter().take(depth).collect();
 
         // Rerank before the ledger check: reranking is the expensive stage
         // and there is no point paying it for records the ledger will refuse.
