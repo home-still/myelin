@@ -1,4 +1,4 @@
-# M3 — write path end to end, LoCoMo
+# M3 — write path end to end
 
 `PLAN.md` M3 asks for three numbers per corpus: **records/unit, tokens, wall time**. Measured
 2026-09-14, commit `dadf60c`, reader `qwen3.5-9b` UD-Q4_K_XL (`enable_thinking: false`, 4 slots),
@@ -93,3 +93,38 @@ them as `stale_points` and evicts them: a retracted record that stays retrievabl
 A first pass at this diff compared *all* ledger rows against Qdrant and reported 165 "missing"
 records — that was a bad diff, not a bad store, and it is recorded here because the same mistake is
 easy to repeat.
+
+---
+
+# LME-V2-Small
+
+Same commit, same card, 2026-09-14. Ingested **episodically** (`extract_facts: false`) — see
+`WritePath::extract_facts` for the ~250 GPU-hour measurement that rules out fact extraction on this
+corpus, and `datasets/lmev2.rs` for why the accessibility trees are chunked rather than dropped.
+
+| | |
+|---|---|
+| trajectories | 200 / 200 (100 `web`, 100 `enterprise`) |
+| turns | 89,928 |
+| **episodes** | **85,589** |
+| records/unit | 427.9 |
+| approx input tokens | **39,514,686** |
+| wall | **27.1 min** |
+| throughput | **52.6 episodes/s, 24,289 tokens/s** |
+| reconcile | clean |
+
+Qdrant: 85,589 points, status `green`, ledger and store agree exactly.
+
+Two numbers worth keeping.
+
+**39.5M tokens against the 43M projected** from a 20-trajectory sample. The projection method —
+measure the composition of a sample, extrapolate by trajectory count — was accurate to 8%.
+
+**24,289 tokens/s against 8,279 measured earlier.** That earlier figure was taken *while the LoCoMo
+ingest was competing for the card*, and it drove a 1.44 h estimate for this pass. The real number
+on a quiet card is 2.9× higher and the pass took 27 minutes. A throughput measured under contention
+is a lower bound, not an estimate, and planning against it overstates cost by roughly the
+contention factor.
+
+Time is 97.6% index (1,587.7 s of 1,626.8 s) — all embedding, no reader. Extraction and
+consolidation are exactly zero, which is the episodic path working as designed.
