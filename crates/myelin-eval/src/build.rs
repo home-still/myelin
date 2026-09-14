@@ -44,7 +44,12 @@ fn parse_locomo_time(s: &str) -> Option<DateTime<Utc>> {
     None
 }
 
-fn turns_for(conv: &LocomoConversation) -> Vec<Turn> {
+/// LoCoMo turns in wire order, with photo captions folded into the text.
+///
+/// Public because the ablation harness re-runs the exact same segmentation to
+/// reconstruct which turns each episode covers; a second, drifting copy of
+/// this function would silently mis-score every retrieval.
+pub fn turns_for(conv: &LocomoConversation) -> Vec<Turn> {
     let mut turns = Vec::new();
     for session in &conv.sessions {
         let at = session.date_time.as_deref().and_then(parse_locomo_time);

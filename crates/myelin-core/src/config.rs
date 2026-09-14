@@ -22,6 +22,7 @@ pub struct MyelinConfig {
     pub qdrant: QdrantConfig,
     pub llm: LlmConfig,
     pub embed: EmbedConfig,
+    pub rerank: RerankConfig,
 }
 
 /// The reader. Served directly by `llama-server`, not through llama-swap:
@@ -43,6 +44,32 @@ impl Default for LlmConfig {
         Self {
             url: "http://127.0.0.1:5810/v1".into(),
             model: "qwen3.5-9b".into(),
+        }
+    }
+}
+
+/// The cross-encoder. Separate `llama-server` for the same reason the reader
+/// is: llama-swap is strict-swap, and the read path needs the embedder and
+/// the reranker live at once.
+///
+/// `bge-reranker-v2-m3` Q8_0 is 606 MiB — small enough to co-reside with the
+/// 6 GiB reader on a card that also hosts a live voice assistant, which is
+/// the whole reason a 568M-parameter reranker was chosen over a 7B one. It
+/// buys the largest single gain in the pipeline: MS MARCO MRR@10 goes
+/// 18.7 → 36.5 with a cross-encoder over BM25 (`PLAN.md` §2 finding 2).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct RerankConfig {
+    /// Server root, *not* the `/v1` path: llama.cpp exposes `/v1/rerank`.
+    pub url: String,
+    pub model: String,
+}
+
+impl Default for RerankConfig {
+    fn default() -> Self {
+        Self {
+            url: "http://127.0.0.1:5813".into(),
+            model: "bge-reranker-v2-m3".into(),
         }
     }
 }

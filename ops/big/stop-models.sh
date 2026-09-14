@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Stop the myelin reader + embedder on `big`. Safe to run when they are not up.
+# Stop the myelin reader, embedder and reranker on `big`. Safe to run when
+# they are not up.
 #
 # This does NOT release the GPU claim — that is deliberate, so a caller can
 # stop and restart models inside one window. Release separately with
@@ -7,7 +8,7 @@
 # size their work against free VRAM.
 set -uo pipefail
 
-for name in reader embed; do
+for name in reader embed rerank; do
   pidfile="/tmp/myelin-$name.pid"
   if [ -f "$pidfile" ]; then
     pid=$(cat "$pidfile")

@@ -1,14 +1,16 @@
 # Serving myelin's models on `big`
 
-M2 of [`PLAN.md`](../../PLAN.md): the reader and the embedder, co-resident on one
-RTX 3090, measured.
+M2 of [`PLAN.md`](../../PLAN.md): the reader, the embedder and the reranker,
+co-resident on one RTX 3090, measured.
 
 ## The models
 
 | role | weights | size | why |
 |---|---|---|---|
 | reader | `~/models/Qwen3.5-9B-GGUF/Qwen3.5-9B-UD-Q4_K_XL.gguf` + `mmproj-F16.gguf` | 5.97 GB + 0.92 GB | extraction (§6.2), consolidation (§6.3), `investigate` (§7.2) |
-| embedder | `~/models/Qwen3-Embedding-8B-GGUF/Qwen3-Embedding-8B-Q8_0.gguf` | 8.05 GB | dense channel (§5.1) |
+| embedder | `~/models/Qwen3-Embedding-8B-GGUF/Qwen3-Embedding-8B-Q8_0.gguf` | 8.05 GB | dense channel (§5.1) — **opt-in**, see below |
+| embedder (default) | `bge-m3` via the resident `ollama` | 1.2 GB | dense channel (§5.1), 1024-d natively |
+| reranker | `~/models/bge-reranker-v2-m3-GGUF/bge-reranker-v2-m3-Q8_0.gguf` | 0.64 GB | cross-encoder rerank (§7.1) |
 
 `Qwen/Qwen3.5-9B` publishes **safetensors only** and `Qwen/Qwen3.5-9B-GGUF`
 returns 401, so the reader GGUF comes from `unsloth/Qwen3.5-9B-GGUF` — the same
@@ -17,7 +19,13 @@ naming and quant recipe match what is already here.
 
 The embedder is **Q8_0, not Q4**. Quantization distorts embedding geometry more
 than it distorts generation quality, and the dense channel is one of only two
-retrieval channels; a 3 GB saving is not worth a silent recall regression.
+retrieval channels; a 3 GB saving is not worth a silent recall regression. The
+same argument picks Q8_0 for the reranker, where it costs only 0.3 GB.
+
+The reranker is a 568M-parameter model, not a 7B one, and that is the point: it
+buys the largest single accuracy gain in the read path (MS MARCO MRR@10
+18.7 → 36.5 over BM25, `PLAN.md` §2 finding 2) for 636 MB on a card that also
+hosts a live voice assistant.
 
 ## Run it
 
@@ -27,14 +35,32 @@ exact invocation that was verified:
 ```bash
 ssh big gpu-tenant claim coding          # see the caveat below — this is not enough
 ssh big bash -s < ops/big/serve-models.sh
+ssh -N -L 5810:127.0.0.1:5810 -L 5813:127.0.0.1:5813 big &   # see "firewall"
 # ... work ...
 ssh big bash -s < ops/big/stop-models.sh
 ssh big gpu-tenant release
 ```
 
-`serve-models.sh` blocks until both `/health` endpoints answer 200 and then
-prints the port pair and card occupancy, so it is safe to chain. It exits 1
-with the log paths if either server fails to come up.
+`serve-models.sh` blocks until every enabled `/health` answers 200 and then
+prints the ports and card occupancy, so it is safe to chain. It exits 1 with the
+log paths if any server fails to come up. Two switches:
+
+| variable | default | effect |
+|---|---|---|
+| `MYELIN_EMBEDDER` | `bge` | `qwen` also serves the 8B embedder on :5811 |
+| `MYELIN_RERANK` | `1` | `0` skips the cross-encoder on :5813 |
+
+### The firewall makes a tunnel mandatory
+
+`big` runs an allowlist firewall. Measured from the workstation on 2026-09-14:
+**6333, 6334, 8081 and 11434 connect; 5810 and 7434 time out** — dropped, not
+refused, while the same request from `big` itself answers 200 in 0.3 ms. So the
+servers bind `127.0.0.1` and the driver reaches them over SSH forwarding. That
+is also the better posture: an unauthenticated LLM endpoint does not belong on
+the LAN just because the firewall would have to be asked nicely.
+
+Qdrant (6334) and ollama (11434) need no tunnel, which is a second reason the
+default dense embedder is bge-m3 through ollama.
 
 ## `gpu-tenant claim` does not free the card
 
@@ -88,10 +114,15 @@ Tool calling, which the agentic read path depends on:
 
 Embeddings return **4096 dimensions**.
 
-> **Open decision for M3.** 4096-d is 4× the 1024-d bge-m3 that `PLAN.md` §5.1
-> assumes for the `dense` channel, so the Qdrant collection dimension and the
-> storage cost per record both change. Settle it in M3 with a measurement, not
-> by defaulting.
+> **Settled in M3: the default embedder is bge-m3, not this one.** Three
+> reasons, in order of weight. (1) `PLAN.md` §5.1 specifies the `dense` channel
+> as bge-m3 1024-d, which bge-m3 produces natively — no Matryoshka truncation,
+> no geometry question. (2) VRAM: the 8B embedder costs 8,858 MiB, and holding
+> it alongside `voice-serve` and a woken ollama left **890 MiB** free against an
+> operator request for ~5 GB. bge-m3 is 1.2 GB inside a process that keeps
+> waking anyway. (3) ollama's port is open; :5811 is firewalled. Set
+> `MYELIN_EMBEDDER=qwen` to serve the 8B for the M4 embedder ablation — that
+> comparison is exactly why the code keeps both paths.
 
 ## Build
 
@@ -116,9 +147,13 @@ Download on the workstation and push over the LAN. Measured the same minute on
 | workstation | 17.3 MB/s |
 
 14 GB direct to `big` was on track for ~10 hours; workstation download (4.5 min)
-plus `rsync` over the LAN (21 min) took ~25. Verify byte counts against the HF
-API afterwards — `hf download` exits 0 even when a requested filename does not
+plus the LAN push (21 min) took ~25. Verify byte counts against the HF API
+afterwards — `hf download` exits 0 even when a requested filename does not
 exist.
+
+Use `scp`, not `rsync`: macOS 25.6 ships openrsync, which segfaults
+(`child exited with status 11`) partway through a multi-hundred-MB transfer to
+this host. `scp` moved the 636 MB reranker in 55 s (11.6 MB/s).
 
 Killing an `ssh`-wrapped `hf download` from the client does **not** kill it on
 `big`; it orphans and competes with its own replacement. Use

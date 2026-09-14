@@ -42,8 +42,25 @@ enum Command {
     Bench,
     /// Run the MINJA-style poisoning attack suite
     Attack,
-    /// Run the ablation matrix
-    Ablate,
+    /// Run the M4 retrieval ablation against an already-built memory
+    Ablate {
+        #[arg(long, default_value = "data/locomo10.json")]
+        dataset: String,
+        #[arg(long, default_value = "myelin_locomo")]
+        collection: String,
+        #[arg(long, default_value = "data/locomo.ledger")]
+        ledger: String,
+        /// Dev-split size in *conversations*. Splitting by question would
+        /// leak: questions from one conversation share one memory.
+        #[arg(long, default_value_t = 5)]
+        units: usize,
+        /// Evidence-set size. `EVALUATION.md` §8 row 4 sweeps this.
+        #[arg(long, default_value_t = 6)]
+        k: usize,
+        /// Cap questions per arm, for a quick smoke of the harness itself.
+        #[arg(long)]
+        limit: Option<usize>,
+    },
     /// Render comparison tables and the Pareto/LAFS report
     Report,
     /// Package a leaderboard submission
@@ -57,7 +74,7 @@ impl Command {
             Command::Build { .. } => "build",
             Command::Bench => "bench",
             Command::Attack => "attack",
-            Command::Ablate => "ablate",
+            Command::Ablate { .. } => "ablate",
             Command::Report => "report",
             Command::Package => "package",
         }
@@ -74,6 +91,14 @@ async fn main() -> anyhow::Result<()> {
             ref ledger,
             limit,
         } => build_cmd(collection, ledger, limit).await,
+        Command::Ablate {
+            ref dataset,
+            ref collection,
+            ref ledger,
+            units,
+            k,
+            limit,
+        } => ablate_cmd(dataset, collection, ledger, units, k, limit).await,
         rest => {
             println!("{}: not implemented (milestone M5+)", rest.name());
             Ok(())
@@ -130,5 +155,30 @@ async fn build_cmd(collection: &str, ledger: &str, limit: Option<usize>) -> anyh
     let report = build_locomo(data, collection, Path::new(ledger), limit).await?;
     let units = report.per_unit.len();
     report.print(units);
+    Ok(())
+}
+
+/// Run the M4 ablation table against a memory that `build` already wrote.
+///
+/// Deliberately separate from `build`: rebuilding a memory costs GPU-hours and
+/// the ablation costs minutes, so they must be independently runnable.
+async fn ablate_cmd(
+    dataset: &str,
+    collection: &str,
+    ledger: &str,
+    units: usize,
+    k: usize,
+    limit: Option<usize>,
+) -> anyhow::Result<()> {
+    let run = myelin_eval::ablate::ablate_locomo(
+        Path::new(dataset),
+        collection,
+        Path::new(ledger),
+        units,
+        k,
+        limit,
+    )
+    .await?;
+    myelin_eval::ablate::print_table(&run, k);
     Ok(())
 }

@@ -13,6 +13,8 @@ name = "myelin-eval"
 path = "src/main.rs"
 
 [dependencies]
+async-trait = { workspace = true }
+uuid = { workspace = true }
 myelin-core = { workspace = true }
 anyhow = { workspace = true }
 chrono = { workspace = true }

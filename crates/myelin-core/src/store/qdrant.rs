@@ -420,30 +420,40 @@ impl QdrantStore {
             ..Default::default()
         };
 
-        let dense_query = QueryPointsBuilder::new(&self.collection)
-            .query(Query::new_nearest(dense))
-            .using(DENSE)
-            .filter(filter.clone())
-            .limit(limit)
-            .with_payload(true);
-        let lex_query = QueryPointsBuilder::new(&self.collection)
-            .query(Query::new_nearest(VectorInput::from(Document::new(
-                text.to_string(),
-                BM25_MODEL,
-            ))))
-            .using(LEX)
-            .filter(filter)
-            .limit(limit)
-            .with_payload(true);
+        // The lex-only ablation arm passes no dense vector. An empty vector
+        // is not a degenerate case Qdrant tolerates: it rejects the entire
+        // batch with `Vector dimension error: expected dim: 1024, got 0`. So
+        // the sub-query is omitted rather than emptied, which also makes that
+        // arm's measured latency honest.
+        let want_dense = !dense.is_empty();
+        let mut queries: Vec<qdrant_client::qdrant::QueryPoints> = Vec::with_capacity(2);
+        if want_dense {
+            queries.push(
+                QueryPointsBuilder::new(&self.collection)
+                    .query(Query::new_nearest(dense))
+                    .using(DENSE)
+                    .filter(filter.clone())
+                    .limit(limit)
+                    .with_payload(true)
+                    .into(),
+            );
+        }
+        queries.push(
+            QueryPointsBuilder::new(&self.collection)
+                .query(Query::new_nearest(VectorInput::from(Document::new(
+                    text.to_string(),
+                    BM25_MODEL,
+                ))))
+                .using(LEX)
+                .filter(filter)
+                .limit(limit)
+                .with_payload(true)
+                .into(),
+        );
 
         let response = self
             .client
-            .query_batch(
-                QueryBatchPointsBuilder::new(&self.collection, vec![
-                    dense_query.into(),
-                    lex_query.into(),
-                ]),
-            )
+            .query_batch(QueryBatchPointsBuilder::new(&self.collection, queries))
             .await?;
 
         let mut lists = response
@@ -475,7 +485,11 @@ impl QdrantStore {
 
         // Order is the order the queries were submitted in.
         let lex = lists.pop().unwrap_or_default();
-        let dense = lists.pop().unwrap_or_default();
+        let dense = if want_dense {
+            lists.pop().unwrap_or_default()
+        } else {
+            Vec::new()
+        };
         Ok(HybridLists { dense, lex })
     }
 

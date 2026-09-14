@@ -20,6 +20,7 @@ LC=/home/ladvien/.local/llama.cpp/cuda-ece963
 export LD_LIBRARY_PATH="$LC"
 R=/home/ladvien/models/Qwen3.5-9B-GGUF
 E=/home/ladvien/models/Qwen3-Embedding-8B-GGUF
+K=/home/ladvien/models/bge-reranker-v2-m3-GGUF
 
 # Bind localhost, like the llama-swap children do.
 #
@@ -37,6 +38,7 @@ E=/home/ladvien/models/Qwen3-Embedding-8B-GGUF
 BIND_HOST="${MYELIN_BIND_HOST:-127.0.0.1}"
 READER_PORT="${MYELIN_READER_PORT:-5810}"
 EMBED_PORT="${MYELIN_EMBED_PORT:-5811}"
+RERANK_PORT="${MYELIN_RERANK_PORT:-5813}"
 
 # Contexts are small on purpose, for two reasons.
 #
@@ -96,6 +98,27 @@ nohup "$LC/llama-server" \
 echo $! > /tmp/myelin-embed.pid
 fi
 
+# The cross-encoder. 606 MiB of weights, and the single largest accuracy lever
+# in the read path: MS MARCO MRR@10 18.7 -> 36.5 for a cross-encoder over BM25
+# (PLAN.md 2, finding 2), where fusion is worth 1-2 points.
+#
+# --reranking implies --embedding internally and REQUIRES --pooling rank; the
+# server refuses to start otherwise. -c 8192 is per-slot budget for a
+# (query, document) pair, not a conversation: episodes cap at 512 tokens so
+# even a 25-document batch never approaches it.
+#
+# Opt out with MYELIN_RERANK=0 when only the write path is needed; a loaded
+# reranker costs VRAM continuously and compute only when queried.
+if [ "${MYELIN_RERANK:-1}" = "1" ]; then
+nohup "$LC/llama-server" \
+  -m "$K/bge-reranker-v2-m3-Q8_0.gguf" \
+  --host "$BIND_HOST" --port "$RERANK_PORT" \
+  -c 8192 -ngl 999 \
+  --reranking --pooling rank \
+  > /tmp/myelin-rerank.log 2>&1 &
+echo $! > /tmp/myelin-rerank.pid
+fi
+
 for _ in $(seq 1 60); do
   r=$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 "http://$BIND_HOST:$READER_PORT/health" || true)
   if [ "${MYELIN_EMBEDDER:-bge}" = "qwen" ]; then
@@ -103,12 +126,17 @@ for _ in $(seq 1 60); do
   else
     e=200
   fi
-  if [ "$r" = 200 ] && [ "$e" = 200 ]; then
-    echo "ready host=$BIND_HOST reader=:$READER_PORT embed=:$EMBED_PORT vram=$(nvidia-smi --query-gpu=memory.used --format=csv,noheader)"
+  if [ "${MYELIN_RERANK:-1}" = "1" ]; then
+    k=$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 "http://$BIND_HOST:$RERANK_PORT/health" || true)
+  else
+    k=200
+  fi
+  if [ "$r" = 200 ] && [ "$e" = 200 ] && [ "$k" = 200 ]; then
+    echo "ready host=$BIND_HOST reader=:$READER_PORT embed=:$EMBED_PORT rerank=:$RERANK_PORT vram=$(nvidia-smi --query-gpu=memory.used --format=csv,noheader)"
     exit 0
   fi
   sleep 5
 done
 
-echo "FAILED to become ready; see /tmp/myelin-reader.log and /tmp/myelin-embed.log" >&2
+echo "FAILED to become ready; see /tmp/myelin-{reader,embed,rerank}.log" >&2
 exit 1
