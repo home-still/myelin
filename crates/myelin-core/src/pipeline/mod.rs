@@ -11,5 +11,6 @@ pub mod extract;
 pub mod fuse;
 pub mod index;
 pub mod ingest;
+pub mod investigate;
 pub mod retrieve;
 pub mod write;

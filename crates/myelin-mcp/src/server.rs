@@ -18,9 +18,11 @@ use serde::{Deserialize, Serialize};
 
 use myelin_core::config::MyelinConfig;
 use myelin_core::embed::remote::RemoteEmbedder;
+use myelin_core::llm::openai::OpenAiLlm;
 use myelin_core::model::evidence::{EvidenceSet, WireItem};
 use myelin_core::model::query::{Budget, Mode, Recall, ScopeFilter};
 use myelin_core::model::record::RecordKind;
+use myelin_core::pipeline::investigate::{InvestigateTrace, Investigator};
 use myelin_core::pipeline::retrieve::{RecallTrace, RetrieveConfig, Retriever};
 use myelin_core::rerank::cross::CrossEncoder;
 use myelin_core::store::ledger::Ledger;
@@ -36,6 +38,10 @@ pub struct Backend {
     pub store: QdrantStore,
     pub ledger: Ledger,
     pub embedder: RemoteEmbedder,
+    /// The controller for `investigate`'s reflect step. Same model as the
+    /// writer's judge: R4 wants one store AND one model behind both modes,
+    /// so an operating point is a parameter change, not a redeployment.
+    pub llm: OpenAiLlm,
     /// `None` when no reranker is configured. That is a legitimate operating
     /// point (the `hybrid_no_rerank` ablation arm), not a degraded mode.
     pub reranker: Option<CrossEncoder>,
@@ -50,6 +56,7 @@ impl Backend {
             store: QdrantStore::new(&qdrant_cfg)?,
             ledger: Ledger::open(&cfg.ledger).await?,
             embedder: RemoteEmbedder::new(&cfg.embed.url, &cfg.embed.model, cfg.embed.dim)?,
+            llm: OpenAiLlm::new(&cfg.llm.url, &cfg.llm.model)?,
             reranker: CrossEncoder::new(&cfg.rerank.url, &cfg.rerank.model).ok(),
             config: RetrieveConfig::default(),
         })
@@ -181,16 +188,7 @@ impl MyelinServer {
             kinds,
         };
 
-        let mut retriever = Retriever::new(
-            &self.backend.embedder,
-            &self.backend.store,
-            &self.backend.ledger,
-        )
-        .with_config(self.backend.config.clone());
-        if let Some(r) = &self.backend.reranker {
-            retriever = retriever.with_reranker(r);
-        }
-
+        let retriever = self.retriever();
         let (evidence, trace) = retriever
             .recall(&query)
             .await
@@ -198,6 +196,90 @@ impl MyelinServer {
 
         Ok(Json(to_result(evidence, trace)))
     }
+
+    #[tool(
+        name = "investigate",
+        description = "Agentic retrieval: search, reflect, search again, until the evidence is \
+                       sufficient and self-consistent or the step budget runs out. Slower and \
+                       more accurate than recall; returns the same evidence shape."
+    )]
+    async fn investigate(
+        &self,
+        Parameters(params): Parameters<InvestigateParams>,
+    ) -> Result<Json<InvestigateResult>, ErrorData> {
+        let defaults = Budget::default();
+        let mut scope = ScopeFilter::tenant(&params.tenant);
+        scope.namespace = params.namespace.clone();
+
+        let query = Recall {
+            scope,
+            text: params.question,
+            budget: Budget {
+                k: params.k.unwrap_or(defaults.k),
+                tokens: params.budget_tokens.unwrap_or(defaults.tokens),
+                max_steps: params.max_steps.unwrap_or(4),
+            },
+            mode: Mode::Investigate,
+            kinds: None,
+        };
+
+        let retriever = self.retriever();
+        let (evidence, trace) = Investigator::new(&self.backend.llm, &retriever)
+            .investigate(&query)
+            .await
+            .map_err(|e| ErrorData::internal_error(e.to_string(), None))?;
+
+        Ok(Json(InvestigateResult {
+            items: evidence.to_wire(),
+            record_ids: evidence.items.iter().map(|i| i.record_id.to_string()).collect(),
+            tokens: evidence.tokens,
+            queries: evidence.trace.iter().map(|t| t.query.clone()).collect(),
+            trace,
+        }))
+    }
+}
+
+impl MyelinServer {
+    /// Both modes drive the same retriever over the same store (R4).
+    fn retriever(&self) -> Retriever<'_> {
+        let mut r = Retriever::new(
+            &self.backend.embedder,
+            &self.backend.store,
+            &self.backend.ledger,
+        )
+        .with_config(self.backend.config.clone());
+        if let Some(reranker) = &self.backend.reranker {
+            r = r.with_reranker(reranker);
+        }
+        r
+    }
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub struct InvestigateParams {
+    pub question: String,
+    pub tenant: String,
+    #[serde(default)]
+    pub namespace: Option<String>,
+    #[serde(default)]
+    pub k: Option<usize>,
+    #[serde(default)]
+    pub budget_tokens: Option<usize>,
+    /// Iteration cap. The latency knob that makes a second operating point
+    /// possible from one built memory (R4).
+    #[serde(default)]
+    pub max_steps: Option<usize>,
+}
+
+#[derive(Debug, Serialize, schemars::JsonSchema)]
+pub struct InvestigateResult {
+    pub items: Vec<WireItem>,
+    pub record_ids: Vec<String>,
+    pub tokens: usize,
+    /// Every search the loop actually issued, in order — the agentic trace
+    /// `EVALUATION.md` §9 requires.
+    pub queries: Vec<String>,
+    pub trace: InvestigateTrace,
 }
 
 fn to_result(evidence: EvidenceSet, trace: RecallTrace) -> RecallResult {
