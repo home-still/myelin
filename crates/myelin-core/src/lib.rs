@@ -6,7 +6,9 @@
 pub mod config;
 pub mod embed;
 pub mod error;
+pub mod llm;
 pub mod model;
+pub mod pipeline;
 pub mod store;
 
 pub use error::{MyelinError, Result};
