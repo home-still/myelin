@@ -105,6 +105,10 @@ enum Command {
         /// Cap questions per arm, for a quick smoke of the harness itself.
         #[arg(long)]
         limit: Option<usize>,
+        /// Instead of the channel ablation, sweep `investigate`'s step
+        /// budget and report the marginal value of each extra step (M7).
+        #[arg(long, value_delimiter = ',')]
+        steps: Option<Vec<usize>>,
     },
     /// Render comparison tables and the Pareto/LAFS report
     Report,
@@ -176,7 +180,8 @@ async fn main() -> anyhow::Result<()> {
             units,
             k,
             limit,
-        } => ablate_cmd(dataset, collection, ledger, units, k, limit).await,
+            ref steps,
+        } => ablate_cmd(dataset, collection, ledger, units, k, limit, steps.as_deref()).await,
         rest => {
             println!("{}: not implemented (milestone M5+)", rest.name());
             Ok(())
@@ -276,6 +281,7 @@ async fn build_cmd(
 ///
 /// Deliberately separate from `build`: rebuilding a memory costs GPU-hours and
 /// the ablation costs minutes, so they must be independently runnable.
+#[allow(clippy::too_many_arguments)]
 async fn ablate_cmd(
     dataset: &str,
     collection: &str,
@@ -283,7 +289,22 @@ async fn ablate_cmd(
     units: usize,
     k: usize,
     limit: Option<usize>,
+    steps: Option<&[usize]>,
 ) -> anyhow::Result<()> {
+    if let Some(steps) = steps {
+        let points = myelin_eval::ablate::investigate_curve(
+            Path::new(dataset),
+            collection,
+            Path::new(ledger),
+            units,
+            k,
+            steps,
+            limit,
+        )
+        .await?;
+        myelin_eval::ablate::print_step_curve(&points, k);
+        return Ok(());
+    }
     let run = myelin_eval::ablate::ablate_locomo(
         Path::new(dataset),
         collection,

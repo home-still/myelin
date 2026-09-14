@@ -28,6 +28,7 @@ use myelin_core::config::MyelinConfig;
 use myelin_core::embed::{remote::RemoteEmbedder, Embedder};
 use myelin_core::model::query::{Budget, Mode, Recall, ScopeFilter};
 use myelin_core::pipeline::ingest::{segment, SegmentConfig};
+use myelin_core::pipeline::investigate::{InvestigateConfig, Investigator};
 use myelin_core::pipeline::retrieve::{Channels, RetrieveConfig, Retriever};
 use myelin_core::rerank::{cross::CrossEncoder, Reranker};
 use myelin_core::store::ids::record_id;
@@ -175,6 +176,30 @@ impl Embedder for CachingEmbedder<'_> {
     }
 }
 
+/// Questions with gold evidence, in dataset order.
+///
+/// Category 5 is LoCoMo's adversarial split: it carries no evidence to
+/// retrieve, so scoring retrieval on it would be meaningless. It is an
+/// abstention test and belongs to G3, not here.
+fn collect_questions(split: &[LocomoConversation]) -> Vec<Question> {
+    let mut questions = Vec::new();
+    for conv in split {
+        let tenant = format!("locomo/{}", conv.sample_id);
+        for qa in &conv.qa {
+            if qa.evidence.is_empty() {
+                continue;
+            }
+            questions.push(Question {
+                tenant: tenant.clone(),
+                text: qa.question.clone(),
+                category: qa.category,
+                gold: qa.evidence.iter().cloned().collect(),
+            });
+        }
+    }
+    questions
+}
+
 pub struct Arm {
     pub name: &'static str,
     pub config: RetrieveConfig,
@@ -281,25 +306,7 @@ pub async fn ablate_locomo(
     let ledger = Ledger::open(ledger_path).await.context("open ledger")?;
     let coverage = Coverage::build(&split, &ledger).await?;
 
-    // Only questions whose memory actually exists in the ledger, and only
-    // questions with gold evidence. Category 5 is LoCoMo's adversarial split:
-    // it has no evidence to retrieve, so scoring retrieval on it would be
-    // meaningless (it is an abstention test, measured in G3, not here).
-    let mut questions: Vec<Question> = Vec::new();
-    for conv in &split {
-        let tenant = format!("locomo/{}", conv.sample_id);
-        for qa in &conv.qa {
-            if qa.evidence.is_empty() {
-                continue;
-            }
-            questions.push(Question {
-                tenant: tenant.clone(),
-                text: qa.question.clone(),
-                category: qa.category,
-                gold: qa.evidence.iter().cloned().collect(),
-            });
-        }
-    }
+    let mut questions = collect_questions(&split);
     if let Some(n) = limit {
         questions.truncate(n);
     }
@@ -471,5 +478,185 @@ pub fn print_table(run: &AblationRun, k: usize) {
             }
             println!();
         }
+    }
+}
+
+/// One point on the marginal-step-value curve (`PLAN.md` M7).
+#[derive(Debug, Clone)]
+pub struct StepPoint {
+    pub max_steps: usize,
+    pub recall: f64,
+    pub any: f64,
+    /// Steps actually taken. The loop stops early on sufficiency or on a
+    /// barren search, so this is well below `max_steps` at the top of the
+    /// sweep — which is the interesting part: budget granted is not budget
+    /// spent.
+    pub mean_steps: f64,
+    pub mean_pool: f64,
+    pub barren_fraction: f64,
+    pub conflict_fraction: f64,
+    pub p50_ms: u128,
+    pub p90_ms: u128,
+}
+
+/// M7 — accuracy and cost as a function of the step budget.
+///
+/// The exit criterion asks for the *marginal* value of a step, so the table
+/// reports the delta against `max_steps = 1` (which is `recall` with an
+/// extra reflect call) rather than absolute numbers alone. A step that buys
+/// no recall and costs two seconds is a step the operating point should not
+/// pay for.
+///
+/// Scored by the same deterministic evidence-coverage metric as the
+/// ablation: no reader, no judge. Adding a reader here would measure the
+/// reader's tolerance for extra context, not the loop's ability to find it.
+pub async fn investigate_curve(
+    path: &Path,
+    collection: &str,
+    ledger_path: &Path,
+    units: usize,
+    k: usize,
+    steps: &[usize],
+    limit: Option<usize>,
+) -> Result<Vec<StepPoint>> {
+    let cfg = MyelinConfig::load().context("load myelin config")?;
+    let conversations = locomo::load(path)?;
+    let split: Vec<_> = conversations.into_iter().take(units).collect();
+
+    let ledger = Ledger::open(ledger_path).await.context("open ledger")?;
+    let coverage = Coverage::build(&split, &ledger).await?;
+    let mut questions = collect_questions(&split);
+    if let Some(n) = limit {
+        questions.truncate(n);
+    }
+
+    let base_embedder = RemoteEmbedder::new(&cfg.embed.url, &cfg.embed.model, cfg.embed.dim)
+        .context("embedder client")?;
+    let embedder = CachingEmbedder::new(&base_embedder);
+    let mut qdrant_cfg = cfg.qdrant.clone();
+    qdrant_cfg.collection = collection.to_string();
+    let store = QdrantStore::new(&qdrant_cfg).context("qdrant store")?;
+    let reranker = CrossEncoder::new(&cfg.rerank.url, &cfg.rerank.model).ok();
+    let llm = myelin_core::llm::openai::OpenAiLlm::new(&cfg.llm.url, &cfg.llm.model)
+        .context("controller client")?;
+
+    let mut retriever = Retriever::new(&embedder, &store, &ledger);
+    if let Some(r) = &reranker {
+        retriever = retriever.with_reranker(r as &dyn Reranker);
+    }
+
+    let mut out = Vec::new();
+    for &max_steps in steps {
+        let mut recall_sum = 0.0;
+        let mut any_sum = 0.0;
+        let mut steps_sum = 0.0;
+        let mut pool_sum = 0.0;
+        let mut barren = 0.0;
+        let mut conflicts = 0.0;
+        let mut lat: Vec<u128> = Vec::with_capacity(questions.len());
+
+        for q in &questions {
+            let query = Recall {
+                scope: ScopeFilter::tenant(&q.tenant).with_namespace("locomo"),
+                text: q.text.clone(),
+                budget: Budget {
+                    k,
+                    tokens: 2048,
+                    max_steps,
+                },
+                mode: Mode::Investigate,
+                kinds: None,
+            };
+            let (evidence, trace) = Investigator::new(&llm, &retriever)
+                .with_config(InvestigateConfig {
+                    max_steps: max_steps.max(1),
+                    ..Default::default()
+                })
+                .investigate(&query)
+                .await
+                .with_context(|| format!("investigate {:?}", q.text))?;
+
+            let mut hit: HashSet<&String> = HashSet::new();
+            for item in &evidence.items {
+                if let Some(c) = coverage.of(&item.record_id) {
+                    hit.extend(q.gold.iter().filter(|g| c.contains(*g)));
+                }
+            }
+            recall_sum += hit.len() as f64 / q.gold.len() as f64;
+            any_sum += f64::from(u8::from(!hit.is_empty()));
+            steps_sum += trace.steps as f64;
+            pool_sum += trace.pool as f64;
+            barren += trace.barren_steps as f64;
+            conflicts += f64::from(u8::from(trace.conflicts_seen > 0));
+            lat.push(trace.total_ms);
+        }
+
+        lat.sort_unstable();
+        let n = questions.len() as f64;
+        let point = StepPoint {
+            max_steps,
+            recall: recall_sum / n,
+            any: any_sum / n,
+            mean_steps: steps_sum / n,
+            mean_pool: pool_sum / n,
+            barren_fraction: if steps_sum > 0.0 { barren / steps_sum } else { 0.0 },
+            conflict_fraction: conflicts / n,
+            p50_ms: percentile(&lat, 0.50),
+            p90_ms: percentile(&lat, 0.90),
+        };
+        println!(
+            "  max_steps={:<2} recall {:.4}  any {:.4}  steps {:.2}  pool {:.1}  p50 {}ms  p90 {}ms",
+            point.max_steps,
+            point.recall,
+            point.any,
+            point.mean_steps,
+            point.mean_pool,
+            point.p50_ms,
+            point.p90_ms
+        );
+        out.push(point);
+    }
+    Ok(out)
+}
+
+pub fn print_step_curve(points: &[StepPoint], k: usize) {
+    println!("\n=== M7 marginal step value, recall@{k} on the LoCoMo dev split ===");
+    println!(
+        "{:<10} {:>8} {:>9} {:>8} {:>7} {:>7} {:>8} {:>8} {:>8}",
+        "max_steps", "recall", "Δ vs 1", "any", "steps", "pool", "barren", "p50ms", "p90ms"
+    );
+    let base = points.first().map(|p| p.recall).unwrap_or(0.0);
+    for p in points {
+        println!(
+            "{:<10} {:>8.4} {:>+9.4} {:>8.4} {:>7.2} {:>7.1} {:>7.0}% {:>8} {:>8}",
+            p.max_steps,
+            p.recall,
+            p.recall - base,
+            p.any,
+            p.mean_steps,
+            p.mean_pool,
+            p.barren_fraction * 100.0,
+            p.p50_ms,
+            p.p90_ms
+        );
+    }
+    // The marginal number M7 actually asks for: recall bought per extra
+    // second of p50 latency, against the 1-step point.
+    println!("\nmarginal value (recall gained per extra second of p50 latency, vs max_steps=1)");
+    let base_ms = points.first().map(|p| p.p50_ms).unwrap_or(0);
+    for p in points.iter().skip(1) {
+        let dt = (p.p50_ms.saturating_sub(base_ms)) as f64 / 1000.0;
+        let dr = p.recall - base;
+        println!(
+            "  {:<2} -> {:+.4} recall for {:+.2}s  =  {}",
+            p.max_steps,
+            dr,
+            dt,
+            if dt > 0.0 {
+                format!("{:+.4} recall/s", dr / dt)
+            } else {
+                "no extra latency".to_string()
+            }
+        );
     }
 }
