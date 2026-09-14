@@ -78,7 +78,15 @@ enum Command {
     /// Run the accuracy/latency benchmark suite
     Bench,
     /// Run the MINJA-style poisoning attack suite (EVALUATION.md §7)
-    Attack,
+    Attack {
+        /// Also run E1/E2, which need a live store and a GPU: they build
+        /// two scratch collections through the real write path.
+        #[arg(long)]
+        live: bool,
+        /// Where scratch ledgers go. Deleted when the run finishes.
+        #[arg(long, default_value = "data")]
+        ledger_dir: String,
+    },
     /// Run the M4 retrieval ablation against an already-built memory
     Ablate {
         #[arg(long, default_value = "data/locomo10.json")]
@@ -110,7 +118,7 @@ impl Command {
             Command::Fetch => "fetch",
             Command::Build { .. } => "build",
             Command::Bench => "bench",
-            Command::Attack => "attack",
+            Command::Attack { .. } => "attack",
             Command::Ablate { .. } => "ablate",
             Command::Report => "report",
             Command::Package => "package",
@@ -139,7 +147,7 @@ async fn main() -> anyhow::Result<()> {
             )
             .await
         }
-        Command::Attack => {
+        Command::Attack { live, ref ledger_dir } => {
             let (e3, e5) = myelin_eval::attack::run_offline()?;
             myelin_eval::attack::print_gate_report(&e3, &e5);
             anyhow::ensure!(
@@ -152,6 +160,13 @@ async fn main() -> anyhow::Result<()> {
                 "E5 gate: {} poisoned records admitted at first-party trust",
                 e5.admitted
             );
+            if live {
+                let run =
+                    myelin_eval::attack_live::run(Path::new(ledger_dir), &[3, 6, 10]).await?;
+                myelin_eval::attack_live::print(&run);
+            } else {
+                println!("\nE1/E2 skipped (pass --live; they need a GPU and a live store).");
+            }
             Ok(())
         }
         Command::Ablate {

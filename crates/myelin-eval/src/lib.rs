@@ -11,5 +11,6 @@
 
 pub mod ablate;
 pub mod attack;
+pub mod attack_live;
 pub mod build;
 pub mod datasets;
