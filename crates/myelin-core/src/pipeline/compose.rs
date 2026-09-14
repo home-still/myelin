@@ -34,6 +34,29 @@ pub struct ComposeConfig {
     pub max_tokens: usize,
     /// Cosine at or above which two items are the same evidence.
     pub tau_near_dup: f32,
+    /// Prefix `Untrusted` items with their tier in the emitted text.
+    ///
+    /// **Default off, because it was measured and it does not work.**
+    ///
+    /// The idea was sound on paper: E1 injects paraphrased poison that the
+    /// pattern gate misses, the store already knows it is `Untrusted`
+    /// (score 0.30) against first-party memory at `Verified` (0.90), and
+    /// the read path was discarding that. Prefixing `[untrusted source]`
+    /// tells the reader what the store knows.
+    ///
+    /// Measured effect on attack success: **none.** ASR stayed at 100%
+    /// (empty) and 80% (pre-populated, k=6), identical to the unlabelled
+    /// run. A 9B reader repeats the content regardless of the label.
+    ///
+    /// So it is off: it costs tokens in every prompt and buys nothing, and
+    /// shipping a defence that provably does not defend is worse than
+    /// having none, because it invites the belief that the problem is
+    /// handled. `EvidenceItem::trust` still carries the tier structurally,
+    /// where a consumer that can actually act on it will find it.
+    ///
+    /// Kept as a switch so the next attempt at a reader-side defence has a
+    /// baseline to beat.
+    pub label_untrusted: bool,
 }
 
 impl Default for ComposeConfig {
@@ -42,6 +65,7 @@ impl Default for ComposeConfig {
             k: 6,
             max_tokens: 2048,
             tau_near_dup: 0.93,
+            label_untrusted: false,
         }
     }
 }
@@ -58,6 +82,21 @@ pub struct Ranked {
 /// Select, dedup, budget and bookend.
 ///
 /// Input must be sorted best-first; this function does not re-rank.
+/// The emitted text for one record.
+///
+/// `Verified` and `Asserted` pass through unchanged: labelling everything
+/// would make the label meaningless, which is the same failure as a poison
+/// filter that flags all text. Only material that crossed a trust boundary
+/// is marked.
+fn label(record: &crate::model::record::MemoryRecord, cfg: &ComposeConfig) -> String {
+    use crate::model::record::TrustTier;
+    if cfg.label_untrusted && record.trust.tier == TrustTier::Untrusted {
+        format!("[untrusted source] {}", record.text)
+    } else {
+        record.text.clone()
+    }
+}
+
 pub fn compose(ranked: Vec<Ranked>, cfg: &ComposeConfig) -> EvidenceSet {
     // 1. Dedup, keeping the higher-ranked copy.
     let mut kept: Vec<Ranked> = Vec::new();
@@ -100,10 +139,11 @@ pub fn compose(ranked: Vec<Ranked>, cfg: &ComposeConfig) -> EvidenceSet {
         .into_iter()
         .map(|r| EvidenceItem {
             kind: EvidenceKind::Text,
-            value: r.record.text.clone(),
+            value: label(&r.record, cfg),
             record_id: r.record.id,
             source: r.record.provenance.source.clone(),
             score: r.score,
+            trust: r.record.trust.tier,
         })
         .collect();
 
@@ -254,6 +294,7 @@ mod tests {
             k: 6,
             max_tokens: 300,
             tau_near_dup: 0.93,
+            ..Default::default()
         };
         let items: Vec<Ranked> = (0..5)
             .map(|i| Ranked {
@@ -276,6 +317,7 @@ mod tests {
             k: 6,
             max_tokens: 10,
             tau_near_dup: 0.93,
+            ..Default::default()
         };
         let set = compose(
             vec![Ranked {

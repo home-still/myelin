@@ -11,7 +11,7 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use super::record::SourceRef;
+use super::record::{SourceRef, TrustTier};
 
 /// `JsonSchema` is derived here and on [`WireItem`] so the MCP tool schema is
 /// generated from the *same* struct the benchmark contract is defined by. A
@@ -31,6 +31,14 @@ pub struct EvidenceItem {
     pub record_id: Uuid,
     pub source: SourceRef,
     pub score: f32,
+    /// The record's trust tier, carried so a consumer can discount it.
+    ///
+    /// Measured necessity: E1 injected paraphrased poison that the pattern
+    /// gate misses, and the reader repeated the attacker's payload in
+    /// **80-100%** of answers. The store knew all along — poison lands at
+    /// `Untrusted` (score 0.30) and first-party memory at `Verified` (0.90)
+    /// — and the read path was throwing that away.
+    pub trust: TrustTier,
 }
 
 /// The exact JSON object shape R1 mandates. `type` is a Rust keyword-adjacent
