@@ -85,6 +85,20 @@ pub struct CompletionRequest {
     /// `consolidate` (§6.3), where a free-form answer is unusable.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub json_schema: Option<serde_json::Value>,
+    /// Let the model emit a reasoning trace.
+    ///
+    /// **Default off, and that is load-bearing.** Qwen3.5-9B through
+    /// llama.cpp spends its entire completion budget on `reasoning_content`
+    /// for structured tasks: measured, a two-line episode burned all 512
+    /// tokens and returned `content: ""`, versus **18 tokens** with thinking
+    /// off. At one call per episode over a corpus that is the difference
+    /// between a feasible ingest and an infeasible one. `investigate` (§7.2)
+    /// turns it back on, where deliberation is the point.
+    ///
+    /// Note `reasoning_effort` does **not** work on this model — only
+    /// `enable_thinking` does. Verified against the live server.
+    #[serde(default)]
+    pub thinking: bool,
 }
 
 impl CompletionRequest {
@@ -97,7 +111,13 @@ impl CompletionRequest {
             temperature: 0.0,
             max_tokens: None,
             json_schema: None,
+            thinking: false,
         }
+    }
+
+    pub fn with_thinking(mut self, thinking: bool) -> Self {
+        self.thinking = thinking;
+        self
     }
 
     pub fn with_tools(mut self, tools: Vec<ToolSpec>) -> Self {
@@ -153,6 +173,15 @@ pub trait Llm: Send + Sync {
     async fn complete(&self, req: &CompletionRequest) -> Result<Completion> {
         let completion = self.raw_complete(req).await?;
         if completion.is_empty() {
+            // Two different failures that look identical from here. Telling
+            // them apart is the difference between debugging VRAM and
+            // debugging a token budget.
+            if completion.finish_reason.as_deref() == Some("length") {
+                return Err(MyelinError::BudgetExhausted {
+                    model: self.id().to_string(),
+                    max_tokens: req.max_tokens,
+                });
+            }
             return Err(MyelinError::EmptyCompletion {
                 model: self.id().to_string(),
             });
@@ -245,6 +274,37 @@ mod tests {
                 "wrong error for {body:?}: {err}"
             );
         }
+    }
+
+    /// Budget exhaustion is a different diagnosis from a dead model, and the
+    /// error has to say which: one sends you to `nvidia-smi`, the other to
+    /// the token budget.
+    #[tokio::test]
+    async fn a_truncated_reasoning_trace_is_not_reported_as_a_dead_model() {
+        let llm = Canned(Completion {
+            text: String::new(),
+            tool_calls: vec![],
+            finish_reason: Some("length".into()),
+            usage: Usage::default(),
+        });
+        let err = llm
+            .complete(&req().with_max_tokens(512))
+            .await
+            .expect_err("empty content is still an error");
+        match err {
+            MyelinError::BudgetExhausted { max_tokens, .. } => {
+                assert_eq!(max_tokens, Some(512))
+            }
+            other => panic!("expected BudgetExhausted, got {other}"),
+        }
+    }
+
+    /// Thinking is off by default: on for structured extraction it consumes
+    /// the entire budget (measured 512 tokens vs 18 on the live model).
+    #[test]
+    fn thinking_is_off_by_default() {
+        assert!(!CompletionRequest::new(vec![]).thinking);
+        assert!(CompletionRequest::new(vec![]).with_thinking(true).thinking);
     }
 
     /// A tool call legitimately carries empty content; rejecting it would

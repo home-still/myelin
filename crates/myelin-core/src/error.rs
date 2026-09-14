@@ -20,6 +20,19 @@ pub enum MyelinError {
     #[error("llm returned an empty completion from {model}")]
     EmptyCompletion { model: String },
 
+    /// Distinct from [`MyelinError::EmptyCompletion`] on purpose. An empty
+    /// body means the model never ran; an empty *content* with
+    /// `finish_reason = "length"` means it ran and spent the whole budget
+    /// thinking. Measured on Qwen3.5-9B: a two-line episode consumed all 512
+    /// tokens as `reasoning_content` and returned `content: ""`. Reporting
+    /// that as a load failure sends you to `nvidia-smi` instead of to the
+    /// token budget.
+    #[error("{model} spent its entire {max_tokens:?}-token budget on reasoning and returned no content; disable thinking or raise max_tokens")]
+    BudgetExhausted {
+        model: String,
+        max_tokens: Option<u32>,
+    },
+
     #[error("io: {0}")]
     Io(#[from] std::io::Error),
 

@@ -18,6 +18,7 @@ async-trait = { workspace = true }
 chrono = { workspace = true }
 dirs = { workspace = true }
 figment = { workspace = true }
+futures-util = { workspace = true }
 petgraph = { workspace = true, optional = true }
 qdrant-client = { workspace = true }
 reqwest = { workspace = true }

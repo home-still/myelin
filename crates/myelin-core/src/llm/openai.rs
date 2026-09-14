@@ -61,6 +61,11 @@ impl OpenAiLlm {
             "stream": false,
         });
 
+        // llama.cpp routes this into the Jinja chat template. `enable_thinking`
+        // is the key Qwen3.5 honours; `reasoning_effort` is silently ignored
+        // by it, which is why the knob is spelled this way.
+        body["chat_template_kwargs"] = json!({ "enable_thinking": req.thinking });
+
         if let Some(n) = req.max_tokens {
             body["max_tokens"] = json!(n);
         }

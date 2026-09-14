@@ -9,4 +9,5 @@
 //! reader that only the CLI can reach cannot be unit-tested against a fixture
 //! or reused by a runner.
 
+pub mod build;
 pub mod datasets;

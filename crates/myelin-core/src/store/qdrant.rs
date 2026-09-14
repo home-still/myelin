@@ -22,7 +22,8 @@ use qdrant_client::qdrant::{
     CreateCollectionBuilder, CreateFieldIndexCollectionBuilder, DeleteCollectionBuilder,
     DeletePointsBuilder, Distance, Document, FieldType, Filter, GetPointsBuilder, Modifier,
     MultiVectorComparator, MultiVectorConfigBuilder, NamedVectors, PointId, PointStruct,
-    PointsIdsList, ScrollPointsBuilder, SetPayloadPointsBuilder, SparseVectorParamsBuilder,
+    PointsIdsList, Query, QueryPointsBuilder, ScrollPointsBuilder, SetPayloadPointsBuilder,
+    SparseVectorParamsBuilder,
     SparseVectorsConfigBuilder, UpdateStatus, UpsertPointsBuilder, Value, Vector,
     VectorParamsBuilder, VectorsConfigBuilder,
 };
@@ -295,6 +296,66 @@ impl QdrantStore {
             .result
             .first()
             .map(|p| snapshot_from(&p.payload)))
+    }
+
+    /// Nearest live records in a scope, by dense similarity.
+    ///
+    /// This exists because the obvious client-side alternative — pull the
+    /// candidate pool from SQLite and embed all of it — is quadratic in
+    /// corpus size. Measured: consolidating one LoCoMo conversation that way
+    /// managed 43 episodes in 900 s, because by episode 43 every candidate
+    /// was re-embedding a ~200-record pool. Qdrant already holds these
+    /// vectors; asking it is one round trip and no embedding at all.
+    ///
+    /// Filters mirror the ledger's admissibility rules (C7, I3): same tenant
+    /// and namespace, not retracted, not quarantined. `t_invalid` uses the 0
+    /// sentinel written by [`QdrantStore::payload_of`].
+    pub async fn search_dense(
+        &self,
+        vector: Vec<f32>,
+        tenant: &str,
+        namespace: &str,
+        limit: u64,
+    ) -> Result<Vec<(Uuid, f32)>> {
+        use qdrant_client::qdrant::Condition;
+
+        let filter = Filter {
+            must: vec![
+                Condition::matches("tenant", tenant.to_string()),
+                Condition::matches("namespace", namespace.to_string()),
+                Condition::matches("t_invalid", 0i64),
+            ],
+            must_not: vec![Condition::matches(
+                "trust_tier",
+                "quarantined".to_string(),
+            )],
+            ..Default::default()
+        };
+
+        let response = self
+            .client
+            .query(
+                QueryPointsBuilder::new(&self.collection)
+                    .query(Query::new_nearest(vector))
+                    .using(DENSE)
+                    .filter(filter)
+                    .limit(limit),
+            )
+            .await?;
+
+        Ok(response
+            .result
+            .iter()
+            .filter_map(|p| {
+                let id = p.id.as_ref()?.point_id_options.as_ref()?;
+                match id {
+                    qdrant_client::qdrant::point_id::PointIdOptions::Uuid(u) => {
+                        Uuid::parse_str(u.as_str()).ok().map(|id| (id, p.score))
+                    }
+                    qdrant_client::qdrant::point_id::PointIdOptions::Num(_) => None,
+                }
+            })
+            .collect())
     }
 
     /// Every point id in a namespace, with the payload fields reconcile checks.

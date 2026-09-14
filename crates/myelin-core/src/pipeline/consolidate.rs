@@ -216,6 +216,15 @@ fn looks_like_pii(text: &str) -> bool {
 pub struct ConsolidateConfig {
     /// Cosine at or above which a candidate is the same fact we already hold.
     pub tau_dup: f32,
+    /// Cosine below which the nearest stored fact is simply unrelated.
+    ///
+    /// Consolidation decides ADD/UPDATE/DELETE *relative to related facts*. A
+    /// candidate whose nearest neighbour is unrelated cannot supersede or
+    /// contradict anything, so the op is ADD by construction and asking a
+    /// model is pure cost. Measured on LoCoMo conv-26: one judgement call per
+    /// candidate was the dominant cost of the whole write path, and most
+    /// candidates in a growing corpus have no near neighbour at all.
+    pub tau_relevant: f32,
     /// Running importance sum that triggers one abstraction pass. Generative
     /// Agents used 150 (`10.48550/arxiv.2304.03442`).
     pub theta_reflect: f32,
@@ -227,6 +236,7 @@ impl Default for ConsolidateConfig {
     fn default() -> Self {
         Self {
             tau_dup: 0.95,
+            tau_relevant: 0.60,
             theta_reflect: 150.0,
             neighbours_k: 6,
         }
@@ -378,13 +388,19 @@ impl<'a> Consolidator<'a> {
             });
         }
 
-        // No neighbours: nothing to supersede or contradict, so skip the call.
-        if neighbours.is_empty() {
+        // Nothing related: nothing to supersede or contradict, so skip the
+        // call. `>=` against an empty list is vacuously false, which also
+        // covers the no-neighbours case.
+        let nearest = similarities
+            .iter()
+            .copied()
+            .fold(f32::NEG_INFINITY, f32::max);
+        if neighbours.is_empty() || nearest < self.config.tau_relevant {
             return Ok(Outcome::Apply {
                 delta: Delta::Add {
                     record: Box::new(candidate_record.clone()),
                 },
-                reason: "no in-scope neighbours".into(),
+                reason: format!("no related record (nearest {nearest:.3})"),
             });
         }
 
@@ -811,6 +827,50 @@ mod tests {
             )
             .unwrap();
         assert!(matches!(out, Outcome::Apply { delta: Delta::Noop { .. }, .. }), "{out:?}");
+    }
+
+    /// The relevance floor must not swallow a real duplicate or a real
+    /// supersession: those sit far above it.
+    #[tokio::test]
+    async fn an_unrelated_nearest_neighbour_skips_the_model() {
+        let c = candidate("Caroline prefers rye bread.");
+        let r = record(&c.text, TrustTier::Asserted);
+        // `Never` panics if the model is consulted.
+        let out = Consolidator::new(&Never)
+            .consolidate(
+                &c,
+                &r,
+                &[record("Melanie's car is blue.", TrustTier::Asserted)],
+                &[0.31],
+                SourceTier::Asserted,
+            )
+            .await
+            .unwrap();
+        assert!(matches!(out, Outcome::Apply { delta: Delta::Add { .. }, .. }), "{out:?}");
+    }
+
+    /// Above the floor the model IS consulted — otherwise supersession would
+    /// never happen and knowledge-update questions stay unanswerable.
+    #[tokio::test]
+    async fn a_related_neighbour_still_reaches_the_model() {
+        let c = candidate("Caroline lives in Hamburg.");
+        let r = record(&c.text, TrustTier::Asserted);
+        let out = Consolidator::new(&Says(
+            r#"{"op":"update","target":0,"contradicts_target":false,"reason":"moved"}"#.into(),
+        ))
+        .consolidate(
+            &c,
+            &r,
+            &[record("Caroline lives in Berlin.", TrustTier::Asserted)],
+            &[0.88],
+            SourceTier::Asserted,
+        )
+        .await
+        .unwrap();
+        assert!(
+            matches!(out, Outcome::Apply { delta: Delta::Update { .. }, .. }),
+            "{out:?}"
+        );
     }
 
     #[tokio::test]
