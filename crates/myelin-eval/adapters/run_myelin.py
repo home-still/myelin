@@ -85,7 +85,16 @@ def parse_args() -> argparse.Namespace:
     # Reader. Defaults are this project's tunnelled llama-server, not the
     # harness's `localhost:8023`, because a default that points at nothing is
     # a 10-minute debugging session every time.
-    parser.add_argument("--reader-model", default=os.getenv("READER_MODEL", "qwen3.5-9b"))
+    # `Qwen/Qwen3.5-9B` exactly, not the local llama-server alias.
+    # harness.py:857 gates `chat_template_kwargs={"enable_thinking": False}`
+    # on `args.model == "Qwen/Qwen3.5-9B"` — a string compare — so any other
+    # spelling silently leaves thinking ON, and this reader then spends the
+    # whole completion budget on reasoning_content and returns content "",
+    # which the harness rejects as `Model returned empty text`. Measured:
+    # that is exactly how the first end-to-end run failed. llama-server
+    # ignores the field and serves the loaded GGUF regardless, so the
+    # upstream spelling is both correct for the manifest and required here.
+    parser.add_argument("--reader-model", default=os.getenv("READER_MODEL", "Qwen/Qwen3.5-9B"))
     parser.add_argument("--reader-base-url", default=os.getenv("READER_BASE_URL", "http://127.0.0.1:5810/v1"))
     parser.add_argument("--reader-api-key-env", default="OPENAI_API_KEY")
     parser.add_argument("--reader-temperature", type=float, default=0.6)
