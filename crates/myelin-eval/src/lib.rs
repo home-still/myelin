@@ -10,5 +10,6 @@
 //! or reused by a runner.
 
 pub mod ablate;
+pub mod attack;
 pub mod build;
 pub mod datasets;
