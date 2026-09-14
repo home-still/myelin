@@ -21,7 +21,10 @@ use myelin_core::embed::remote::RemoteEmbedder;
 use myelin_core::llm::openai::OpenAiLlm;
 use myelin_core::model::evidence::{EvidenceSet, WireItem};
 use myelin_core::model::query::{Budget, Mode, Recall, ScopeFilter};
-use myelin_core::model::record::RecordKind;
+use myelin_core::model::delta::Delta;
+use myelin_core::model::record::{ActorId, LinkKind, RecordKind, Scope, SourceRef};
+use myelin_core::pipeline::ingest::Turn;
+use myelin_core::pipeline::write::WritePath;
 use myelin_core::pipeline::investigate::{InvestigateTrace, Investigator};
 use myelin_core::pipeline::retrieve::{RecallTrace, RetrieveConfig, Retriever};
 use myelin_core::rerank::cross::CrossEncoder;
@@ -237,9 +240,283 @@ impl MyelinServer {
             trace,
         }))
     }
+
+    #[tool(
+        name = "remember",
+        description = "Write one statement through the full write path: extract, consolidate against \
+                       neighbours, apply a four-op delta, index. Idempotent by content."
+    )]
+    async fn remember(
+        &self,
+        Parameters(params): Parameters<RememberParams>,
+    ) -> Result<Json<WriteResult>, ErrorData> {
+        let scope = Scope::new(&params.tenant, params.agent.as_deref().unwrap_or("myelin"),
+                               params.namespace.as_deref().unwrap_or("default"));
+        let turn = Turn {
+            speaker: params.speaker.unwrap_or_else(|| "user".into()),
+            text: params.text,
+            at: params.t_valid,
+            source: SourceRef::doc(params.source.unwrap_or_else(|| "remember".into())),
+            unit: params.unit.unwrap_or_else(|| "remember".into()),
+        };
+        self.write(&scope, &[turn]).await
+    }
+
+    #[tool(
+        name = "observe",
+        description = "Bulk-ingest a conversation or trajectory segment. Segmentation into episodes \
+                       is the server's job, not the caller's."
+    )]
+    async fn observe(
+        &self,
+        Parameters(params): Parameters<ObserveParams>,
+    ) -> Result<Json<WriteResult>, ErrorData> {
+        let scope = Scope::new(&params.tenant, params.agent.as_deref().unwrap_or("myelin"),
+                               params.namespace.as_deref().unwrap_or("default"));
+        let unit = params.unit.unwrap_or_else(|| "observe".into());
+        let turns: Vec<Turn> = params
+            .turns
+            .into_iter()
+            .enumerate()
+            .map(|(i, t)| Turn {
+                speaker: t.speaker,
+                text: t.text,
+                at: t.at,
+                source: SourceRef::doc(t.source.unwrap_or_else(|| format!("{unit}:{i}"))),
+                unit: unit.clone(),
+            })
+            .collect();
+        self.write(&scope, &turns).await
+    }
+
+    #[tool(
+        name = "search",
+        description = "Record stubs matching a scope filter. The primitive for caller-driven \
+                       iteration: identifiers and previews, never full records."
+    )]
+    async fn search(
+        &self,
+        Parameters(params): Parameters<SearchParams>,
+    ) -> Result<Json<SearchResult>, ErrorData> {
+        let mut scope = ScopeFilter::tenant(&params.tenant);
+        scope.namespace = params.namespace.clone();
+        scope.agent = params.agent.clone();
+        let limit = params.limit.unwrap_or(20).min(200) as i64;
+        let records = self
+            .backend
+            .ledger
+            .visible(&scope, chrono::Utc::now(), limit)
+            .await
+            .map_err(|e| ErrorData::internal_error(e.to_string(), None))?;
+        Ok(Json(SearchResult {
+            records: records.iter().map(RecordStub::from_record).collect(),
+        }))
+    }
+
+    #[tool(
+        name = "neighbors",
+        description = "Records linked to this one by a typed edge. One hop; call again to walk."
+    )]
+    async fn neighbors(
+        &self,
+        Parameters(params): Parameters<NeighborsParams>,
+    ) -> Result<Json<NeighborsResult>, ErrorData> {
+        let id = parse_uuid(&params.record_id)?;
+        let relation = match &params.relation {
+            Some(r) => Some(LinkKind::parse(r).map_err(|e| ErrorData::invalid_params(e.to_string(), None))?),
+            None => None,
+        };
+        let links = self
+            .backend
+            .ledger
+            .links(params.namespace.as_deref())
+            .await
+            .map_err(|e| ErrorData::internal_error(e.to_string(), None))?;
+
+        let mut out = Vec::new();
+        for link in links {
+            // Edges are walked in both directions: `supersedes` is only
+            // useful if you can ask "what replaced this?" as well as "what
+            // did this replace?".
+            let other = if link.src == id {
+                link.dst
+            } else if link.dst == id {
+                link.src
+            } else {
+                continue;
+            };
+            if relation.is_some_and(|r| r != link.relation) {
+                continue;
+            }
+            if let Some(record) = self
+                .backend
+                .ledger
+                .get(other)
+                .await
+                .map_err(|e| ErrorData::internal_error(e.to_string(), None))?
+            {
+                out.push(NeighborStub {
+                    relation: link.relation.as_str().to_string(),
+                    inbound: link.dst == id,
+                    record: RecordStub::from_record(&record),
+                });
+            }
+        }
+        Ok(Json(NeighborsResult { neighbors: out }))
+    }
+
+    #[tool(
+        name = "forget",
+        description = "Invalidate a record (soft) or erase it and everything derived from it (hard). \
+                       Hard deletion requires confirm=true and cannot be undone."
+    )]
+    async fn forget(
+        &self,
+        Parameters(params): Parameters<ForgetParams>,
+    ) -> Result<Json<ForgetResult>, ErrorData> {
+        let id = parse_uuid(&params.record_id)?;
+        let actor = ActorId::new(params.actor.as_deref().unwrap_or("mcp"));
+        let reason = params.reason.unwrap_or_else(|| "forget via mcp".into());
+
+        match params.mode.as_str() {
+            "soft" => {
+                let applied = self
+                    .backend
+                    .ledger
+                    .apply(&Delta::Delete { target: id, reason: reason.clone() }, &actor)
+                    .await
+                    .map_err(|e| ErrorData::internal_error(e.to_string(), None))?;
+                let _ = applied;
+                Ok(Json(ForgetResult { mode: "soft".into(), affected: vec![id.to_string()] }))
+            }
+            "hard" => {
+                // C11 unlearning erases descendants too, so the confirmation
+                // is not ceremony: the caller usually cannot see how many
+                // records are about to go.
+                if !params.confirm.unwrap_or(false) {
+                    return Err(ErrorData::invalid_params(
+                        "hard deletion erases this record AND every record derived from it; \
+                         pass confirm=true".to_string(),
+                        None,
+                    ));
+                }
+                let gone = self
+                    .backend
+                    .ledger
+                    .hard_delete(id, &actor, &reason)
+                    .await
+                    .map_err(|e| ErrorData::internal_error(e.to_string(), None))?;
+                self.backend
+                    .store
+                    .delete_points(&gone)
+                    .await
+                    .map_err(|e| ErrorData::internal_error(e.to_string(), None))?;
+                Ok(Json(ForgetResult {
+                    mode: "hard".into(),
+                    affected: gone.iter().map(|u| u.to_string()).collect(),
+                }))
+            }
+            other => Err(ErrorData::invalid_params(
+                format!("mode must be \"soft\" or \"hard\", got {other:?}"),
+                None,
+            )),
+        }
+    }
+
+    #[tool(
+        name = "review_quarantine",
+        description = "Staged writes awaiting a decision, with the reason each was held."
+    )]
+    async fn review_quarantine(
+        &self,
+        Parameters(params): Parameters<LimitParams>,
+    ) -> Result<Json<QuarantineResult>, ErrorData> {
+        let rows = self
+            .backend
+            .ledger
+            .review_quarantine(params.limit.unwrap_or(20).min(200) as i64)
+            .await
+            .map_err(|e| ErrorData::internal_error(e.to_string(), None))?;
+        Ok(Json(QuarantineResult {
+            staged: rows
+                .iter()
+                .map(|r| QuarantineStub {
+                    id: r.id.to_string(),
+                    reason: r.reason.clone(),
+                    at: r.at.to_rfc3339(),
+                    record: RecordStub::from_record(&r.record),
+                })
+                .collect(),
+        }))
+    }
+
+    #[tool(
+        name = "explain",
+        description = "Why this record exists: its lineage back to source episodes, and every audit \
+                       event that touched it."
+    )]
+    async fn explain(
+        &self,
+        Parameters(params): Parameters<ExplainParams>,
+    ) -> Result<Json<Explanation>, ErrorData> {
+        let id = parse_uuid(&params.record_id)?;
+        let lineage = self
+            .backend
+            .ledger
+            .lineage(id)
+            .await
+            .map_err(|e| ErrorData::internal_error(e.to_string(), None))?
+            .ok_or_else(|| ErrorData::invalid_params(format!("no record {id}"), None))?;
+        let events = self
+            .backend
+            .ledger
+            .events(Some(id))
+            .await
+            .map_err(|e| ErrorData::internal_error(e.to_string(), None))?;
+        Ok(Json(Explanation {
+            lineage: LineageJson::from_node(&lineage),
+            events: events
+                .iter()
+                .map(|e| EventJson {
+                    seq: e.seq,
+                    at: e.at.to_rfc3339(),
+                    kind: e.kind.clone(),
+                    actor: e.actor.as_str().to_string(),
+                    reason: e.reason.clone(),
+                })
+                .collect(),
+        }))
+    }
 }
 
+
 impl MyelinServer {
+    /// One write path for `remember` and `observe`: the difference between
+    /// them is how many turns the caller has, not what happens to them.
+    async fn write(&self, scope: &Scope, turns: &[Turn]) -> Result<Json<WriteResult>, ErrorData> {
+        let stats = WritePath::new(
+            &self.backend.llm,
+            &self.backend.embedder,
+            &self.backend.store,
+            &self.backend.ledger,
+        )
+        .insert(scope, turns)
+        .await
+        .map_err(|e| ErrorData::internal_error(e.to_string(), None))?;
+        Ok(Json(WriteResult {
+            episodes: stats.episodes,
+            candidates: stats.candidates,
+            added: stats.added,
+            updated: stats.updated,
+            deleted: stats.deleted,
+            noop: stats.noop,
+            duplicates: stats.duplicates,
+            quarantined: stats.quarantined,
+            rejected: stats.rejected,
+            wall_ms: stats.wall_ms,
+        }))
+    }
+
     /// Both modes drive the same retriever over the same store (R4).
     fn retriever(&self) -> Retriever<'_> {
         let mut r = Retriever::new(
@@ -308,4 +585,237 @@ impl ServerHandler for MyelinServer {
                  items and every item is individually addressable by record id.",
             )
     }
+}
+
+// ── Tool argument and result shapes ──────────────────────────────────
+//
+// Every result here is a *stub*: identifiers plus enough text to decide
+// whether to ask for more. `PLAN.md` §8 makes that a design rule, not a
+// preference — "tool results are summaries with identifiers, never raw
+// dumps (progressive disclosure)" — because a tool that returns whole
+// records spends the caller's context on material it did not ask for.
+
+fn parse_uuid(s: &str) -> Result<uuid::Uuid, ErrorData> {
+    uuid::Uuid::parse_str(s)
+        .map_err(|e| ErrorData::invalid_params(format!("bad record id {s:?}: {e}"), None))
+}
+
+/// How much of a record's text a stub carries.
+///
+/// Long enough to recognise the record, short enough that twenty of them
+/// do not displace the evidence set. A caller that wants the whole text
+/// asks `explain` or `recall` for it.
+const PREVIEW_CHARS: usize = 180;
+
+#[derive(Debug, Serialize, schemars::JsonSchema)]
+pub struct RecordStub {
+    pub id: String,
+    pub kind: String,
+    pub preview: String,
+    pub t_valid: String,
+    pub trust: String,
+    /// True when the record has been superseded or expired. Stubs surface
+    /// this because a caller iterating with `search` is otherwise unable to
+    /// tell a live fact from a historical one.
+    pub invalidated: bool,
+}
+
+impl RecordStub {
+    fn from_record(r: &myelin_core::model::record::MemoryRecord) -> Self {
+        let mut preview: String = r.text.chars().take(PREVIEW_CHARS).collect();
+        if r.text.chars().count() > PREVIEW_CHARS {
+            preview.push('…');
+        }
+        Self {
+            id: r.id.to_string(),
+            kind: r.kind.as_str().to_string(),
+            preview,
+            t_valid: r.validity.t_valid.to_rfc3339(),
+            trust: r.trust.tier.as_str().to_string(),
+            invalidated: r.validity.t_invalid.is_some() || r.validity.t_expired.is_some(),
+        }
+    }
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub struct RememberParams {
+    pub text: String,
+    pub tenant: String,
+    #[serde(default)]
+    pub agent: Option<String>,
+    #[serde(default)]
+    pub namespace: Option<String>,
+    #[serde(default)]
+    pub speaker: Option<String>,
+    #[serde(default)]
+    pub source: Option<String>,
+    #[serde(default)]
+    pub unit: Option<String>,
+    #[serde(default)]
+    pub t_valid: Option<chrono::DateTime<chrono::Utc>>,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub struct ObserveTurn {
+    pub speaker: String,
+    pub text: String,
+    #[serde(default)]
+    pub at: Option<chrono::DateTime<chrono::Utc>>,
+    #[serde(default)]
+    pub source: Option<String>,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub struct ObserveParams {
+    pub turns: Vec<ObserveTurn>,
+    pub tenant: String,
+    #[serde(default)]
+    pub agent: Option<String>,
+    #[serde(default)]
+    pub namespace: Option<String>,
+    #[serde(default)]
+    pub unit: Option<String>,
+}
+
+#[derive(Debug, Serialize, schemars::JsonSchema)]
+pub struct WriteResult {
+    pub episodes: usize,
+    pub candidates: usize,
+    pub added: usize,
+    pub updated: usize,
+    pub deleted: usize,
+    pub noop: usize,
+    pub duplicates: usize,
+    /// Staged, not applied. A non-zero count here is the caller's cue to
+    /// run `review_quarantine` (C4).
+    pub quarantined: usize,
+    pub rejected: usize,
+    pub wall_ms: u128,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub struct SearchParams {
+    pub tenant: String,
+    #[serde(default)]
+    pub namespace: Option<String>,
+    #[serde(default)]
+    pub agent: Option<String>,
+    #[serde(default)]
+    pub limit: Option<usize>,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub struct NeighborsParams {
+    pub record_id: String,
+    /// `supersedes` | `contradicts` | `supports` | `mentions`.
+    #[serde(default)]
+    pub relation: Option<String>,
+    #[serde(default)]
+    pub namespace: Option<String>,
+}
+
+#[derive(Debug, Serialize, schemars::JsonSchema)]
+pub struct NeighborStub {
+    pub relation: String,
+    /// True when the edge points *at* the queried record. Direction is the
+    /// difference between "what this replaced" and "what replaced this".
+    pub inbound: bool,
+    pub record: RecordStub,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub struct ForgetParams {
+    pub record_id: String,
+    /// `soft` invalidates and keeps history; `hard` erases (C11 unlearning).
+    pub mode: String,
+    #[serde(default)]
+    pub confirm: Option<bool>,
+    #[serde(default)]
+    pub reason: Option<String>,
+    #[serde(default)]
+    pub actor: Option<String>,
+}
+
+#[derive(Debug, Serialize, schemars::JsonSchema)]
+pub struct ForgetResult {
+    pub mode: String,
+    pub affected: Vec<String>,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub struct LimitParams {
+    #[serde(default)]
+    pub limit: Option<usize>,
+}
+
+#[derive(Debug, Serialize, schemars::JsonSchema)]
+pub struct QuarantineStub {
+    pub id: String,
+    pub reason: String,
+    pub at: String,
+    pub record: RecordStub,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub struct ExplainParams {
+    pub record_id: String,
+}
+
+#[derive(Debug, Serialize, schemars::JsonSchema)]
+pub struct LineageJson {
+    pub id: String,
+    pub kind: String,
+    pub preview: String,
+    pub ancestors: Vec<LineageJson>,
+}
+
+impl LineageJson {
+    fn from_node(n: &myelin_core::store::ledger::LineageNode) -> Self {
+        let mut preview: String = n.text.chars().take(PREVIEW_CHARS).collect();
+        if n.text.chars().count() > PREVIEW_CHARS {
+            preview.push('…');
+        }
+        Self {
+            id: n.id.to_string(),
+            kind: n.kind.as_str().to_string(),
+            preview,
+            ancestors: n.ancestors.iter().map(Self::from_node).collect(),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, schemars::JsonSchema)]
+pub struct EventJson {
+    pub seq: i64,
+    pub at: String,
+    pub kind: String,
+    pub actor: String,
+    pub reason: String,
+}
+
+#[derive(Debug, Serialize, schemars::JsonSchema)]
+pub struct Explanation {
+    pub lineage: LineageJson,
+    pub events: Vec<EventJson>,
+}
+
+// MCP requires every tool's `outputSchema.type` to be `"object"`. A tool
+// returning a bare JSON array is a protocol violation that a hand-rolled
+// client happily ignores and the official SDK rejects outright with
+// `Input should be 'object'` — which is how these three were found. The
+// wrappers are also where a cursor goes when these grow pagination.
+
+#[derive(Debug, Serialize, schemars::JsonSchema)]
+pub struct SearchResult {
+    pub records: Vec<RecordStub>,
+}
+
+#[derive(Debug, Serialize, schemars::JsonSchema)]
+pub struct NeighborsResult {
+    pub neighbors: Vec<NeighborStub>,
+}
+
+#[derive(Debug, Serialize, schemars::JsonSchema)]
+pub struct QuarantineResult {
+    pub staged: Vec<QuarantineStub>,
 }

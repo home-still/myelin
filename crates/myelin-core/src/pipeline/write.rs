@@ -188,11 +188,20 @@ impl<'a> WritePath<'a> {
         let consolidator = Consolidator::new(self.llm);
 
         let t_extract = Instant::now();
-        let extracted: Vec<Result<ExtractOutcome>> = stream::iter(episodes.iter())
-            .map(|episode| {
-                let extractor = &extractor;
-                async move { extractor.extract(episode).await }
-            })
+        // Futures are built by `Iterator::map` and only then handed to
+        // `stream::iter`, rather than by `StreamExt::map` over the borrowed
+        // slice.
+        //
+        // The `StreamExt::map` form compiles in isolation but breaks the
+        // caller as soon as the future has to be `Send` -- rmcp's `#[tool]`
+        // macro requires exactly that, and rejects it with "implementation
+        // of `FnOnce` is not general enough". `StreamExt::map` needs an
+        // `FnMut` usable at *any* lifetime; a closure returning a future
+        // that borrows its argument only has one inferred lifetime.
+        // `Iterator::map` runs eagerly and never needs the higher-ranked
+        // bound, so the problem does not arise.
+        let pending: Vec<_> = episodes.iter().map(|e| extractor.extract(e)).collect();
+        let extracted: Vec<Result<ExtractOutcome>> = stream::iter(pending)
             .buffered(self.concurrency.max(1))
             .collect()
             .await;
