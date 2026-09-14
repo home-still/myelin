@@ -64,16 +64,49 @@ pub struct RetrieveConfig {
     /// bad they are, and a reader handed six plausible-looking page
     /// fragments answers from them.
     ///
-    /// The signal is already computed and thrown away. bge-reranker-v2-m3
-    /// separates relevant from irrelevant by a wide margin — measured
-    /// **+2.88** for an answer-bearing document against **−11.04** for two
-    /// distractors on the same query. A threshold on the top score costs
-    /// nothing: the rerank pass has already run.
+    /// **Calibrated, and it does not work. Default `None`, and that is the
+    /// measurement talking.**
     ///
-    /// `None` disables it, which is the default, because:
+    /// The idea was that the signal is already computed and thrown away:
+    /// bge-reranker-v2-m3 separated an answer-bearing document from two
+    /// distractors by +2.88 against −11.04 on a toy query, so a threshold
+    /// on the top score should cost nothing and buy abstention.
     ///
-    /// 1. the LoCoMo ablation and every M4 number were measured without it
-    ///    and must stay comparable, and
+    /// Calibrated over 120 real LME-V2 questions, the two populations
+    /// overlap almost entirely:
+    ///
+    /// | | n | min | p25 | median | max |
+    /// |---|---|---|---|---|---|
+    /// | answerable | 86 | −2.72 | −0.03 | **0.76** | 4.13 |
+    /// | abstention | 34 | −4.11 | −0.54 | **0.47** | 2.43 |
+    ///
+    /// Every threshold trades one error for the other at a loss. Expected
+    /// full-set accuracy on `web` (168 answerable, 72 abstention, measured
+    /// 0.429 / 0.222):
+    ///
+    /// ```text
+    /// no gate                        36.7%
+    /// tau = 0   keep .74  hold .35   37.1%
+    /// tau = 1   keep .45  hold .62   34.6%
+    /// tau = 2   keep .16  hold .85   31.3%
+    /// ```
+    ///
+    /// The best value buys +0.4 points, inside the noise on 240 questions.
+    ///
+    /// The reason is worth keeping: **a cross-encoder scores relevance, not
+    /// answer-containment.** An LME-V2 abstention question asks something
+    /// plausible about an environment the haystack really does describe, so
+    /// topically relevant pages score high and the question is still
+    /// unanswerable. Sufficiency is a different predicate from relevance
+    /// and no threshold on the latter can approximate it — that needs the
+    /// reflect step in `investigate`.
+    ///
+    /// Kept as a knob rather than deleted because `top_score` is a useful
+    /// diagnostic and a different reranker or corpus could separate. Two
+    /// further reasons it stays off by default:
+    ///
+    /// 1. every M4 number was measured without it and must stay
+    ///    comparable, and
     /// 2. these are **cross-encoder logits**. Applied to RRF scores they
     ///    would be meaningless, so the gate is ignored unless a reranker is
     ///    configured rather than silently comparing against the wrong
