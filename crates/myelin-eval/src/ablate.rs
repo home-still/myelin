@@ -176,6 +176,29 @@ impl Embedder for CachingEmbedder<'_> {
     }
 }
 
+/// The dev split is the first `units` conversations; the holdout is
+/// everything after them.
+///
+/// Split by conversation and never by question: questions from one
+/// conversation share a memory, so a question-level split would leak every
+/// tuning decision across the boundary. The holdout exists so that a
+/// default changed on the strength of the dev table can be *confirmed*
+/// rather than merely asserted — which matters here, because the M4 result
+/// changed `rrf_k`.
+fn select_split(path: &Path, units: usize, holdout: bool) -> Result<Vec<LocomoConversation>> {
+    let conversations = locomo::load(path)?;
+    let split: Vec<_> = if holdout {
+        conversations.into_iter().skip(units).collect()
+    } else {
+        conversations.into_iter().take(units).collect()
+    };
+    anyhow::ensure!(
+        !split.is_empty(),
+        "empty split: units={units} holdout={holdout}"
+    );
+    Ok(split)
+}
+
 /// Questions with gold evidence, in dataset order.
 ///
 /// Category 5 is LoCoMo's adversarial split: it carries no evidence to
@@ -297,11 +320,11 @@ pub async fn ablate_locomo(
     units: usize,
     k: usize,
     limit: Option<usize>,
+    holdout: bool,
 ) -> Result<AblationRun> {
     let cfg = MyelinConfig::load().context("load myelin config")?;
 
-    let conversations = locomo::load(path)?;
-    let split: Vec<_> = conversations.into_iter().take(units).collect();
+    let split = select_split(path, units, holdout)?;
 
     let ledger = Ledger::open(ledger_path).await.context("open ledger")?;
     let coverage = Coverage::build(&split, &ledger).await?;
@@ -510,6 +533,7 @@ pub struct StepPoint {
 /// Scored by the same deterministic evidence-coverage metric as the
 /// ablation: no reader, no judge. Adding a reader here would measure the
 /// reader's tolerance for extra context, not the loop's ability to find it.
+#[allow(clippy::too_many_arguments)]
 pub async fn investigate_curve(
     path: &Path,
     collection: &str,
@@ -518,10 +542,10 @@ pub async fn investigate_curve(
     k: usize,
     steps: &[usize],
     limit: Option<usize>,
+    holdout: bool,
 ) -> Result<Vec<StepPoint>> {
     let cfg = MyelinConfig::load().context("load myelin config")?;
-    let conversations = locomo::load(path)?;
-    let split: Vec<_> = conversations.into_iter().take(units).collect();
+    let split = select_split(path, units, holdout)?;
 
     let ledger = Ledger::open(ledger_path).await.context("open ledger")?;
     let coverage = Coverage::build(&split, &ledger).await?;

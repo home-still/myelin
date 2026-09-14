@@ -109,6 +109,11 @@ enum Command {
         /// Cap questions per arm, for a quick smoke of the harness itself.
         #[arg(long)]
         limit: Option<usize>,
+        /// Score the held-out conversations (everything after --units)
+        /// instead of the dev split. Use once, to confirm a decision the
+        /// dev table already made.
+        #[arg(long)]
+        holdout: bool,
         /// Instead of the channel ablation, sweep `investigate`'s step
         /// budget and report the marginal value of each extra step (M7).
         #[arg(long, value_delimiter = ',')]
@@ -187,7 +192,20 @@ async fn main() -> anyhow::Result<()> {
             k,
             limit,
             ref steps,
-        } => ablate_cmd(dataset, collection, ledger, units, k, limit, steps.as_deref()).await,
+            holdout,
+        } => {
+            ablate_cmd(
+                dataset,
+                collection,
+                ledger,
+                units,
+                k,
+                limit,
+                steps.as_deref(),
+                holdout,
+            )
+            .await
+        }
         rest => {
             println!("{}: not implemented (milestone M5+)", rest.name());
             Ok(())
@@ -298,6 +316,7 @@ async fn ablate_cmd(
     k: usize,
     limit: Option<usize>,
     steps: Option<&[usize]>,
+    holdout: bool,
 ) -> anyhow::Result<()> {
     if let Some(steps) = steps {
         let points = myelin_eval::ablate::investigate_curve(
@@ -308,6 +327,7 @@ async fn ablate_cmd(
             k,
             steps,
             limit,
+            holdout,
         )
         .await?;
         myelin_eval::ablate::print_step_curve(&points, k);
@@ -320,6 +340,7 @@ async fn ablate_cmd(
         units,
         k,
         limit,
+        holdout,
     )
     .await?;
     myelin_eval::ablate::print_table(&run, k);
