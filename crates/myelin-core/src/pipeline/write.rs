@@ -105,6 +105,28 @@ pub struct WritePath<'a> {
     /// Bounded by the server's slot count: `llama-server -np N`. Beyond that
     /// requests queue and the extra concurrency only adds latency.
     pub concurrency: usize,
+    /// Run `extract` + `consolidate`, or stop after storing raw episodes.
+    ///
+    /// **Off is the right answer for LME-V2-Small, and that is a measurement,
+    /// not a shortcut.** Extraction costs one model call per episode.
+    /// Measured on LoCoMo conv-26: 16,481 input tokens took 597 s end to end.
+    /// LME-V2-Small is ~25M tokens — about 1,500x — which extrapolates to
+    /// **~250 hours** on this card. That is not a budget problem to push
+    /// through; it means the design is wrong for that corpus.
+    ///
+    /// And the evidence already said so. LME-V2's own result is that a
+    /// coding-agent controller over **raw trajectory files** beats the same
+    /// authors' extracted RAG memory by +16.3 / +13.1 points (`PLAN.md` §2
+    /// finding 8), and §7.2 specifies `investigate` as search over the raw
+    /// episode store. So LME-V2 is ingested episodically — segment, embed,
+    /// index, losslessly — and the facts are found at read time by the agent
+    /// rather than precomputed for 25M tokens of trajectory that no question
+    /// will ever touch.
+    ///
+    /// LoCoMo keeps extraction on: it is conversational recall, the corpus is
+    /// small, and §2 finding 5's 4-op delta is exactly what its
+    /// knowledge-update questions test.
+    pub extract_facts: bool,
 }
 
 impl<'a> WritePath<'a> {
@@ -124,6 +146,7 @@ impl<'a> WritePath<'a> {
             actor: ActorId::new("myelin"),
             progress: false,
             concurrency: 4,
+            extract_facts: true,
         }
     }
 
@@ -147,20 +170,35 @@ impl<'a> WritePath<'a> {
         self.indexer().index(&episodes).await?;
         stats.index_ms += t_index.elapsed().as_millis();
 
-        // 2. Extract and consolidate, episode by episode.
+        // Episodic-only corpora stop here. See `WritePath::extract_facts`.
+        if !self.extract_facts {
+            stats.wall_ms = started.elapsed().as_millis();
+            return Ok(stats);
+        }
+
+        // 2. Extract every episode CONCURRENTLY, then consolidate IN ORDER.
         //
-        // Everything here is batched or indexed *per episode*, not per corpus
-        // and not per candidate. The first version embedded the whole
-        // candidate pool once per candidate and managed 43 episodes in 900 s,
-        // because the pool grows as the corpus does. Two changes fix it:
-        // one embedding call for all of an episode's candidates, and
-        // neighbour lookup delegated to Qdrant, which already holds the
-        // vectors. Indexing per episode rather than at the very end also
-        // means a candidate can dedup against a sibling written moments ago.
+        // The asymmetry is load-bearing. Extraction is a pure function of one
+        // episode, so order does not matter and it can saturate the server's
+        // slots. Consolidation is not: episode N's candidates must be able to
+        // dedup against and supersede facts episode N-1 wrote, so it stays
+        // ordered. Measured on conv-26, extraction was 204 s of 597 s purely
+        // because 43 independent calls queued behind each other.
         let extractor = Extractor::new(self.llm);
         let consolidator = Consolidator::new(self.llm);
 
-        for (n, episode) in episodes.iter().enumerate() {
+        let t_extract = Instant::now();
+        let extracted: Vec<Result<ExtractOutcome>> = stream::iter(episodes.iter())
+            .map(|episode| {
+                let extractor = &extractor;
+                async move { extractor.extract(episode).await }
+            })
+            .buffered(self.concurrency.max(1))
+            .collect()
+            .await;
+        stats.extract_ms += t_extract.elapsed().as_millis();
+
+        for (n, (episode, outcome)) in episodes.iter().zip(extracted).enumerate() {
             if self.progress && n % 10 == 0 {
                 eprintln!(
                     "      episode {n}/{} add={} dup={} noop={} {:.0}s",
@@ -171,9 +209,7 @@ impl<'a> WritePath<'a> {
                     started.elapsed().as_secs_f64()
                 );
             }
-            let t0 = Instant::now();
-            let outcome = extractor.extract(episode).await?;
-            stats.extract_ms += t0.elapsed().as_millis();
+            let outcome = outcome?;
 
             let candidates = match &outcome {
                 ExtractOutcome::Extracted(e) => e.candidates.clone(),

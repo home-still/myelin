@@ -9,6 +9,7 @@ pub mod error;
 pub mod llm;
 pub mod model;
 pub mod pipeline;
+pub mod rerank;
 pub mod store;
 
 pub use error::{MyelinError, Result};

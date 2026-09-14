@@ -24,7 +24,7 @@ use qdrant_client::qdrant::{
     MultiVectorComparator, MultiVectorConfigBuilder, NamedVectors, PointId, PointStruct,
     PointsIdsList, Query, QueryPointsBuilder, ScrollPointsBuilder, SetPayloadPointsBuilder,
     SparseVectorParamsBuilder,
-    SparseVectorsConfigBuilder, UpdateStatus, UpsertPointsBuilder, Value, Vector,
+    SparseVectorsConfigBuilder, UpdateStatus, UpsertPointsBuilder, Value, Vector, VectorInput,
     VectorParamsBuilder, VectorsConfigBuilder,
 };
 use qdrant_client::{Payload, Qdrant};
@@ -66,6 +66,24 @@ pub struct IndexItem<'a> {
     /// Optional ColBERT-style multivector. Left empty until M3 settles whether
     /// `fastembed` exposes bge-m3's ColBERT head at all (§5.1 risk i).
     pub late: Option<Vec<Vec<f32>>>,
+}
+
+/// One hit from a single retrieval channel, with the channel's own score.
+/// `text` rides along from the payload so the fast path never needs a SQLite
+/// round trip (§7.1 targets p95 < 100 ms).
+#[derive(Debug, Clone, PartialEq)]
+pub struct ScoredHit {
+    pub id: Uuid,
+    pub score: f32,
+    pub text: String,
+}
+
+/// The two channels, each ranked by its own scorer. Deliberately NOT fused
+/// here: fusion is ours (§5.2).
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct HybridLists {
+    pub dense: Vec<ScoredHit>,
+    pub lex: Vec<ScoredHit>,
 }
 
 /// The payload fields the scope filter and the reconciler both read.
@@ -356,6 +374,109 @@ impl QdrantStore {
                 }
             })
             .collect())
+    }
+
+    /// Both retrieval channels, ranked separately, in **one** round trip.
+    ///
+    /// This is the shape `PLAN.md` §5.2 requires: we need the dense list and
+    /// the lexical list as *lists*, not as a server-fused result, because
+    /// Qdrant's own RRF uses `k = 1` and we fuse at `k = 60`
+    /// (`pipeline::fuse`). A `prefetch` would only hand back the fused top-N,
+    /// so the two queries go out as a `query_batch` — one request, one
+    /// round trip, two independent rankings.
+    ///
+    /// The lexical side sends **raw text**, not a client-side sparse vector:
+    /// Qdrant tokenizes, stems and IDF-weights it in-process
+    /// (`bm25_document_inference_over_grpc`), which is why there is no
+    /// `tantivy` and no second index.
+    pub async fn hybrid_search(
+        &self,
+        dense: Vec<f32>,
+        text: &str,
+        tenant: &str,
+        namespace: Option<&str>,
+        kinds: &[&str],
+        limit: u64,
+    ) -> Result<HybridLists> {
+        use qdrant_client::qdrant::{Condition, QueryBatchPointsBuilder};
+
+        let mut must = vec![
+            Condition::matches("tenant", tenant.to_string()),
+            Condition::matches("t_invalid", 0i64),
+        ];
+        if let Some(ns) = namespace {
+            must.push(Condition::matches("namespace", ns.to_string()));
+        }
+        if !kinds.is_empty() {
+            must.push(Condition::matches(
+                "kind",
+                kinds.iter().map(|k| k.to_string()).collect::<Vec<_>>(),
+            ));
+        }
+        let filter = Filter {
+            must,
+            // I3: quarantined material is invisible to every read path.
+            must_not: vec![Condition::matches("trust_tier", "quarantined".to_string())],
+            ..Default::default()
+        };
+
+        let dense_query = QueryPointsBuilder::new(&self.collection)
+            .query(Query::new_nearest(dense))
+            .using(DENSE)
+            .filter(filter.clone())
+            .limit(limit)
+            .with_payload(true);
+        let lex_query = QueryPointsBuilder::new(&self.collection)
+            .query(Query::new_nearest(VectorInput::from(Document::new(
+                text.to_string(),
+                BM25_MODEL,
+            ))))
+            .using(LEX)
+            .filter(filter)
+            .limit(limit)
+            .with_payload(true);
+
+        let response = self
+            .client
+            .query_batch(
+                QueryBatchPointsBuilder::new(&self.collection, vec![
+                    dense_query.into(),
+                    lex_query.into(),
+                ]),
+            )
+            .await?;
+
+        let mut lists = response
+            .result
+            .iter()
+            .map(|batch| {
+                batch
+                    .result
+                    .iter()
+                    .filter_map(|p| {
+                        let id = p.id.as_ref()?.point_id_options.as_ref()?;
+                        let text = p
+                            .payload
+                            .get("text")
+                            .and_then(|v| v.as_str().map(|s| s.to_string()))
+                            .unwrap_or_default();
+                        match id {
+                            qdrant_client::qdrant::point_id::PointIdOptions::Uuid(u) => {
+                                Uuid::parse_str(u.as_str())
+                                    .ok()
+                                    .map(|id| ScoredHit { id, score: p.score, text })
+                            }
+                            qdrant_client::qdrant::point_id::PointIdOptions::Num(_) => None,
+                        }
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>();
+
+        // Order is the order the queries were submitted in.
+        let lex = lists.pop().unwrap_or_default();
+        let dense = lists.pop().unwrap_or_default();
+        Ok(HybridLists { dense, lex })
     }
 
     /// Every point id in a namespace, with the payload fields reconcile checks.
