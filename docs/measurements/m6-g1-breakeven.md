@@ -132,3 +132,67 @@ what motivates it.
 
 **Not implemented.** M6 is at its three-attempt cap, and this is a design change rather than a
 parameter, so it is escalated rather than taken unilaterally.
+
+---
+
+## Correction: the ≤1 s latency target was my error
+
+Exercising the vendored packager produced the authoritative frontier arithmetic and it contradicts
+the target I published above. `leaderboard/compute_lafs.py` defines
+
+$$\text{LAFS} = \frac{1}{\ln(t_{max}/t_{min})}\int_{t_{min}}^{t_{max}} \text{best\_acc\_under\_budget}(T)\ d\ln T$$
+
+with `T_MIN = 1.0`, `T_MAX = 200.0`. `best_acc_under_budget(T)` is the best accuracy among frontier
+points with latency ≤ T, so it is a **step function**. The released `small` frontier is
+
+| point | acc | latency |
+|---|---|---|
+| RAG: query → slice + notes | 51.0 | 0.2 s |
+| AgentRunbook-R | 58.6 | 26.9 s |
+| AgentRunbook-C | 74.9 | 108.3 s |
+| Codex | 69.9 | 177.2 s — *dominated, not on the frontier* |
+
+A new point adds area only where it lifts that envelope. Solving numerically for the accuracy that
+yields LAFS gain > 0:
+
+| latency | break-even accuracy |
+|---|---|
+| 0.50 s | 51.00% |
+| 1.00 s | 51.00% |
+| 1.97 s | 51.00% |
+| 26.71 s | 51.00% |
+| 108.30 s | 74.90% |
+
+**Being faster than ~26.9 s buys nothing.** RAG sits at 0.2 s, below `t_min`, so its 51.0 is the
+envelope across the whole band $[1.0, 26.9)$. The `p50 ≤ 1 s` constraint I asserted was read off the
+"fast operating point" framing, not computed — it does not exist. The accuracy bar of ~51 is real.
+
+### What this invalidates and what it opens
+
+- The `fast` operating point (35.7% @ 1.83 s) **can never score**: it is strictly under 51.0 and
+  no amount of latency reduction changes that. Effort spent shaving it was wasted.
+- `investigate` measures **avg 24.87 s** (p50 26.71, p95 34.03) — LAFS uses the *average*, so it
+  sits 2.03 s inside the cliff at 26.9 s, on the correct side.
+- That leaves roughly **23 seconds of per-query budget we are not spending**, against a gap of
+  +9.8 accuracy points. Deeper reranking, more investigate steps, an explicit sufficiency signal,
+  or repeated reader calls are all affordable; none of them were affordable under the imaginary
+  1-second ceiling.
+
+A point at avg 24.87 s is only 2 s from the cliff where the bar jumps 51.0 → 58.6. Any future
+change that adds latency must either hold the average under ~26 s with margin, or commit to
+clearing 58.6.
+
+## M8 is blocked by M9's dependency, not by its own
+
+`build_submission_step_1_single_operating_point.py` rejects both runs outright:
+
+```
+error: runs/myelin_k25_web_small/run_args.json evaluator_model must contain 'gpt-5.2'
+```
+
+`submission_utils.py:197` checks the **reader** against `EXPECTED_READER_MODEL_SUBSTRING =
+"qwen3.5-9b"` — we pass. `submission_utils.py:202` checks the **judge** against
+`EXPECTED_EVALUATOR_MODEL_SUBSTRING = "gpt-5.2"` — we fail, because scoring used the local
+Qwen3.5-9B. This is the protocol's own gate, and it confirms in code what was previously only our
+caveat: **these runs are not leaderboard-comparable.** One `gpt-5.2` key unblocks M8 packaging and
+M9's judge panel together; they are a single external dependency, not two.
