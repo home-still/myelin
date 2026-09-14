@@ -21,6 +21,7 @@ use myelin_core::pipeline::write::{WritePath, WriteStats};
 use myelin_core::store::ledger::Ledger;
 use myelin_core::store::qdrant::QdrantStore;
 
+use crate::datasets::lmev2;
 use crate::datasets::locomo::{self, LocomoConversation};
 
 /// LoCoMo timestamps look like `1:56 pm on 8 May, 2023`. A turn with no
@@ -156,20 +157,144 @@ pub async fn build_locomo(
     Ok(report)
 }
 
+/// Ingest an LME-V2 tier into one tenant **per domain** (`PLAN.md` M3).
+///
+/// Two tenants, not 451: see [`crate::datasets::lmev2`] for the measurement
+/// behind that, and for why the accessibility trees are chunked rather than
+/// dropped or deduplicated.
+///
+/// Extraction is off. That is `WritePath::extract_facts`'s documented case:
+/// a fact-extraction pass over this corpus extrapolates to ~250 GPU-hours,
+/// and LME-V2's own paper reports a controller over raw trajectories beating
+/// their extracted RAG memory by +16.3/+13.1.
+pub async fn build_lmev2(
+    trajectories: &Path,
+    haystack_path: &Path,
+    questions_path: &Path,
+    tier: &str,
+    collection: &str,
+    ledger_path: &Path,
+    limit: Option<usize>,
+) -> Result<BuildReport> {
+    let cfg = MyelinConfig::load().context("load myelin config")?;
+
+    let questions = lmev2::load_questions(questions_path)?;
+    let haystack = lmev2::load_haystack(haystack_path)?;
+    let by_domain = lmev2::haystacks_by_domain(&haystack, &questions)?;
+
+    // `limit` truncates *per domain* so a smoke run still exercises both
+    // tenants; truncating the global set would silently test only one.
+    let mut domain_of: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+    let mut wanted: std::collections::HashSet<String> = std::collections::HashSet::new();
+    for (domain, ids) in &by_domain {
+        for id in ids.iter().take(limit.unwrap_or(usize::MAX)) {
+            domain_of.insert(id.clone(), domain.clone());
+            wanted.insert(id.clone());
+        }
+        eprintln!(
+            "  {tier}/{domain}: {} trajectories ({} in haystack)",
+            limit.map_or(ids.len(), |n| n.min(ids.len())),
+            ids.len()
+        );
+    }
+
+    let llm = OpenAiLlm::new(&cfg.llm.url, &cfg.llm.model).context("reader client")?;
+    let embedder = RemoteEmbedder::new(&cfg.embed.url, &cfg.embed.model, cfg.embed.dim)
+        .context("embedder client")?;
+
+    let mut qdrant_cfg = cfg.qdrant.clone();
+    qdrant_cfg.collection = collection.to_string();
+    let store = QdrantStore::new(&qdrant_cfg).context("qdrant store")?;
+    store
+        .ensure_collection(cfg.embed.dim, false)
+        .await
+        .context("ensure collection")?;
+
+    let ledger = Ledger::open(ledger_path).await.context("open ledger")?;
+
+    let started = Instant::now();
+    let mut report = BuildReport {
+        per_unit: Vec::new(),
+        total: WriteStats::default(),
+        wall_secs: 0.0,
+    };
+
+    // Stream the 1.2 GB file on a blocking thread and hand trajectories to
+    // the async write path over a depth-2 channel.
+    //
+    // Buffering all 200 first would hold ~172 MB (measured mean 862 KB per
+    // trajectory) for no benefit. Depth 2 bounds that to ~2 MB and still
+    // overlaps the file read with GPU work, which is the only overlap
+    // available here: the reader is idle because extraction is off.
+    let want_count = wanted.len();
+    let (tx, mut rx) = tokio::sync::mpsc::channel::<lmev2::Trajectory>(2);
+    let traj_path = trajectories.to_path_buf();
+    let reader = tokio::task::spawn_blocking(move || {
+        lmev2::for_each_trajectory(&traj_path, &wanted, |t| {
+            tx.blocking_send(t)
+                .map_err(|_| anyhow::anyhow!("ingest stopped before the file was consumed"))
+        })
+    });
+
+    while let Some(traj) = rx.recv().await {
+        let domain = &domain_of[&traj.id];
+        let scope = Scope::new(format!("{tier}/{domain}"), "myelin", tier);
+        let turns = lmev2::turns_for(&traj);
+
+        let mut write = WritePath::new(&llm, &embedder, &store, &ledger);
+        write.extract_facts = false;
+        let stats = write
+            .insert(&scope, &turns)
+            .await
+            .with_context(|| format!("ingest {}", traj.id))?;
+
+        eprintln!(
+            "  {:<10} {:<10} turns={:<5} episodes={:<5} add={:<5} dup={:<5} {:.1}s",
+            traj.id,
+            domain,
+            stats.turns,
+            stats.episodes,
+            stats.added,
+            stats.duplicates,
+            stats.wall_ms as f64 / 1000.0,
+        );
+
+        report.total.merge(&stats);
+        report.per_unit.push((traj.id.clone(), stats));
+    }
+
+    // A trajectory named by the haystack but absent from the file would
+    // silently shrink the memory, so the count is checked rather than logged.
+    let found = reader.await.context("trajectory reader task")??;
+    if found != want_count || report.per_unit.len() != want_count {
+        anyhow::bail!(
+            "haystack names {want_count} trajectories; read {found}, ingested {}",
+            report.per_unit.len()
+        );
+    }
+
+    report.wall_secs = started.elapsed().as_secs_f64();
+    Ok(report)
+}
+
 impl BuildReport {
     pub fn print(&self, units: usize) {
         let t = &self.total;
         println!("\n=== write path, {units} units ===");
         println!("turns              {}", t.turns);
-        println!("episodes           {}", t.episodes);
-        println!("candidates         {}", t.candidates);
-        println!("added              {}", t.added);
-        println!("updated            {}", t.updated);
-        println!("deleted            {}", t.deleted);
-        println!("noop               {}", t.noop);
-        println!("duplicates         {}", t.duplicates);
-        println!("quarantined        {}", t.quarantined);
-        println!("rejected           {}", t.rejected);
+        println!("episodes stored    {}", t.episodes);
+        // The four-op counters describe SEMANTIC deltas only. On an
+        // episodic-only corpus they are all zero while `episodes stored` is
+        // large, and reading `added 0` as "nothing was written" is the
+        // obvious misreading, so the block is labelled.
+        println!("semantic candidates {}", t.candidates);
+        println!("  add             {}", t.added);
+        println!("  update          {}", t.updated);
+        println!("  delete          {}", t.deleted);
+        println!("  noop            {}", t.noop);
+        println!("  duplicate       {}", t.duplicates);
+        println!("  quarantined     {}", t.quarantined);
+        println!("  rejected        {}", t.rejected);
         println!("approx tokens in   {}", t.approx_tokens);
         println!("records/unit       {:.2}", t.records_per_unit(units));
         println!("wall               {:.1}s", self.wall_secs);

@@ -5,6 +5,7 @@
 //! discrepancy is invisible until someone re-derives the digest by hand.
 
 pub mod locomo;
+pub mod lmev2;
 pub mod longmemeval;
 
 use std::path::{Path, PathBuf};

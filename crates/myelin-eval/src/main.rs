@@ -20,23 +20,60 @@ struct Args {
     command: Command,
 }
 
+/// The corpora `PLAN.md` §9.1 names. Each pins its own default collection
+/// and ledger so that a `--corpus` switch cannot quietly append one corpus's
+/// records to another's memory.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, clap::ValueEnum)]
+enum Corpus {
+    Locomo,
+    LmeV2Small,
+    LmeV2Medium,
+}
+
+impl Corpus {
+    fn slug(self) -> &'static str {
+        match self {
+            Corpus::Locomo => "locomo",
+            Corpus::LmeV2Small => "lme_v2_small",
+            Corpus::LmeV2Medium => "lme_v2_medium",
+        }
+    }
+
+    fn collection(self) -> String {
+        format!("myelin_{}", self.slug())
+    }
+
+    fn ledger(self) -> String {
+        format!("data/{}.ledger", self.slug())
+    }
+}
+
 #[derive(Subcommand)]
 enum Command {
     /// Download and checksum-pin the benchmark datasets
     Fetch,
     /// Build a memory from a dataset into a backend
     Build {
+        /// Which corpus. `locomo` extracts facts; `lme-v2-small` and
+        /// `lme-v2-medium` ingest episodically — see
+        /// `WritePath::extract_facts` for the ~250 GPU-hour measurement
+        /// behind that split.
+        #[arg(long, value_enum, default_value_t = Corpus::Locomo)]
+        corpus: Corpus,
         /// Qdrant collection to build into. Must be myelin_*-prefixed: the
         /// nine production collections on `big` are off limits.
-        #[arg(long, default_value = "myelin_locomo")]
-        collection: String,
+        #[arg(long)]
+        collection: Option<String>,
         /// SQLite ledger path.
-        #[arg(long, default_value = "data/locomo.ledger")]
-        ledger: String,
-        /// Ingest only the first N conversations, for a throughput probe
-        /// before committing to a long GPU window.
+        #[arg(long)]
+        ledger: Option<String>,
+        /// Ingest only the first N units (per domain, for LME-V2), for a
+        /// throughput probe before committing to a long GPU window.
         #[arg(long)]
         limit: Option<usize>,
+        /// Directory holding the LME-V2 release files.
+        #[arg(long, default_value = "/tmp/lmev2")]
+        lmev2_dir: String,
     },
     /// Run the accuracy/latency benchmark suite
     Bench,
@@ -87,10 +124,21 @@ async fn main() -> anyhow::Result<()> {
     match args.command {
         Command::Fetch => fetch().await,
         Command::Build {
+            corpus,
             ref collection,
             ref ledger,
             limit,
-        } => build_cmd(collection, ledger, limit).await,
+            ref lmev2_dir,
+        } => {
+            build_cmd(
+                corpus,
+                collection.as_deref(),
+                ledger.as_deref(),
+                limit,
+                lmev2_dir,
+            )
+            .await
+        }
         Command::Ablate {
             ref dataset,
             ref collection,
@@ -138,21 +186,57 @@ async fn fetch() -> anyhow::Result<()> {
 }
 /// M3: drive LoCoMo through the write path and report records/unit, tokens
 /// and wall time.
-async fn build_cmd(collection: &str, ledger: &str, limit: Option<usize>) -> anyhow::Result<()> {
+async fn build_cmd(
+    corpus: Corpus,
+    collection: Option<&str>,
+    ledger: Option<&str>,
+    limit: Option<usize>,
+    lmev2_dir: &str,
+) -> anyhow::Result<()> {
+    let collection = collection.map_or_else(|| corpus.collection(), str::to_string);
+    let ledger = ledger.map_or_else(|| corpus.ledger(), str::to_string);
     anyhow::ensure!(
         collection.starts_with("myelin_"),
         "refusing to build into {collection:?}: collections must be myelin_*-prefixed \
          so a typo cannot touch the production collections on big"
     );
-    let data = Path::new("data/locomo10.json");
-    anyhow::ensure!(
-        data.exists(),
-        "missing {}; run `myelin-eval fetch` first",
-        data.display()
-    );
 
-    eprintln!("ingesting LoCoMo -> collection {collection}, ledger {ledger}");
-    let report = build_locomo(data, collection, Path::new(ledger), limit).await?;
+    let report = match corpus {
+        Corpus::Locomo => {
+            let data = Path::new("data/locomo10.json");
+            anyhow::ensure!(
+                data.exists(),
+                "missing {}; run `myelin-eval fetch` first",
+                data.display()
+            );
+            eprintln!("ingesting LoCoMo -> collection {collection}, ledger {ledger}");
+            build_locomo(data, &collection, Path::new(&ledger), limit).await?
+        }
+        Corpus::LmeV2Small | Corpus::LmeV2Medium => {
+            let dir = Path::new(lmev2_dir);
+            let trajectories = dir.join("trajectories.jsonl");
+            let questions = dir.join("questions.jsonl");
+            let haystack = dir.join("haystacks").join(format!("{}.json", corpus.slug()));
+            for p in [&trajectories, &questions, &haystack] {
+                anyhow::ensure!(p.exists(), "missing {}", p.display());
+            }
+            eprintln!(
+                "ingesting {} -> collection {collection}, ledger {ledger}",
+                corpus.slug()
+            );
+            myelin_eval::build::build_lmev2(
+                &trajectories,
+                &haystack,
+                &questions,
+                corpus.slug(),
+                &collection,
+                Path::new(&ledger),
+                limit,
+            )
+            .await?
+        }
+    };
+
     let units = report.per_unit.len();
     report.print(units);
     Ok(())
