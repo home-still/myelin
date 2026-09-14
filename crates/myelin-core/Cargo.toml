@@ -22,6 +22,7 @@ futures-util = { workspace = true }
 petgraph = { workspace = true, optional = true }
 qdrant-client = { workspace = true }
 reqwest = { workspace = true }
+schemars = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 sqlx = { workspace = true }

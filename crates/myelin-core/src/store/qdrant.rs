@@ -45,8 +45,21 @@ pub const LEX: &str = "lex";
 pub const BM25_MODEL: &str = "qdrant/bm25";
 
 /// Build a gRPC client for the configured endpoint.
+///
+/// The explicit timeout is not decoration. `qdrant-client` defaults to 5 s,
+/// and [`QdrantStore::ensure_collection`] issues ten control-plane calls in a
+/// row — one `create_collection` plus nine `create_field_index`. Against a
+/// Qdrant that is concurrently indexing another collection this exceeds 5 s
+/// and fails with `Cancelled: Timeout expired`, which is how two
+/// simultaneous integration tests found it.
+///
+/// This is a *failure* bound, not a latency target: the read path measures
+/// itself (`RecallTrace`), so a generous ceiling here cannot hide a slow
+/// query — it only stops a loaded server from looking like a broken one.
 pub fn client(cfg: &QdrantConfig) -> Result<Qdrant> {
-    Ok(Qdrant::from_url(&cfg.url).build()?)
+    Ok(Qdrant::from_url(&cfg.url)
+        .timeout(std::time::Duration::from_secs(60))
+        .build()?)
 }
 
 fn epoch(t: DateTime<Utc>) -> i64 {

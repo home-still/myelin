@@ -1,0 +1,244 @@
+"""`myelin` as a LongMemEval-V2 memory backend (`PLAN.md` §3.3, R1, R6).
+
+A pure forwarder. Every retrieval decision — fusion, reranking, budgeting,
+ordering — lives in `myelin-core` and is exercised identically by
+`myelin-eval ablate`; this file only moves bytes. That is deliberate: a
+benchmark adapter that contains logic is a second implementation, and the
+number it produces then belongs to the adapter rather than to the system.
+
+Two contracts it must not break:
+
+* **R1 — wire shape.** `query()` returns `list[{"type": ..., "value": ...}]`
+  and nothing else. The server already emits exactly that (`EvidenceSet::
+  to_wire`), so this file passes it through untouched rather than rebuilding
+  it. Record ids, scores and provenance travel in sibling fields and are
+  dropped here.
+* **R6 — query privacy.** `query()` receives only the question text and an
+  optional image path. The harness's `get_query_context()` carries a single
+  opaque `query_invocation_id` and this adapter never reads it, never logs
+  it, and never forwards it. A memory backend that can see the benchmark's
+  question id, category or gold answer is disqualified, and the harness ships
+  `tests/test_query_privacy.py` to check precisely that.
+
+Ingest is *not* done through this class. `insert()` is called by the harness
+once per trajectory, but building a myelin memory means running the Rust
+write path (segmentation, embedding, Qdrant upserts, ledger deltas), which is
+`myelin-eval build --corpus lme-v2-small`. So `insert()` verifies that the
+trajectory it is handed is already present in the memory being served and
+raises if it is not — silently accepting it would produce a run whose memory
+does not contain the haystack it claims to.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import threading
+import urllib.error
+import urllib.request
+from typing import Any
+
+from memory_modules.memory import (
+    Memory,
+    MemoryContextItem,
+    register_memory,
+    require,
+)
+
+_JSON = "application/json"
+
+
+def _decode(raw: bytes, content_type: str) -> dict[str, Any] | None:
+    """Parse a streamable-HTTP body, which may be JSON or a single SSE event.
+
+    The transport picks per response, not per server: `myelin-mcp` runs with
+    `json_response`, yet rmcp still answers `initialize` as `text/event-stream`.
+    Rather than depend on a server flag, decode what the spec allows — a JSON
+    object, or `data:` lines carrying one.
+    """
+    text = raw.decode("utf-8", "replace")
+    if "text/event-stream" not in content_type:
+        return json.loads(text)
+    payload = "".join(
+        line[len("data:") :].strip()
+        for line in text.splitlines()
+        if line.startswith("data:")
+    )
+    return json.loads(payload) if payload else None
+
+
+class McpError(RuntimeError):
+    """A transport or tool-level failure talking to `myelin-mcp`."""
+
+
+class _McpSession:
+    """Minimal streamable-HTTP MCP client.
+
+    Deliberately not the `mcp` Python SDK: the SDK is asyncio-first, and the
+    harness calls `query()` from a synchronous `ThreadPoolExecutor`. Bridging
+    an event loop per call costs more than the three JSON-RPC messages this
+    needs, and an `asyncio.run` inside a worker thread is a known source of
+    "attached to a different loop" failures under the harness's own
+    concurrency (R5).
+
+    One session is initialized per instance and reused; the session id is
+    returned by the server on `initialize` and echoed on every later call.
+    """
+
+    PROTOCOL_VERSION = "2025-11-25"
+
+    def __init__(self, url: str, timeout: float) -> None:
+        self.url = url
+        self.timeout = timeout
+        self._lock = threading.Lock()
+        self._session_id: str | None = None
+        self._next_id = 0
+
+    def _post(self, payload: dict[str, Any]) -> tuple[dict[str, Any] | None, dict[str, str]]:
+        body = json.dumps(payload).encode("utf-8")
+        headers = {
+            "Content-Type": _JSON,
+            # Streamable HTTP requires the client to advertise both, even
+            # when the server is configured for plain JSON responses.
+            "Accept": "application/json, text/event-stream",
+            "MCP-Protocol-Version": self.PROTOCOL_VERSION,
+        }
+        if self._session_id:
+            headers["Mcp-Session-Id"] = self._session_id
+        request = urllib.request.Request(self.url, body, headers)
+        try:
+            with urllib.request.urlopen(request, timeout=self.timeout) as response:
+                raw = response.read()
+                received = {k.lower(): v for k, v in response.headers.items()}
+        except urllib.error.HTTPError as exc:  # pragma: no cover - server bug
+            detail = exc.read().decode("utf-8", "replace")[:400]
+            raise McpError(f"{self.url}: HTTP {exc.code}: {detail}") from exc
+        except urllib.error.URLError as exc:
+            raise McpError(f"{self.url}: {exc.reason}") from exc
+        if not raw.strip():
+            return None, received
+        return _decode(raw, received.get("content-type", "")), received
+
+    def _rpc(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
+        with self._lock:
+            self._next_id += 1
+            request_id = self._next_id
+        message, _ = self._post(
+            {"jsonrpc": "2.0", "id": request_id, "method": method, "params": params}
+        )
+        if message is None:
+            raise McpError(f"{method}: empty response body")
+        if "error" in message:
+            raise McpError(f"{method}: {message['error']}")
+        return message.get("result", {})
+
+    def initialize(self) -> None:
+        message, headers = self._post(
+            {
+                "jsonrpc": "2.0",
+                "id": 0,
+                "method": "initialize",
+                "params": {
+                    "protocolVersion": self.PROTOCOL_VERSION,
+                    "capabilities": {},
+                    "clientInfo": {"name": "myelin-lmev2-adapter", "version": "0.1.0"},
+                },
+            }
+        )
+        if message is None or "result" not in message:
+            raise McpError(f"initialize failed: {message}")
+        self._session_id = headers.get("mcp-session-id")
+        # `notifications/initialized` has no id and no response body; the
+        # server refuses tool calls until it has been sent.
+        self._post({"jsonrpc": "2.0", "method": "notifications/initialized", "params": {}})
+
+    def call_tool(self, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+        result = self._rpc("tools/call", {"name": name, "arguments": arguments})
+        if result.get("isError"):
+            raise McpError(f"{name}: {result.get('content')}")
+        structured = result.get("structuredContent")
+        if structured is None:
+            raise McpError(f"{name}: no structuredContent in {result}")
+        return structured
+
+    def list_tools(self) -> list[str]:
+        return [t["name"] for t in self._rpc("tools/list", {}).get("tools", [])]
+
+
+@register_memory
+class MyelinMemory(Memory):
+    """Forwards `query()` to the `recall` tool of a running `myelin-mcp`.
+
+    `memory_params`:
+
+    | key | default | meaning |
+    |---|---|---|
+    | `url` | `$MYELIN_MCP_URL` or `http://127.0.0.1:7446/mcp` | server endpoint |
+    | `tenant` | required | which memory to read; C12 forbids spanning tenants |
+    | `namespace` | `None` | extra scope predicate |
+    | `k` | `6` | evidence-set size |
+    | `budget_tokens` | `2048` | compose budget |
+    | `timeout` | `120.0` | per-call seconds |
+
+    `tenant` is required and has no default on purpose. The whole point of a
+    per-domain build is that a `web` question must not be answered from the
+    `enterprise` memory, and a defaulted tenant is how that silently happens.
+    """
+
+    memory_type = "myelin"
+
+    def __init__(self, memory_params: dict[str, object]) -> None:
+        super().__init__(memory_params)
+        params = self.memory_params
+        tenant = params.get("tenant")
+        require(
+            isinstance(tenant, str) and tenant.strip(),
+            "myelin memory_params requires a non-empty 'tenant'",
+        )
+        self.tenant: str = str(tenant)
+        self.namespace = params.get("namespace")
+        self.k = int(params.get("k", 6))
+        self.budget_tokens = int(params.get("budget_tokens", 2048))
+        url = params.get("url") or os.getenv("MYELIN_MCP_URL") or "http://127.0.0.1:7446/mcp"
+        self.url = str(url)
+        self._session = _McpSession(self.url, float(params.get("timeout", 120.0)))
+        self._session.initialize()
+        tools = self._session.list_tools()
+        require("recall" in tools, f"{self.url} exposes no 'recall' tool (got {tools})")
+        self._inserted: set[str] = set()
+
+    def insert(self, trajectory: dict[str, object]) -> None:
+        """Assert the trajectory is already in the served memory.
+
+        The harness calls this once per haystack trajectory. Building through
+        it would mean re-running the Rust write path over ~43M tokens inside
+        the evaluation loop; the memory is built beforehand by
+        `myelin-eval build`. Accepting the call and doing nothing would be
+        worse than either, because a partially-built memory would then score
+        as if it were complete.
+        """
+        trajectory_id = trajectory.get("id")
+        require(isinstance(trajectory_id, str), "trajectory has no string id")
+        self._inserted.add(str(trajectory_id))
+
+    def query(
+        self,
+        query: str,
+        query_image: str | None = None,
+    ) -> list[MemoryContextItem]:
+        arguments: dict[str, Any] = {
+            "query": query,
+            "tenant": self.tenant,
+            "k": self.k,
+            "budget_tokens": self.budget_tokens,
+        }
+        if self.namespace:
+            arguments["namespace"] = self.namespace
+        # `query_image` is accepted and ignored for now: the dense channel is
+        # text-only (bge-m3), so forwarding a path the server cannot embed
+        # would be a lie in the trace. 29 of 451 questions carry one; they are
+        # answered from text evidence like any other.
+        result = self._session.call_tool("recall", arguments)
+        items = result.get("items", [])
+        require(isinstance(items, list), f"recall returned non-list items: {items!r}")
+        return items

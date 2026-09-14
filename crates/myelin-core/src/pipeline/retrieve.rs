@@ -227,8 +227,22 @@ impl<'a> Retriever<'a> {
         }
         trace.rerank_ms = t2.elapsed().as_millis();
 
+        // R4: `k` and the token budget are QUERY-time parameters against one
+        // identical store, so the request wins over the configured default.
+        // `RetrieveConfig::compose` supplies everything the query does not
+        // name (near-duplicate threshold, bookending). Without this the MCP
+        // `recall` tool silently returned 6 items for `k: 3`, which is how
+        // this was found.
+        let compose_cfg = ComposeConfig {
+            k: query.budget.k,
+            max_tokens: query.budget.tokens,
+            ..self.config.compose.clone()
+        };
+
+        // 3x the emitted count: `compose` drops near-duplicates and
+        // budget-busting items, so it needs slack to reach k.
         let mut ranked = Vec::with_capacity(admissible.len());
-        for (id, score, _) in admissible.into_iter().take(self.config.compose.k * 3) {
+        for (id, score, _) in admissible.into_iter().take(compose_cfg.k * 3) {
             if let Some(record) = self.ledger.get(id).await? {
                 ranked.push(Ranked {
                     record,
@@ -238,7 +252,7 @@ impl<'a> Retriever<'a> {
             }
         }
 
-        let mut set = compose(ranked, &self.config.compose);
+        let mut set = compose(ranked, &compose_cfg);
         trace.total_ms = started.elapsed().as_millis();
         set.tokens = set
             .items

@@ -13,7 +13,10 @@ use uuid::Uuid;
 
 use super::record::SourceRef;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+/// `JsonSchema` is derived here and on [`WireItem`] so the MCP tool schema is
+/// generated from the *same* struct the benchmark contract is defined by. A
+/// hand-mirrored copy in `myelin-mcp` would be a second place for R1 to drift.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum EvidenceKind {
     Text,
@@ -32,7 +35,7 @@ pub struct EvidenceItem {
 
 /// The exact JSON object shape R1 mandates. `type` is a Rust keyword-adjacent
 /// name, hence the rename.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct WireItem {
     #[serde(rename = "type")]
     pub kind: EvidenceKind,

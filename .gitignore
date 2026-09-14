@@ -23,3 +23,7 @@ target
 # Benchmark corpora. LoCoMo is 2.8 MB but LongMemEval-V2 is ~1.5 GB text-only;
 # datasets are fetched and checksum-pinned by `myelin-eval fetch`, never committed.
 /data/
+
+# Python venv for the vendored LongMemEval-V2 harness (its own requirements.txt).
+/.venv/
+__pycache__/

@@ -16,13 +16,31 @@ use crate::error::{MyelinError, Result};
 /// Path of the config file, relative to the user's home directory.
 pub const CONFIG_REL_PATH: &str = ".myelin/config.yml";
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+/// `MyelinConfig::default()` is deliberately usable as-is on this
+/// workstation: every field points at something that exists, so a fresh
+/// checkout can run the read path without writing a config file first.
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct MyelinConfig {
     pub qdrant: QdrantConfig,
     pub llm: LlmConfig,
     pub embed: EmbedConfig,
     pub rerank: RerankConfig,
+    /// SQLite ledger. The authority for admissibility: Qdrant's payload is a
+    /// projection that can lag, so every read re-checks here (I1–I3).
+    pub ledger: String,
+}
+
+impl Default for MyelinConfig {
+    fn default() -> Self {
+        Self {
+            qdrant: QdrantConfig::default(),
+            llm: LlmConfig::default(),
+            embed: EmbedConfig::default(),
+            rerank: RerankConfig::default(),
+            ledger: "data/myelin.ledger".into(),
+        }
+    }
 }
 
 /// The reader. Served directly by `llama-server`, not through llama-swap:
