@@ -42,10 +42,45 @@ fn qdrant_config() -> QdrantConfig {
 }
 
 /// `myelin_test_<fn>_<uuid>` — unique per run so tests are order- and
-/// parallelism-independent, and prefixed so a leak from a failed assertion is
+/// parallelism-independent, and prefixed so anything of ours is
 /// unmistakably ours.
 fn scratch_name(test: &str) -> String {
     format!("myelin_test_{test}_{}", Uuid::new_v4().simple())
+}
+
+/// Deletes its scratch collection on drop — including when the test panics.
+///
+/// The happy path still deletes explicitly and asserts the delete succeeded,
+/// because that assertion is what proves cleanup works. This guard is the
+/// backstop for the failure path: without it, every failing assertion leaves
+/// a collection behind on a Qdrant that also holds production data, and the
+/// leak check becomes permanently dirty. `Drop` cannot await, so the delete
+/// runs on a throwaway runtime on another thread.
+struct ScratchGuard {
+    name: String,
+}
+
+impl ScratchGuard {
+    fn new(name: impl Into<String>) -> Self {
+        Self { name: name.into() }
+    }
+}
+
+impl Drop for ScratchGuard {
+    fn drop(&mut self) {
+        let name = std::mem::take(&mut self.name);
+        let _ = std::thread::spawn(move || {
+            let Ok(rt) = tokio::runtime::Runtime::new() else {
+                return;
+            };
+            rt.block_on(async {
+                if let Ok(c) = myelin_core::store::qdrant::client(&qdrant_config()) {
+                    let _ = c.delete_collection(DeleteCollectionBuilder::new(&name)).await;
+                }
+            });
+        })
+        .join();
+    }
 }
 
 /// A collection carrying all three retrieval channels: named dense `dense`,
@@ -128,6 +163,7 @@ async fn drop_collection(client: &Qdrant, collection: &str) {
 #[tokio::test]
 async fn three_channels_in_one_collection() {
     let (client, name) = scratch("three_channels").await;
+    let _guard = ScratchGuard::new(&name);
     upsert(&client, &name, three_channel_points()).await;
     drop_collection(&client, &name).await;
 }
@@ -142,6 +178,7 @@ async fn three_channels_in_one_collection() {
 #[tokio::test]
 async fn server_side_rrf_uses_k_equals_one() {
     let (client, name) = scratch("rrf_k").await;
+    let _guard = ScratchGuard::new(&name);
 
     // Dense vectors fan out from the query so the prefetch order is strict.
     let points: Vec<PointStruct> = (0..4u64)
@@ -195,6 +232,7 @@ async fn server_side_rrf_uses_k_equals_one() {
 #[tokio::test]
 async fn server_side_maxsim_rerank_works() {
     let (client, name) = scratch("maxsim").await;
+    let _guard = ScratchGuard::new(&name);
     upsert(&client, &name, three_channel_points()).await;
 
     let response = client
@@ -239,6 +277,7 @@ async fn server_side_maxsim_rerank_works() {
 async fn bm25_idf_scoring_identity() {
     let client = myelin_core::store::qdrant::client(&qdrant_config()).expect("build qdrant client");
     let name = scratch_name("bm25_idf");
+    let _guard = ScratchGuard::new(&name);
 
     // Sparse-only collection; the IDF modifier is the point of the test.
     let mut sparse = SparseVectorsConfigBuilder::default();
@@ -331,6 +370,91 @@ async fn bm25_idf_scoring_identity() {
     // also caught: 1.3486677 and 0.7050055.
     assert!((expected_1 - 1.348_667_7).abs() < EPS, "IDF formula drifted: {expected_1}");
     assert!((expected_2 - 0.705_005_5).abs() < EPS, "IDF formula drifted: {expected_2}");
+
+    drop_collection(&client, &name).await;
+}
+
+/// §3.4, second half — Qdrant tokenizes, stems and weights **raw text** into the
+/// `lex` sparse channel over **gRPC**, via `Document::new(text, "qdrant/bm25")`.
+///
+/// M0 verified `qdrant/bm25` over REST only and deferred this. `PLAN.md` §5.1
+/// and §6.4 ("let Qdrant compute `lex` from the record text") depend on the
+/// gRPC path specifically, because the whole store is gRPC-only (§3.3). If this
+/// fails we would need a client-side BM25 encoder — the exact dependency §5.1
+/// claims we avoid — so it is asserted here rather than assumed.
+#[tokio::test]
+async fn bm25_document_inference_over_grpc() {
+    use qdrant_client::qdrant::Document;
+
+    let client = myelin_core::store::qdrant::client(&qdrant_config()).expect("build qdrant client");
+    let name = scratch_name("bm25_doc");
+    let _guard = ScratchGuard::new(&name);
+
+    let mut sparse = SparseVectorsConfigBuilder::default();
+    sparse.add_named_vector_params(
+        "lex",
+        SparseVectorParamsBuilder::default().modifier(Modifier::Idf),
+    );
+    client
+        .create_collection(CreateCollectionBuilder::new(&name).sparse_vectors_config(sparse))
+        .await
+        .expect("create sparse-only scratch collection");
+
+    let corpus = [
+        (1u64, "the time machine by h g wells"),
+        (2u64, "a martian invasion of the english countryside"),
+        (3u64, "the island of doctor moreau"),
+    ];
+    let points: Vec<PointStruct> = corpus
+        .iter()
+        .map(|(id, text)| {
+            PointStruct::new(
+                *id,
+                NamedVectors::default().add_vector(
+                    "lex",
+                    Vector::from(Document::new(*text, "qdrant/bm25")),
+                ),
+                Payload::new(),
+            )
+        })
+        .collect();
+    upsert(&client, &name, points).await;
+
+    let response = client
+        .query(
+            QueryPointsBuilder::new(&name)
+                .query(Query::new_nearest(VectorInput::from(Document::new(
+                    "martian invasion",
+                    "qdrant/bm25",
+                ))))
+                .using("lex")
+                .limit(10u64),
+        )
+        .await
+        .expect("bm25 document query over gRPC");
+
+    let hits: Vec<(u64, f32)> = response
+        .result
+        .iter()
+        .filter_map(|p| match p.id.as_ref()?.point_id_options.as_ref()? {
+            qdrant_client::qdrant::point_id::PointIdOptions::Num(n) => Some((*n, p.score)),
+            qdrant_client::qdrant::point_id::PointIdOptions::Uuid(_) => None,
+        })
+        .collect();
+
+    // Only doc 2 shares a content term; "the"/"of"/"a" are stopwords and must
+    // not create matches, which is the proof that server-side tokenization ran.
+    assert_eq!(
+        hits.len(),
+        1,
+        "expected only the martian doc to match; stopwords leaked into the index: {hits:?}"
+    );
+    assert_eq!(hits[0].0, 2, "wrong document matched: {hits:?}");
+    assert!(
+        hits[0].1 > 0.0,
+        "matched document scored {}, expected a positive BM25 score",
+        hits[0].1
+    );
 
     drop_collection(&client, &name).await;
 }
