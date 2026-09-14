@@ -23,6 +23,7 @@ never a local patch.
 | license | Apache-2.0 (`longmemeval-v2/LICENSE`) |
 | vendored | 2026-09-14, 53 files, 776 KB |
 | requires | Python ≥ 3.11; `huggingface_hub numpy openai openai-agents pillow tqdm transformers` |
+| torch | `requirements-torch.txt` pins `torch==2.6.0+cu124`; **no such wheel exists for macOS arm64** |
 
 Vendored as a flat copy rather than a git submodule on purpose: the tree is
 776 KB, and a submodule's pin survives only as long as upstream keeps the
@@ -49,6 +50,24 @@ sets `sys.argv` and calls `harness_main()`), so our runner is a sibling of
 theirs rather than a replacement for it. `run_eval.py` is unusable directly
 only because its `--method` argument is a closed `choices=` set; every stage
 after it takes `--memory-config-path` and is fully general.
+
+## The one platform deviation
+
+`requirements-torch.txt` pins `torch==2.6.0+cu124` / `torchvision==0.21.0+cu124`.
+Those local-version wheels are CUDA-only and do not exist for macOS arm64, so
+this workstation installs the same upstream versions without the `+cu124`
+tag:
+
+```
+.venv/bin/pip install "torch==2.6.0" "torchvision==0.21.0"
+```
+
+This is an install-time substitution, not an edit: `requirements-torch.txt`
+is untouched. torch is needed here only because
+`evaluation/harness.py` tokenizes the memory context to enforce
+`--memory-context-max-tokens`; that runs on CPU and the reader, judge and
+embedder are all remote HTTP, so the CUDA build would buy nothing even if it
+installed.
 
 ## Scoring stays theirs
 
