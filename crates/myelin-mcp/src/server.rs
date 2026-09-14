@@ -97,6 +97,11 @@ pub struct RecallParams {
     /// `episodic` | `semantic` | `procedural` | `working`.
     #[serde(default)]
     pub kinds: Option<Vec<String>>,
+    /// Withhold the evidence set entirely when the best cross-encoder score
+    /// is below this. Lets a caller trade answered-wrong for abstained,
+    /// which is the dominant term in LongMemEval-V2's score.
+    #[serde(default)]
+    pub tau_abstain: Option<f32>,
 }
 
 /// The `recall` response.
@@ -125,6 +130,8 @@ pub struct RecallTraceJson {
     pub search_ms: u64,
     pub rerank_ms: u64,
     pub total_ms: u64,
+    pub top_score: Option<f32>,
+    pub abstained: bool,
 }
 
 impl From<RecallTrace> for RecallTraceJson {
@@ -139,6 +146,8 @@ impl From<RecallTrace> for RecallTraceJson {
             search_ms: t.search_ms as u64,
             rerank_ms: t.rerank_ms as u64,
             total_ms: t.total_ms as u64,
+            top_score: t.top_score,
+            abstained: t.abstained,
         }
     }
 }
@@ -191,7 +200,10 @@ impl MyelinServer {
             kinds,
         };
 
-        let retriever = self.retriever();
+        let mut retriever = self.retriever();
+        if params.tau_abstain.is_some() {
+            retriever.config.tau_abstain = params.tau_abstain;
+        }
         let (evidence, trace) = retriever
             .recall(&query)
             .await

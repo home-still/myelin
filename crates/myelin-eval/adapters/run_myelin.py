@@ -81,6 +81,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--namespace", default=None)
     parser.add_argument("--k", type=int, default=6)
     parser.add_argument("--budget-tokens", type=int, default=2048)
+    parser.add_argument(
+        "--tau-abstain",
+        type=float,
+        default=None,
+        help="Withhold the evidence set when the best cross-encoder score is below "
+        "this, so the reader abstains instead of answering from a bad pool.",
+    )
 
     # Reader. Defaults are this project's tunnelled llama-server, not the
     # harness's `localhost:8023`, because a default that points at nothing is
@@ -164,6 +171,7 @@ def main() -> None:
             "namespace": args.namespace or tier_slug,
             "k": args.k,
             "budget_tokens": args.budget_tokens,
+            "tau_abstain": args.tau_abstain,
         },
     }
     memory_config_path = runtime_dir / "memory_config.json"

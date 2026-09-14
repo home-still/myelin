@@ -54,6 +54,31 @@ pub struct RetrieveConfig {
     /// highest-leverage stage (MS MARCO MRR@10 18.7 → 36.5, §2 finding 2), so
     /// it gets a deeper pool than `compose` will finally emit.
     pub rerank_depth: usize,
+    /// Cross-encoder score below which the whole evidence set is withheld.
+    ///
+    /// **This is an abstention gate, and it exists because abstention is
+    /// where LongMemEval-V2 is won or lost.** 72 of the 240 `web` questions
+    /// are `-abs`: the haystack genuinely does not contain the answer and
+    /// the correct response is to say so. Measured at k=6 we score 16.7% on
+    /// them, because `recall` always returns its best six records however
+    /// bad they are, and a reader handed six plausible-looking page
+    /// fragments answers from them.
+    ///
+    /// The signal is already computed and thrown away. bge-reranker-v2-m3
+    /// separates relevant from irrelevant by a wide margin — measured
+    /// **+2.88** for an answer-bearing document against **−11.04** for two
+    /// distractors on the same query. A threshold on the top score costs
+    /// nothing: the rerank pass has already run.
+    ///
+    /// `None` disables it, which is the default, because:
+    ///
+    /// 1. the LoCoMo ablation and every M4 number were measured without it
+    ///    and must stay comparable, and
+    /// 2. these are **cross-encoder logits**. Applied to RRF scores they
+    ///    would be meaningless, so the gate is ignored unless a reranker is
+    ///    configured rather than silently comparing against the wrong
+    ///    scale.
+    pub tau_abstain: Option<f32>,
     pub compose: ComposeConfig,
 }
 
@@ -64,6 +89,7 @@ impl Default for RetrieveConfig {
             rrf_k: DEFAULT_RRF_K,
             channels: Channels::Hybrid,
             rerank_depth: 25,
+            tau_abstain: None,
             compose: ComposeConfig::default(),
         }
     }
@@ -81,6 +107,15 @@ pub struct RecallTrace {
     pub search_ms: u128,
     pub rerank_ms: u128,
     pub total_ms: u128,
+    /// Best cross-encoder score seen, when a reranker ran. The calibration
+    /// input for [`RetrieveConfig::tau_abstain`], and reported so a run can
+    /// show the score distribution it actually saw rather than asserting a
+    /// threshold was reasonable.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub top_score: Option<f32>,
+    /// The gate fired and the evidence set was withheld.
+    #[serde(default)]
+    pub abstained: bool,
 }
 
 pub struct Retriever<'a> {
@@ -238,6 +273,19 @@ impl<'a> Retriever<'a> {
                     .then_with(|| a.0.cmp(&b.0))
             });
             trace.reranked = admissible.len();
+            trace.top_score = admissible.first().map(|(_, s, _)| *s);
+
+            // The abstention gate. Only here, inside the reranker branch:
+            // `tau_abstain` is a cross-encoder logit and comparing it to an
+            // RRF score would be a category error, so a configured
+            // threshold is ignored rather than misapplied when no reranker
+            // is present.
+            if let (Some(tau), Some(top)) = (self.config.tau_abstain, trace.top_score) {
+                if top < tau {
+                    trace.abstained = true;
+                    admissible.clear();
+                }
+            }
         }
         trace.rerank_ms = t2.elapsed().as_millis();
 

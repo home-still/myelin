@@ -106,6 +106,7 @@ def build_memory() -> tuple[myelin.MyelinMemory, RecordingSession]:
     memory.namespace = None
     memory.k = 6
     memory.budget_tokens = 2048
+    memory.tau_abstain = None
     memory.url = "recorder://"
     memory._session = recorder
     memory._inserted = set()

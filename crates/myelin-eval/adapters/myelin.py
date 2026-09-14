@@ -178,6 +178,7 @@ class MyelinMemory(Memory):
     | `namespace` | `None` | extra scope predicate |
     | `k` | `6` | evidence-set size |
     | `budget_tokens` | `2048` | compose budget |
+    | `tau_abstain` | `None` | withhold evidence below this rerank score |
     | `timeout` | `120.0` | per-call seconds |
 
     `tenant` is required and has no default on purpose. The whole point of a
@@ -199,6 +200,9 @@ class MyelinMemory(Memory):
         self.namespace = params.get("namespace")
         self.k = int(params.get("k", 6))
         self.budget_tokens = int(params.get("budget_tokens", 2048))
+        # Abstention gate. None keeps the server's default (off).
+        tau = params.get("tau_abstain")
+        self.tau_abstain = None if tau is None else float(tau)
         url = params.get("url") or os.getenv("MYELIN_MCP_URL") or "http://127.0.0.1:7446/mcp"
         self.url = str(url)
         self._session = _McpSession(self.url, float(params.get("timeout", 120.0)))
@@ -254,6 +258,8 @@ class MyelinMemory(Memory):
         }
         if self.namespace:
             arguments["namespace"] = self.namespace
+        if self.tau_abstain is not None:
+            arguments["tau_abstain"] = self.tau_abstain
         # `query_image` is accepted and ignored for now: the dense channel is
         # text-only (bge-m3), so forwarding a path the server cannot embed
         # would be a lie in the trace. 29 of 451 questions carry one; they are
