@@ -93,3 +93,42 @@ PYTHONPATH=vendor/longmemeval-v2:adapters .venv/bin/python adapters/run_myelin.p
 
 Reader must be served with `--mmproj` (29 questions carry a screenshot) and a context that gives
 each slot ≥ 16k tokens — `-c 16384 -np 4` yields 4,096 per slot and rejects every k=25 prompt.
+
+---
+
+## Follow-up: does `investigate` fix abstention?
+
+Asked because the answer decides whether G1 is reachable at all. Same 60-question `web` subset,
+same `k = 25`, same evidence budget — only the mode changes.
+
+| mode | overall | non-abstention | abstention | `memory_query` p50 |
+|---|---|---|---|---|
+| `recall` | 36.7% | 46.5% | 11.8% | 1.74 s |
+| `investigate`, max_steps 3 | **41.7%** | 48.8% | **23.5%** | 26.71 s |
+
+**Directionally right, quantitatively short.** The reflect gate roughly *doubles* abstention
+accuracy — which confirms the diagnosis that sufficiency, not relevance, is the missing predicate
+— and it buys +5.0 points overall. Latency rises 15× to 26.7 s, comfortably inside the 40 s
+`investigate` budget.
+
+But 23.5% is not 72%. Projecting to the full `web` set:
+
+$$168(0.488) + 72(0.235) = 82 + 17 = 99/240 = 41.2\%$$
+
+Still short of 51.1. Abstention-by-category shows where: `procedure-abs` is **0% correct, 100%
+answered wrong** even with the loop.
+
+### The mechanism the loop already has and does not use
+
+`Investigator` computes a model judgement of sufficiency on every step and records why it stopped
+(`sufficient`, `no new evidence`, `step budget`, `no new query`). When it stops *unsatisfied* it
+nevertheless returns the pool it accumulated, and the reader answers from it.
+
+Emitting an explicit insufficiency signal instead — an empty evidence set when
+`stopped_because != "sufficient"` — would apply the gate at the level where a model actually
+judged sufficiency, rather than at the reranker where the signal is only relevance. That is a
+materially different mechanism from the two already measured and rejected, and the data above is
+what motivates it.
+
+**Not implemented.** M6 is at its three-attempt cap, and this is a design change rather than a
+parameter, so it is escalated rather than taken unilaterally.
