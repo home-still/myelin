@@ -20,6 +20,7 @@ use myelin_core::pipeline::ingest::Turn;
 use myelin_core::pipeline::write::{WritePath, WriteStats};
 use myelin_core::store::ledger::Ledger;
 use myelin_core::store::qdrant::QdrantStore;
+use myelin_core::store::reconcile::reconcile;
 
 use crate::datasets::lmev2;
 use crate::datasets::locomo::{self, LocomoConversation};
@@ -77,6 +78,51 @@ pub fn turns_for(conv: &LocomoConversation) -> Vec<Turn> {
     turns
 }
 
+
+/// Check the ledger against the vector store, and optionally repair.
+///
+/// Run at the end of every build because a partial write does not announce
+/// itself. The first full LoCoMo run left two records in the ledger with no
+/// vector — invisible to every read path while still being exported and
+/// counted — and it was only found by diffing the two stores by hand
+/// afterwards. A build that ends silently on a drifted memory is a build
+/// whose numbers are measured on a corpus nobody has checked.
+async fn check_drift(
+    ledger: &Ledger,
+    store: &QdrantStore,
+    embedder: &RemoteEmbedder,
+    namespace: &str,
+    repair: bool,
+) -> Result<()> {
+    let report = reconcile(ledger, store, namespace, Some(embedder), repair)
+        .await
+        .context("reconcile after build")?;
+    if report.total() == 0 {
+        eprintln!("  reconcile: clean ({namespace})");
+        return Ok(());
+    }
+    eprintln!(
+        "  reconcile: {} drift item(s) in {namespace} — missing_vectors={} qdrant_orphans={} \
+         payload_drift={} stale_points={} dangling_links={} orphan_incidence={} \
+         missing_provenance={} (repaired={})",
+        report.total(),
+        report.missing_vectors.len(),
+        report.qdrant_orphans.len(),
+        report.payload_drift.len(),
+        report.stale_points.len(),
+        report.dangling_links.len(),
+        report.orphan_incidence.len(),
+        report.missing_provenance.len(),
+        report.repaired,
+    );
+    anyhow::ensure!(
+        repair,
+        "memory is drifted; re-run with --repair (nothing downstream should be \
+         measured on an unchecked corpus)"
+    );
+    Ok(())
+}
+
 pub struct BuildReport {
     pub per_unit: Vec<(String, WriteStats)>,
     pub total: WriteStats,
@@ -94,6 +140,7 @@ pub async fn build_locomo(
     collection: &str,
     ledger_path: &Path,
     limit: Option<usize>,
+    repair: bool,
 ) -> Result<BuildReport> {
     let cfg = MyelinConfig::load().context("load myelin config")?;
 
@@ -189,6 +236,7 @@ pub async fn build_locomo(
     if resumed > 0 {
         eprintln!("  resumed: {resumed} conversation(s) already in the ledger");
     }
+    check_drift(&ledger, &store, &embedder, "locomo", repair).await?;
     Ok(report)
 }
 
@@ -202,6 +250,7 @@ pub async fn build_locomo(
 /// a fact-extraction pass over this corpus extrapolates to ~250 GPU-hours,
 /// and LME-V2's own paper reports a controller over raw trajectories beating
 /// their extracted RAG memory by +16.3/+13.1.
+#[allow(clippy::too_many_arguments)]
 pub async fn build_lmev2(
     trajectories: &Path,
     haystack_path: &Path,
@@ -210,6 +259,7 @@ pub async fn build_lmev2(
     collection: &str,
     ledger_path: &Path,
     limit: Option<usize>,
+    repair: bool,
 ) -> Result<BuildReport> {
     let cfg = MyelinConfig::load().context("load myelin config")?;
 
@@ -309,6 +359,7 @@ pub async fn build_lmev2(
     }
 
     report.wall_secs = started.elapsed().as_secs_f64();
+    check_drift(&ledger, &store, &embedder, tier, repair).await?;
     Ok(report)
 }
 

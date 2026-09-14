@@ -74,6 +74,10 @@ enum Command {
         /// Directory holding the LME-V2 release files.
         #[arg(long, default_value = "/tmp/lmev2")]
         lmev2_dir: String,
+        /// Repair any ledger/vector drift found at the end of the build
+        /// instead of failing.
+        #[arg(long)]
+        repair: bool,
     },
     /// Run the accuracy/latency benchmark suite
     Bench,
@@ -141,6 +145,7 @@ async fn main() -> anyhow::Result<()> {
             ref ledger,
             limit,
             ref lmev2_dir,
+            repair,
         } => {
             build_cmd(
                 corpus,
@@ -148,6 +153,7 @@ async fn main() -> anyhow::Result<()> {
                 ledger.as_deref(),
                 limit,
                 lmev2_dir,
+                repair,
             )
             .await
         }
@@ -227,6 +233,7 @@ async fn build_cmd(
     ledger: Option<&str>,
     limit: Option<usize>,
     lmev2_dir: &str,
+    repair: bool,
 ) -> anyhow::Result<()> {
     let collection = collection.map_or_else(|| corpus.collection(), str::to_string);
     let ledger = ledger.map_or_else(|| corpus.ledger(), str::to_string);
@@ -245,7 +252,7 @@ async fn build_cmd(
                 data.display()
             );
             eprintln!("ingesting LoCoMo -> collection {collection}, ledger {ledger}");
-            build_locomo(data, &collection, Path::new(&ledger), limit).await?
+            build_locomo(data, &collection, Path::new(&ledger), limit, repair).await?
         }
         Corpus::LmeV2Small | Corpus::LmeV2Medium => {
             let dir = Path::new(lmev2_dir);
@@ -267,6 +274,7 @@ async fn build_cmd(
                 &collection,
                 Path::new(&ledger),
                 limit,
+                repair,
             )
             .await?
         }

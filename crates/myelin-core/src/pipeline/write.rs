@@ -272,10 +272,37 @@ impl<'a> WritePath<'a> {
                 .await;
             stats.consolidate_ms += t1.elapsed().as_millis();
 
+            // Index whatever reached the ledger, even when a later
+            // judgement in the same episode fails.
+            //
+            // The first full LoCoMo run died mid-episode on an unparseable
+            // judgement and left **two** records in the ledger that were
+            // never indexed (`Pixie is a small white dog.` and one sibling,
+            // found by diffing the ledger against Qdrant afterwards). A
+            // ledger row with no vector is the worse of the two drifts: it
+            // is exported, counted and reported, and it is invisible to
+            // every read path. The reverse — a point with no row — is
+            // harmless, because `recall` re-checks the ledger and drops it.
+            //
+            // So the error is held, the index runs, and only then does it
+            // propagate.
+            let mut failure = None;
             for judgement in judged {
-                let (record, outcome) = judgement?;
-                if let Some(written) = self.apply_outcome(&record, outcome, &mut stats).await? {
-                    derived.push(written);
+                match judgement {
+                    Ok((record, outcome)) => {
+                        match self.apply_outcome(&record, outcome, &mut stats).await {
+                            Ok(Some(written)) => derived.push(written),
+                            Ok(None) => {}
+                            Err(e) => {
+                                failure = Some(e);
+                                break;
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        failure = Some(e);
+                        break;
+                    }
                 }
             }
 
@@ -283,6 +310,10 @@ impl<'a> WritePath<'a> {
                 let t2 = Instant::now();
                 self.indexer().index(&derived).await?;
                 stats.index_ms += t2.elapsed().as_millis();
+            }
+
+            if let Some(e) = failure {
+                return Err(e);
             }
         }
 
