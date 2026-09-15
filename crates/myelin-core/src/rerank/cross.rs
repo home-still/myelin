@@ -23,6 +23,29 @@ pub struct CrossEncoder {
     model: String,
 }
 
+/// Longest document sent to the cross-encoder, in characters.
+///
+/// The server reports its limit in tokens (8192 physical batch) and the query
+/// plus special tokens share that budget. At the worst density measured on
+/// this corpus — about 1.5 characters per token on line-broken text, see
+/// `MAX_EMBED_CHARS` — 8,000 characters is roughly 5,300 tokens, leaving the
+/// query ample room.
+const MAX_RERANK_CHARS: usize = 8000;
+
+/// Cap each document at [`MAX_RERANK_CHARS`], leaving shorter ones untouched.
+fn truncate_for_rerank(documents: &[String]) -> Vec<String> {
+    documents
+        .iter()
+        .map(|d| {
+            if d.chars().count() <= MAX_RERANK_CHARS {
+                d.clone()
+            } else {
+                d.chars().take(MAX_RERANK_CHARS).collect()
+            }
+        })
+        .collect()
+}
+
 impl CrossEncoder {
     /// `base_url` is the server root, e.g. `http://127.0.0.1:5812`.
     pub fn new(base_url: impl Into<String>, model: impl Into<String>) -> Result<Self> {
@@ -56,6 +79,18 @@ impl Reranker for CrossEncoder {
     }
 
     async fn rerank(&self, query: &str, documents: &[String]) -> Result<Vec<f32>> {
+        // Truncate for scoring only. The cross-encoder has a fixed physical
+        // batch and a memory system has no maximum record length, so a long
+        // record must cost relevance precision rather than kill the query --
+        // measured: a LongMemEval_S record produced "input (9771 tokens) is
+        // too large to process (current batch size: 8192)" and failed the
+        // whole run. Unlike the embedder, which mean-pools chunks because a
+        // stored vector must represent the whole record, this genuinely can
+        // discard the tail: the score decides ordering, and the reader still
+        // receives the record's full text either way.
+        let truncated = truncate_for_rerank(documents);
+        let documents = truncated.as_slice();
+
         if documents.is_empty() {
             return Ok(Vec::new());
         }
@@ -128,5 +163,38 @@ impl Reranker for CrossEncoder {
             *slot = r.relevance_score;
         }
         Ok(scores)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{truncate_for_rerank, MAX_RERANK_CHARS};
+
+    /// The cap exists to stop HTTP 500s, so nothing may exceed it — and
+    /// counting must be in characters, not bytes, or one multi-byte document
+    /// slips through and fails the whole query.
+    #[test]
+    fn long_documents_are_capped_and_short_ones_are_untouched() {
+        let short = "already fine".to_string();
+        let long = "x".repeat(MAX_RERANK_CHARS * 2);
+        let multibyte = "é".repeat(MAX_RERANK_CHARS * 2);
+        let out = truncate_for_rerank(&[short.clone(), long, multibyte]);
+        assert_eq!(out[0], short, "short documents must not be rewritten");
+        assert_eq!(out[1].chars().count(), MAX_RERANK_CHARS);
+        assert_eq!(out[2].chars().count(), MAX_RERANK_CHARS);
+    }
+
+    /// One score per input document is the contract the caller relies on to
+    /// zip scores back onto candidates; truncation must not drop or add rows.
+    #[test]
+    fn truncation_preserves_document_count_and_order() {
+        let docs: Vec<String> = (0..5)
+            .map(|i| format!("{i}").repeat(MAX_RERANK_CHARS * 2))
+            .collect();
+        let out = truncate_for_rerank(&docs);
+        assert_eq!(out.len(), docs.len());
+        for (i, d) in out.iter().enumerate() {
+            assert!(d.starts_with(&i.to_string()), "order changed at {i}");
+        }
     }
 }

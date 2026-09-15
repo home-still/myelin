@@ -545,10 +545,14 @@ async fn bench_cmd(
         run.f1_answerable
     );
     println!("    exact match             {:.4}", run.em_answerable);
-    println!(
-        "    abstention (category 5) {:.4}",
-        run.abstention_accuracy
-    );
+    // Named by what marks an item unanswerable in each corpus, not by
+    // LoCoMo's category number: LongMemEval_S uses an `_abs` id suffix and
+    // printing "category 5" there pointed at temporal-reasoning instead.
+    let abs_label = match run.corpus.as_str() {
+        "locomo" => "abstention (category 5)",
+        _ => "abstention (_abs items)",
+    };
+    println!("    {abs_label:<23} {:.4}", run.abstention_accuracy);
     println!(
         "    query latency           p50 {:.2}s  avg {:.2}s",
         run.query_p50_seconds, run.query_avg_seconds
