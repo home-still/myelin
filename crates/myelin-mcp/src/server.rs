@@ -25,7 +25,7 @@ use myelin_core::model::delta::Delta;
 use myelin_core::model::record::{ActorId, LinkKind, RecordKind, Scope, SourceRef};
 use myelin_core::pipeline::ingest::Turn;
 use myelin_core::pipeline::write::WritePath;
-use myelin_core::pipeline::investigate::{InvestigateTrace, Investigator};
+use myelin_core::pipeline::investigate::{InvestigateConfig, InvestigateTrace, Investigator};
 use myelin_core::pipeline::retrieve::{RecallTrace, RetrieveConfig, Retriever};
 use myelin_core::rerank::cross::CrossEncoder;
 use myelin_core::store::ledger::Ledger;
@@ -232,7 +232,11 @@ impl MyelinServer {
             budget: Budget {
                 k: params.k.unwrap_or(defaults.k),
                 tokens: params.budget_tokens.unwrap_or(defaults.tokens),
-                max_steps: params.max_steps.unwrap_or(4),
+                // One source of truth: the measured default lives on
+                // `InvestigateConfig` with the curve that justifies it.
+                max_steps: params
+                    .max_steps
+                    .unwrap_or(InvestigateConfig::default().max_steps),
             },
             mode: Mode::Investigate,
             kinds: None,

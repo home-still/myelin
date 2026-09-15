@@ -44,6 +44,16 @@ pub struct InvestigateConfig {
     /// gate reads to decide whether to search again.
     pub step_k: usize,
     /// Hard ceiling on model calls in the gate. One per step.
+    ///
+    /// Two, because the step-value curve peaks there and then *declines*
+    /// (`docs/measurements/m7-step-value-curve.md`): 33.3% → **43.3%** →
+    /// 41.7% → 38.3% overall at 1/2/3/4 steps. Non-abstention accuracy keeps
+    /// rising with steps (37.2% → 48.8%), but abstention accuracy collapses
+    /// past two (35.3% → 23.5% → 11.8%) because a loop told to search until
+    /// satisfied always eventually surfaces *something*, and that something
+    /// reads to the reader as evidence. Four steps also costs 28.91 s, which
+    /// crosses the 26.9 s LAFS frontier breakpoint and raises our accuracy
+    /// bar from 51.0 to 58.6.
     pub max_steps: usize,
     /// Cap on distinct records carried into the final compose.
     pub max_pool: usize,
@@ -53,7 +63,7 @@ impl Default for InvestigateConfig {
     fn default() -> Self {
         Self {
             step_k: 10,
-            max_steps: 4,
+            max_steps: 2,
             max_pool: 60,
         }
     }

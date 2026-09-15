@@ -179,7 +179,7 @@ class MyelinMemory(Memory):
     | `k` | `6` | evidence-set size |
     | `budget_tokens` | `2048` | compose budget |
     | `mode` | `recall` | `recall` (fast) or `investigate` (agentic) |
-    | `max_steps` | `4` | `investigate` only: iteration cap |
+    | `max_steps` | `2` | `investigate` only: iteration cap |
     | `tau_abstain` | `None` | withhold evidence below this rerank score |
     | `timeout` | `120.0` | per-call seconds |
 
@@ -213,7 +213,8 @@ class MyelinMemory(Memory):
             self.mode in {"recall", "investigate"},
             f"mode must be 'recall' or 'investigate', got {self.mode!r}",
         )
-        self.max_steps = int(params.get("max_steps", 4))
+        # 2 is the measured peak; see docs/measurements/m7-step-value-curve.md.
+        self.max_steps = int(params.get("max_steps", 2))
         url = params.get("url") or os.getenv("MYELIN_MCP_URL") or "http://127.0.0.1:7446/mcp"
         self.url = str(url)
         self._session = _McpSession(self.url, float(params.get("timeout", 120.0)))

@@ -108,7 +108,7 @@ def build_memory() -> tuple[myelin.MyelinMemory, RecordingSession]:
     memory.budget_tokens = 2048
     memory.tau_abstain = None
     memory.mode = "recall"
-    memory.max_steps = 4
+    memory.max_steps = 2
     memory.url = "recorder://"
     memory._session = recorder
     memory._inserted = set()
