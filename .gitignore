@@ -27,3 +27,6 @@ target
 # Python venv for the vendored LongMemEval-V2 harness (its own requirements.txt).
 /.venv/
 __pycache__/
+
+# judge panel verdict cache (accumulates across free-tier quota days)
+crates/myelin-eval/adapters/.judge_cache.json
