@@ -9,6 +9,7 @@ use std::path::Path;
 
 use clap::{Parser, Subcommand};
 
+use myelin_core::model::query::Mode;
 use myelin_eval::build::build_locomo;
 use myelin_eval::datasets::{self, locomo};
 
@@ -79,8 +80,29 @@ enum Command {
         #[arg(long)]
         repair: bool,
     },
-    /// Run the accuracy/latency benchmark suite
-    Bench,
+    /// Score LoCoMo end-to-end: retrieve, read, and grade the answer with
+    /// a deterministic scorer (no LLM judge). See `bench.rs`.
+    Bench {
+        #[arg(long, default_value = "data/locomo10.json")]
+        dataset: String,
+        #[arg(long, default_value = "myelin_locomo")]
+        collection: String,
+        #[arg(long, default_value = "data/locomo.ledger")]
+        ledger: String,
+        #[arg(long, default_value_t = 6)]
+        k: usize,
+        /// `recall` is the fast path; `investigate` runs the agentic loop.
+        #[arg(long, default_value = "recall")]
+        mode: String,
+        /// `investigate` only. Default matches `InvestigateConfig`.
+        #[arg(long, default_value_t = 2)]
+        max_steps: usize,
+        /// Stop after N questions. Omit for all 1,986.
+        #[arg(long)]
+        limit: Option<usize>,
+        #[arg(long, default_value = "runs/locomo_recall")]
+        out: String,
+    },
     /// Run the MINJA-style poisoning attack suite (EVALUATION.md §7)
     Attack {
         /// Also run E1/E2, which need a live store and a GPU: they build
@@ -130,7 +152,7 @@ impl Command {
         match self {
             Command::Fetch => "fetch",
             Command::Build { .. } => "build",
-            Command::Bench => "bench",
+            Command::Bench { .. } => "bench",
             Command::Attack { .. } => "attack",
             Command::Ablate { .. } => "ablate",
             Command::Report => "report",
@@ -206,6 +228,16 @@ async fn main() -> anyhow::Result<()> {
             )
             .await
         }
+        Command::Bench {
+            dataset,
+            collection,
+            ledger,
+            k,
+            ref mode,
+            max_steps,
+            limit,
+            ref out,
+        } => bench_cmd(&dataset, &collection, &ledger, k, mode, max_steps, limit, out).await,
         rest => {
             println!("{}: not implemented (milestone M5+)", rest.name());
             Ok(())
@@ -344,5 +376,69 @@ async fn ablate_cmd(
     )
     .await?;
     myelin_eval::ablate::print_table(&run, k);
+    Ok(())
+}
+
+/// Score LoCoMo end-to-end against a memory that `build` already wrote.
+///
+/// Separate from `ablate` for the same reason `ablate` is separate from
+/// `build`: retrieval quality and answer quality are different questions and
+/// answering the second costs a reader call per question.
+#[allow(clippy::too_many_arguments)]
+async fn bench_cmd(
+    dataset: &str,
+    collection: &str,
+    ledger: &str,
+    k: usize,
+    mode: &str,
+    max_steps: usize,
+    limit: Option<usize>,
+    out: &str,
+) -> anyhow::Result<()> {
+    let mode = match mode {
+        "recall" => Mode::Recall,
+        "investigate" => Mode::Investigate,
+        other => anyhow::bail!("--mode must be recall or investigate, got {other:?}"),
+    };
+    let run = myelin_eval::bench::bench_locomo(
+        Path::new(dataset),
+        collection,
+        Path::new(ledger),
+        k,
+        mode,
+        max_steps,
+        limit,
+        Path::new(out),
+    )
+    .await?;
+
+    println!();
+    println!(
+        "  LoCoMo {} k={} over {} questions",
+        run.mode, run.k, run.questions
+    );
+    println!(
+        "    token F1 (answerable)   {:.4}",
+        run.f1_answerable
+    );
+    println!("    exact match             {:.4}", run.em_answerable);
+    println!(
+        "    abstention (category 5) {:.4}",
+        run.abstention_accuracy
+    );
+    println!(
+        "    query latency           p50 {:.2}s  avg {:.2}s",
+        run.query_p50_seconds, run.query_avg_seconds
+    );
+    println!();
+    println!("    {:<10}{:>7}{:>12}", "category", "n", "mean");
+    for c in &run.by_category {
+        println!(
+            "    {:<10}{:>7}{:>12.4}",
+            c.category, c.count, c.mean_score
+        );
+    }
+    println!();
+    println!("  wrote {out}/per_question.jsonl and {out}/aggregated_metrics.json");
     Ok(())
 }
