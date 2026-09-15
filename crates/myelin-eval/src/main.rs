@@ -74,6 +74,8 @@ enum Corpus {
     Locomo,
     LmeV2Small,
     LmeV2Medium,
+    #[value(name = "longmemeval-s")]
+    LongmemevalS,
 }
 
 impl Corpus {
@@ -82,6 +84,7 @@ impl Corpus {
             Corpus::Locomo => "locomo",
             Corpus::LmeV2Small => "lme_v2_small",
             Corpus::LmeV2Medium => "lme_v2_medium",
+            Corpus::LongmemevalS => "longmemeval_s",
         }
     }
 
@@ -378,6 +381,23 @@ async fn build_cmd(
             );
             eprintln!("ingesting LoCoMo -> collection {collection}, ledger {ledger}");
             build_locomo(data, &collection, Path::new(&ledger), limit, repair).await?
+        }
+        Corpus::LongmemevalS => {
+            let data = Path::new("data/longmemeval_s.json");
+            anyhow::ensure!(
+                data.exists(),
+                "missing {}; run `myelin-eval fetch` first",
+                data.display()
+            );
+            eprintln!("ingesting LongMemEval_S -> collection {collection}, ledger {ledger}");
+            myelin_eval::build::build_longmemeval_s(
+                data,
+                &collection,
+                Path::new(&ledger),
+                limit,
+                repair,
+            )
+            .await?
         }
         Corpus::LmeV2Small | Corpus::LmeV2Medium => {
             let dir = Path::new(lmev2_dir);

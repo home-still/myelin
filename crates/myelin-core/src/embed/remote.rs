@@ -93,6 +93,44 @@ impl Embedder for RemoteEmbedder {
             return Ok(vec![]);
         }
 
+        // Long inputs are split, embedded separately, and mean-pooled rather
+        // than sent whole — see `MAX_EMBED_CHARS`.
+        if texts.iter().any(|t| t.chars().count() > MAX_EMBED_CHARS) {
+            return self.embed_chunked(texts).await;
+        }
+        self.embed_batch(texts).await
+    }
+}
+
+impl RemoteEmbedder {
+    /// Embed inputs of any length by splitting the over-long ones.
+    ///
+    /// One vector out per text in, so callers never learn that a split
+    /// happened: a record is still one record.
+    async fn embed_chunked(&self, texts: &[String]) -> Result<Vec<Vec<f32>>> {
+        // Flatten every text into its chunks, embed all chunks in one
+        // request, then pool back. A per-text request would turn one
+        // oversized turn into N round trips.
+        let mut flat: Vec<String> = Vec::with_capacity(texts.len());
+        let mut spans: Vec<(usize, usize)> = Vec::with_capacity(texts.len());
+        for text in texts {
+            let start = flat.len();
+            for chunk in split_for_embedding(text) {
+                flat.push(chunk);
+            }
+            spans.push((start, flat.len()));
+        }
+
+        let vectors = self.embed_batch(&flat).await?;
+
+        let mut out = Vec::with_capacity(texts.len());
+        for (start, end) in spans {
+            out.push(mean_pool(&vectors[start..end], self.target_dim as usize));
+        }
+        Ok(out)
+    }
+
+    async fn embed_batch(&self, texts: &[String]) -> Result<Vec<Vec<f32>>> {
         let url = format!("{}/embeddings", self.base_url);
         let body = json!({
             "model": self.model,
@@ -190,6 +228,80 @@ fn fit_dim(v: Vec<f32>, target: usize) -> Result<Vec<f32>> {
 // Response types
 // ---------------------------------------------------------------------------
 
+/// Largest text sent to the embedder in one piece, in characters.
+///
+/// bge-m3's context is 8192 tokens and ollama returns HTTP 400 — not a
+/// truncation — once an input exceeds it. Our `approx_tokens` estimate of
+/// chars/4 is badly wrong on the text that actually triggers this: a
+/// LongMemEval_S turn of 12,240 characters, newline-separated short phrases,
+/// tokenizes to more than 8192, i.e. under 1.5 chars per token rather than 4.
+/// Prose is nearer 4; lists, code and markup are nearer 1.5.
+///
+/// 4,000 characters is therefore ~2,700 tokens even at that worst observed
+/// density, leaving room for a tokenizer denser still. Chosen for the failure
+/// mode rather than the average, because the average never fails.
+const MAX_EMBED_CHARS: usize = 4000;
+
+/// Split on line boundaries where possible, hard-cutting only when a single
+/// line is itself over the cap.
+///
+/// Cutting mid-sentence produces a chunk that embeds to neither neighbour's
+/// meaning — the same reasoning as `lmev2::chunk_tree` splitting on element
+/// boundaries rather than every N bytes.
+fn split_for_embedding(text: &str) -> Vec<String> {
+    let mut chunks = Vec::new();
+    let mut cur = String::new();
+    for line in text.split_inclusive('\n') {
+        if !cur.is_empty() && cur.chars().count() + line.chars().count() > MAX_EMBED_CHARS {
+            chunks.push(std::mem::take(&mut cur));
+        }
+        if line.chars().count() > MAX_EMBED_CHARS {
+            let mut buf = String::new();
+            for c in line.chars() {
+                buf.push(c);
+                if buf.chars().count() >= MAX_EMBED_CHARS {
+                    chunks.push(std::mem::take(&mut buf));
+                }
+            }
+            cur.push_str(&buf);
+        } else {
+            cur.push_str(line);
+        }
+    }
+    if !cur.is_empty() {
+        chunks.push(cur);
+    }
+    if chunks.is_empty() {
+        chunks.push(String::new());
+    }
+    chunks
+}
+
+/// Mean of unit vectors, re-normalized.
+///
+/// Re-normalization is not optional: the Qdrant `Cosine` comparator assumes
+/// unit vectors and the mean of several unit vectors is not one. Same reason
+/// `fit_dim` re-normalizes after Matryoshka truncation.
+fn mean_pool(vectors: &[Vec<f32>], dim: usize) -> Vec<f32> {
+    if vectors.len() == 1 {
+        return vectors[0].clone();
+    }
+    let mut acc = vec![0.0f32; dim];
+    for v in vectors {
+        for (a, x) in acc.iter_mut().zip(v.iter()) {
+            *a += *x;
+        }
+    }
+    let norm = acc.iter().map(|x| x * x).sum::<f32>().sqrt();
+    if norm > 0.0 {
+        for a in acc.iter_mut() {
+            *a /= norm;
+        }
+    }
+    acc
+}
+
+
 #[derive(Deserialize)]
 struct EmbeddingsResponse {
     data: Vec<EmbeddingData>,
@@ -209,7 +321,7 @@ struct EmbeddingData {
 
 #[cfg(test)]
 mod tests {
-    use super::fit_dim;
+    use super::{fit_dim, mean_pool, split_for_embedding, MAX_EMBED_CHARS};
 
     fn l2_norm(v: &[f32]) -> f32 {
         v.iter().map(|x| x * x).sum::<f32>().sqrt()
@@ -278,5 +390,60 @@ mod tests {
             );
             assert!(x.is_finite(), "output must be finite");
         }
+    }
+
+    /// The cap exists to stop HTTP 400s, so no chunk may exceed it — not even
+    /// when one line is longer than the cap by itself.
+    #[test]
+    fn no_chunk_exceeds_the_cap() {
+        let unbroken = "x".repeat(MAX_EMBED_CHARS * 3 + 7);
+        let lines = "short line\n".repeat(2000);
+        let mixed = format!("{lines}{unbroken}\n{lines}");
+        for text in [&unbroken, &lines, &mixed] {
+            for chunk in split_for_embedding(text) {
+                assert!(
+                    chunk.chars().count() <= MAX_EMBED_CHARS,
+                    "chunk of {} chars exceeds cap {MAX_EMBED_CHARS}",
+                    chunk.chars().count()
+                );
+            }
+        }
+    }
+
+    /// Splitting must not lose or duplicate a single character. A silent drop
+    /// here is unrecoverable: the record keeps its full text, and only the
+    /// vector would be wrong, so nothing downstream could ever notice.
+    #[test]
+    fn splitting_preserves_every_character() {
+        let unbroken = "y".repeat(MAX_EMBED_CHARS * 2 + 13);
+        let text = format!("alpha\nbeta\n{unbroken}\ngamma\n{}", "z".repeat(9000));
+        assert_eq!(split_for_embedding(&text).concat(), text);
+    }
+
+    #[test]
+    fn short_text_is_one_chunk() {
+        assert_eq!(split_for_embedding("hello\nworld"), vec!["hello\nworld"]);
+    }
+
+    /// Cosine in Qdrant assumes unit vectors; the mean of unit vectors is not
+    /// one, so pooling has to renormalize or every score is quietly wrong.
+    #[test]
+    fn mean_pool_returns_a_unit_vector() {
+        let a = vec![1.0f32, 0.0, 0.0, 0.0];
+        let b = vec![0.0f32, 1.0, 0.0, 0.0];
+        let pooled = mean_pool(&[a, b], 4);
+        let norm = pooled.iter().map(|x| x * x).sum::<f32>().sqrt();
+        assert!((norm - 1.0).abs() < 1e-6, "norm was {norm}");
+        // Equidistant between the two inputs.
+        assert!((pooled[0] - pooled[1]).abs() < 1e-6);
+    }
+
+    /// A single chunk must come back byte-identical, not round-tripped
+    /// through the pooling arithmetic, or every ordinary record's vector
+    /// would drift.
+    #[test]
+    fn mean_pool_of_one_is_the_identity() {
+        let v = vec![0.6f32, 0.8, 0.0, 0.0];
+        assert_eq!(mean_pool(std::slice::from_ref(&v), 4), v);
     }
 }

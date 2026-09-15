@@ -378,15 +378,12 @@ pub async fn bench_longmemeval_s(
         retriever = retriever.with_reranker(r as &dyn Reranker);
     }
 
-    // LongMemEval marks unanswerable questions by an `_abs` suffix on the
-    // question_id; there is no separate category field.
-    let is_abs = |id: &str| id.ends_with("_abs");
-
     let mut scored: Vec<ScoredQuestion> = Vec::new();
     let mut latencies: Vec<f64> = Vec::new();
 
     for item in &items {
-        let adversarial = is_abs(&item.question_id);
+        let adversarial = item.is_abstention();
+        let gold = item.answer_text();
         let query = Recall {
             scope: ScopeFilter::tenant(format!("lme_s/{}", item.question_id))
                 .with_namespace("longmemeval_s"),
@@ -450,8 +447,8 @@ pub async fn bench_longmemeval_s(
             (0.0, 0.0)
         } else {
             (
-                token_f1(&response, &item.answer),
-                f64::from(u8::from(normalize(&response) == normalize(&item.answer))),
+                token_f1(&response, &gold),
+                f64::from(u8::from(normalize(&response) == normalize(&gold))),
             )
         };
 
@@ -460,7 +457,7 @@ pub async fn bench_longmemeval_s(
             tenant: format!("lme_s/{}", item.question_id),
             category: question_type_code(&item.question_type),
             question_text: item.question.clone(),
-            answer_gold: item.answer.clone(),
+            answer_gold: gold,
             response_raw: response,
             score,
             exact_match: exact,
