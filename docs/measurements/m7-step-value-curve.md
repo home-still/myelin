@@ -60,3 +60,59 @@ provisional until run on the full 240.
 `max_steps` default should be **2**, not 4. The remaining gap to the 51.0 bar is **7.7 points**
 with **15.4 s** of latency headroom before the cliff — a better position than any previously
 measured, and it argues for spending that headroom on something other than more steps.
+
+---
+
+## Paired bootstrap CIs — what actually survives
+
+The caveat above said to treat the shape as real and the levels as provisional. Running
+`adapters/paired_ci.py` (20,000 paired resamples over per-question scores; two runs on the same
+question set are paired, and resampling the per-question *difference* removes the shared-difficulty
+nuisance variance that independent CIs would leave in) settles which parts hold.
+
+**`max_steps=2` vs `max_steps=4`**
+
+| stratum | n | A | B | A−B | 95% CI | p |
+|---|---|---|---|---|---|---|
+| overall | 60 | 43.3% | 38.3% | +5.0 | [−5.0, +16.7] | 0.442 |
+| non-abstention | 43 | 46.5% | 48.8% | −2.3 | [−14.0, +9.3] | 0.846 |
+| abstention | 17 | 35.3% | 11.8% | **+23.5** | **[+5.9, +47.1]** | **0.021** |
+
+**`max_steps=2` vs `max_steps=3`**
+
+| stratum | n | A | B | A−B | 95% CI | p |
+|---|---|---|---|---|---|---|
+| overall | 60 | 43.3% | 41.7% | +1.7 | [−8.3, +11.7] | 0.866 |
+| abstention | 17 | 35.3% | 23.5% | +11.8 | [−11.8, +35.3] | 0.430 |
+
+**`max_steps=2` vs `max_steps=1`**
+
+| stratum | n | A | B | A−B | 95% CI | p |
+|---|---|---|---|---|---|---|
+| overall | 60 | 43.3% | 33.3% | +10.0 | [−5.0, +23.3] | 0.213 |
+
+### Correction to the section above
+
+Two claims must be separated, and the earlier text ran them together.
+
+1. **The abstention collapse is real.** 35.3% → 11.8% from two steps to four is +23.5 points with a
+   95% CI of [+5.9, +47.1], p = 0.021. The mechanism — persistence manufacturing false confidence —
+   is supported.
+2. **"Two is the peak" is *not* established.** `max_steps=2` vs `max_steps=3` on overall accuracy is
+   +1.7 points with a CI spanning [−8.3, +11.7]. The ordering among 1, 2, and 3 is unresolved at
+   n = 60. Even `max_steps=2` vs `max_steps=4` on *overall* accuracy (+5.0, p = 0.442) fails to
+   reach significance, because the abstention gain on 17 questions is partly cancelled by a
+   non-significant non-abstention loss on 43.
+
+So the default of 2 does **not** rest on being measurably the most accurate. It rests on:
+
+- **`max_steps=4` is excluded on two independent grounds** — significantly worse abstention
+  (p = 0.021), and 28.91 s crosses the 26.9 s frontier breakpoint, raising our own bar from 51.0 to
+  58.6. The latency argument is arithmetic, not statistics, and does not depend on n.
+- **2 over 3 is a latency tie-break**: 11.54 s vs 24.87 s for a difference of +1.7 ± 10 points, i.e.
+  less than half the latency at no measurable accuracy cost, leaving 15.4 s of headroom instead of
+  2.0 s before the cliff.
+
+That is a sound basis for the default and an unsound basis for the claim that the curve has a peak
+at two. Confirming a peak needs the full 240-question set; 17 abstention questions cannot resolve
+5.9-point increments.

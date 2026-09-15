@@ -45,15 +45,20 @@ pub struct InvestigateConfig {
     pub step_k: usize,
     /// Hard ceiling on model calls in the gate. One per step.
     ///
-    /// Two, because the step-value curve peaks there and then *declines*
-    /// (`docs/measurements/m7-step-value-curve.md`): 33.3% → **43.3%** →
-    /// 41.7% → 38.3% overall at 1/2/3/4 steps. Non-abstention accuracy keeps
-    /// rising with steps (37.2% → 48.8%), but abstention accuracy collapses
-    /// past two (35.3% → 23.5% → 11.8%) because a loop told to search until
-    /// satisfied always eventually surfaces *something*, and that something
-    /// reads to the reader as evidence. Four steps also costs 28.91 s, which
-    /// crosses the 26.9 s LAFS frontier breakpoint and raises our accuracy
-    /// bar from 51.0 to 58.6.
+    /// Two, for two reasons that are *not* "it scored highest"
+    /// (`docs/measurements/m7-step-value-curve.md`).
+    ///
+    /// Four steps is excluded outright: abstention accuracy collapses from
+    /// 35.3% to 11.8%, a paired-bootstrap difference of +23.5 points with 95%
+    /// CI [+5.9, +47.1], p = 0.021 — a loop told to search until satisfied
+    /// eventually surfaces *something*, and that something reads to the reader
+    /// as evidence. It also costs 28.91 s, crossing the 26.9 s LAFS frontier
+    /// breakpoint and raising our own bar from 51.0 to 58.6.
+    ///
+    /// Two over three is a latency tie-break, not an accuracy win: +1.7 points
+    /// overall with CI [-8.3, +11.7] is no measurable difference, at 11.54 s
+    /// against 24.87 s. Half the latency for the same accuracy, and 15.4 s of
+    /// headroom to the cliff instead of 2.0 s.
     pub max_steps: usize,
     /// Cap on distinct records carried into the final compose.
     pub max_pool: usize,
