@@ -1,0 +1,40 @@
+{
+  "corpus": "locomo",
+  "collection": "myelin_locomo",
+  "mode": "investigate",
+  "k": 6,
+  "max_steps": 2,
+  "questions": 1986,
+  "f1_answerable": 0.5298162158226908,
+  "em_answerable": 0.2876623376623377,
+  "abstention_accuracy": 0.6973094170403588,
+  "by_category": [
+    {
+      "category": 1,
+      "count": 282,
+      "mean_score": 0.42945895734738915
+    },
+    {
+      "category": 2,
+      "count": 321,
+      "mean_score": 0.27310825208021483
+    },
+    {
+      "category": 3,
+      "count": 96,
+      "mean_score": 0.21141004489347717
+    },
+    {
+      "category": 4,
+      "count": 841,
+      "mean_score": 0.6977959966319358
+    },
+    {
+      "category": 5,
+      "count": 446,
+      "mean_score": 0.6973094170403588
+    }
+  ],
+  "query_p50_seconds": 1.793678875,
+  "query_avg_seconds": 1.8126321508690872
+}
