@@ -11,7 +11,7 @@ use clap::{Parser, Subcommand};
 
 use myelin_core::model::query::Mode;
 use myelin_eval::build::build_locomo;
-use myelin_eval::datasets::{self, locomo};
+use myelin_eval::datasets::{self, locomo, longmemeval};
 
 /// myelin-eval — the agentic-memory evaluation harness
 #[derive(Parser)]
@@ -24,6 +24,51 @@ struct Args {
 /// The corpora `PLAN.md` §9.1 names. Each pins its own default collection
 /// and ledger so that a `--corpus` switch cannot quietly append one corpus's
 /// records to another's memory.
+/// Corpora `bench` can score, each carrying the paths `build` wrote.
+///
+/// Defaults live on the enum rather than on the flags so `--corpus
+/// longmemeval-s` alone is correct; a default collection of `myelin_locomo`
+/// silently benching the wrong store is the failure this prevents.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, clap::ValueEnum)]
+enum BenchCorpus {
+    Locomo,
+    #[value(name = "longmemeval-s")]
+    LongmemevalS,
+}
+
+struct BenchDefaults {
+    dataset: &'static str,
+    collection: &'static str,
+    ledger: &'static str,
+    slug: &'static str,
+}
+
+impl BenchCorpus {
+    fn defaults(self) -> BenchDefaults {
+        match self {
+            Self::Locomo => BenchDefaults {
+                dataset: "data/locomo10.json",
+                collection: "myelin_locomo",
+                ledger: "data/locomo.ledger",
+                slug: "locomo",
+            },
+            Self::LongmemevalS => BenchDefaults {
+                dataset: "data/longmemeval_s.json",
+                collection: "myelin_longmemeval_s",
+                ledger: "data/longmemeval_s.ledger",
+                slug: "lme_s",
+            },
+        }
+    }
+}
+
+fn mode_slug(mode: Mode) -> &'static str {
+    match mode {
+        Mode::Recall => "recall",
+        Mode::Investigate => "investigate",
+    }
+}
+
 #[derive(Copy, Clone, Debug, PartialEq, Eq, clap::ValueEnum)]
 enum Corpus {
     Locomo,
@@ -83,12 +128,16 @@ enum Command {
     /// Score LoCoMo end-to-end: retrieve, read, and grade the answer with
     /// a deterministic scorer (no LLM judge). See `bench.rs`.
     Bench {
-        #[arg(long, default_value = "data/locomo10.json")]
-        dataset: String,
-        #[arg(long, default_value = "myelin_locomo")]
-        collection: String,
-        #[arg(long, default_value = "data/locomo.ledger")]
-        ledger: String,
+        /// Which corpus to score.
+        #[arg(long, value_enum, default_value_t = BenchCorpus::Locomo)]
+        corpus: BenchCorpus,
+        /// Defaults follow --corpus when left unset.
+        #[arg(long)]
+        dataset: Option<String>,
+        #[arg(long)]
+        collection: Option<String>,
+        #[arg(long)]
+        ledger: Option<String>,
         #[arg(long, default_value_t = 6)]
         k: usize,
         /// `recall` is the fast path; `investigate` runs the agentic loop.
@@ -100,8 +149,8 @@ enum Command {
         /// Stop after N questions. Omit for all 1,986.
         #[arg(long)]
         limit: Option<usize>,
-        #[arg(long, default_value = "runs/locomo_recall")]
-        out: String,
+        #[arg(long)]
+        out: Option<String>,
     },
     /// Run the MINJA-style poisoning attack suite (EVALUATION.md §7)
     Attack {
@@ -229,15 +278,29 @@ async fn main() -> anyhow::Result<()> {
             .await
         }
         Command::Bench {
-            dataset,
-            collection,
-            ledger,
+            corpus,
+            ref dataset,
+            ref collection,
+            ref ledger,
             k,
             ref mode,
             max_steps,
             limit,
             ref out,
-        } => bench_cmd(&dataset, &collection, &ledger, k, mode, max_steps, limit, out).await,
+        } => {
+            bench_cmd(
+                corpus,
+                dataset.as_deref(),
+                collection.as_deref(),
+                ledger.as_deref(),
+                k,
+                mode,
+                max_steps,
+                limit,
+                out.as_deref(),
+            )
+            .await
+        }
         rest => {
             println!("{}: not implemented (milestone M5+)", rest.name());
             Ok(())
@@ -255,6 +318,18 @@ async fn fetch() -> anyhow::Result<()> {
 
     let path = datasets::fetch_pinned(&datasets::LOCOMO, data_dir).await?;
     let digest = datasets::sha256_file(&path)?;
+
+    // LongMemEval_S is 278 MB and only needed for G2's second number, but it
+    // is fetched here rather than on demand so one command produces the whole
+    // pinned corpus set and a checksum mismatch surfaces before a GPU window
+    // is spent on it.
+    let lme_s = datasets::fetch_pinned(&datasets::LONGMEMEVAL_S, data_dir).await?;
+    let lme_s_items = longmemeval::load(&lme_s)?;
+    println!(
+        "longmemeval_s   {:>6} questions  sha256 {}",
+        lme_s_items.len(),
+        datasets::sha256_file(&lme_s)?
+    );
 
     let conversations = locomo::load(&path)?;
     let counts = locomo::qa_counts(&conversations);
@@ -386,36 +461,64 @@ async fn ablate_cmd(
 /// answering the second costs a reader call per question.
 #[allow(clippy::too_many_arguments)]
 async fn bench_cmd(
-    dataset: &str,
-    collection: &str,
-    ledger: &str,
+    corpus: BenchCorpus,
+    dataset: Option<&str>,
+    collection: Option<&str>,
+    ledger: Option<&str>,
     k: usize,
     mode: &str,
     max_steps: usize,
     limit: Option<usize>,
-    out: &str,
+    out: Option<&str>,
 ) -> anyhow::Result<()> {
     let mode = match mode {
         "recall" => Mode::Recall,
         "investigate" => Mode::Investigate,
         other => anyhow::bail!("--mode must be recall or investigate, got {other:?}"),
     };
-    let run = myelin_eval::bench::bench_locomo(
-        Path::new(dataset),
-        collection,
-        Path::new(ledger),
-        k,
-        mode,
-        max_steps,
-        limit,
-        Path::new(out),
-    )
-    .await?;
+    let d = corpus.defaults();
+    let dataset = dataset.unwrap_or(d.dataset);
+    let collection = collection.unwrap_or(d.collection);
+    let ledger = ledger.unwrap_or(d.ledger);
+    let owned_out = out.map_or_else(
+        || format!("runs/{}_{}", d.slug, mode_slug(mode)),
+        str::to_string,
+    );
+    let out = owned_out.as_str();
+
+    let run = match corpus {
+        BenchCorpus::Locomo => {
+            myelin_eval::bench::bench_locomo(
+                Path::new(dataset),
+                collection,
+                Path::new(ledger),
+                k,
+                mode,
+                max_steps,
+                limit,
+                Path::new(out),
+            )
+            .await?
+        }
+        BenchCorpus::LongmemevalS => {
+            myelin_eval::bench::bench_longmemeval_s(
+                Path::new(dataset),
+                collection,
+                Path::new(ledger),
+                k,
+                mode,
+                max_steps,
+                limit,
+                Path::new(out),
+            )
+            .await?
+        }
+    };
 
     println!();
     println!(
-        "  LoCoMo {} k={} over {} questions",
-        run.mode, run.k, run.questions
+        "  {} {} k={} over {} questions",
+        run.corpus, run.mode, run.k, run.questions
     );
     println!(
         "    token F1 (answerable)   {:.4}",

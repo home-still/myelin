@@ -51,7 +51,7 @@ use myelin_core::store::ledger::Ledger;
 use myelin_core::store::qdrant::QdrantStore;
 use serde::Serialize;
 
-use crate::datasets::locomo;
+use crate::datasets::{locomo, longmemeval};
 
 /// Instruction given to the reader for every question.
 ///
@@ -331,6 +331,177 @@ pub async fn bench_locomo(
         }
     }
 
+    finish_run("locomo", collection, mode, k, max_steps, scored, latencies, out_dir)
+}
+
+/// Run LongMemEval_S end-to-end against a memory that `build` already wrote.
+///
+/// Scored with the same deterministic token-F1 as LoCoMo. LongMemEval's own
+/// protocol uses a GPT-4o judge with type-specific prompts, which we do not
+/// have; `docs/measurements/m9-judge-panel.md` measures our local judge at
+/// kappa 0.8813 against a frontier model and slightly *harsher*, so a
+/// judge-free metric is the more conservative choice here and it is
+/// reproducible forever. **These are not protocol-identical LongMemEval_S
+/// numbers** and are not comparable to the published table.
+///
+/// Every question is scoped to its own tenant, matching the 500 independent
+/// memories `build_longmemeval_s` writes. Reading across tenants would answer
+/// from other questions' haystacks.
+#[allow(clippy::too_many_arguments)]
+pub async fn bench_longmemeval_s(
+    dataset: &Path,
+    collection: &str,
+    ledger_path: &Path,
+    k: usize,
+    mode: Mode,
+    max_steps: usize,
+    limit: Option<usize>,
+    out_dir: &Path,
+) -> Result<BenchRun> {
+    let cfg = MyelinConfig::load().context("load myelin config")?;
+    let mut items = longmemeval::load(dataset).context("load longmemeval_s")?;
+    if let Some(n) = limit {
+        items.truncate(n);
+    }
+
+    let llm = OpenAiLlm::new(&cfg.llm.url, &cfg.llm.model).context("reader client")?;
+    let embedder = RemoteEmbedder::new(&cfg.embed.url, &cfg.embed.model, cfg.embed.dim)
+        .context("embedder client")?;
+    let mut qdrant_cfg = cfg.qdrant.clone();
+    qdrant_cfg.collection = collection.to_string();
+    let store = QdrantStore::new(&qdrant_cfg).context("qdrant store")?;
+    let ledger = Ledger::open(ledger_path).await.context("open ledger")?;
+    let reranker = CrossEncoder::new(&cfg.rerank.url, &cfg.rerank.model).ok();
+
+    let mut retriever = Retriever::new(&embedder, &store, &ledger);
+    if let Some(r) = reranker.as_ref() {
+        retriever = retriever.with_reranker(r as &dyn Reranker);
+    }
+
+    // LongMemEval marks unanswerable questions by an `_abs` suffix on the
+    // question_id; there is no separate category field.
+    let is_abs = |id: &str| id.ends_with("_abs");
+
+    let mut scored: Vec<ScoredQuestion> = Vec::new();
+    let mut latencies: Vec<f64> = Vec::new();
+
+    for item in &items {
+        let adversarial = is_abs(&item.question_id);
+        let query = Recall {
+            scope: ScopeFilter::tenant(format!("lme_s/{}", item.question_id))
+                .with_namespace("longmemeval_s"),
+            text: item.question.clone(),
+            budget: Budget {
+                k,
+                tokens: 4096,
+                max_steps,
+            },
+            mode,
+            kinds: None,
+        };
+
+        let started = std::time::Instant::now();
+        let evidence = match mode {
+            Mode::Investigate => {
+                Investigator::new(&llm, &retriever)
+                    .investigate(&query)
+                    .await
+                    .with_context(|| format!("investigate {}", item.question_id))?
+                    .0
+            }
+            Mode::Recall => {
+                retriever
+                    .recall(&query)
+                    .await
+                    .with_context(|| format!("recall {}", item.question_id))?
+                    .0
+            }
+        };
+        let elapsed = started.elapsed().as_secs_f64();
+        latencies.push(elapsed);
+
+        let context = evidence
+            .items
+            .iter()
+            .enumerate()
+            .map(|(n, it)| format!("[{n}] {}", it.value))
+            .collect::<Vec<_>>()
+            .join("\n");
+        let response = llm
+            .complete(
+                &CompletionRequest::new(vec![
+                    Message::system(READER_SYSTEM),
+                    Message::user(format!(
+                        "<memories>\n{context}\n</memories>\n<today>\n{}\n</today>\n<question>\n{}\n</question>",
+                        item.question_date, item.question
+                    )),
+                ])
+                .with_max_tokens(160),
+            )
+            .await
+            .with_context(|| format!("reader {}", item.question_id))?
+            .text;
+
+        let declined = is_abstention(&response);
+        let (score, exact) = if adversarial {
+            let s = f64::from(u8::from(declined));
+            (s, s)
+        } else if declined {
+            (0.0, 0.0)
+        } else {
+            (
+                token_f1(&response, &item.answer),
+                f64::from(u8::from(normalize(&response) == normalize(&item.answer))),
+            )
+        };
+
+        scored.push(ScoredQuestion {
+            question_id: item.question_id.clone(),
+            tenant: format!("lme_s/{}", item.question_id),
+            category: question_type_code(&item.question_type),
+            question_text: item.question.clone(),
+            answer_gold: item.answer.clone(),
+            response_raw: response,
+            score,
+            exact_match: exact,
+            is_abstention_problem: adversarial,
+            retrieved_items: evidence.items.len(),
+            memory_query_duration_seconds: elapsed,
+        });
+    }
+
+    finish_run("longmemeval_s", collection, mode, k, max_steps, scored, latencies, out_dir)
+}
+
+/// LongMemEval names its question types; `ScoredQuestion::category` is numeric
+/// so both corpora share one row shape and one CI tool.
+fn question_type_code(t: &str) -> u8 {
+    match t {
+        "single-session-user" => 1,
+        "single-session-assistant" => 2,
+        "single-session-preference" => 3,
+        "multi-session" => 4,
+        "temporal-reasoning" => 5,
+        "knowledge-update" => 6,
+        _ => 0,
+    }
+}
+
+
+/// Aggregate, print nothing, write `per_question.jsonl` and
+/// `aggregated_metrics.json`. Shared by both corpora so a metric fixed for one
+/// is fixed for both, and so `adapters/paired_ci.py` reads one row shape.
+#[allow(clippy::too_many_arguments)]
+fn finish_run(
+    corpus: &str,
+    collection: &str,
+    mode: Mode,
+    k: usize,
+    max_steps: usize,
+    scored: Vec<ScoredQuestion>,
+    latencies: Vec<f64>,
+    out_dir: &Path,
+) -> Result<BenchRun> {
     let answerable: Vec<&ScoredQuestion> =
         scored.iter().filter(|s| !s.is_abstention_problem).collect();
     let adversarial: Vec<&ScoredQuestion> =
@@ -369,7 +540,7 @@ pub async fn bench_locomo(
     };
 
     let run = BenchRun {
-        corpus: "locomo".into(),
+        corpus: corpus.to_string(),
         collection: collection.to_string(),
         mode: match mode {
             Mode::Investigate => "investigate".into(),

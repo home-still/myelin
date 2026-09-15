@@ -23,6 +23,7 @@ use myelin_core::store::qdrant::QdrantStore;
 use myelin_core::store::reconcile::reconcile;
 
 use crate::datasets::lmev2;
+use crate::datasets::longmemeval;
 use crate::datasets::locomo::{self, LocomoConversation};
 
 /// LoCoMo timestamps look like `1:56 pm on 8 May, 2023`. A turn with no
@@ -360,6 +361,120 @@ pub async fn build_lmev2(
 
     report.wall_secs = started.elapsed().as_secs_f64();
     check_drift(&ledger, &store, &embedder, tier, repair).await?;
+    Ok(report)
+}
+
+/// Ingest LongMemEval_S: 500 questions, each with its own haystack.
+///
+/// Unlike LME-V2-Small — where 200 trajectories collapse to two byte-identical
+/// haystacks and therefore two memories — every LongMemEval_S question carries
+/// an independent conversation history. So this writes **500 separate
+/// memories**, one tenant per `question_id`, and a question may only ever be
+/// answered from its own. Sharing one tenant would leak 499 other haystacks
+/// into every recall and turn the benchmark into a different, much easier one.
+///
+/// Extraction is off, for the same reason as `build_lmev2`: 61.2M tokens of
+/// haystack through a fact-extraction pass is hundreds of GPU-hours, and the
+/// episodic path is what the throughput measurement in
+/// `docs/measurements/m3-write-path.md` is calibrated on.
+#[allow(clippy::too_many_arguments)]
+pub async fn build_longmemeval_s(
+    dataset: &Path,
+    collection: &str,
+    ledger_path: &Path,
+    limit: Option<usize>,
+    repair: bool,
+) -> Result<BuildReport> {
+    let cfg = MyelinConfig::load().context("load myelin config")?;
+    let mut items = longmemeval::load(dataset).context("load longmemeval_s")?;
+    if let Some(n) = limit {
+        items.truncate(n);
+    }
+    eprintln!("  longmemeval_s: {} questions, one memory each", items.len());
+
+    let llm = OpenAiLlm::new(&cfg.llm.url, &cfg.llm.model).context("reader client")?;
+    let embedder = RemoteEmbedder::new(&cfg.embed.url, &cfg.embed.model, cfg.embed.dim)
+        .context("embedder client")?;
+
+    let mut qdrant_cfg = cfg.qdrant.clone();
+    qdrant_cfg.collection = collection.to_string();
+    let store = QdrantStore::new(&qdrant_cfg).context("qdrant store")?;
+    store
+        .ensure_collection(cfg.embed.dim, false)
+        .await
+        .context("ensure collection")?;
+    let ledger = Ledger::open(ledger_path).await.context("open ledger")?;
+
+    let started = Instant::now();
+    let mut report = BuildReport {
+        per_unit: Vec::new(),
+        total: WriteStats::default(),
+        wall_secs: 0.0,
+    };
+
+    for (qi, item) in items.iter().enumerate() {
+        let scope = Scope::new(
+            format!("lme_s/{}", item.question_id),
+            "myelin",
+            "longmemeval_s",
+        );
+
+        let mut turns = Vec::new();
+        for (si, session) in item.haystack_sessions.iter().enumerate() {
+            // `haystack_dates` is parallel to `haystack_sessions`. It is the
+            // only absolute time in the corpus, and temporal-reasoning is 133
+            // of the 500 questions, so losing it costs a whole question type.
+            let at = item
+                .haystack_dates
+                .as_ref()
+                .and_then(|d| d.get(si))
+                .and_then(|s| parse_locomo_time(s));
+            let sid = item
+                .haystack_session_ids
+                .as_ref()
+                .and_then(|ids| ids.get(si).cloned())
+                .unwrap_or_else(|| format!("session{si}"));
+            for (ti, turn) in session.iter().enumerate() {
+                if turn.content.trim().is_empty() {
+                    continue;
+                }
+                turns.push(Turn {
+                    speaker: turn.role.clone(),
+                    text: turn.content.clone(),
+                    at,
+                    source: SourceRef::doc(format!("{sid}#{ti}")),
+                    unit: sid.clone(),
+                });
+            }
+        }
+
+        let mut write = WritePath::new(&llm, &embedder, &store, &ledger);
+        write.extract_facts = false;
+        let stats = write
+            .insert(&scope, &turns)
+            .await
+            .with_context(|| format!("ingest {}", item.question_id))?;
+
+        if qi % 25 == 0 || qi + 1 == items.len() {
+            eprintln!(
+                "  [{:>3}/{}] {:<24} turns={:<5} episodes={:<5} add={:<5} dup={:<5} {:.1}s",
+                qi + 1,
+                items.len(),
+                item.question_id,
+                stats.turns,
+                stats.episodes,
+                stats.added,
+                stats.duplicates,
+                stats.wall_ms as f64 / 1000.0,
+            );
+        }
+
+        report.total.merge(&stats);
+        report.per_unit.push((item.question_id.clone(), stats));
+    }
+
+    report.wall_secs = started.elapsed().as_secs_f64();
+    check_drift(&ledger, &store, &embedder, "longmemeval_s", repair).await?;
     Ok(report)
 }
 

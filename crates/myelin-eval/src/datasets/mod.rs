@@ -33,6 +33,17 @@ pub const LOCOMO: PinnedFile = PinnedFile {
     bytes: 2_805_274,
 };
 
+/// LongMemEval_S — 500 questions, each with its own ~115k-token haystack.
+///
+/// 278 MB and pinned like LoCoMo: the file is served from a mutable branch,
+/// and G2 quotes a fixed number against it.
+pub const LONGMEMEVAL_S: PinnedFile = PinnedFile {
+    name: "longmemeval_s.json",
+    url: "https://huggingface.co/datasets/xiaowu0162/longmemeval/resolve/main/longmemeval_s",
+    sha256: "08d8dad4be43ee2049a22ff5674eb86725d0ce5ff434cde2627e5e8e7e117894",
+    bytes: 278025796,
+};
+
 /// Compute the SHA-256 of a file, returned as a lowercase hex string.
 pub fn sha256_file(path: &Path) -> anyhow::Result<String> {
     let bytes = std::fs::read(path).with_context(|| format!("reading {}", path.display()))?;

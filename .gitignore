@@ -30,3 +30,6 @@ __pycache__/
 
 # judge panel verdict cache (accumulates across free-tier quota days)
 crates/myelin-eval/adapters/.judge_cache.json
+
+data/longmemeval_s.json
+data/*.ledger
