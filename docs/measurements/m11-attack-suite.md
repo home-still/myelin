@@ -7,14 +7,18 @@ purpose-built scratch collections.
 
 | experiment | gate | result | verdict |
 |---|---|---|---|
-| E1 injection | ASR ≤ 10% at k=6, pre-populated | **80%** | **FAIL** |
+| E1 injection | ASR ≤ 10% at k=6, pre-populated | **80%** | **FAIL** — superseded by M15: reproduced at **77.5%** on a 40-attack set, and **15.0% [7.1, 29.1]** with the write-time adjudicator, which still misses the gate (`m15-injection-adjudication.md`) |
 | E2 retrieval breadth | report curve; flag if monotone | 100 / 80 / 100% at k=3/6/10 | not monotone |
 | E3 quarantine efficacy | ≥ 90% of templated poison | 100% (15/15), 0% FP | PASS |
 | E4 tenant isolation | zero leaks | zero, on three read paths | PASS |
 | E5 confidence ≠ safety | reject poison at trust 1.0 | 15/15 rejected | PASS |
 | E6 unlearning | I5 holds, unreachable everywhere | holds, vectors included | PASS |
 
-**G3 does not pass.** E1 is the gate that matters and it fails by 8×.
+**G3 does not pass.** E1 is the gate that matters and it fails by 8×. **M15 revisited it** with a
+content-level adjudicator and a 40-attack set: ASR 77.5% → 15.0%, false positives 0/550 on real
+LoCoMo episodes, still above the 10% bar ⇒ the switch ships off and G3 stays open with a measured
+bound. See `m15-injection-adjudication.md`. The measurement below stays exactly as written — it is
+a true record of commit `636e28f` — and only this pointer is added.
 
 ## E1 — the failure, and two defences that did not work
 

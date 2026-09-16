@@ -291,6 +291,15 @@ enum Command {
         #[arg(long, default_value = "data")]
         ledger_dir: String,
     },
+    /// Run the injection adjudicator over LoCoMo's real episodes and report
+    /// the false-positive rate (M15). Reader only — no store.
+    AdjudicateProbe {
+        #[arg(long, default_value = "data/locomo10.json")]
+        dataset: String,
+        /// Stop after N episodes, for a cost probe before the full pass.
+        #[arg(long)]
+        limit: Option<usize>,
+    },
     /// Run the M4 retrieval ablation against an already-built memory
     Ablate {
         #[arg(long, default_value = "data/locomo10.json")]
@@ -357,6 +366,7 @@ impl Command {
             Command::Phrases { .. } => "phrases",
             Command::Bench { .. } => "bench",
             Command::Attack { .. } => "attack",
+            Command::AdjudicateProbe { .. } => "adjudicate-probe",
             Command::Ablate { .. } => "ablate",
             Command::Rescore { .. } => "rescore",
             Command::Judge { .. } => "judge",
@@ -437,6 +447,9 @@ async fn main() -> anyhow::Result<()> {
                 println!("\nE1/E2 skipped (pass --live; they need a GPU and a live store).");
             }
             Ok(())
+        }
+        Command::AdjudicateProbe { ref dataset, limit } => {
+            adjudicate_probe_cmd(dataset, limit).await
         }
         Command::Ablate {
             ref dataset,
@@ -848,5 +861,16 @@ async fn judge_cmd(run: &str, category: Option<u8>, limit: Option<usize>) -> any
         }
     );
     println!("  wrote {run}/judge_verdicts.json");
+    Ok(())
+}
+
+/// M15: the injection gate's false-positive cost on real corpus text.
+///
+/// Reader-only, like `judge`: no embedder, no store, no ledger. The rule in
+/// `docs/measurements/m15-injection-adjudication.md` is applied to this
+/// number, so it prints the flagged text in full rather than a rate alone.
+async fn adjudicate_probe_cmd(dataset: &str, limit: Option<usize>) -> anyhow::Result<()> {
+    let report = myelin_eval::adjudicate_probe::probe(Path::new(dataset), limit).await?;
+    myelin_eval::adjudicate_probe::print(&report);
     Ok(())
 }

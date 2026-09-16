@@ -1613,6 +1613,7 @@ dependencies = [
  "async-trait",
  "chrono",
  "clap",
+ "futures-util",
  "myelin-core",
  "reqwest 0.12.28",
  "serde",

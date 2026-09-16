@@ -529,6 +529,7 @@ impl MyelinServer {
             duplicates: stats.duplicates,
             quarantined: stats.quarantined,
             rejected: stats.rejected,
+            adjudicated_out: stats.adjudicated_out,
             wall_ms: stats.wall_ms,
         }))
     }
@@ -706,6 +707,10 @@ pub struct WriteResult {
     /// run `review_quarantine` (C4).
     pub quarantined: usize,
     pub rejected: usize,
+    /// Episodes the injection adjudicator refused before storage (M15).
+    /// Staged in quarantine like `quarantined`, but earlier: these never
+    /// reached extraction at all.
+    pub adjudicated_out: usize,
     pub wall_ms: u128,
 }
 

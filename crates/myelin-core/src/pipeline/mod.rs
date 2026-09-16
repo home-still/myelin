@@ -9,6 +9,7 @@
 //! the phrase↔record incidence graph joins `dense` and `lex` in one `rrf`
 //! call ([`retrieve::RetrieveConfig::graph`]).
 
+pub mod adjudicate;
 pub mod compose;
 pub mod consolidate;
 pub mod extract;

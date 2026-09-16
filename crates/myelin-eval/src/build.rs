@@ -206,10 +206,11 @@ pub async fn build_locomo(
             .with_context(|| format!("ingest {}", conv.sample_id))?;
 
         eprintln!(
-            "  {:<8} turns={:<5} episodes={:<4} candidates={:<5} add={:<5} upd={:<4} dup={:<5} quar={:<4} rej={:<4} {:.1}s",
+            "  {:<8} turns={:<5} episodes={:<4} adj={:<3} candidates={:<5} add={:<5} upd={:<4} dup={:<5} quar={:<4} rej={:<4} {:.1}s",
             conv.sample_id,
             stats.turns,
             stats.episodes,
+            stats.adjudicated_out,
             stats.candidates,
             stats.added,
             stats.updated,
@@ -488,6 +489,10 @@ impl BuildReport {
         println!("\n=== write path, {units} units ===");
         println!("turns              {}", t.turns);
         println!("episodes stored    {}", t.episodes);
+        // A gate that removes episodes must be visible in the number of
+        // episodes it removed, or a shrinking corpus looks like a
+        // segmentation change (M15).
+        println!("  adjudicated out  {}", t.adjudicated_out);
         // The four-op counters describe SEMANTIC deltas only. On an
         // episodic-only corpus they are all zero while `episodes stored` is
         // large, and reading `added 0` as "nothing was written" is the
@@ -504,9 +509,11 @@ impl BuildReport {
         println!("records/unit       {:.2}", t.records_per_unit(units));
         println!("wall               {:.1}s", self.wall_secs);
         println!(
-            "  extract          {:.1}s
+            "  adjudicate       {:.1}s
+  extract          {:.1}s
   consolidate      {:.1}s
   index            {:.1}s",
+            t.adjudicate_ms as f64 / 1000.0,
             t.extract_ms as f64 / 1000.0,
             t.consolidate_ms as f64 / 1000.0,
             t.index_ms as f64 / 1000.0,

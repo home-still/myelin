@@ -10,6 +10,7 @@
 //! or reused by a runner.
 
 pub mod ablate;
+pub mod adjudicate_probe;
 pub mod attack;
 pub mod attack_live;
 pub mod bench;
