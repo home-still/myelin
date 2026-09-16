@@ -352,6 +352,18 @@ enum Command {
         #[arg(long)]
         limit: Option<usize>,
     },
+    /// Audit a vendored LongMemEval-V2 run: for every answerable question the
+    /// harness scored wrong, was the answer in the evidence? (M16). Reader only.
+    EvidenceAudit {
+        /// A run directory written by `adapters/run_myelin.py`.
+        #[arg(long)]
+        run: String,
+        /// Judge at most the first N answerable rows, for a cost probe.
+        /// Verdicts cache per row, so an unlimited re-run judges only what
+        /// is missing and an interrupted pass resumes.
+        #[arg(long)]
+        limit: Option<usize>,
+    },
     /// Render comparison tables and the Pareto/LAFS report
     Report,
     /// Package a leaderboard submission
@@ -370,6 +382,7 @@ impl Command {
             Command::Ablate { .. } => "ablate",
             Command::Rescore { .. } => "rescore",
             Command::Judge { .. } => "judge",
+            Command::EvidenceAudit { .. } => "evidence-audit",
             Command::Report => "report",
             Command::Package => "package",
         }
@@ -515,6 +528,7 @@ async fn main() -> anyhow::Result<()> {
             category,
             limit,
         } => judge_cmd(run, category, limit).await,
+        Command::EvidenceAudit { ref run, limit } => evidence_audit_cmd(run, limit).await,
         rest => {
             println!("{}: not implemented (milestone M5+)", rest.name());
             Ok(())
@@ -861,6 +875,17 @@ async fn judge_cmd(run: &str, category: Option<u8>, limit: Option<usize>) -> any
         }
     );
     println!("  wrote {run}/judge_verdicts.json");
+    Ok(())
+}
+
+/// M16: which side of the pipeline loses an answerable question.
+///
+/// Reader-only, like `judge`: no embedder, no store, no ledger. The rule in
+/// `docs/measurements/m16-evidence-sufficiency.md` is applied to the split,
+/// so the verbatim labels are printed beside the rate.
+async fn evidence_audit_cmd(run: &str, limit: Option<usize>) -> anyhow::Result<()> {
+    let report = myelin_eval::evidence_audit::audit(Path::new(run), limit).await?;
+    myelin_eval::evidence_audit::print(&report);
     Ok(())
 }
 

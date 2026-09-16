@@ -326,7 +326,7 @@ pub fn is_abstention(response: &str) -> bool {
 /// It is `Option<Value>` because category-5 items may omit it and some items
 /// carry a number rather than a string; `Value::to_string` would wrap strings
 /// in quotes and poison the token overlap.
-fn gold_answer(value: Option<&serde_json::Value>) -> String {
+pub(crate) fn gold_answer(value: Option<&serde_json::Value>) -> String {
     match value {
         None | Some(serde_json::Value::Null) => String::new(),
         Some(serde_json::Value::String(s)) => s.clone(),

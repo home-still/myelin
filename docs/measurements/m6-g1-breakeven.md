@@ -81,6 +81,14 @@ difference is document length: a LoCoMo fact is ~15 tokens, an LME-V2 accessibil
 ~450. At k=25 that is ~11,000 tokens through the cross-encoder instead of ~375. A latency budget
 transferred between corpora without re-measuring is not a budget.
 
+**Follow-up, M16 — the answerable half is retrieval's, not the reader's.**
+`docs/measurements/m16-evidence-sufficiency.md` audited the evidence behind every answerable
+question these two runs scored wrong: only **7.4%** [4.4, 12.0] of them had the answer in the
+evidence set. A perfect reader over the evidence these runs retrieved reaches **38.8%** against the
+51.0 bar; repairing retrieval reaches **67.6%** at the measured P(correct | sufficient) = 81.8%. So
+finding 1 above generalises past abstention: the binding constraint on G1 is what the evidence
+contains, not what the reader does with it.
+
 ## Reproduce
 
 ```bash

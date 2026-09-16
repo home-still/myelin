@@ -116,3 +116,33 @@ So the default of 2 does **not** rest on being measurably the most accurate. It 
 That is a sound basis for the default and an unsound basis for the claim that the curve has a peak
 at two. Confirming a peak needs the full 240-question set; 17 abstention questions cannot resolve
 5.9-point increments.
+
+---
+
+## Settled at full set by M16
+
+The caveat above — *"treat the shape as real and the levels as provisional until run on the full
+240"* — is now measured. `docs/measurements/m16-evidence-sufficiency.md` ran `max_steps=2` on the
+full set of **both** domains against the same `recall` k=25 baseline, paired:
+
+|domain|stratum|n|`investigate` 2|`recall` k=25|Δ|95% CI|p|
+|---|---|---|---|---|---|---|---|
+|web|overall|240|45.0%|36.7%|**+8.3**|**[+2.9, +13.8]**|**0.0026**|
+|web|non-abstention|168|51.2%|42.9%|**+8.3**|**[+2.4, +14.9]**|**0.0104**|
+|web|abstention|72|30.6%|22.2%|+8.3|[−2.8, +19.4]|0.1625|
+|enterprise|overall|211|34.1%|34.6%|−0.5|[−6.6, +5.7]|0.9423|
+|enterprise|non-abstention|155|41.9%|39.4%|+2.6|[−5.2, +10.3]|0.5621|
+|enterprise|abstention|56|12.5%|21.4%|**−8.9**|**[−17.9, −1.8]**|**0.0095**|
+
+**The web level holds** — 43.3% on the 60-question subset becomes **45.0%** at n=240, and the gain
+over `recall` is significant on the overall and answerable strata, which n=60 could not establish.
+
+**It does not transfer.** On enterprise the same configuration is −0.5 points overall with a
+**significant −8.9-point abstention loss**: the persistence-manufactures-false-confidence mechanism
+diagnosed here at `max_steps` 3–4 on web is already in force at `max_steps=2` on enterprise. So the
+default of 2 is defensible **for web** and is not a global default; the domain is a free parameter
+this curve never varied.
+
+`memory_query` average at full set: **11.06 s** (web, p50 11.01, p95 16.39) and **14.69 s**
+(enterprise, p50 12.40, p95 32.60) — both inside the 26.9 s breakpoint, so the 51.0 bar still
+applies to both.
