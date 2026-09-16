@@ -14,6 +14,7 @@
 //! (1,125,951 synonym vs 140,830 extracted edges on MuSiQue).
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use petgraph::graph::{NodeIndex, UnGraph};
 use uuid::Uuid;
@@ -177,5 +178,67 @@ impl IncidenceGraph {
                 .then_with(|| a.0.cmp(&b.0))
         });
         scored
+    }
+}
+
+/// Cache ceiling. At the limit the map is cleared wholesale rather than
+/// evicted by recency: access is sequential by tenant (LoCoMo groups a
+/// conversation's questions together; LongMemEval_S never revisits a tenant),
+/// so an LRU would buy nothing and cost a dependency.
+pub const GRAPH_CACHE_TENANTS: usize = 8;
+
+/// `(tenant, namespace)` — the exact scope [`Ledger::incidence_for_tenant`]
+/// reads, so a namespace-narrowed query never reuses the tenant-wide graph.
+type GraphKey = (String, Option<String>);
+
+/// Per-tenant [`IncidenceGraph`] cache.
+///
+/// `Send + Sync` and free of shared mutable *retrieval* state (R5): the
+/// harness drives queries from several threads against one built memory, and
+/// the only thing shared here is an immutable graph behind an `Arc`.
+///
+/// [`IncidenceGraph::load`] stays the namespace-wide export/analysis entry
+/// point; this is the read path's, and it is scoped by tenant because C12
+/// forbids a cross-tenant read.
+pub struct GraphIndex {
+    cache: tokio::sync::RwLock<HashMap<GraphKey, Arc<IncidenceGraph>>>,
+}
+
+impl GraphIndex {
+    pub fn new() -> Self {
+        Self {
+            cache: tokio::sync::RwLock::new(HashMap::new()),
+        }
+    }
+
+    /// Cached load of one tenant's subgraph.
+    ///
+    /// `tokio::sync::RwLock` rather than `std`, so holding a guard across the
+    /// ledger `await` is impossible by construction.
+    pub async fn tenant(
+        &self,
+        ledger: &Ledger,
+        tenant: &str,
+        namespace: Option<&str>,
+    ) -> Result<Arc<IncidenceGraph>> {
+        let key = (tenant.to_string(), namespace.map(str::to_string));
+        if let Some(hit) = self.cache.read().await.get(&key) {
+            return Ok(Arc::clone(hit));
+        }
+        let graph = Arc::new(IncidenceGraph::from_rows(
+            &ledger.incidence_for_tenant(tenant, namespace).await?,
+        ));
+        let mut cache = self.cache.write().await;
+        if cache.len() >= GRAPH_CACHE_TENANTS {
+            cache.clear();
+        }
+        cache.insert(key, Arc::clone(&graph));
+        Ok(graph)
+    }
+}
+
+impl Default for GraphIndex {
+    fn default() -> Self {
+        Self::new()
     }
 }

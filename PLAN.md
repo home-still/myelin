@@ -211,7 +211,10 @@ Features, mirroring `hs-distill`'s `client`/`server`/`cuda` split:
 | `default = ["remote-embed"]` | reqwest | macOS dev, MCP on workstation |
 | `local-embed` | `fastembed`, `ort` | in-process embedding |
 | `cuda` | `local-embed`, `ort/cuda` | `big` |
-| `graph` | `petgraph` | PPR multi-hop route |
+
+`petgraph` is an unconditional dependency, not a feature. It was gated as `graph` until M12 put PPR
+on the default read path (`RetrieveConfig::graph`), at which point a cargo feature was gating the
+module rather than the mechanism.
 
 ### 3.2 `myelin-mcp` — the MCP surface
 
@@ -484,9 +487,10 @@ so the system exposes both and the caller picks a point on the Pareto frontier.
 scope-filter  → payload predicates: tenant, agent, session?, kind?, t_valid ≤ now < t_invalid,
                 trust_tier ≠ Quarantined                               (§2 finding 3; control C7)
 retrieve      → one query_points: prefetch{dense, limit 50} + prefetch{lex(BM25), limit 50}
+graph?        → PPR over phrase↔record incidence, a third ranked list  (§2 finding 7; built in
+                M12, default OFF — docs/measurements/m12-graph-route.md)
 fuse          → RRF in Rust, k = 60 (configurable; Qdrant's own is k = 1, §5.2)
 rerank        → late-interaction max_sim in Qdrant, or bge-reranker cross-encoder   (§2 finding 2)
-route?        → if query classified multi-hop: PPR 1-hop expansion, merge, re-rank  (§2 finding 7)
 compose       → top-k, k default 6                                     (§2 findings 4 and 9)
 ```
 
@@ -767,6 +771,9 @@ Each milestone ends with a runnable command and a number, not a description.
 | M9 | **G2** | LoCoMo(1540/1986/abstention) and LongMemEval_S with the 3-judge panel at κ ≥ 0.89 and calibration ρ ≥ 0.9; paired CIs vs baselines; contamination probe reported per model |
 | M10 | `myelin-mcp` | Server passes a real MCP client handshake; the nine tools exercised against a live store; `explain` returns a lineage tree; `recall`/`investigate` selectable per call on one store (R4) |
 | M11 | **G3** | E1–E6 of `EVALUATION.md` §7: ASR ≤ 10% at k=6 pre-populated, ≥90% templated-poison quarantine, zero cross-tenant leaks, unlearning invariant holds |
+| M12 | graph route (`EVALUATION.md` §8 row 7) | PPR fused as a third channel behind one switch, incidence backfilled on both benched corpora with no GPU, paired per-category CIs on both; default set by a rule fixed in advance. **Measured: no gain in any category, −0.7 pts on LongMemEval_S (CI [−1.5, −0.1]) ⇒ default stays off** (`docs/measurements/m12-graph-route.md`) |
+| M13 | temporal axis | Evidence order (`ComposeConfig::chronological`) and a LoCoMo `<today>` (`bench --question-date`) as two independent query-time switches, each measured alone against the M9 baselines with paired per-category CIs on both corpora; defaults set by a rule fixed in advance. **Measured: neither moves its target stratum — LoCoMo cat 2 +0.2 (CI [−1.8, +2.2]) for `question_date`, −0.3 (CI [−1.9, +1.3]) for `chronological`, LME_S temporal-reasoning −1.1 (CI [−5.2, +3.1]) ⇒ both defaults stay off.** Off-target and worth keeping: `<today>` is +3.1 pts of LoCoMo abstention accuracy (CI [+0.7, +5.6]) and time order is +8.0 pts on LME_S knowledge-update (`docs/measurements/m13-temporal-axis.md`) |
+| M14 | temporal scorer | Date-aware deterministic scoring (`myelin_eval::temporal`) beside token F1, both columns on every row; an offline `myelin-eval rescore` that re-read all eleven runs on disk at zero GPU cost; a reader-only `myelin-eval judge` as arbiter; default set by an agreement rule fixed in advance. **Measured: the date-aware scorer agrees with the judge 96.7% vs token F1's 84.9% on LoCoMo cat 2 (+11.8 pts, CI [+7.7, +15.8], κ 0.60 → 0.91), and −0.02 pts off-stratum ⇒ default flips to `temporal` for LoCoMo; `token-f1` kept for LongMemEval_S, where only 26/470 golds resolve.** Token F1 had inflated LoCoMo cat 2 by 8.03 pts (0.2825 → 0.2022) with partial credit for anchor-instead-of-offset answers; M12's and M13's verdicts all survive the re-read (`docs/measurements/m14-temporal-scorer.md`) |
 
 M0 and M5 are not ceremony. M0 pins the four probe findings in §5 — exactly the kind of thing a Qdrant point
 release changes underneath us. M5 pins the benchmark's own privacy test against our adapter, which is the
@@ -783,7 +790,7 @@ only mechanical defence against accidentally optimising on metadata we are forbi
 | Benchmark contamination in local models | SWE-Bench+ found 32.67% solution leakage; ABC / LiveCodeBench document the pattern | closed-book probe on 50 items per model before use; keep adversarial/unanswerable items; report the check |
 | Qdrant 1.19 quirks (REST multivector, `IdfParams`, k = 1 RRF) | all three measured this session | M0 pins them as tests; client-side fusion removes the k dependency |
 | Extraction quality dominates end-to-end quality | HippoRAG's error analysis; `01-systems.md` finding 3 | M3 measures extraction directly, separately from retrieval |
-| Synonym-edge explosion in the graph | 1,125,951 synonym vs 140,830 extracted edges on MuSiQue | threshold + degree cap; edge count is a tracked metric |
+| Synonym-edge explosion in the graph | 1,125,951 synonym vs 140,830 extracted edges on MuSiQue | no synonym edges are created at all — exact-phrase incidence only, capped at 32 phrases/record; edge count is a tracked metric and `myelin-eval phrases` reports it (M12: 17,794 on LoCoMo, 2,762,496 on LongMemEval_S) |
 | GPU contention makes latency numbers invalid, not just slow | measured: distill's 4,893 MiB caused `cudaMalloc failed` for a 27B model; claiming freed the card to 343 MiB | harness takes a `gpu-tenant claim`, records tenancy + VRAM peak, and **fails fast** if another tenant holds it; `memory_query_avg_seconds` is half of LAFS |
 | A leaderboard-valid LME-V2 run **requires** a `gpt-5.2` judge — an external, paid dependency | step-1 validator checks the judge model string | only 156 of 451 questions need a judge; the other 295 are deterministic, so the external spend is bounded and the judge-free column is always published; a local judge panel runs the dev loop and its delta against `gpt-5.2` is tracked |
 | Silent failure masquerading as success | llama-swap returns HTTP 200 with a zero-byte body when a model fails to load; this hid the stall for ~21 h | R7: the `Llm` trait rejects empty completions as errors; the harness treats them as run failures |

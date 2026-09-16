@@ -15,10 +15,30 @@
 //! comparable). Deterministic scoring has no such dependency: the same run
 //! scores identically on any machine, forever.
 //!
-//! The metric is SQuAD-style normalised token F1, the same family LoCoMo's
-//! own evaluation uses. Normalisation is spelled out in [`normalize`] rather
-//! than described, because every reimplementation of "SQuAD normalisation"
-//! differs slightly and the difference moves the number by a point or two.
+//! # Two deterministic scorers, both on every row
+//!
+//! [`Scorer::TokenF1`] is SQuAD-style normalised token F1, the same family
+//! LoCoMo's own evaluation uses, and the metric M3..M13 reported.
+//! Normalisation is spelled out in [`normalize`] rather than described,
+//! because every reimplementation of "SQuAD normalisation" differs slightly
+//! and the difference moves the number by a point or two.
+//!
+//! [`Scorer::Temporal`] resolves a temporal gold answer to a closed interval
+//! of days and scores containment ([`crate::temporal`]); it keeps token F1
+//! wherever the gold answer is not temporal. It is the **LoCoMo default**
+//! since M14, which measured it agreeing with a reader-only judge 96.7% of
+//! the time against token F1's 84.9% on the 272-item temporal stratum, and
+//! found token F1 had been awarding 0.50–0.75 to answers naming the anchor
+//! date instead of the offset asked for
+//! (`docs/measurements/m14-temporal-scorer.md`). LongMemEval_S keeps token
+//! F1: the grammar resolves only 26 of its 470 answerable golds.
+//!
+//! **Both columns are written on every row, forever** —
+//! `ScoredQuestion::{score_token_f1, score_temporal}` — because a metric
+//! change that erases the old metric makes every historical number
+//! unreadable. `ScoredQuestion::score` carries whichever one the run's
+//! `Scorer` selected, and [`rescore_run`] re-derives both from the persisted
+//! text without a GPU.
 //!
 //! **These are our numbers under our documented scorer, not official LoCoMo
 //! leaderboard numbers.** No LoCoMo harness is vendored here, so nothing
@@ -44,14 +64,17 @@ use myelin_core::llm::{CompletionRequest, Llm, Message};
 use myelin_core::llm::openai::OpenAiLlm;
 use myelin_core::model::query::{Budget, Mode, Recall, ScopeFilter};
 use myelin_core::pipeline::investigate::Investigator;
-use myelin_core::pipeline::retrieve::Retriever;
+use myelin_core::pipeline::retrieve::{RetrieveConfig, Retriever};
 use myelin_core::rerank::cross::CrossEncoder;
 use myelin_core::rerank::Reranker;
+use myelin_core::store::graph::GraphIndex;
 use myelin_core::store::ledger::Ledger;
 use myelin_core::store::qdrant::QdrantStore;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
+use crate::build::parse_locomo_time;
 use crate::datasets::{locomo, longmemeval};
+use crate::temporal;
 
 /// Instruction given to the reader for every question.
 ///
@@ -70,7 +93,7 @@ If the memories do not contain the answer, reply exactly: I don't know.";
 /// Field names match what `adapters/paired_ci.py` reads (`question_id`,
 /// `score`, `is_abstention_problem`) so LoCoMo runs and LongMemEval-V2 runs
 /// go through one confidence-interval tool instead of two.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScoredQuestion {
     pub question_id: String,
     pub tenant: String,
@@ -80,6 +103,17 @@ pub struct ScoredQuestion {
     pub response_raw: String,
     pub score: f64,
     pub exact_match: f64,
+    /// Both scorers, on every row, so a run is comparable under either
+    /// without being re-read. A metric change that erased the old metric
+    /// would make every historical number unreadable.
+    #[serde(default)]
+    pub score_token_f1: f64,
+    #[serde(default)]
+    pub score_temporal: f64,
+    /// Which grammar matched the gold answer: `interval`, `duration`, or
+    /// `none`. `none` means `score_temporal == score_token_f1` by definition.
+    #[serde(default)]
+    pub temporal_kind: String,
     pub is_abstention_problem: bool,
     pub retrieved_items: usize,
     pub memory_query_duration_seconds: f64,
@@ -93,6 +127,15 @@ pub struct BenchRun {
     pub mode: String,
     pub k: usize,
     pub max_steps: usize,
+    /// Which mechanisms produced this run. A run artifact that does not
+    /// record that is not reproducible.
+    pub graph: bool,
+    pub chronological: bool,
+    pub question_date: bool,
+    /// Which column `score` carries, and where the row scores came from.
+    /// `rescored_from` is `None` for a live bench run.
+    pub scorer: String,
+    pub rescored_from: Option<String>,
     pub questions: usize,
     /// Mean token F1 over non-adversarial items (categories 1–4).
     pub f1_answerable: f64,
@@ -110,6 +153,101 @@ pub struct CategoryScore {
     pub category: u8,
     pub count: usize,
     pub mean_score: f64,
+}
+
+/// Which column [`ScoredQuestion::score`] carries.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, clap::ValueEnum, Serialize)]
+pub enum Scorer {
+    /// SQuAD-style token F1 — the M3..M13 metric.
+    #[value(name = "token-f1")]
+    TokenF1,
+    /// Date-aware: [`temporal::temporal_score`] where the gold answer names a
+    /// time, token F1 everywhere else.
+    Temporal,
+}
+
+impl Scorer {
+    /// Written into `BenchRun::scorer` and used as a run-directory suffix, so
+    /// a directory name stays a function of the switch set.
+    pub fn slug(self) -> &'static str {
+        match self {
+            Scorer::TokenF1 => "token_f1",
+            Scorer::Temporal => "temporal",
+        }
+    }
+}
+
+/// Both scorers' verdicts on one answered question.
+///
+/// A struct and not a tuple: four of the five fields are `f64` and a
+/// positional return would let a caller swap `token_f1` for `temporal`
+/// silently.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Scores {
+    /// The reported column, per the run's [`Scorer`].
+    pub score: f64,
+    pub exact: f64,
+    pub token_f1: f64,
+    pub temporal: f64,
+    pub kind: &'static str,
+}
+
+/// Score one answered question under both scorers.
+///
+/// The abstention rules run first and are shared: an adversarial item scores
+/// 1.0 iff the reader declined, and a decline on an answerable item earns
+/// nothing — never token overlap with a gold answer that happens to contain
+/// "know". Both corpora and `rescore` go through here so the rule cannot
+/// drift between them.
+pub fn score_one(response: &str, gold: &str, adversarial: bool, scorer: Scorer) -> Scores {
+    let declined = is_abstention(response);
+    if adversarial {
+        // Both columns carry the same value, so no consumer of
+        // `score_temporal` sees a surprise on the adversarial stratum.
+        let s = f64::from(u8::from(declined));
+        return Scores {
+            score: s,
+            exact: s,
+            token_f1: s,
+            temporal: s,
+            kind: "none",
+        };
+    }
+    if declined {
+        return Scores {
+            score: 0.0,
+            exact: 0.0,
+            token_f1: 0.0,
+            temporal: 0.0,
+            kind: "none",
+        };
+    }
+    let f1 = token_f1(response, gold);
+    let em_f1 = f64::from(u8::from(normalize(response) == normalize(gold)));
+    let (temporal, kind) = match temporal::temporal_score(response, gold) {
+        None => (f1, "none"),
+        Some((t, k)) => (t, k.as_str()),
+    };
+    let (score, exact) = match scorer {
+        Scorer::TokenF1 => (f1, em_f1),
+        // A temporal item's exact match is "named the right time", which is
+        // what `score == 1.0` already means.
+        Scorer::Temporal => (
+            temporal,
+            if kind == "none" {
+                em_f1
+            } else {
+                f64::from(u8::from(temporal == 1.0))
+            },
+        ),
+    };
+    Scores {
+        score,
+        exact,
+        token_f1: f1,
+        temporal,
+        kind,
+    }
 }
 
 /// SQuAD-style normalisation, written out rather than referenced.
@@ -182,7 +320,8 @@ pub fn is_abstention(response: &str) -> bool {
         || n.starts_with("no information")
 }
 
-/// Flatten LoCoMo's `answer` field to a string.
+/// Flatten LoCoMo's `answer` field — or an LME-V2 harness row's
+/// `answer_gold` — to a string.
 ///
 /// It is `Option<Value>` because category-5 items may omit it and some items
 /// carry a number rather than a string; `Value::to_string` would wrap strings
@@ -213,6 +352,10 @@ pub async fn bench_locomo(
     mode: Mode,
     max_steps: usize,
     limit: Option<usize>,
+    graph: bool,
+    chronological: bool,
+    question_date: bool,
+    scorer: Scorer,
     out_dir: &Path,
 ) -> Result<BenchRun> {
     let cfg = MyelinConfig::load().context("load myelin config")?;
@@ -227,9 +370,29 @@ pub async fn bench_locomo(
     let ledger = Ledger::open(ledger_path).await.context("open ledger")?;
     let reranker = CrossEncoder::new(&cfg.rerank.url, &cfg.rerank.model).ok();
 
-    let mut retriever = Retriever::new(&embedder, &store, &ledger);
+    let graph_index = GraphIndex::new();
+    // One config, always passed. With every switch off this is
+    // `RetrieveConfig::default()` field for field, so the baseline path stays
+    // the one the M9 and M12 runs exercised.
+    //
+    // The switch and the index are separate: `RetrieveConfig::graph` defaults
+    // false, so wiring an index alone would be inert.
+    //
+    // `Investigator` wraps `&Retriever`, so `--mode investigate --graph`
+    // composes with no extra wiring.
+    let mut retriever = Retriever::new(&embedder, &store, &ledger).with_config(RetrieveConfig {
+        graph,
+        compose: myelin_core::pipeline::compose::ComposeConfig {
+            chronological,
+            ..Default::default()
+        },
+        ..Default::default()
+    });
     if let Some(r) = reranker.as_ref() {
         retriever = retriever.with_reranker(r as &dyn Reranker);
+    }
+    if graph {
+        retriever = retriever.with_graph(&graph_index);
     }
 
     let mut scored: Vec<ScoredQuestion> = Vec::new();
@@ -237,6 +400,27 @@ pub async fn bench_locomo(
 
     'outer: for conv in &conversations {
         let tenant = format!("locomo/{}", conv.sample_id);
+        // LoCoMo has no per-question date; it asks from the position of the
+        // end of the conversation, so the last session's date is the reader's
+        // `<today>`. A conversation whose session dates all fail to parse
+        // gets the unmodified two-block prompt: an invented date is worse
+        // than none.
+        //
+        // Measured (M13, `docs/measurements/m13-temporal-axis.md`): off by
+        // default. It reaches 335/1,986 answers and shifts category 2 from
+        // relative to absolute dates as intended (38.9% → 44.2% of answers
+        // carry a date), but buys +0.2 points there (95% CI [−1.8, +2.2]),
+        // because only 22.7% of that stratum's gold answers are a plain
+        // absolute date and a quarter are relative expressions *anchored* to
+        // one (`The sunday before 25 May 2023`). What it does buy is
+        // abstention: +3.1 points on the 446 adversarial items, CI
+        // [+0.7, +5.6] — a reader that knows the date can tell the memories
+        // do not cover the period asked about.
+        let today = conv
+            .sessions
+            .iter()
+            .filter_map(|s| s.date_time.as_deref().and_then(parse_locomo_time))
+            .max();
         for (i, qa) in conv.qa.iter().enumerate() {
             if let Some(n) = limit {
                 if scored.len() >= n {
@@ -285,14 +469,25 @@ pub async fn bench_locomo(
                 .map(|(n, it)| format!("[{n}] {}", it.value))
                 .collect::<Vec<_>>()
                 .join("\n");
+            let user = match today.filter(|_| question_date) {
+                // The same `<today>` tag and the same ISO format the
+                // LongMemEval_S prompt already uses, so the two corpora do
+                // not present the date two ways.
+                Some(t) => format!(
+                    "<memories>\n{context}\n</memories>\n<today>\n{}\n</today>\n<question>\n{}\n</question>",
+                    t.format("%Y-%m-%d"),
+                    qa.question
+                ),
+                None => format!(
+                    "<memories>\n{context}\n</memories>\n<question>\n{}\n</question>",
+                    qa.question
+                ),
+            };
             let response = llm
                 .complete(
                     &CompletionRequest::new(vec![
                         Message::system(READER_SYSTEM),
-                        Message::user(format!(
-                            "<memories>\n{context}\n</memories>\n<question>\n{}\n</question>",
-                            qa.question
-                        )),
+                        Message::user(user),
                     ])
                     .with_max_tokens(160),
                 )
@@ -300,20 +495,7 @@ pub async fn bench_locomo(
                 .with_context(|| format!("reader {tenant}#{i}"))?
                 .text;
 
-            let declined = is_abstention(&response);
-            let (score, exact) = if adversarial {
-                let s = f64::from(u8::from(declined));
-                (s, s)
-            } else if declined {
-                // An abstention on an answerable question earns nothing, and
-                // must not accidentally score via token overlap with a gold
-                // answer that happens to contain "know".
-                (0.0, 0.0)
-            } else {
-                let f1 = token_f1(&response, &gold);
-                let em = f64::from(u8::from(normalize(&response) == normalize(&gold)));
-                (f1, em)
-            };
+            let s = score_one(&response, &gold, adversarial, scorer);
 
             scored.push(ScoredQuestion {
                 question_id: format!("{}#{i}", conv.sample_id),
@@ -322,8 +504,11 @@ pub async fn bench_locomo(
                 question_text: qa.question.clone(),
                 answer_gold: gold,
                 response_raw: response,
-                score,
-                exact_match: exact,
+                score: s.score,
+                exact_match: s.exact,
+                score_token_f1: s.token_f1,
+                score_temporal: s.temporal,
+                temporal_kind: s.kind.to_string(),
                 is_abstention_problem: adversarial,
                 retrieved_items: evidence.items.len(),
                 memory_query_duration_seconds: elapsed,
@@ -331,7 +516,23 @@ pub async fn bench_locomo(
         }
     }
 
-    finish_run("locomo", collection, mode, k, max_steps, scored, latencies, out_dir)
+    finish_run(
+        &RunSpec {
+            corpus: "locomo".into(),
+            collection: collection.to_string(),
+            mode,
+            k,
+            max_steps,
+            graph,
+            chronological,
+            question_date,
+            scorer,
+            rescored_from: None,
+        },
+        scored,
+        latencies,
+        out_dir,
+    )
 }
 
 /// Run LongMemEval_S end-to-end against a memory that `build` already wrote.
@@ -356,6 +557,10 @@ pub async fn bench_longmemeval_s(
     mode: Mode,
     max_steps: usize,
     limit: Option<usize>,
+    graph: bool,
+    chronological: bool,
+    question_date: bool,
+    scorer: Scorer,
     out_dir: &Path,
 ) -> Result<BenchRun> {
     let cfg = MyelinConfig::load().context("load myelin config")?;
@@ -373,9 +578,22 @@ pub async fn bench_longmemeval_s(
     let ledger = Ledger::open(ledger_path).await.context("open ledger")?;
     let reranker = CrossEncoder::new(&cfg.rerank.url, &cfg.rerank.model).ok();
 
-    let mut retriever = Retriever::new(&embedder, &store, &ledger);
+    let graph_index = GraphIndex::new();
+    // See `bench_locomo`: one config, always passed, so the all-off arm is
+    // `RetrieveConfig::default()` field for field.
+    let mut retriever = Retriever::new(&embedder, &store, &ledger).with_config(RetrieveConfig {
+        graph,
+        compose: myelin_core::pipeline::compose::ComposeConfig {
+            chronological,
+            ..Default::default()
+        },
+        ..Default::default()
+    });
     if let Some(r) = reranker.as_ref() {
         retriever = retriever.with_reranker(r as &dyn Reranker);
+    }
+    if graph {
+        retriever = retriever.with_graph(&graph_index);
     }
 
     let mut scored: Vec<ScoredQuestion> = Vec::new();
@@ -439,18 +657,7 @@ pub async fn bench_longmemeval_s(
             .with_context(|| format!("reader {}", item.question_id))?
             .text;
 
-        let declined = is_abstention(&response);
-        let (score, exact) = if adversarial {
-            let s = f64::from(u8::from(declined));
-            (s, s)
-        } else if declined {
-            (0.0, 0.0)
-        } else {
-            (
-                token_f1(&response, &gold),
-                f64::from(u8::from(normalize(&response) == normalize(&gold))),
-            )
-        };
+        let s = score_one(&response, &gold, adversarial, scorer);
 
         scored.push(ScoredQuestion {
             question_id: item.question_id.clone(),
@@ -459,15 +666,34 @@ pub async fn bench_longmemeval_s(
             question_text: item.question.clone(),
             answer_gold: gold,
             response_raw: response,
-            score,
-            exact_match: exact,
+            score: s.score,
+            exact_match: s.exact,
+            score_token_f1: s.token_f1,
+            score_temporal: s.temporal,
+            temporal_kind: s.kind.to_string(),
             is_abstention_problem: adversarial,
             retrieved_items: evidence.items.len(),
             memory_query_duration_seconds: elapsed,
         });
     }
 
-    finish_run("longmemeval_s", collection, mode, k, max_steps, scored, latencies, out_dir)
+    finish_run(
+        &RunSpec {
+            corpus: "longmemeval_s".into(),
+            collection: collection.to_string(),
+            mode,
+            k,
+            max_steps,
+            graph,
+            chronological,
+            question_date,
+            scorer,
+            rescored_from: None,
+        },
+        scored,
+        latencies,
+        out_dir,
+    )
 }
 
 /// LongMemEval names its question types; `ScoredQuestion::category` is numeric
@@ -484,17 +710,28 @@ fn question_type_code(t: &str) -> u8 {
     }
 }
 
+/// Everything a run artifact must name about how it was produced.
+///
+/// A struct and not eleven positional parameters: a run artifact that does not
+/// record its own provenance is not reproducible, and the list only grows.
+pub struct RunSpec {
+    pub corpus: String,
+    pub collection: String,
+    pub mode: Mode,
+    pub k: usize,
+    pub max_steps: usize,
+    pub graph: bool,
+    pub chronological: bool,
+    pub question_date: bool,
+    pub scorer: Scorer,
+    pub rescored_from: Option<String>,
+}
 
 /// Aggregate, print nothing, write `per_question.jsonl` and
 /// `aggregated_metrics.json`. Shared by both corpora so a metric fixed for one
 /// is fixed for both, and so `adapters/paired_ci.py` reads one row shape.
-#[allow(clippy::too_many_arguments)]
 fn finish_run(
-    corpus: &str,
-    collection: &str,
-    mode: Mode,
-    k: usize,
-    max_steps: usize,
+    spec: &RunSpec,
     scored: Vec<ScoredQuestion>,
     latencies: Vec<f64>,
     out_dir: &Path,
@@ -537,14 +774,19 @@ fn finish_run(
     };
 
     let run = BenchRun {
-        corpus: corpus.to_string(),
-        collection: collection.to_string(),
-        mode: match mode {
+        corpus: spec.corpus.clone(),
+        collection: spec.collection.clone(),
+        mode: match spec.mode {
             Mode::Investigate => "investigate".into(),
             Mode::Recall => "recall".into(),
         },
-        k,
-        max_steps,
+        k: spec.k,
+        max_steps: spec.max_steps,
+        graph: spec.graph,
+        chronological: spec.chronological,
+        question_date: spec.question_date,
+        scorer: spec.scorer.slug().to_string(),
+        rescored_from: spec.rescored_from.clone(),
         questions: scored.len(),
         f1_answerable: mean(&answerable, |s| s.score),
         em_answerable: mean(&answerable, |s| s.exact_match),
@@ -570,6 +812,97 @@ fn finish_run(
     .context("write aggregated_metrics.json")?;
 
     Ok(run)
+}
+
+/// Recompute scores for a finished bench run from its own rows.
+///
+/// `response_raw` and `answer_gold` are persisted, so nothing has to be
+/// re-generated: a scorer change can be applied to every historical run
+/// without a GPU or a reader call. The old `score` is **not** carried
+/// forward — recomputing both columns from the raw text is what makes an old
+/// run and a new run comparable, and it also re-verifies that token F1
+/// reproduces the historical value.
+pub fn rescore_run(source: &Path, out_dir: &Path, scorer: Scorer) -> Result<BenchRun> {
+    anyhow::ensure!(
+        !out_dir.starts_with(source),
+        "refusing to write into the source run {}; rescoring must not overwrite the artifact it reads",
+        source.display()
+    );
+    let rows_path = source.join("per_question.jsonl");
+    let text = std::fs::read_to_string(&rows_path)
+        .with_context(|| format!("read {}", rows_path.display()))?;
+
+    let mut scored: Vec<ScoredQuestion> = Vec::new();
+    let mut latencies: Vec<f64> = Vec::new();
+    for line in text.lines().filter(|l| !l.trim().is_empty()) {
+        // `runs/` also holds directories written by the vendored LME-V2
+        // harness whose rows share this file name but not this schema. Say so,
+        // rather than surfacing a raw serde message about a missing field.
+        let mut row: ScoredQuestion = serde_json::from_str(line).with_context(|| {
+            format!(
+                "{} is not a `bench` run directory (its per_question.jsonl has no \
+                 `exact_match`/`tenant`); the vendored LME-V2 harness writes a \
+                 different row shape",
+                source.display()
+            )
+        })?;
+        let s = score_one(
+            &row.response_raw,
+            &row.answer_gold,
+            row.is_abstention_problem,
+            scorer,
+        );
+        row.score = s.score;
+        row.exact_match = s.exact;
+        row.score_token_f1 = s.token_f1;
+        row.score_temporal = s.temporal;
+        row.temporal_kind = s.kind.to_string();
+        latencies.push(row.memory_query_duration_seconds);
+        scored.push(row);
+    }
+
+    let metrics_path = source.join("aggregated_metrics.json");
+    let metrics: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(&metrics_path)
+            .with_context(|| format!("read {}", metrics_path.display()))?,
+    )
+    .with_context(|| format!("parse {}", metrics_path.display()))?;
+    // Absent or null reads as `false`/`0`, which is how the pre-M12 runs read:
+    // they predate the switches and were produced with all of them off.
+    let flag = |key: &str| metrics.get(key).and_then(serde_json::Value::as_bool) == Some(true);
+    let count = |key: &str| {
+        metrics
+            .get(key)
+            .and_then(serde_json::Value::as_u64)
+            .and_then(|n| usize::try_from(n).ok())
+            .unwrap_or(0)
+    };
+    let spec = RunSpec {
+        corpus: metrics
+            .get("corpus")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
+        collection: metrics
+            .get("collection")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
+        mode: match metrics.get("mode").and_then(serde_json::Value::as_str) {
+            Some("investigate") => Mode::Investigate,
+            _ => Mode::Recall,
+        },
+        k: count("k"),
+        max_steps: count("max_steps"),
+        graph: flag("graph"),
+        chronological: flag("chronological"),
+        question_date: flag("question_date"),
+        scorer,
+        rescored_from: Some(source.display().to_string()),
+    };
+    // Row order is preserved, so `paired_ci.py`'s id intersection pairs a
+    // rescored run against its source or another rescored run unchanged.
+    finish_run(&spec, scored, latencies, out_dir)
 }
 
 #[cfg(test)]

@@ -7,6 +7,7 @@
 
 use std::path::Path;
 
+use anyhow::Context;
 use clap::{Parser, Subcommand};
 
 use myelin_core::model::query::Mode;
@@ -41,6 +42,16 @@ struct BenchDefaults {
     collection: &'static str,
     ledger: &'static str,
     slug: &'static str,
+    /// Which scorer this corpus reports by default.
+    ///
+    /// Per corpus and not one global flag, because the evidence that settled
+    /// it is per corpus: `docs/measurements/m14-temporal-scorer.md` validated
+    /// the date-aware scorer against a judge on **LoCoMo category 2** and
+    /// found it agreeing 96.7% against token F1's 84.9% (+11.8 points, 95% CI
+    /// [+7.7, +15.8]). LongMemEval_S has no such docket, and its grammar
+    /// coverage is 26 of 470 answerable golds — 11 of 127 even in its own
+    /// temporal-reasoning stratum — so there is nothing there to flip on.
+    scorer: myelin_eval::bench::Scorer,
 }
 
 impl BenchCorpus {
@@ -51,12 +62,14 @@ impl BenchCorpus {
                 collection: "myelin_locomo",
                 ledger: "data/locomo.ledger",
                 slug: "locomo",
+                scorer: myelin_eval::bench::Scorer::Temporal,
             },
             Self::LongmemevalS => BenchDefaults {
                 dataset: "data/longmemeval_s.json",
                 collection: "myelin_longmemeval_s",
                 ledger: "data/longmemeval_s.ledger",
                 slug: "lme_s",
+                scorer: myelin_eval::bench::Scorer::TokenF1,
             },
         }
     }
@@ -66,6 +79,87 @@ fn mode_slug(mode: Mode) -> &'static str {
     match mode {
         Mode::Recall => "recall",
         Mode::Investigate => "investigate",
+    }
+}
+
+/// Where a `bench` run lands when `--out` is not given.
+///
+/// Every switch gets its own suffix, in a fixed order, so a directory name is
+/// a function of the switch set and no arm can clobber another — least of all
+/// the M9 baselines in `runs/locomo_recall` and `runs/lme_s_recall` that every
+/// paired-CI comparison is against.
+///
+/// The scorer suffix is keyed on the scorer's *identity*, not on whether it is
+/// the default: M14 flipped LoCoMo's default to `temporal`, and that must not
+/// silently redirect a `--scorer token-f1` run onto the M9 baseline path.
+fn bench_out_dir(
+    slug: &str,
+    mode: Mode,
+    graph: bool,
+    chronological: bool,
+    question_date: bool,
+    scorer: myelin_eval::bench::Scorer,
+) -> String {
+    format!(
+        "runs/{slug}_{}{}{}{}{}",
+        mode_slug(mode),
+        if graph { "_graph" } else { "" },
+        if chronological { "_chrono" } else { "" },
+        if question_date { "_qdate" } else { "" },
+        match scorer {
+            myelin_eval::bench::Scorer::TokenF1 => "",
+            myelin_eval::bench::Scorer::Temporal => "_temporal",
+        }
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use myelin_eval::bench::Scorer;
+
+    #[test]
+    fn only_token_f1_with_every_switch_off_reaches_the_m9_baseline_path() {
+        // `runs/locomo_recall` and `runs/lme_s_recall` are the committed M9
+        // artifacts every paired CI is measured against. Exactly one switch
+        // set may name them, and it is the one that produced them.
+        assert_eq!(
+            bench_out_dir("locomo", Mode::Recall, false, false, false, Scorer::TokenF1),
+            "runs/locomo_recall"
+        );
+        assert_eq!(
+            bench_out_dir("lme_s", Mode::Recall, false, false, false, Scorer::TokenF1),
+            "runs/lme_s_recall"
+        );
+        // The post-M14 LoCoMo default must not be one of them.
+        assert_eq!(
+            bench_out_dir("locomo", Mode::Recall, false, false, false, Scorer::Temporal),
+            "runs/locomo_recall_temporal"
+        );
+    }
+
+    #[test]
+    fn switch_suffixes_keep_their_fixed_order() {
+        assert_eq!(
+            bench_out_dir("locomo", Mode::Recall, true, true, true, Scorer::Temporal),
+            "runs/locomo_recall_graph_chrono_qdate_temporal"
+        );
+        assert_eq!(
+            bench_out_dir("locomo", Mode::Investigate, false, true, false, Scorer::TokenF1),
+            "runs/locomo_investigate_chrono"
+        );
+    }
+
+    #[test]
+    fn the_scorer_default_is_per_corpus() {
+        // M14's judge docket was LoCoMo category 2 and nothing else; the
+        // grammar reaches 26 of LongMemEval_S's 470 answerable golds, so the
+        // flip is LoCoMo-only.
+        assert_eq!(BenchCorpus::Locomo.defaults().scorer, Scorer::Temporal);
+        assert_eq!(
+            BenchCorpus::LongmemevalS.defaults().scorer,
+            Scorer::TokenF1
+        );
     }
 }
 
@@ -128,6 +222,21 @@ enum Command {
         #[arg(long)]
         repair: bool,
     },
+    /// Populate the phrase↔record incidence graph over an already-built
+    /// ledger. Pure SQLite: no Qdrant, no GPU, no model.
+    Phrases {
+        #[arg(long, value_enum, default_value_t = Corpus::Locomo)]
+        corpus: Corpus,
+        /// Defaults to data/<slug>.ledger.
+        #[arg(long)]
+        ledger: Option<String>,
+        /// Records per transaction.
+        #[arg(long, default_value_t = 5000)]
+        batch: usize,
+        /// Stop after N records, for a smoke run.
+        #[arg(long)]
+        limit: Option<usize>,
+    },
     /// Score LoCoMo end-to-end: retrieve, read, and grade the answer with
     /// a deterministic scorer (no LLM judge). See `bench.rs`.
     Bench {
@@ -154,6 +263,23 @@ enum Command {
         limit: Option<usize>,
         #[arg(long)]
         out: Option<String>,
+        /// Fuse the PPR channel over the phrase↔record graph (`--corpus`'s
+        /// ledger must have been through `myelin-eval phrases`).
+        #[arg(long)]
+        graph: bool,
+        /// Emit evidence oldest-first instead of `bookend`'s relevance
+        /// interleave.
+        #[arg(long)]
+        chronological: bool,
+        /// Give the reader a `<today>` reference date. LongMemEval_S always
+        /// carries one; this adds LoCoMo's last session date.
+        #[arg(long)]
+        question_date: bool,
+        /// Which scorer `score` reports. Both columns are always written on
+        /// every row, so a run stays readable under either. Defaults follow
+        /// `--corpus`.
+        #[arg(long, value_enum)]
+        scorer: Option<myelin_eval::bench::Scorer>,
     },
     /// Run the MINJA-style poisoning attack suite (EVALUATION.md §7)
     Attack {
@@ -193,6 +319,30 @@ enum Command {
         #[arg(long, value_delimiter = ',')]
         steps: Option<Vec<usize>>,
     },
+    /// Re-score a finished bench run under a different scorer. Pure CPU:
+    /// `response_raw` and `answer_gold` are on disk, so no reader call and no
+    /// GPU are needed to apply a scorer change to every historical run.
+    Rescore {
+        /// A run directory written by `bench`.
+        #[arg(long)]
+        run: String,
+        #[arg(long, value_enum, default_value_t = myelin_eval::bench::Scorer::Temporal)]
+        scorer: myelin_eval::bench::Scorer,
+        /// Defaults to runs/rescored/<source-basename>_<scorer>.
+        #[arg(long)]
+        out: Option<String>,
+    },
+    /// Grade a finished run's answers with the local reader (M14 scorer
+    /// validation). Needs the reader only — no embedder, reranker, or store.
+    Judge {
+        #[arg(long)]
+        run: String,
+        /// Restrict to one category. LoCoMo 2 is the temporal stratum.
+        #[arg(long)]
+        category: Option<u8>,
+        #[arg(long)]
+        limit: Option<usize>,
+    },
     /// Render comparison tables and the Pareto/LAFS report
     Report,
     /// Package a leaderboard submission
@@ -204,9 +354,12 @@ impl Command {
         match self {
             Command::Fetch => "fetch",
             Command::Build { .. } => "build",
+            Command::Phrases { .. } => "phrases",
             Command::Bench { .. } => "bench",
             Command::Attack { .. } => "attack",
             Command::Ablate { .. } => "ablate",
+            Command::Rescore { .. } => "rescore",
+            Command::Judge { .. } => "judge",
             Command::Report => "report",
             Command::Package => "package",
         }
@@ -235,6 +388,33 @@ async fn main() -> anyhow::Result<()> {
                 repair,
             )
             .await
+        }
+        Command::Phrases {
+            corpus,
+            ref ledger,
+            batch,
+            limit,
+        } => {
+            let path = ledger.clone().unwrap_or_else(|| corpus.ledger());
+            eprintln!(
+                "backfilling incidence for namespace {} from {path}",
+                corpus.slug()
+            );
+            let stats = myelin_eval::phrases::backfill_phrases(
+                Path::new(&path),
+                corpus.slug(),
+                batch,
+                limit,
+            )
+            .await?;
+            println!(
+                "phrases {}: {} records, {} edges, {} distinct phrases",
+                corpus.slug(),
+                stats.records,
+                stats.edges,
+                stats.distinct_phrases
+            );
+            Ok(())
         }
         Command::Attack { live, ref ledger_dir } => {
             let (e3, e5) = myelin_eval::attack::run_offline()?;
@@ -290,6 +470,10 @@ async fn main() -> anyhow::Result<()> {
             max_steps,
             limit,
             ref out,
+            graph,
+            chronological,
+            question_date,
+            scorer,
         } => {
             bench_cmd(
                 corpus,
@@ -301,9 +485,23 @@ async fn main() -> anyhow::Result<()> {
                 max_steps,
                 limit,
                 out.as_deref(),
+                graph,
+                chronological,
+                question_date,
+                scorer,
             )
             .await
         }
+        Command::Rescore {
+            ref run,
+            scorer,
+            ref out,
+        } => rescore_cmd(run, scorer, out.as_deref()),
+        Command::Judge {
+            ref run,
+            category,
+            limit,
+        } => judge_cmd(run, category, limit).await,
         rest => {
             println!("{}: not implemented (milestone M5+)", rest.name());
             Ok(())
@@ -490,18 +688,27 @@ async fn bench_cmd(
     max_steps: usize,
     limit: Option<usize>,
     out: Option<&str>,
+    graph: bool,
+    chronological: bool,
+    question_date: bool,
+    scorer: Option<myelin_eval::bench::Scorer>,
 ) -> anyhow::Result<()> {
     let mode = match mode {
         "recall" => Mode::Recall,
         "investigate" => Mode::Investigate,
         other => anyhow::bail!("--mode must be recall or investigate, got {other:?}"),
     };
+    anyhow::ensure!(
+        !(question_date && corpus == BenchCorpus::LongmemevalS),
+        "--question-date is LoCoMo-only; the LongMemEval_S prompt already carries <today>"
+    );
     let d = corpus.defaults();
     let dataset = dataset.unwrap_or(d.dataset);
     let collection = collection.unwrap_or(d.collection);
     let ledger = ledger.unwrap_or(d.ledger);
+    let scorer = scorer.unwrap_or(d.scorer);
     let owned_out = out.map_or_else(
-        || format!("runs/{}_{}", d.slug, mode_slug(mode)),
+        || bench_out_dir(d.slug, mode, graph, chronological, question_date, scorer),
         str::to_string,
     );
     let out = owned_out.as_str();
@@ -516,6 +723,10 @@ async fn bench_cmd(
                 mode,
                 max_steps,
                 limit,
+                graph,
+                chronological,
+                question_date,
+                scorer,
                 Path::new(out),
             )
             .await?
@@ -529,6 +740,10 @@ async fn bench_cmd(
                 mode,
                 max_steps,
                 limit,
+                graph,
+                chronological,
+                question_date,
+                scorer,
                 Path::new(out),
             )
             .await?
@@ -540,10 +755,13 @@ async fn bench_cmd(
         "  {} {} k={} over {} questions",
         run.corpus, run.mode, run.k, run.questions
     );
-    println!(
-        "    token F1 (answerable)   {:.4}",
-        run.f1_answerable
-    );
+    // Named by the scorer the run reports, because `score` carries whichever
+    // column `--scorer` selected and a fixed "token F1" label would lie.
+    let score_label = match run.scorer.as_str() {
+        "temporal" => "temporal (answerable)",
+        _ => "token F1 (answerable)",
+    };
+    println!("    {score_label:<23} {:.4}", run.f1_answerable);
     println!("    exact match             {:.4}", run.em_answerable);
     // Named by what marks an item unanswerable in each corpus, not by
     // LoCoMo's category number: LongMemEval_S uses an `_abs` id suffix and
@@ -567,5 +785,68 @@ async fn bench_cmd(
     }
     println!();
     println!("  wrote {out}/per_question.jsonl and {out}/aggregated_metrics.json");
+    Ok(())
+}
+
+/// Re-score a finished bench run. Pure CPU, and it never writes into the
+/// source: a rescored directory lives under `runs/rescored/` so provenance is
+/// visible from the path and cannot collide with a live `bench` directory.
+fn rescore_cmd(
+    run_dir: &str,
+    scorer: myelin_eval::bench::Scorer,
+    out: Option<&str>,
+) -> anyhow::Result<()> {
+    let source = Path::new(run_dir);
+    let basename = source
+        .file_name()
+        .and_then(std::ffi::OsStr::to_str)
+        .with_context(|| format!("--run {run_dir} has no directory name"))?;
+    let owned_out = out.map_or_else(
+        || format!("runs/rescored/{basename}_{}", scorer.slug()),
+        str::to_string,
+    );
+    let out = owned_out.as_str();
+    let run = myelin_eval::bench::rescore_run(source, Path::new(out), scorer)?;
+
+    println!();
+    println!(
+        "  {} {} rescored under {} over {} questions",
+        run.corpus, run.mode, run.scorer, run.questions
+    );
+    println!("    mean score (answerable) {:.4}", run.f1_answerable);
+    println!("    exact match             {:.4}", run.em_answerable);
+    println!("    abstention              {:.4}", run.abstention_accuracy);
+    println!();
+    println!("    {:<10}{:>7}{:>12}", "category", "n", "mean");
+    for c in &run.by_category {
+        println!("    {:<10}{:>7}{:>12.4}", c.category, c.count, c.mean_score);
+    }
+    println!();
+    println!("  wrote {out}/per_question.jsonl and {out}/aggregated_metrics.json");
+    Ok(())
+}
+
+/// Grade a finished run's answers with the local reader.
+///
+/// Reader-only, so the GPU window this needs is a fraction of a bench run's:
+/// no embedder, no reranker, no store, no ledger.
+async fn judge_cmd(run: &str, category: Option<u8>, limit: Option<usize>) -> anyhow::Result<()> {
+    let dir = Path::new(run);
+    let (file, stats) = myelin_eval::judge::judge_run(dir, category, limit).await?;
+    let total = stats.judged + stats.cached;
+    println!();
+    println!("  judge {} over {run}", file.model);
+    println!(
+        "    {} judged, {} from cache, {} of {total} marked correct ({:.1}%)",
+        stats.judged,
+        stats.cached,
+        stats.correct,
+        if total == 0 {
+            0.0
+        } else {
+            100.0 * stats.correct as f64 / total as f64
+        }
+    );
+    println!("  wrote {run}/judge_verdicts.json");
     Ok(())
 }

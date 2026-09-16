@@ -711,6 +711,84 @@ impl Ledger {
             .collect()
     }
 
+    /// Incidence scoped to one tenant — the read path's entry point.
+    ///
+    /// [`Ledger::incidence`] is namespace-wide and is the export/analysis
+    /// path. A query needs the tenant's subgraph: `bench` scopes every query
+    /// to `tenant` and leaves `namespace` at the corpus slug, which is
+    /// 162,254 records for LongMemEval_S. C12 forbids the cross-tenant read
+    /// the namespace-wide load would perform.
+    ///
+    /// Served by the existing `record_scope (tenant, namespace, agent)` and
+    /// `incidence_record (record_id)` indexes.
+    pub async fn incidence_for_tenant(
+        &self,
+        tenant: &str,
+        namespace: Option<&str>,
+    ) -> Result<Vec<IncidenceRow>> {
+        let rows = sqlx::query(
+            "SELECT i.* FROM incidence i JOIN record r ON r.id = i.record_id
+             WHERE r.tenant = ?
+               AND (? IS NULL OR r.namespace = ?)
+             ORDER BY i.phrase, i.record_id",
+        )
+        .bind(tenant)
+        .bind(namespace)
+        .bind(namespace)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(sql)?;
+        rows.iter()
+            .map(|r| {
+                Ok(IncidenceRow {
+                    phrase: r.get("phrase"),
+                    record_id: parse_uuid(r.get::<String, _>("record_id").as_str())?,
+                    weight: r.get("weight"),
+                })
+            })
+            .collect()
+    }
+
+    /// Write many incidence rows in one transaction, replacing the existing
+    /// rows of every record the batch mentions.
+    ///
+    /// Authoritative-per-record is what both callers need. Re-indexing a
+    /// record must replace its edges rather than accumulate them, and a
+    /// pre-cutover row that [`crate::pipeline::phrases::incidence_rows`] no
+    /// longer emits — the 32-phrase cap can drop one — would otherwise
+    /// survive as a stale edge that no reconcile direction looks for.
+    /// [`Ledger::set_incidence`] stays for single-row upserts.
+    pub async fn replace_incidence_batch(&self, rows: &[IncidenceRow]) -> Result<usize> {
+        if rows.is_empty() {
+            return Ok(0);
+        }
+        // Collected first so the delete order is deterministic.
+        let touched: std::collections::BTreeSet<Uuid> = rows.iter().map(|r| r.record_id).collect();
+
+        let mut tx = self.pool.begin().await.map_err(sql)?;
+        for id in &touched {
+            sqlx::query("DELETE FROM incidence WHERE record_id = ?")
+                .bind(id.to_string())
+                .execute(&mut *tx)
+                .await
+                .map_err(sql)?;
+        }
+        for row in rows {
+            sqlx::query(
+                "INSERT INTO incidence (phrase, record_id, weight) VALUES (?,?,?)
+                 ON CONFLICT(phrase, record_id) DO UPDATE SET weight = excluded.weight",
+            )
+            .bind(&row.phrase)
+            .bind(row.record_id.to_string())
+            .bind(row.weight)
+            .execute(&mut *tx)
+            .await
+            .map_err(sql)?;
+        }
+        tx.commit().await.map_err(sql)?;
+        Ok(rows.len())
+    }
+
     pub async fn orphan_incidence(&self) -> Result<Vec<IncidenceRow>> {
         let rows = sqlx::query(
             "SELECT i.* FROM incidence i
@@ -903,6 +981,39 @@ impl Ledger {
              ORDER BY id",
         )
         .bind(namespace)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(sql)?;
+        rows.iter().map(row_to_record).collect()
+    }
+
+    /// Keyset-paginated record scan, so a backfill never materialises a whole
+    /// namespace — [`Ledger::records_in_namespace`] loads all 162,254
+    /// LongMemEval_S rows at once and stays the reconcile path.
+    ///
+    /// `id` is `TEXT PRIMARY KEY`, so `id > ?` is a total lexicographic order
+    /// and paging can neither skip nor repeat a row. `prov_source IS NOT
+    /// NULL` keeps I2: a record that is inadmissible must not gain graph
+    /// edges.
+    pub async fn records_after(
+        &self,
+        namespace: &str,
+        after_id: Option<Uuid>,
+        limit: i64,
+    ) -> Result<Vec<MemoryRecord>> {
+        let after = after_id.map(|u| u.to_string());
+        let rows = sqlx::query(
+            "SELECT * FROM record
+             WHERE namespace = ?
+               AND prov_source IS NOT NULL
+               AND (? IS NULL OR id > ?)
+             ORDER BY id
+             LIMIT ?",
+        )
+        .bind(namespace)
+        .bind(after.as_deref())
+        .bind(after.as_deref())
+        .bind(limit)
         .fetch_all(&self.pool)
         .await
         .map_err(sql)?;

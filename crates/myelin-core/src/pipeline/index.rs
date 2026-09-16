@@ -110,16 +110,16 @@ impl<'a> Indexer<'a> {
 
         // Incidence last: it is derived, and a missing row degrades the graph
         // route rather than corrupting a read.
-        for record in records {
-            for entity in &record.entities {
-                let phrase = entity.phrase.trim().to_lowercase();
-                if phrase.is_empty() {
-                    continue;
-                }
-                self.ledger.set_incidence(&phrase, record.id, 1.0).await?;
-                stats.incidence_rows += 1;
-            }
-        }
+        //
+        // One authoritative batch per record, from the same
+        // [`super::phrases::incidence_rows`] a backfill uses, so a fresh
+        // ingest and `myelin-eval phrases` write byte-identical rows. The
+        // previous loop wrote `record.entities` only, which for an episodic
+        // record is the turn speakers — one hub node per conversation, no
+        // bridging signal.
+        let rows: Vec<crate::store::ledger::IncidenceRow> =
+            records.iter().flat_map(super::phrases::incidence_rows).collect();
+        stats.incidence_rows += self.ledger.replace_incidence_batch(&rows).await?;
 
         let elapsed = started.elapsed().as_secs_f64();
         stats.records_per_sec = if elapsed > 0.0 {

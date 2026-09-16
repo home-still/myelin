@@ -56,6 +56,27 @@ def load_flags(run_dir: str) -> dict[str, bool]:
     return flags
 
 
+def load_categories(run_dir: str) -> dict[str, int]:
+    """Map question_id -> category, for the per-category stratum.
+
+    `category` is written by `bench.rs::finish_run` for both corpora, but the
+    codings are *different*: LoCoMo 1-5 as the dataset labels them, and
+    LongMemEval_S through `bench.rs::question_type_code`, where category 3 is
+    `single-session-preference` and 4 is `multi-session`. Only ever compare a
+    LoCoMo run against a LoCoMo run. The tool takes two arbitrary
+    directories, so that is a usage rule rather than something to enforce.
+    """
+    cats: dict[str, int] = {}
+    with open(Path(run_dir) / "per_question.jsonl", encoding="utf-8") as handle:
+        for line in handle:
+            line = line.strip()
+            if not line:
+                continue
+            row = json.loads(line)
+            cats[str(row["question_id"])] = int(row["category"])
+    return cats
+
+
 def paired_bootstrap(
     a: list[float],
     b: list[float],
@@ -99,7 +120,9 @@ def paired_bootstrap(
     return observed, lo, hi, p
 
 
-def compare(run_a: str, run_b: str, iterations: int, seed: int) -> None:
+def compare(
+    run_a: str, run_b: str, iterations: int, seed: int, by_category: bool = False
+) -> None:
     sa, sb = load_scores(run_a), load_scores(run_b)
     flags = load_flags(run_a)
     shared = sorted(set(sa) & set(sb))
@@ -117,6 +140,21 @@ def compare(run_a: str, run_b: str, iterations: int, seed: int) -> None:
         ("non-abstention", [q for q in shared if not flags.get(q, False)]),
         ("abstention", [q for q in shared if flags.get(q, False)]),
     ]
+    if by_category:
+        # The categories are where a mechanism aimed at one question type has
+        # to show itself: LoCoMo cat 3 is multi-hop, LongMemEval_S cat 4 is
+        # multi-session. Both runs must agree on a question's category,
+        # otherwise the pairing is comparing two different strata.
+        cats_a, cats_b = load_categories(run_a), load_categories(run_b)
+        mismatched = [q for q in shared if cats_a.get(q) != cats_b.get(q)]
+        if mismatched:
+            raise SystemExit(
+                f"{len(mismatched)} shared questions disagree on `category` "
+                f"between the two runs (e.g. {mismatched[0]!r}); only compare "
+                "runs of the same corpus"
+            )
+        for cat in sorted({cats_a[q] for q in shared}):
+            strata.append((f"category {cat}", [q for q in shared if cats_a[q] == cat]))
     header = f"{'stratum':<16}{'n':>5}{'A':>9}{'B':>9}{'A-B':>9}{'95% CI':>20}{'p':>10}"
     print(header)
     print("-" * len(header))
@@ -145,8 +183,13 @@ def main() -> None:
     parser.add_argument("run_b")
     parser.add_argument("--iterations", type=int, default=20000)
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument(
+        "--by-category",
+        action="store_true",
+        help="also report one stratum per `category` value present in both runs",
+    )
     args = parser.parse_args()
-    compare(args.run_a, args.run_b, args.iterations, args.seed)
+    compare(args.run_a, args.run_b, args.iterations, args.seed, args.by_category)
 
 
 if __name__ == "__main__":

@@ -5,9 +5,8 @@ edition = "2021"
 rust-version = "1.88"
 
 [features]
-default = ["remote-embed", "graph"]
+default = ["remote-embed"]
 remote-embed = []
-graph = ["dep:petgraph"]
 # Opts in the tests that talk to a live Qdrant. Off by default so
 # `cargo test --workspace` stays hermetic.
 integration = []
@@ -19,7 +18,7 @@ chrono = { workspace = true }
 dirs = { workspace = true }
 figment = { workspace = true }
 futures-util = { workspace = true }
-petgraph = { workspace = true, optional = true }
+petgraph = { workspace = true }
 qdrant-client = { workspace = true }
 reqwest = { workspace = true }
 schemars = { workspace = true }

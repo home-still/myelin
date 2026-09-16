@@ -639,7 +639,6 @@ fn record_ids_are_deterministic_and_tenant_scoped() {
 /// neighbour expansion R@5 **72.5 vs 59.2** (`07-graph-memory.md` §5). A graph
 /// that cannot separate connected from disconnected records buys nothing over
 /// dense retrieval and should be deleted rather than tuned.
-#[cfg(feature = "graph")]
 #[test]
 fn ppr_ranks_seed_connected_records_above_disconnected_ones() {
     use myelin_core::store::graph::{IncidenceGraph, DEFAULT_DAMPING, DEFAULT_ITERATIONS};
@@ -695,5 +694,101 @@ fn ppr_ranks_seed_connected_records_above_disconnected_ones() {
             DEFAULT_ITERATIONS,
         );
         assert_eq!(unseeded.len(), 4);
+    });
+}
+
+/// The seam the graph route actually depends on: deterministic phrase
+/// extraction on both sides, so a record reachable only through a *bridge*
+/// outranks one that shares nothing.
+///
+/// `ppr_ranks_seed_connected_records_above_disconnected_ones` hand-writes its
+/// incidence rows, so it never exercises
+/// [`myelin_core::pipeline::phrases`]. Here the query names entity **A**
+/// only, the answer names entity **B** only, and the bridge names both — the
+/// answer is reachable *only* over the two-hop path `caroline → bridge →
+/// berlin → answer`, which is the multi-hop retrieval LoCoMo category 3
+/// measures (0.2007 against 0.4252 single-hop, `docs/measurements/m9-locomo.md`).
+///
+/// Delete the bridge record and `answer` falls to the same background reset
+/// mass as `unrelated`; break `phrases` so `caroline` is not extracted and
+/// there is no seed at all.
+#[test]
+fn bridged_record_outranks_an_unrelated_one() {
+    use myelin_core::pipeline::phrases::{incidence_rows, phrases};
+    use myelin_core::store::graph::{IncidenceGraph, DEFAULT_DAMPING, DEFAULT_ITERATIONS};
+
+    const QUERY: &str = "Which company does Caroline work for?";
+
+    rt().block_on(async {
+        let ledger = Ledger::open_memory().await.expect("open ledger");
+        let sc = scope("tenant-bridge");
+
+        let mut records = vec![
+            record(
+                "bridge",
+                RecordKind::Episodic,
+                &sc,
+                "Caroline moved to Berlin last spring.",
+                Vec::new(),
+            ),
+            record(
+                "answer",
+                RecordKind::Episodic,
+                &sc,
+                "The Berlin office is run by Acme Robotics.",
+                Vec::new(),
+            ),
+            record(
+                "unrelated",
+                RecordKind::Episodic,
+                &sc,
+                "Dana adopted a rescue dog called Pepper.",
+                Vec::new(),
+            ),
+        ];
+        for r in &mut records {
+            // The `record` helper hardcodes one shared entity phrase. A node
+            // incident to all three records would connect them to each other
+            // and destroy the discrimination this test exists for.
+            r.entities = Vec::new();
+            ledger
+                .apply(
+                    &Delta::Add {
+                        record: Box::new(r.clone()),
+                    },
+                    &actor(),
+                )
+                .await
+                .expect("add record");
+            ledger
+                .replace_incidence_batch(&incidence_rows(r))
+                .await
+                .expect("write incidence");
+        }
+        let (bridge, answer, unrelated) = (records[0].id, records[1].id, records[2].id);
+
+        let seeds = phrases(QUERY);
+        assert_eq!(
+            seeds,
+            vec!["caroline".to_string()],
+            "the query must seed exactly the bridge's phrase; a zero-seed \
+             query would make the ranking below vacuous"
+        );
+
+        let graph = IncidenceGraph::load(&ledger, None).await.unwrap();
+        assert_eq!(graph.record_count(), 3);
+
+        let ranked = graph.personalized_pagerank(&seeds, DEFAULT_DAMPING, DEFAULT_ITERATIONS);
+        let rank_of = |id| {
+            ranked
+                .iter()
+                .position(|(r, _)| *r == id)
+                .expect("record ranked")
+        };
+        assert_eq!(rank_of(bridge), 0, "the directly-seeded record must lead: {ranked:?}");
+        assert!(
+            rank_of(answer) < rank_of(unrelated),
+            "the bridged record did not outrank the unrelated one: {ranked:?}"
+        );
     });
 }

@@ -1,0 +1,50 @@
+{
+  "corpus": "longmemeval_s",
+  "collection": "myelin_longmemeval_s",
+  "mode": "recall",
+  "k": 6,
+  "max_steps": 2,
+  "graph": false,
+  "chronological": true,
+  "question_date": false,
+  "scorer": "temporal",
+  "rescored_from": "runs/lme_s_recall_chrono",
+  "questions": 500,
+  "f1_answerable": 0.44386871784705034,
+  "em_answerable": 0.3659574468085106,
+  "abstention_accuracy": 1.0,
+  "by_category": [
+    {
+      "category": 1,
+      "count": 70,
+      "mean_score": 0.935124716553288
+    },
+    {
+      "category": 2,
+      "count": 56,
+      "mean_score": 0.7980961818648071
+    },
+    {
+      "category": 3,
+      "count": 30,
+      "mean_score": 0.05000841763419232
+    },
+    {
+      "category": 4,
+      "count": 133,
+      "mean_score": 0.3243107769423558
+    },
+    {
+      "category": 5,
+      "count": 133,
+      "mean_score": 0.20729708887603626
+    },
+    {
+      "category": 6,
+      "count": 78,
+      "mean_score": 0.7213087482318252
+    }
+  ],
+  "query_p50_seconds": 0.502199667,
+  "query_avg_seconds": 0.5411176690739999
+}

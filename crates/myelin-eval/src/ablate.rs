@@ -31,6 +31,7 @@ use myelin_core::pipeline::ingest::{segment, SegmentConfig};
 use myelin_core::pipeline::investigate::{InvestigateConfig, Investigator};
 use myelin_core::pipeline::retrieve::{Channels, RetrieveConfig, Retriever};
 use myelin_core::rerank::{cross::CrossEncoder, Reranker};
+use myelin_core::store::graph::GraphIndex;
 use myelin_core::store::ids::record_id;
 use myelin_core::store::ledger::Ledger;
 use myelin_core::store::qdrant::QdrantStore;
@@ -227,12 +228,14 @@ pub struct Arm {
     pub name: &'static str,
     pub config: RetrieveConfig,
     pub rerank: bool,
+    pub graph: bool,
 }
 
 fn arms(k: usize) -> Vec<Arm> {
-    let base = |channels, rrf_k| RetrieveConfig {
+    let base = |channels, rrf_k, graph| RetrieveConfig {
         channels,
         rrf_k,
+        graph,
         compose: myelin_core::pipeline::compose::ComposeConfig {
             k,
             ..Default::default()
@@ -242,28 +245,49 @@ fn arms(k: usize) -> Vec<Arm> {
     vec![
         Arm {
             name: "dense_only",
-            config: base(Channels::Dense, 60.0),
+            config: base(Channels::Dense, 60.0, false),
             rerank: false,
+            graph: false,
         },
         Arm {
             name: "bm25_only",
-            config: base(Channels::Lex, 60.0),
+            config: base(Channels::Lex, 60.0, false),
             rerank: false,
+            graph: false,
         },
         Arm {
             name: "hybrid_k60",
-            config: base(Channels::Hybrid, 60.0),
+            config: base(Channels::Hybrid, 60.0, false),
             rerank: false,
+            graph: false,
         },
         Arm {
             name: "hybrid_k1",
-            config: base(Channels::Hybrid, 1.0),
+            config: base(Channels::Hybrid, 1.0, false),
             rerank: false,
+            graph: false,
         },
         Arm {
             name: "hybrid_rerank",
-            config: base(Channels::Hybrid, 60.0),
+            config: base(Channels::Hybrid, 60.0, false),
             rerank: true,
+            graph: false,
+        },
+        // `EVALUATION.md` §8 row 7. Each pairs against the arm above it that
+        // differs in exactly one switch — `graph_k1` against `hybrid_k1`,
+        // `graph_rerank` against `hybrid_rerank` — so the only difference the
+        // table reports is the PPR channel.
+        Arm {
+            name: "graph_k1",
+            config: base(Channels::Hybrid, 1.0, true),
+            rerank: false,
+            graph: true,
+        },
+        Arm {
+            name: "graph_rerank",
+            config: base(Channels::Hybrid, 60.0, true),
+            rerank: true,
+            graph: true,
         },
     ]
 }
@@ -369,6 +393,11 @@ pub async fn ablate_locomo(
 
     let reranker = CrossEncoder::new(&cfg.rerank.url, &cfg.rerank.model).ok();
 
+    // One index for the whole run: the cache is per tenant, and LoCoMo's
+    // questions arrive grouped by conversation, so the graph arms pay one
+    // SQLite read per conversation rather than one per question.
+    let graph_index = GraphIndex::new();
+
     let mut results = Vec::new();
     for arm in arms(k) {
         if arm.rerank && reranker.is_none() {
@@ -379,6 +408,9 @@ pub async fn ablate_locomo(
             Retriever::new(&embedder, &store, &ledger).with_config(arm.config.clone());
         if arm.rerank {
             retriever = retriever.with_reranker(reranker.as_ref().unwrap() as &dyn Reranker);
+        }
+        if arm.graph {
+            retriever = retriever.with_graph(&graph_index);
         }
 
         let mut recall_sum = 0.0;

@@ -6,7 +6,6 @@
 //! [`reconcile`] is a first-class operation rather than a maintenance script.
 
 pub mod export;
-#[cfg(feature = "graph")]
 pub mod graph;
 pub mod ids;
 pub mod ledger;

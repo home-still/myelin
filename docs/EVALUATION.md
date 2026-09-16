@@ -467,7 +467,9 @@ reproduce as an ablation is demoted to a citation and removed from the design ra
 | 4 | small k | k ∈ {3, 6, 10, 20, 50} | accuracy peaks then declines; cost rises monotonically |
 | 5 | 4-op delta | disable `DELETE` | knowledge-update accuracy collapses |
 | 6 | bi-temporal validity | ignore `t_invalid` at read | contradiction rate rises |
-| 7 | graph expansion | PPR route on/off | gain confined to multi-hop questions |
+| 7 | graph expansion | PPR route on/off | gain confined to multi-hop questions — **measured, and wrong**: no gain in any category, −2.7 pts recall@6 against `hybrid_k1`, and −0.7 pts end-to-end on LongMemEval_S (CI [−1.5, −0.1]). `docs/measurements/m12-graph-route.md` |
+| 8 | evidence order | `bookend` relevance interleave vs ascending `t_valid` (`ComposeConfig::chronological`) | temporal and duration questions improve — **measured, and wrong**: 540/1,986 LoCoMo answers change and split 173 better / 182 worse, LoCoMo cat 2 −0.3 (CI [−1.9, +1.3]), LME_S temporal-reasoning −1.1 (CI [−5.2, +3.1]); the one real gain is LME_S knowledge-update +8.0. `docs/measurements/m13-temporal-axis.md` |
+| 9 | answer scoring | token F1 vs date-aware interval scoring (`myelin_eval::temporal`, `bench --scorer`) | a date-aware scorer credits correct dates token overlap cannot see — **measured, and the opposite was the bigger effect**: token F1 was awarding 0.50–0.75 to answers naming the *anchor* instead of the offset, inflating LoCoMo cat 2 by 8.03 pts (0.2825 → 0.2022) and answerable F1 by 1.69. Against a reader-only judge on 272 cat-2 items the interval scorer agrees 96.7% vs token F1's 84.9% (+11.8 pts, CI [+7.7, +15.8], κ 0.60 → 0.91), and is a −0.02 pt no-op off-stratum ⇒ **`temporal` is the LoCoMo default; both columns ship on every row**. `docs/measurements/m14-temporal-scorer.md` |
 | RRF | fusion constant | client-side k=60 vs Qdrant's server-side k=1 | measurable; Qdrant's k=1 verified **[probed]** |
 | late | reranker choice | `late` multivector vs `bge-reranker` cross-encoder at equal latency | decides whether the `late` channel is populated at all |
 

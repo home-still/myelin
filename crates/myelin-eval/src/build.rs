@@ -29,7 +29,11 @@ use crate::datasets::locomo::{self, LocomoConversation};
 /// LoCoMo timestamps look like `1:56 pm on 8 May, 2023`. A turn with no
 /// parseable time simply has none — the segmenter treats a missing timestamp
 /// as "no gap evidence" rather than inventing one.
-fn parse_locomo_time(s: &str) -> Option<DateTime<Utc>> {
+///
+/// `pub(crate)` because `bench` needs the same cleanup to derive a
+/// conversation's reference date; a second copy of the `" on "`/comma
+/// handling would drift.
+pub(crate) fn parse_locomo_time(s: &str) -> Option<DateTime<Utc>> {
     let cleaned = s.trim().replace(" on ", " ").replace(',', "");
     if cleaned.is_empty() {
         return None;

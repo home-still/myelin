@@ -3,6 +3,7 @@
 //! ```text
 //! scope-filter  → payload predicates, applied BEFORE ranking
 //! retrieve      → dense + lex, one round trip, two ranked lists
+//! graph         → PPR over phrase↔record incidence, a third list (§5.4)
 //! fuse          → RRF in Rust at k = 60 (Qdrant's own is k = 1, §5.2)
 //! rerank        → cross-encoder over the fused head        (§2 finding 2)
 //! compose       → budgeted, bookended, deduped, top-k      (§7.3)
@@ -25,11 +26,13 @@ use crate::error::Result;
 use crate::model::evidence::EvidenceSet;
 use crate::model::query::Recall;
 use crate::rerank::Reranker;
+use crate::store::graph::{GraphIndex, DEFAULT_DAMPING, DEFAULT_ITERATIONS};
 use crate::store::ledger::Ledger;
 use crate::store::qdrant::QdrantStore;
 
 use super::compose::{compose, ComposeConfig, Ranked};
 use super::fuse::{rrf, RankedList, DEFAULT_RRF_K};
+use super::phrases::phrases;
 
 /// Which retrieval channels participate. The ablation axis of M4.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -112,6 +115,21 @@ pub struct RetrieveConfig {
     ///    configured rather than silently comparing against the wrong
     ///    scale.
     pub tau_abstain: Option<f32>,
+    /// Fuse a personalized-PageRank ranking over the phrase↔record incidence
+    /// graph as a third channel (`PLAN.md` §7.1 `route?`, §5.4).
+    ///
+    /// Off by default until a measurement says otherwise, the discipline
+    /// [`RetrieveConfig::tau_abstain`] already got. The verdict lives in
+    /// `docs/measurements/m12-graph-route.md`.
+    pub graph: bool,
+    /// PPR candidate depth before fusion. Equal to `prefetch_limit` so every
+    /// fused channel contributes the same depth — RRF compares ranks, and a
+    /// channel allowed a longer list gets more mass for free.
+    pub graph_limit: usize,
+    /// `PLAN.md` §5.4 records damping as `[UNVERIFIED]` in the corpus and a
+    /// parameter to tune, not a constant.
+    pub graph_damping: f32,
+    pub graph_iterations: usize,
     pub compose: ComposeConfig,
 }
 
@@ -123,6 +141,10 @@ impl Default for RetrieveConfig {
             channels: Channels::Hybrid,
             rerank_depth: 25,
             tau_abstain: None,
+            graph: false,
+            graph_limit: 50,
+            graph_damping: DEFAULT_DAMPING,
+            graph_iterations: DEFAULT_ITERATIONS,
             compose: ComposeConfig::default(),
         }
     }
@@ -149,6 +171,16 @@ pub struct RecallTrace {
     /// The gate fired and the evidence set was withheld.
     #[serde(default)]
     pub abstained: bool,
+    /// Query phrases [`crate::pipeline::phrases::phrases`] extracted, the
+    /// number of records PPR contributed, and what the channel cost — so the
+    /// mechanism's reach and price are reportable rather than asserted. All
+    /// zero when the switch is off.
+    #[serde(default)]
+    pub graph_seeds: usize,
+    #[serde(default)]
+    pub graph_hits: usize,
+    #[serde(default)]
+    pub graph_ms: u128,
 }
 
 pub struct Retriever<'a> {
@@ -156,6 +188,8 @@ pub struct Retriever<'a> {
     pub store: &'a QdrantStore,
     pub ledger: &'a Ledger,
     pub reranker: Option<&'a dyn Reranker>,
+    /// Present only when the caller wired one; the switch alone is inert.
+    pub graph: Option<&'a GraphIndex>,
     pub config: RetrieveConfig,
 }
 
@@ -166,6 +200,7 @@ impl<'a> Retriever<'a> {
             store,
             ledger,
             reranker: None,
+            graph: None,
             config: RetrieveConfig::default(),
         }
     }
@@ -177,6 +212,11 @@ impl<'a> Retriever<'a> {
 
     pub fn with_reranker(mut self, reranker: &'a dyn Reranker) -> Self {
         self.reranker = Some(reranker);
+        self
+    }
+
+    pub fn with_graph(mut self, graph: &'a GraphIndex) -> Self {
+        self.graph = Some(graph);
         self
     }
 
@@ -235,6 +275,50 @@ impl<'a> Retriever<'a> {
                 "lex",
                 lists.lex.iter().map(|h| h.id).collect(),
             ));
+        }
+
+        // The graph channel (`PLAN.md` §7.1 `route?`, §5.4). It joins
+        // `ranked_lists` *before* `rrf` consumes them, so all three channels
+        // go through one fusion and every later stage is untouched: a
+        // PPR-surfaced record still has to pass `is_admissible_at` (I3,
+        // validity) and still competes in the cross-encoder rerank.
+        //
+        // With the switch off, or with no `GraphIndex` wired, this block is a
+        // no-op and the code path is byte-identical to the two-channel one.
+        if self.config.graph {
+            if let Some(index) = self.graph {
+                let t = std::time::Instant::now();
+                let seeds = phrases(&query.text);
+                trace.graph_seeds = seeds.len();
+                // No seeds: PPR would return only background reset mass,
+                // which is a uniform ranking and pure noise in RRF. Skip the
+                // channel rather than fuse noise into it.
+                if !seeds.is_empty() {
+                    // Scoped by tenant, never by namespace: C12 forbids a
+                    // cross-tenant read and the E4 isolation test attacks
+                    // exactly this.
+                    let graph = index
+                        .tenant(
+                            self.ledger,
+                            &query.scope.tenant,
+                            query.scope.namespace.as_deref(),
+                        )
+                        .await?;
+                    let ids: Vec<uuid::Uuid> = graph
+                        .personalized_pagerank(
+                            &seeds,
+                            self.config.graph_damping,
+                            self.config.graph_iterations,
+                        )
+                        .into_iter()
+                        .take(self.config.graph_limit)
+                        .map(|(id, _)| id)
+                        .collect();
+                    trace.graph_hits = ids.len();
+                    ranked_lists.push(RankedList::new("ppr", ids));
+                }
+                trace.graph_ms = t.elapsed().as_millis();
+            }
         }
         let fused = rrf(&ranked_lists, self.config.rrf_k);
         trace.fused = fused.len();

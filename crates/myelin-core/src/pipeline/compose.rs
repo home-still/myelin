@@ -70,6 +70,28 @@ pub struct ComposeConfig {
     /// `value` rather than beside it. ISO-8601 because `7 May 2023` invites
     /// the locale ambiguity the gold answers already suffer from.
     pub stamp_valid_time: bool,
+    /// Emit the selected evidence in ascending `t_valid` order instead of
+    /// `bookend`'s relevance interleave.
+    ///
+    /// **Default off, because it was measured and it is a coin flip.** M13
+    /// ran it against `bookend` on 2,486 questions: 668 answers changed and
+    /// split 208 better / 211 worse. LoCoMo temporal moved −0.3 points (95%
+    /// CI [−1.9, +1.3]) and LongMemEval_S `temporal-reasoning` −1.1
+    /// ([−5.2, +3.1]), so the stratum this was aimed at does not move.
+    ///
+    /// That is also the strongest defence `bookend` has: the lost-in-the-
+    /// middle result it is built on is measured at 20 documents, `compose`
+    /// emits at most six, and at that size position is not the binding
+    /// constraint — neither order wins.
+    ///
+    /// Kept as a switch because one stratum does move: LongMemEval_S
+    /// `knowledge-update` gains **+8.0 points** ([−1.7, +17.6]) from
+    /// oldest-first, which puts the newest state of a changed fact last,
+    /// next to the question. `ComposeConfig` is query-time (R4), so a caller
+    /// that knows a question asks for the current value of something can set
+    /// this per call. Verdict and intervals:
+    /// `docs/measurements/m13-temporal-axis.md`.
+    pub chronological: bool,
 }
 
 impl Default for ComposeConfig {
@@ -80,6 +102,7 @@ impl Default for ComposeConfig {
             tau_near_dup: 0.93,
             label_untrusted: false,
             stamp_valid_time: true,
+            chronological: false,
         }
     }
 }
@@ -153,8 +176,18 @@ pub fn compose(ranked: Vec<Ranked>, cfg: &ComposeConfig) -> EvidenceSet {
         selected.push(candidate);
     }
 
-    // 3. Bookend. Strongest first, second-strongest last, rest in the middle.
-    let ordered = bookend(selected);
+    // 3. Order. Chronological when asked; otherwise bookend — strongest
+    //    first, second-strongest last, rest in the middle.
+    let ordered = if cfg.chronological {
+        // Stable sort: equal timestamps keep rank order, so the switch is a
+        // pure re-ordering of the same selection and never a tie-break
+        // lottery.
+        let mut by_time = selected;
+        by_time.sort_by_key(|r| r.record.validity.t_valid);
+        by_time
+    } else {
+        bookend(selected)
+    };
 
     let items: Vec<EvidenceItem> = ordered
         .into_iter()
@@ -262,6 +295,50 @@ mod tests {
         assert_eq!(values.first(), Some(&"best"));
         assert_eq!(values.last(), Some(&"second"));
         assert_eq!(values, vec!["best", "third", "fifth", "fourth", "second"]);
+    }
+
+    /// The M13 switch: same selection, same budget, different order.
+    ///
+    /// `t_valid` here is the exact reverse of the score order, so oldest-first
+    /// is a sequence `bookend` cannot produce from this input — which is what
+    /// makes the test fail if the branch is deleted rather than pass by
+    /// coincidence.
+    #[test]
+    fn chronological_emits_oldest_first_over_the_same_selection() {
+        use chrono::TimeZone;
+        let input = || {
+            let mut items = ranked(&["best", "second", "third", "fourth"]);
+            for (i, r) in items.iter_mut().enumerate() {
+                r.record.validity.t_valid = Utc
+                    .with_ymd_and_hms(2020 + (3 - i) as i32, 1, 1, 0, 0, 0)
+                    .unwrap();
+            }
+            items
+        };
+
+        let by_time = compose(
+            input(),
+            &ComposeConfig {
+                chronological: true,
+                ..unstamped()
+            },
+        );
+        let values: Vec<&str> = by_time.items.iter().map(|i| i.value.as_str()).collect();
+        assert_eq!(values, vec!["fourth", "third", "second", "best"]);
+
+        // The two bench arms are comparable only if the switch changes the
+        // order and nothing else: same items, same token count.
+        let bookended = compose(input(), &unstamped());
+        assert_eq!(
+            bookended
+                .items
+                .iter()
+                .map(|i| i.value.as_str())
+                .collect::<Vec<_>>(),
+            vec!["best", "third", "fourth", "second"]
+        );
+        assert_eq!(by_time.items.len(), bookended.items.len());
+        assert_eq!(by_time.tokens, bookended.tokens);
     }
 
     #[test]
