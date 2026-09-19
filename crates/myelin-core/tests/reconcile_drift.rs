@@ -461,3 +461,107 @@ async fn payload_drift_catches_a_mutated_t_valid() {
 
     store.drop_collection().await.expect("drop scratch collection");
 }
+
+/// A point written *before* `t_valid` entered the payload carries `t_valid: None`
+/// in the snapshot. That is a migration gap, *not* content drift: every invariant
+/// still matches the ledger, so `total()`/`is_clean()` stay clean, and only the
+/// new `missing_t_valid` count flags it. It must be repairable via `sync_payload`
+/// — a `set_payload` merge that adds the field back — without re-embedding. This
+/// is exactly the pre-migration corpus `myelin_locomo` carries (M19), and the
+/// reason a plain reconcile must not error out on it.
+#[tokio::test]
+async fn pre_migration_points_migrate_t_valid_without_reembedding() {
+    let collection = format!("myelin_test_tvalid_mig_{}", Uuid::new_v4().simple());
+    let _guard = ScratchGuard::new(&collection);
+    let store = QdrantStore::with_collection(&qdrant_config(), &collection).expect("store");
+    store.ensure_collection(DIM, false).await.expect("create");
+
+    let ledger = Ledger::open_memory().await.unwrap();
+    let actor = ActorId::new("test");
+    let embedder = FakeEmbedder;
+
+    let rec = record("mig-0", "pre-migration memory");
+    ledger
+        .apply(&Delta::Add { record: Box::new(rec.clone()) }, &actor)
+        .await
+        .unwrap();
+
+    let dense = vec![0.5f32; DIM as usize];
+
+    // Full-replace the point with a payload that omits `t_valid`, to simulate a
+    // pre-migration point (written before the field entered `payload_of`).
+    // `Payload` is a newtype over `HashMap<String, Value>` with no `.remove`
+    // method. Extract the inner map, drop the field, and let the block below
+    // rebuild it via `Payload::from` — this simulates a pre-migration point
+    // written before `t_valid` entered `payload_of`.
+    let mut payload: std::collections::HashMap<String, qdrant_client::qdrant::Value> =
+        QdrantStore::payload_of(&rec).into();
+    payload.remove("t_valid");
+    {
+        use qdrant_client::qdrant::{NamedVectors, PointStruct, UpsertPointsBuilder, Vector};
+        use qdrant_client::Payload;
+        store
+            .client()
+            .upsert_points(
+                UpsertPointsBuilder::new(
+                    store.collection(),
+                    vec![PointStruct::new(
+                        rec.id.to_string(),
+                        NamedVectors::default()
+                            .add_vector("dense", Vector::new_dense(dense.clone())),
+                        Payload::from(payload),
+                    )],
+                )
+                    .wait(true),
+            )
+            .await
+            .expect("pre-migration point upsert");
+    }
+
+    // A missing field is a migration gap, not content drift: every invariant
+    // still matches the ledger, so the invariants reconcile clean.
+    let missing = reconcile(&ledger, &store, NS, Some(&embedder), false)
+        .await
+        .unwrap();
+    assert_eq!(
+        missing.missing_t_valid,
+        1,
+        "exactly one pre-migration point must be flagged: {missing:?}"
+    );
+    assert!(
+        missing.payload_drift.is_empty(),
+        "a missing t_valid is a migration gap, not content drift: {missing:?}"
+    );
+    assert_eq!(
+        missing.total(),
+        0,
+        "`total()` must exclude pre-migration gaps: {missing:?}"
+    );
+    assert!(
+        missing.is_clean(),
+        "a pre-migration store must reconcile clean on the invariants: {missing:?}"
+    );
+
+    // --repair adds the field back from the ledger, without re-embedding.
+    let migrated = reconcile(&ledger, &store, NS, Some(&embedder), true)
+        .await
+        .unwrap();
+    assert!(migrated.repaired, "the repair must run: {migrated:?}");
+
+    // Re-reconcile (fresh detection) must be clean: the point's t_valid now
+    // equals the ledger's and it is no longer a migration gap.
+    let after = reconcile(&ledger, &store, NS, Some(&embedder), false)
+        .await
+        .unwrap();
+    assert_eq!(
+        after.missing_t_valid,
+        0,
+        "the repair must clear the pre-migration gap: {after:?}"
+    );
+    assert!(
+        after.is_clean(),
+        "the store must be clean after the t_valid migration: {after:?}"
+    );
+
+    store.drop_collection().await.expect("drop scratch collection");
+}

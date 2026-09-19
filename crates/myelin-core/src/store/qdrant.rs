@@ -129,10 +129,14 @@ pub struct PayloadSnapshot {
     pub namespace: String,
     pub kind: String,
     pub trust_tier: String,
-    /// Seconds since the epoch. Carried because a `t_valid` that drifts from
-    /// the ledger's is invisible everywhere else: M19 shipped 162,181 records
-    /// stamped with the build date and nothing noticed for six milestones.
-    pub t_valid: i64,
+    /// Seconds since the epoch. `None` for points written before the field
+    /// entered the payload (pre-migration): the reconciler then flags the point
+    /// as `missing_t_valid` — a migration gap, *not* `payload_drift` — and
+    /// restores it via `sync_payload` on `--repair`. Carried because a
+    /// `t_valid` that drifts from the ledger's is invisible everywhere else:
+    /// M19 shipped 162,181 records stamped with the build date and nothing
+    /// noticed for six milestones.
+    pub t_valid: Option<i64>,
     pub t_invalid: Option<i64>,
 }
 
@@ -636,10 +640,7 @@ fn snapshot_from(payload: &HashMap<String, Value>) -> PayloadSnapshot {
         namespace: s("namespace"),
         kind: s("kind"),
         trust_tier: s("trust_tier"),
-        t_valid: payload
-            .get("t_valid")
-            .and_then(|v| v.as_integer())
-            .unwrap_or_default(),
+        t_valid: payload.get("t_valid").and_then(|v| v.as_integer()),
         t_invalid: payload
             .get("t_invalid")
             .and_then(|v| v.as_integer())

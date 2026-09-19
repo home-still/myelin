@@ -128,13 +128,33 @@ async fn check_drift(
         .await
         .context("reconcile after build")?;
     if report.total() == 0 {
-        eprintln!("  reconcile: clean ({namespace})");
+        // No content or scope drift. `total()` deliberately excludes
+        // `missing_t_valid` (a migration gap, not a content invariant), so a
+        // pre-migration corpus reconciles clean on every invariant and only
+        // needs the one-time field migration — the build must not fail on it.
+        if report.missing_t_valid > 0 {
+            if report.repaired {
+                eprintln!(
+                    "  reconcile: brought t_valid to {} point(s) ({namespace}) — \
+                     pre-migration",
+                    report.missing_t_valid
+                );
+            } else {
+                eprintln!(
+                    "  reconcile: {} point(s) predate the t_valid field ({namespace}); \
+                     re-run with --repair to migrate them",
+                    report.missing_t_valid
+                );
+            }
+        } else {
+            eprintln!("  reconcile: clean ({namespace})");
+        }
         return Ok(());
     }
     eprintln!(
         "  reconcile: {} drift item(s) in {namespace} — missing_vectors={} qdrant_orphans={} \
          payload_drift={} stale_points={} dangling_links={} orphan_incidence={} \
-         missing_provenance={} (repaired={})",
+         missing_provenance={} missing_t_valid={} (repaired={})",
         report.total(),
         report.missing_vectors.len(),
         report.qdrant_orphans.len(),
@@ -143,6 +163,7 @@ async fn check_drift(
         report.dangling_links.len(),
         report.orphan_incidence.len(),
         report.missing_provenance.len(),
+        report.missing_t_valid,
         report.repaired,
     );
     anyhow::ensure!(

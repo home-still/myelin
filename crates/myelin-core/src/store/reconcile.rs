@@ -6,7 +6,7 @@
 //! reconciliation a tunable drift budget rather than a cleanup chore. This is
 //! the same drift-repair pattern `hs catalog repair` already uses.
 //!
-//! Six directions, each independently detected and independently repairable:
+//! Seven directions, each independently detected and independently repairable:
 //!
 //! | direction | meaning | repair |
 //! |---|---|---|
@@ -15,7 +15,7 @@
 //! | `payload_drift` | Qdrant payload disagrees with the ledger | overwrite payload |
 //! | `stale_points` | point for a record that is no longer live | delete the point |
 //! | `dangling_links` | link whose endpoint is gone | delete the link |
-//! | `orphan_incidence` | incidence row for a missing record | delete the row |
+//! | `missing_t_valid` | pre-migration point whose payload lacks `t_valid` | sync the payload |
 //! | `missing_provenance` | ledger row with NULL `prov_source` | quarantine it |
 //!
 //! Only `missing_vectors` needs an [`Embedder`]; the rest repair with no model
@@ -40,7 +40,13 @@ pub struct DriftReport {
     pub dangling_links: Vec<(Uuid, Uuid, LinkKind)>,
     pub orphan_incidence: Vec<(String, Uuid)>,
     pub missing_provenance: Vec<Uuid>,
-    /// True when the repairs in this report were applied, not just detected.
+    /// Pre-migration gap count; deliberately excluded from `total()` and
+    /// `is_clean()`. A point written before the field entered the payload has
+    /// `t_valid: None` — that is a migration gap, not content drift, so it is
+    /// never latched into `payload_drift`. Repaired by the `missing_t_valid`
+    /// sync loop via `sync_payload` (no re-embedding).
+    #[serde(default)]
+    pub missing_t_valid: usize,
     pub repaired: bool,
 }
 
@@ -73,7 +79,7 @@ pub async fn reconcile(
 ) -> Result<DriftReport> {
     let now = Utc::now();
     let mut report = DriftReport::default();
-
+    let mut missing_t_valid: Vec<Uuid> = Vec::new();
     let records = ledger.records_in_namespace(namespace).await?;
     let points = store.scroll_namespace(namespace).await?;
 
@@ -118,11 +124,14 @@ pub async fn reconcile(
                         || snapshot.namespace != record.scope.namespace
                         || snapshot.kind != record.kind.as_str()
                         || snapshot.trust_tier != record.trust.tier.as_str()
-                        || snapshot.t_valid != record.validity.t_valid.timestamp()
+                        || snapshot.t_valid.is_some_and(|t| t != record.validity.t_valid.timestamp())
                         || snapshot.t_invalid
                             != record.validity.t_invalid.map(|t| t.timestamp());
                     if drifted {
                         report.payload_drift.push(record.id);
+                    }
+                    if snapshot.t_valid.is_none() {
+                        missing_t_valid.push(record.id);
                     }
                 }
             }
@@ -142,7 +151,7 @@ pub async fn reconcile(
         .map(|i| (i.phrase, i.record_id))
         .collect();
     report.missing_provenance = ledger.records_missing_provenance().await?;
-
+    report.missing_t_valid = missing_t_valid.len();
     if !apply {
         return Ok(report);
     }
@@ -156,6 +165,11 @@ pub async fn reconcile(
         store.delete_points(&report.stale_points).await?;
     }
     for id in &report.payload_drift {
+        if let Some(record) = by_id.get(id) {
+            store.sync_payload(record).await?;
+        }
+    }
+    for id in &missing_t_valid {
         if let Some(record) = by_id.get(id) {
             store.sync_payload(record).await?;
         }
