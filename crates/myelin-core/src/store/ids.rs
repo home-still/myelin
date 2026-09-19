@@ -29,9 +29,3 @@ pub fn record_id(scope: &Scope, natural_key: &str) -> Uuid {
     let ns = namespace_uuid(&scope.namespace);
     Uuid::new_v5(&ns, format!("{}\u{1f}{}", scope.tenant, natural_key).as_bytes())
 }
-
-/// Content-addressed id, for the "idempotent by content hash" guarantee the
-/// `remember` tool makes (`PLAN.md` §10).
-pub fn content_id(scope: &Scope, text: &str) -> Uuid {
-    record_id(scope, text)
-}

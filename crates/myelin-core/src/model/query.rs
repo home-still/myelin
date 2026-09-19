@@ -57,6 +57,23 @@ impl ScopeFilter {
         self.session = Some(session.into());
         self
     }
+
+    /// Does a materialised record's scope fall inside this filter?
+    ///
+    /// The Qdrant payload filter already answers this before ranking; this
+    /// is the re-check on the record itself, because the payload is a
+    /// projection and a projection can lag, drift or regress. `tenant` is
+    /// mandatory (C12); the other three narrow only when the caller named
+    /// them.
+    pub fn admits(&self, scope: &crate::model::record::Scope) -> bool {
+        self.tenant == scope.tenant
+            && self.namespace.as_ref().is_none_or(|ns| *ns == scope.namespace)
+            && self.agent.as_ref().is_none_or(|a| *a == scope.agent)
+            && self
+                .session
+                .as_ref()
+                .is_none_or(|s| scope.session.as_deref() == Some(s.as_str()))
+    }
 }
 
 /// Evidence-set bloat destroys precision: HiGMem retrieves 8.09 vs 99.84

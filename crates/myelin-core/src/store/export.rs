@@ -38,8 +38,13 @@ pub struct MemoryConfigJson {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FusionConfig {
     pub kind: String,
-    /// Cormack's canonical constant. Qdrant's server-side RRF uses k = 1
-    /// (measured, §5.2), which is why fusion is ours and this is a parameter.
+    /// Cormack's canonical constant, recorded as the manifest's own default.
+    ///
+    /// **This is not the runtime default.** `RetrieveConfig::rrf_k` is
+    /// [`crate::pipeline::fuse::DEFAULT_RRF_K`] = 1.0, which M4 measured as
+    /// better on LoCoMo and which is also what Qdrant does server-side. A
+    /// bundle records the `k` its builder used; a bundle that never had one
+    /// set records Cormack's.
     pub k: u32,
 }
 
@@ -47,7 +52,7 @@ impl Default for FusionConfig {
     fn default() -> Self {
         Self {
             kind: "rrf".into(),
-            k: 60,
+            k: crate::pipeline::fuse::CORMACK_RRF_K as u32,
         }
     }
 }

@@ -4,4 +4,4 @@
 #
 # It is recommended to check this file in to source control so that
 # everyone who runs the test benefits from these saved cases.
-cc 9a2d7a4063df04f9e8951f2b98edbb5675951e2c132a98ff06abf46577e4889f # shrinks to strip = [false, false, false, true, false]
+cc 9a2d7a4063df04f9e8951f2b98edbb5675951e2c132a98ff06abf46577e4889f

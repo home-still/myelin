@@ -253,33 +253,34 @@ impl EntityRef {
     }
 }
 
+/// The edges the write path actually creates.
+///
+/// Two more were declared and never constructed (`Contradicts`,
+/// `CoEpisode`). A contradiction is not stored as an edge: `consolidate`
+/// rejects a candidate that contradicts a `Verified` record (C8) and the
+/// rejection is an audit event, not a link. Co-episode membership is already
+/// the `incidence` table's job.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum LinkKind {
     /// Written by UPDATE: the new record supersedes the old one.
     Supersedes,
-    Contradicts,
     /// Consolidation lineage; the edge form of `Provenance::derived_from`.
     DerivedFrom,
-    CoEpisode,
 }
 
 impl LinkKind {
     pub fn as_str(self) -> &'static str {
         match self {
             LinkKind::Supersedes => "supersedes",
-            LinkKind::Contradicts => "contradicts",
             LinkKind::DerivedFrom => "derived_from",
-            LinkKind::CoEpisode => "co_episode",
         }
     }
 
     pub fn parse(s: &str) -> Result<Self> {
         match s {
             "supersedes" => Ok(LinkKind::Supersedes),
-            "contradicts" => Ok(LinkKind::Contradicts),
             "derived_from" => Ok(LinkKind::DerivedFrom),
-            "co_episode" => Ok(LinkKind::CoEpisode),
             other => Err(MyelinError::Store(format!("unknown link kind {other:?}"))),
         }
     }
@@ -307,6 +308,15 @@ pub struct MemoryRecord {
     pub trust: Trust,
     #[serde(default)]
     pub salience: Salience,
+    /// Edges to write **with** this record, consumed at insert time by
+    /// `Ledger::apply`.
+    ///
+    /// It is an input only: `Ledger::get` and every other read path leave it
+    /// empty, because materialising a record's edges would put a second
+    /// query on the recall hot path for something almost no caller reads.
+    /// Ask [`crate::store::ledger::Ledger::links_incident`] for the edges of
+    /// a record you already have; `store::export` reads the `link` table
+    /// directly for the same reason.
     #[serde(default)]
     pub links: Vec<Link>,
 }

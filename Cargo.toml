@@ -2,6 +2,11 @@
 members = ["crates/*"]
 resolver = "2"
 
+[workspace.package]
+# Matches the root `LICENSE` (MIT, Copyright (c) 2026 Home Still). Declared
+# here so `cargo package`, `cargo publish` and every SBOM see it.
+license = "MIT"
+
 [workspace.dependencies]
 anyhow = "1"
 async-trait = "0.1"

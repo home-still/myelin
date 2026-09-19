@@ -129,6 +129,62 @@ fn i1_update_preserves_predecessor_verbatim() {
     });
 }
 
+/// The predecessor stops being believed exactly where its successor starts.
+///
+/// Retracting at apply time instead leaves a window — here an hour wide,
+/// because the replacement's `t_valid` is backdated — in which both rows
+/// satisfy `is_live_at`. A bi-temporal store whose belief intervals overlap
+/// cannot answer "what did we believe at t", which is the only reason the
+/// predecessor is kept at all.
+#[test]
+fn update_retracts_the_predecessor_at_the_successors_valid_time() {
+    rt().block_on(async {
+        let (ledger, sc, ids) = ledger_with_episodes(1).await;
+
+        let mut replacement = record(
+            "ep-0-v2",
+            RecordKind::Episodic,
+            &sc,
+            "corrected episode text",
+            Vec::new(),
+        );
+        // Half an hour after the predecessor's `t_valid` and half an hour
+        // before `Utc::now()`, so the assertion below distinguishes the
+        // successor's start from the apply instant.
+        replacement.validity.t_valid = Utc::now() - Duration::minutes(30);
+        let boundary = replacement.validity.t_valid;
+        ledger
+            .apply(
+                &Delta::Update {
+                    target: ids[0],
+                    replacement: Box::new(replacement),
+                    reason: "correction".into(),
+                },
+                &actor(),
+            )
+            .await
+            .unwrap();
+
+        let predecessor = ledger.get(ids[0]).await.unwrap().unwrap();
+        assert_eq!(
+            predecessor.validity.t_invalid,
+            Some(boundary),
+            "predecessor must be retracted at the replacement's t_valid, not at apply time"
+        );
+
+        // The interval is half-open at the boundary: exactly one of the two
+        // is live at every instant.
+        assert!(
+            !predecessor.is_admissible_at(boundary),
+            "predecessor still live at the boundary instant"
+        );
+        assert!(
+            predecessor.is_admissible_at(boundary - Duration::seconds(1)),
+            "predecessor must still be live one second before the boundary"
+        );
+    });
+}
+
 /// The invariant is enforced by the database, so a writer that bypasses
 /// `apply` entirely still cannot mutate content.
 #[test]

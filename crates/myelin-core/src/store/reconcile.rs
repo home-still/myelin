@@ -104,16 +104,23 @@ pub async fn reconcile(
                     // hot index; leaving it there is how I3 leaks.
                     report.stale_points.push(record.id);
                 } else {
-                    let expected = QdrantStore::payload_of(record);
+                    // Every field the snapshot carries is compared. The list
+                    // used to be hand-maintained and omitted `t_valid` —
+                    // which is the one field whose corruption M19 shipped:
+                    // 162,181 records stamped with the build date, invisible
+                    // to this check for six milestones. `text` and
+                    // `entities` stay out of the snapshot because they are
+                    // large and because drift in either changes the
+                    // content-derived record id, which direction 1 catches.
                     let drifted = snapshot.tenant != record.scope.tenant
                         || snapshot.agent != record.scope.agent
                         || snapshot.session != record.scope.session
                         || snapshot.namespace != record.scope.namespace
                         || snapshot.kind != record.kind.as_str()
                         || snapshot.trust_tier != record.trust.tier.as_str()
+                        || snapshot.t_valid != record.validity.t_valid.timestamp()
                         || snapshot.t_invalid
                             != record.validity.t_invalid.map(|t| t.timestamp());
-                    let _ = expected;
                     if drifted {
                         report.payload_drift.push(record.id);
                     }

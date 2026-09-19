@@ -24,6 +24,7 @@ use myelin_core::model::record::{ActorId, Scope};
 use myelin_core::pipeline::retrieve::Retriever;
 use myelin_core::embed::Embedder;
 use myelin_core::store::ledger::Ledger;
+use myelin_core::store::qdrant::SearchScope;
 
 fn ask(tenant: &str, namespace: Option<&str>, text: &str) -> Recall {
     let mut scope = ScopeFilter::tenant(tenant);
@@ -136,10 +137,14 @@ async fn e4_a_tenant_cannot_read_another_tenants_memory() {
         .hybrid_search(
             query_vec,
             "vault passphrase",
-            "t/alice",
-            Some("shared"),
+            SearchScope {
+                tenant: "t/alice",
+                namespace: Some("shared"),
+                ..Default::default()
+            },
             &[],
             50,
+            false,
         )
         .await
         .expect("hybrid_search");
@@ -164,6 +169,83 @@ async fn e4_a_tenant_cannot_read_another_tenants_memory() {
             .any(|i| i.value.contains("CORRECT-HORSE-BATTERY")),
         "the control failed: Mallory cannot read her own memory, so the \
          isolation assertions above prove nothing"
+    );
+}
+
+/// The scope filter is four predicates, not one.
+///
+/// `recall` forwarded only `tenant` and `namespace` to Qdrant and then
+/// re-checked the fused ids with an *unfiltered* `Ledger::get`, so a
+/// `ScopeFilter` naming an agent or a session was accepted, advertised and
+/// silently ignored. Two agents sharing a tenant is the ordinary
+/// multi-agent deployment, and C12's argument for tenant isolation applies
+/// unchanged one level down.
+#[tokio::test]
+async fn an_agent_scoped_recall_cannot_read_a_sibling_agents_memory() {
+    let (store, _guard) = scratch_store("agentscope").await;
+    let ledger = Ledger::open_memory().await.expect("ledger");
+    let embedder = HashEmbedder;
+
+    // Same tenant, same namespace, different agent — the case tenant
+    // isolation does not cover.
+    let alpha = Scope::new("t/shared", "alpha", "ns");
+    let beta = Scope::new("t/shared", "beta", "ns");
+
+    let alpha_ep = episode(&alpha, "al-ep", "Alpha: I rebuilt the staging index.");
+    let beta_ep = episode(
+        &beta,
+        "be-ep",
+        "Beta: the on-call pager code is PAGER-7781.",
+    );
+    let beta_secrets: Vec<_> = (0..6)
+        .map(|i| {
+            semantic(
+                &beta,
+                &format!("be-sec-{i}"),
+                &format!("The on-call pager code is PAGER-7781, copy {i}."),
+                vec![beta_ep.id],
+            )
+        })
+        .collect();
+    let mut all = vec![alpha_ep.clone(), beta_ep.clone()];
+    all.extend(beta_secrets.iter().cloned());
+    commit(&ledger, &store, &embedder, &all).await;
+
+    let retriever = Retriever::new(&embedder, &store, &ledger);
+
+    let mut query = ask("t/shared", Some("ns"), "on-call pager code");
+    query.scope.agent = Some("alpha".to_string());
+
+    let (evidence, trace) = retriever.recall(&query).await.expect("recall");
+    for item in &evidence.items {
+        assert!(
+            !item.value.contains("PAGER-7781"),
+            "agent scope LEAK via recall: {:?}",
+            item.value
+        );
+    }
+    // Alpha owns 1 of the 8 records. Bounding the per-channel hit counts is
+    // what distinguishes a Qdrant payload predicate from a Rust post-filter
+    // that merely hides the leak after paying for it.
+    assert!(
+        trace.dense_hits <= 1 && trace.lex_hits <= 1,
+        "agent predicate is not reaching Qdrant: dense={} lex={} for an \
+         agent that owns 1 of 8 records",
+        trace.dense_hits,
+        trace.lex_hits
+    );
+
+    // Control: Beta reads her own memory. Without it a store that returns
+    // nothing to anybody would pass.
+    let mut beta_query = ask("t/shared", Some("ns"), "on-call pager code");
+    beta_query.scope.agent = Some("beta".to_string());
+    let (mine, _) = retriever
+        .recall(&beta_query)
+        .await
+        .expect("recall");
+    assert!(
+        mine.items.iter().any(|i| i.value.contains("PAGER-7781")),
+        "the control failed: Beta cannot read her own memory"
     );
 }
 
@@ -253,10 +335,14 @@ async fn e6_unlearning_removes_descendants_from_the_vector_store_too() {
         .hybrid_search(
             query_vec,
             "national insurance number",
-            "t/unlearn",
-            Some("ns"),
+            SearchScope {
+                tenant: "t/unlearn",
+                namespace: Some("ns"),
+                ..Default::default()
+            },
             &[],
             50,
+            false,
         )
         .await
         .expect("hybrid_search");

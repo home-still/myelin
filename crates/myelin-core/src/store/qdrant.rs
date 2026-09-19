@@ -89,6 +89,27 @@ pub struct ScoredHit {
     pub id: Uuid,
     pub score: f32,
     pub text: String,
+    /// The stored dense vector, requested only when the caller asked for it
+    /// ([`SearchScope`] is about *which* points; this is about how much of
+    /// each point comes back). `compose`'s cosine near-duplicate suppression
+    /// is inert without it, and returning ~1024 floats per hit on every
+    /// recall is not free, so it is opt-in.
+    pub vector: Option<Vec<f32>>,
+}
+
+/// The scope predicates a search applies *before* ranking.
+///
+/// A struct rather than four positional `&str`/`Option<&str>` arguments
+/// because transposing two of them at a call site is silent — they all have
+/// the same type — and a transposed scope predicate is precisely the leak
+/// this type exists to prevent (C12).
+#[derive(Debug, Clone, Copy, Default)]
+pub struct SearchScope<'a> {
+    /// Mandatory. There is no read path that spans tenants.
+    pub tenant: &'a str,
+    pub namespace: Option<&'a str>,
+    pub agent: Option<&'a str>,
+    pub session: Option<&'a str>,
 }
 
 /// The two channels, each ranked by its own scorer. Deliberately NOT fused
@@ -108,6 +129,10 @@ pub struct PayloadSnapshot {
     pub namespace: String,
     pub kind: String,
     pub trust_tier: String,
+    /// Seconds since the epoch. Carried because a `t_valid` that drifts from
+    /// the ledger's is invisible everywhere else: M19 shipped 162,181 records
+    /// stamped with the build date and nothing noticed for six milestones.
+    pub t_valid: i64,
     pub t_invalid: Option<i64>,
 }
 
@@ -299,6 +324,21 @@ impl QdrantStore {
         Ok(())
     }
 
+    /// Exact point count for the collection.
+    ///
+    /// `exact(true)`: the approximate count is a cardinality estimate, and
+    /// the only caller compares it against a SQL `COUNT(*)` to decide
+    /// whether a ledger and a collection are the same store.
+    pub async fn count(&self) -> Result<u64> {
+        use qdrant_client::qdrant::CountPointsBuilder;
+
+        let response = self
+            .client
+            .count(CountPointsBuilder::new(&self.collection).exact(true))
+            .await?;
+        Ok(response.result.map(|r| r.count).unwrap_or_default())
+    }
+
     /// Overwrite the mutable payload fields of an existing point. Used by
     /// [`crate::store::reconcile`] to repair flag drift without re-embedding.
     pub async fn sync_payload(&self, record: &MemoryRecord) -> Result<()> {
@@ -402,23 +442,34 @@ impl QdrantStore {
     /// Qdrant tokenizes, stems and IDF-weights it in-process
     /// (`bm25_document_inference_over_grpc`), which is why there is no
     /// `tantivy` and no second index.
+    ///
+    /// Every member of `scope` becomes a pre-ranking `must` condition. An
+    /// `agent` or `session` predicate that the caller supplied and this
+    /// filter dropped would be a cross-agent read that no later stage can
+    /// undo, because fusion and rerank only ever narrow by score.
     pub async fn hybrid_search(
         &self,
         dense: Vec<f32>,
         text: &str,
-        tenant: &str,
-        namespace: Option<&str>,
+        scope: SearchScope<'_>,
         kinds: &[&str],
         limit: u64,
+        with_vectors: bool,
     ) -> Result<HybridLists> {
         use qdrant_client::qdrant::{Condition, QueryBatchPointsBuilder};
 
         let mut must = vec![
-            Condition::matches("tenant", tenant.to_string()),
+            Condition::matches("tenant", scope.tenant.to_string()),
             Condition::matches("t_invalid", 0i64),
         ];
-        if let Some(ns) = namespace {
+        if let Some(ns) = scope.namespace {
             must.push(Condition::matches("namespace", ns.to_string()));
+        }
+        if let Some(agent) = scope.agent {
+            must.push(Condition::matches("agent", agent.to_string()));
+        }
+        if let Some(session) = scope.session {
+            must.push(Condition::matches("session", session.to_string()));
         }
         if !kinds.is_empty() {
             must.push(Condition::matches(
@@ -441,15 +492,25 @@ impl QdrantStore {
         let want_dense = !dense.is_empty();
         let mut queries: Vec<qdrant_client::qdrant::QueryPoints> = Vec::with_capacity(2);
         if want_dense {
-            queries.push(
-                QueryPointsBuilder::new(&self.collection)
-                    .query(Query::new_nearest(dense))
-                    .using(DENSE)
-                    .filter(filter.clone())
-                    .limit(limit)
-                    .with_payload(true)
-                    .into(),
-            );
+            let mut builder = QueryPointsBuilder::new(&self.collection)
+                .query(Query::new_nearest(dense))
+                .using(DENSE)
+                .filter(filter.clone())
+                .limit(limit)
+                .with_payload(true);
+            if with_vectors {
+                // Name the dense vector explicitly: `with_vectors(true)`
+                // would also ship the server-side BM25 sparse vector, which
+                // nothing downstream reads.
+                builder = builder.with_vectors(
+                    qdrant_client::qdrant::with_vectors_selector::SelectorOptions::Include(
+                        qdrant_client::qdrant::VectorsSelector {
+                            names: vec![DENSE.to_string()],
+                        },
+                    ),
+                );
+            }
+            queries.push(builder.into());
         }
         queries.push(
             QueryPointsBuilder::new(&self.collection)
@@ -483,11 +544,15 @@ impl QdrantStore {
                             .get("text")
                             .and_then(|v| v.as_str().map(|s| s.to_string()))
                             .unwrap_or_default();
+                        let vector = dense_vector_of(p);
                         match id {
                             qdrant_client::qdrant::point_id::PointIdOptions::Uuid(u) => {
-                                Uuid::parse_str(u.as_str())
-                                    .ok()
-                                    .map(|id| ScoredHit { id, score: p.score, text })
+                                Uuid::parse_str(u.as_str()).ok().map(|id| ScoredHit {
+                                    id,
+                                    score: p.score,
+                                    text,
+                                    vector,
+                                })
                             }
                             qdrant_client::qdrant::point_id::PointIdOptions::Num(_) => None,
                         }
@@ -571,9 +636,37 @@ fn snapshot_from(payload: &HashMap<String, Value>) -> PayloadSnapshot {
         namespace: s("namespace"),
         kind: s("kind"),
         trust_tier: s("trust_tier"),
+        t_valid: payload
+            .get("t_valid")
+            .and_then(|v| v.as_integer())
+            .unwrap_or_default(),
         t_invalid: payload
             .get("t_invalid")
             .and_then(|v| v.as_integer())
             .filter(|i| *i != 0),
+    }
+}
+
+/// The `DENSE` vector of a scored point, when the query asked for vectors.
+///
+/// Returns `None` rather than an empty vector for an absent or non-dense
+/// payload: `compose` treats `None` as "fall back to exact-text dedup", and a
+/// zero-length vector would make every cosine `NaN` instead.
+fn dense_vector_of(point: &qdrant_client::qdrant::ScoredPoint) -> Option<Vec<f32>> {
+    use qdrant_client::qdrant::{vector_output, vectors_output::VectorsOptions};
+
+    let out = match point.vectors.as_ref()?.vectors_options.as_ref()? {
+        VectorsOptions::Vector(v) => v,
+        VectorsOptions::Vectors(named) => named.vectors.get(DENSE)?,
+    };
+    match out.vector.as_ref() {
+        Some(vector_output::Vector::Dense(d)) => Some(d.data.clone()),
+        // Pre-1.16 servers send the flattened `data` field instead of the
+        // typed oneof; both wire shapes are live in the fleet.
+        _ => {
+            #[allow(deprecated)]
+            let legacy = &out.data;
+            (!legacy.is_empty()).then(|| legacy.clone())
+        }
     }
 }

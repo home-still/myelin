@@ -179,7 +179,13 @@ impl Ledger {
                 Self::check_lineage(&mut tx, replacement).await?;
                 Self::insert_record(&mut tx, replacement).await?;
                 Self::insert_lineage_links(&mut tx, replacement, now).await?;
-                Self::set_t_invalid(&mut tx, *target, now).await?;
+                // The predecessor stops being believed exactly where its
+                // successor starts, not when the write happened: retracting
+                // at `now` leaves a window in which both rows are live, and
+                // a bi-temporal store whose belief intervals overlap cannot
+                // answer "what did we believe at t". `consolidate::supersede`
+                // documents the same shared boundary.
+                Self::set_t_invalid(&mut tx, *target, replacement.validity.t_valid).await?;
                 Self::insert_link(&mut tx, replacement.id, *target, LinkKind::Supersedes, now)
                     .await?;
                 AppliedDelta {
@@ -416,6 +422,57 @@ impl Ledger {
         Ok(row.get::<i64, _>("n"))
     }
 
+    /// Records admissible at `now` — the same predicate [`Ledger::visible`]
+    /// applies, minus the scope.
+    ///
+    /// This is the count the vector index is supposed to mirror.
+    /// [`Ledger::count`] includes every superseded row the store has ever
+    /// held, so comparing *that* against a point count reports drift on any
+    /// store that has ever taken an update.
+    pub async fn count_live(&self, now: DateTime<Utc>) -> Result<i64> {
+        let now_s = fmt_time(now);
+        let row = sqlx::query(
+            "SELECT COUNT(*) AS n FROM record
+             WHERE prov_source IS NOT NULL
+               AND trust_tier <> 'quarantined'
+               AND t_valid <= ?
+               AND (t_invalid IS NULL OR t_invalid > ?)
+               AND (t_expired IS NULL OR t_expired > ?)",
+        )
+        .bind(&now_s)
+        .bind(&now_s)
+        .bind(&now_s)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(sql)?;
+        Ok(row.get::<i64, _>("n"))
+    }
+
+    /// Record that an existing fact was encountered again.
+    ///
+    /// `salience` is the one JSON column the schema declares mutable
+    /// (I1 freezes content, scope and provenance, not this). Only
+    /// `access_count` and `last_access` move: `strength` is the decay
+    /// model's output, and writing it here would be inventing a policy the
+    /// model has not been given.
+    pub async fn touch_salience(&self, id: Uuid) -> Result<()> {
+        sqlx::query(
+            "UPDATE record
+             SET salience = json_set(
+                     salience,
+                     '$.access_count',
+                     COALESCE(json_extract(salience, '$.access_count'), 0) + 1,
+                     '$.last_access', ?)
+             WHERE id = ?",
+        )
+        .bind(fmt_time(Utc::now()))
+        .bind(id.to_string())
+        .execute(&self.pool)
+        .await
+        .map_err(sql)?;
+        Ok(())
+    }
+
     /// Mark one ingest unit as fully written, and ask whether it already is.
     ///
     /// A row count cannot answer this. The first full LoCoMo run died
@@ -625,6 +682,35 @@ impl Ledger {
                 .fetch_all(&self.pool)
                 .await,
         }
+        .map_err(sql)?;
+        rows.iter()
+            .map(|r| {
+                Ok(LinkRow {
+                    src: parse_uuid(r.get::<String, _>("src").as_str())?,
+                    dst: parse_uuid(r.get::<String, _>("dst").as_str())?,
+                    relation: LinkKind::parse(r.get::<String, _>("relation").as_str())?,
+                    at: parse_time(r.get::<String, _>("at").as_str())?,
+                })
+            })
+            .collect()
+    }
+
+    /// Every edge touching `id`, in either direction.
+    ///
+    /// [`Ledger::links`] cannot answer this: with a namespace it joins only
+    /// on the *source* record, so an inbound edge from another namespace is
+    /// invisible, and without one it returns the whole `link` table for the
+    /// caller to filter in Rust. A link is directional metadata about a
+    /// pair, not a possession of the source's namespace.
+    pub async fn links_incident(&self, id: Uuid) -> Result<Vec<LinkRow>> {
+        let v = id.to_string();
+        let rows = sqlx::query(
+            "SELECT * FROM link WHERE src = ? OR dst = ? ORDER BY src, dst, relation",
+        )
+        .bind(&v)
+        .bind(&v)
+        .fetch_all(&self.pool)
+        .await
         .map_err(sql)?;
         rows.iter()
             .map(|r| {

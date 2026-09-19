@@ -545,6 +545,13 @@ impl<'a> WritePath<'a> {
             }
             Outcome::Duplicate { existing } => {
                 stats.duplicates += 1;
+                // The decay model reads `access_count`, `last_access` and
+                // `strength`, and nothing else in the write path ever writes
+                // them — so without this bump every record's salience stays
+                // at `Salience::default` forever and the model is inert. A
+                // duplicate is the one signal the write path gets that a
+                // fact is being re-encountered.
+                self.ledger.touch_salience(existing).await?;
                 self.ledger
                     .log(
                         "dedup",

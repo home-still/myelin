@@ -29,7 +29,17 @@ pub fn qdrant_config() -> QdrantConfig {
 ///
 /// A real embedder would make these tests measure the embedder. What is
 /// under test is scoping, budgets and deletion; the only property the
-/// vectors need is to be stable and distinct.
+/// vectors need is to be stable and **distinct**.
+///
+/// Distinctness is why this is an FNV-1a hash per dimension rather than the
+/// obvious sum of bytes modulo `DIM`. That version was not distinct at all:
+/// any two English sentences of similar length produced vectors at cosine
+/// > 0.999, because summing bytes throws away order. It went unnoticed only
+/// while `compose`'s cosine near-duplicate suppression was dead (every
+/// `Ranked::vector` was `None`); the moment `recall` started returning real
+/// vectors, a 12-record fixture composed down to one item. Hashing the whole
+/// text once per dimension makes two texts that differ anywhere
+/// near-orthogonal, which is what a fake embedder owes its tests.
 pub struct HashEmbedder;
 
 #[async_trait]
@@ -43,12 +53,38 @@ impl Embedder for HashEmbedder {
     }
 
     async fn embed(&self, texts: &[String]) -> myelin_core::error::Result<Vec<Vec<f32>>> {
+        const FNV_OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
+        const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
+
+        /// MurmurHash3's finalizer. FNV-1a alone is not enough here: its
+        /// last step only stirs the low bits, so twelve texts differing in
+        /// their final character still agree in the top 16 — and the top 16
+        /// are what becomes a coordinate. Without the avalanche the fixture
+        /// vectors come back at cosine 1.0000 and `compose` dedups a
+        /// thirteen-record corpus down to three.
+        fn avalanche(mut h: u64) -> u64 {
+            h ^= h >> 33;
+            h = h.wrapping_mul(0xff51_afd7_ed55_8ccd);
+            h ^= h >> 33;
+            h = h.wrapping_mul(0xc4ce_b9fe_1a85_ec53);
+            h ^ (h >> 33)
+        }
+
         Ok(texts
             .iter()
             .map(|t| {
                 let mut v = vec![0.0f32; DIM as usize];
-                for (i, b) in t.bytes().enumerate() {
-                    v[i % DIM as usize] += f32::from(b) / 255.0;
+                for (d, slot) in v.iter_mut().enumerate() {
+                    let mut h = FNV_OFFSET ^ (d as u64 + 1);
+                    h = h.wrapping_mul(FNV_PRIME);
+                    for b in t.bytes() {
+                        h ^= u64::from(b);
+                        h = h.wrapping_mul(FNV_PRIME);
+                    }
+                    // Centre on zero so the vectors span the sphere instead
+                    // of crowding the positive orthant, where everything is
+                    // similar to everything.
+                    *slot = (avalanche(h) >> 48) as f32 / f32::from(u16::MAX) - 0.5;
                 }
                 let norm = v.iter().map(|x| x * x).sum::<f32>().sqrt().max(1e-6);
                 v.iter().map(|x| x / norm).collect()

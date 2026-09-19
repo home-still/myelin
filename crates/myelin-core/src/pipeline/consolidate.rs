@@ -248,7 +248,8 @@ impl Default for ConsolidateConfig {
 pub enum Outcome {
     /// Apply this delta.
     Apply { delta: Delta, reason: String },
-    /// Same fact, already held. Bump the neighbour's access count.
+    /// Same fact, already held. The write path bumps the existing record's
+    /// access count (`Ledger::touch_salience`) and writes nothing new.
     Duplicate { existing: Uuid },
     /// Staged, not applied (C4).
     Quarantined {

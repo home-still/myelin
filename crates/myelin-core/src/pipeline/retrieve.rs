@@ -4,7 +4,7 @@
 //! scope-filter  → payload predicates, applied BEFORE ranking
 //! retrieve      → dense + lex, one round trip, two ranked lists
 //! graph         → PPR over phrase↔record incidence, a third list (§5.4)
-//! fuse          → RRF in Rust at k = 60 (Qdrant's own is k = 1, §5.2)
+//! fuse          → RRF in Rust at the configured k (Qdrant's own is 1, §5.2)
 //! rerank        → cross-encoder over the fused head        (§2 finding 2)
 //! compose       → budgeted, bookended, deduped, top-k      (§7.3)
 //! ```
@@ -245,16 +245,27 @@ impl<'a> Retriever<'a> {
             .map(|ks| ks.iter().map(|k| k.as_str()).collect())
             .unwrap_or_default();
 
+        // Near-duplicate suppression is a cosine, so it needs the stored
+        // vectors back from Qdrant. ~1024 floats per hit is not free, so ask
+        // only when `compose` will actually use them; with the threshold at
+        // zero `compose` is exact-text-only and `Ranked::vector` stays `None`.
+        let want_vectors = self.config.compose.tau_near_dup > 0.0;
+
         let t1 = std::time::Instant::now();
         let lists = self
             .store
             .hybrid_search(
                 dense.clone(),
                 &query.text,
-                &query.scope.tenant,
-                query.scope.namespace.as_deref(),
+                crate::store::qdrant::SearchScope {
+                    tenant: &query.scope.tenant,
+                    namespace: query.scope.namespace.as_deref(),
+                    agent: query.scope.agent.as_deref(),
+                    session: query.scope.session.as_deref(),
+                },
                 &kinds,
                 self.config.prefetch_limit,
+                want_vectors,
             )
             .await?;
         trace.search_ms = t1.elapsed().as_millis();
@@ -324,10 +335,16 @@ impl<'a> Retriever<'a> {
         trace.fused = fused.len();
 
         // Text comes from the payload, so the head of the list costs no
-        // SQLite round trip.
+        // SQLite round trip. Vectors ride along the same way when
+        // `want_vectors` asked for them; only the dense channel carries one.
         let mut text_by_id = std::collections::HashMap::new();
+        let mut vector_by_id: std::collections::HashMap<uuid::Uuid, Vec<f32>> =
+            std::collections::HashMap::new();
         for hit in lists.dense.iter().chain(lists.lex.iter()) {
             text_by_id.entry(hit.id).or_insert_with(|| hit.text.clone());
+            if let Some(v) = hit.vector.as_ref() {
+                vector_by_id.entry(hit.id).or_insert_with(|| v.clone());
+            }
         }
 
         // `rerank_depth` is a floor on how deep the reranker looks, never a
@@ -367,6 +384,14 @@ impl<'a> Retriever<'a> {
             // away, and it made `recall` return nothing at all on an
             // episodic-only corpus — which is exactly what LME-V2 is.
             if !record.is_admissible_at(now) {
+                continue;
+            }
+            // C12: the scope predicates are Qdrant payload filters, and a
+            // payload is a projection that can lag or regress. Re-check them
+            // against the materialised record so a leaked id cannot survive
+            // fusion — this is a point lookup on a record already in hand,
+            // not a second listing query.
+            if !query.scope.admits(&record.scope) {
                 continue;
             }
             let text = text_by_id
@@ -434,7 +459,9 @@ impl<'a> Retriever<'a> {
                 ranked.push(Ranked {
                     record,
                     score,
-                    vector: None,
+                    // `remove`, not `get`: each id reaches `compose` once, so
+                    // the vector can be moved rather than cloned.
+                    vector: vector_by_id.remove(&id),
                 });
             }
         }

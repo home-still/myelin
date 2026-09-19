@@ -370,3 +370,94 @@ async fn reconcile_detects_and_repairs_every_drift_direction() {
 
     store.drop_collection().await.expect("drop scratch collection");
 }
+
+/// A `t_valid` that drifts from the ledger's is drift, and the reconciler
+/// must say so.
+///
+/// `payload_drift` compared a hand-maintained field list that omitted
+/// `t_valid` — the one field whose corruption M19 actually shipped: 162,181
+/// records stamped with the build date instead of the conversation's, which
+/// survived six milestones because no check looked at it. The drift
+/// detector's field list must be the payload's, not a transcription of it.
+#[tokio::test]
+async fn payload_drift_catches_a_mutated_t_valid() {
+    let collection = format!("myelin_test_tvalid_{}", Uuid::new_v4().simple());
+    let _guard = ScratchGuard::new(&collection);
+    let store = QdrantStore::with_collection(&qdrant_config(), &collection).expect("store");
+    store.ensure_collection(DIM, false).await.expect("create");
+
+    let ledger = Ledger::open_memory().await.unwrap();
+    let actor = ActorId::new("test");
+    let embedder = FakeEmbedder;
+
+    let r = record("tv-0", "the user moved to Berlin in May");
+    ledger
+        .apply(
+            &Delta::Add {
+                record: Box::new(r.clone()),
+            },
+            &actor,
+        )
+        .await
+        .unwrap();
+    let dense = embedder.embed(&[r.text.clone()]).await.unwrap().remove(0);
+    store
+        .upsert(&[IndexItem {
+            record: &r,
+            dense,
+            late: None,
+        }])
+        .await
+        .unwrap();
+
+    let clean = reconcile(&ledger, &store, NS, Some(&embedder), false)
+        .await
+        .unwrap();
+    assert!(clean.is_clean(), "fresh store must reconcile clean: {clean:?}");
+
+    // Stamp the point with a different valid time and nothing else. Every
+    // other payload field still matches the ledger exactly.
+    {
+        use qdrant_client::qdrant::{PointId, PointsIdsList, SetPayloadPointsBuilder};
+        use qdrant_client::Payload;
+        let mut payload: std::collections::HashMap<String, qdrant_client::qdrant::Value> =
+            std::collections::HashMap::new();
+        payload.insert(
+            "t_valid".to_string(),
+            (r.validity.t_valid.timestamp() + 86_400).into(),
+        );
+        store
+            .client()
+            .set_payload(
+                SetPayloadPointsBuilder::new(store.collection(), Payload::from(payload))
+                    .points_selector(PointsIdsList {
+                        ids: vec![PointId::from(r.id.to_string())],
+                    })
+                    .wait(true),
+            )
+            .await
+            .expect("drift t_valid");
+    }
+
+    let found = reconcile(&ledger, &store, NS, Some(&embedder), false)
+        .await
+        .unwrap();
+    assert_eq!(
+        found.payload_drift,
+        vec![r.id],
+        "a t_valid that disagrees with the ledger must be reported as drift"
+    );
+
+    // And repair puts it back, because `sync_payload` writes the whole
+    // projection.
+    let repaired = reconcile(&ledger, &store, NS, Some(&embedder), true)
+        .await
+        .unwrap();
+    assert!(repaired.repaired);
+    let after = reconcile(&ledger, &store, NS, Some(&embedder), false)
+        .await
+        .unwrap();
+    assert!(after.is_clean(), "repair left drift behind: {after:?}");
+
+    store.drop_collection().await.expect("drop scratch collection");
+}

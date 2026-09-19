@@ -40,4 +40,24 @@ pub enum MyelinError {
     Serde(#[from] serde_json::Error),
 }
 
+impl MyelinError {
+    /// A stable slug naming the failure domain and nothing else.
+    ///
+    /// `Display` on the [`MyelinError::Qdrant`] and [`MyelinError::Io`]
+    /// variants forwards the inner error verbatim, which can carry a URL, a
+    /// filesystem path or a host name. Any surface that answers an untrusted
+    /// caller reports this instead and logs the full error locally.
+    pub fn kind_str(&self) -> &'static str {
+        match self {
+            Self::Qdrant(_) => "qdrant",
+            Self::Config(_) => "config",
+            Self::Store(_) => "store",
+            Self::EmptyCompletion { .. } => "llm-empty-completion",
+            Self::BudgetExhausted { .. } => "llm-budget-exhausted",
+            Self::Io(_) => "io",
+            Self::Serde(_) => "serde",
+        }
+    }
+}
+
 pub type Result<T, E = MyelinError> = std::result::Result<T, E>;
