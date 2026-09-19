@@ -34,6 +34,19 @@ struct Args {
     /// admissibility authority and a mismatched pair silently returns nothing.
     #[arg(long)]
     ledger: Option<String>,
+
+    /// Candidates fetched per channel before fusion. Default 50
+    /// (`RetrieveConfig::prefetch_limit`). A `k` near the default makes the
+    /// reranker an ordering of the whole pool rather than a selection from
+    /// it, so a width arm must raise this with `k`.
+    #[arg(long)]
+    prefetch_limit: Option<u64>,
+
+    /// Minimum candidates the reranker scores. Default 25
+    /// (`RetrieveConfig::rerank_depth`); the effective depth is
+    /// `max(rerank_depth, k)`.
+    #[arg(long)]
+    rerank_depth: Option<usize>,
 }
 
 #[tokio::main]
@@ -47,7 +60,16 @@ async fn main() -> anyhow::Result<()> {
         .collection
         .unwrap_or_else(|| cfg.qdrant.collection.clone());
 
-    let backend = Arc::new(Backend::open(&cfg, &collection).await?);
+    let backend = Arc::new(
+        Backend::open(&cfg, &collection, args.prefetch_limit, args.rerank_depth).await?,
+    );
+    // The pool size actually used, on stderr in both transports: an arm that
+    // did not widen the candidate pool is a configuration bug, and this is
+    // the line that proves it either way from the run's own log.
+    eprintln!(
+        "retrieval: prefetch={} rerank_depth={}",
+        backend.config.prefetch_limit, backend.config.rerank_depth
+    );
 
     match args.serve.as_deref() {
         Some(addr) => {

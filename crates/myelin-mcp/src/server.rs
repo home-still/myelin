@@ -52,16 +52,36 @@ pub struct Backend {
 }
 
 impl Backend {
-    pub async fn open(cfg: &MyelinConfig, collection: &str) -> anyhow::Result<Self> {
+    /// `prefetch_limit` and `rerank_depth` override the
+    /// [`RetrieveConfig`] defaults; `None` keeps them. They are arguments
+    /// rather than globals because a second configuration channel beside
+    /// `MyelinConfig` is how an operating point silently stops being
+    /// reproducible from the run manifest.
+    pub async fn open(
+        cfg: &MyelinConfig,
+        collection: &str,
+        prefetch_limit: Option<u64>,
+        rerank_depth: Option<usize>,
+    ) -> anyhow::Result<Self> {
         let mut qdrant_cfg = cfg.qdrant.clone();
         qdrant_cfg.collection = collection.to_string();
+        let defaults = RetrieveConfig::default();
         Ok(Self {
             store: QdrantStore::new(&qdrant_cfg)?,
             ledger: Ledger::open(&cfg.ledger).await?,
             embedder: RemoteEmbedder::new(&cfg.embed.url, &cfg.embed.model, cfg.embed.dim)?,
             llm: OpenAiLlm::new(&cfg.llm.url, &cfg.llm.model)?,
             reranker: CrossEncoder::new(&cfg.rerank.url, &cfg.rerank.model).ok(),
-            config: RetrieveConfig::default(),
+            config: RetrieveConfig {
+                prefetch_limit: prefetch_limit.unwrap_or(defaults.prefetch_limit),
+                rerank_depth: rerank_depth.unwrap_or(defaults.rerank_depth),
+                // Documented as equal to `prefetch_limit` so every fused
+                // channel contributes the same depth (`retrieve.rs:125-128`).
+                // `graph` itself stays off — M12 measured the PPR channel as
+                // a loss.
+                graph_limit: prefetch_limit.map_or(defaults.graph_limit, |p| p as usize),
+                ..defaults
+            },
         })
     }
 }
