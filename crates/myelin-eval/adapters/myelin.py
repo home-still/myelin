@@ -60,13 +60,29 @@ def _decode(raw: bytes, content_type: str) -> dict[str, Any] | None:
     """
     text = raw.decode("utf-8", "replace")
     if "text/event-stream" not in content_type:
-        return json.loads(text)
+        return _loads(text)
     payload = "".join(
         line[len("data:") :].strip()
         for line in text.splitlines()
         if line.startswith("data:")
     )
-    return json.loads(payload) if payload else None
+    return _loads(payload) if payload else None
+
+
+def _loads(text: str) -> dict[str, Any]:
+    """`json.loads` that names the body it could not parse.
+
+    A bare `JSONDecodeError` says "Expecting value: line 1 column 1" and
+    nothing else, which is indistinguishable between an HTML error page, a
+    proxy timeout and a truncated stream. The first 200 characters of the
+    body identify all three on sight.
+    """
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise McpError(
+            f"myelin-mcp returned a body that is not JSON ({exc}): {text[:200]!r}"
+        ) from exc
 
 
 class McpError(RuntimeError):

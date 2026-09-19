@@ -265,6 +265,16 @@ enum Command {
         /// instead of failing.
         #[arg(long)]
         repair: bool,
+        /// Accept a LongMemEval build in which some sessions carried no
+        /// parseable date.
+        ///
+        /// Those episodes are stamped with the *build date* instead of the
+        /// conversation's, which is the M19 incident: 162,181 records all
+        /// dated 2026-09-15, six milestones of temporal numbers invalidated,
+        /// and a 57-minute re-ingest to repair. The build refuses by default
+        /// so the next one cannot be discovered by reading a report.
+        #[arg(long)]
+        allow_undated: bool,
     },
     /// Populate the phrase↔record incidence graph over an already-built
     /// ledger. Pure SQLite: no Qdrant, no GPU, no model.
@@ -470,6 +480,7 @@ async fn main() -> anyhow::Result<()> {
             limit,
             ref lmev2_dir,
             repair,
+            allow_undated,
         } => {
             build_cmd(
                 corpus,
@@ -478,6 +489,7 @@ async fn main() -> anyhow::Result<()> {
                 limit,
                 lmev2_dir,
                 repair,
+                allow_undated,
             )
             .await
         }
@@ -685,6 +697,7 @@ async fn fetch() -> anyhow::Result<()> {
 }
 /// M3: drive LoCoMo through the write path and report records/unit, tokens
 /// and wall time.
+#[allow(clippy::too_many_arguments)]
 async fn build_cmd(
     corpus: Corpus,
     collection: Option<&str>,
@@ -692,6 +705,7 @@ async fn build_cmd(
     limit: Option<usize>,
     lmev2_dir: &str,
     repair: bool,
+    allow_undated: bool,
 ) -> anyhow::Result<()> {
     let collection = collection.map_or_else(|| corpus.collection(), str::to_string);
     let ledger = ledger.map_or_else(|| corpus.ledger(), str::to_string);
@@ -757,6 +771,21 @@ async fn build_cmd(
 
     let units = report.per_unit.len();
     report.print(units);
+
+    // A LongMemEval session is supposed to carry a date; LoCoMo's too, but
+    // its `date_time` is optional in the release, so only the corpora whose
+    // temporal strata depend on it are gated.
+    let dated_corpus = matches!(corpus, Corpus::LongmemevalS | Corpus::LmeV2Small | Corpus::LmeV2Medium);
+    if report.sessions_without_date > 0 && dated_corpus && !allow_undated {
+        anyhow::bail!(
+            "{} of {} {} sessions carried no parseable date; those episodes are stamped with \
+             today's date, not the conversation's, and every temporal number measured on this \
+             memory would be wrong (M19). Fix `parse_session_time` or pass --allow-undated.",
+            report.sessions_without_date,
+            report.sessions_total,
+            corpus.slug(),
+        );
+    }
     Ok(())
 }
 

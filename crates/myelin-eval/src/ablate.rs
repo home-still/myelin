@@ -393,6 +393,22 @@ pub async fn ablate_locomo(
 
     let reranker = CrossEncoder::new(&cfg.rerank.url, &cfg.rerank.model).ok();
 
+    // Warm the cross-encoder too, for a reason the embedder cache does not
+    // cover: llama.cpp's reranker breaks score ties differently on the very
+    // first request after a cold start than on every request after it. That
+    // is the M12/M14 non-reproducibility — two otherwise byte-identical
+    // runs disagreeing on one evidence slot — and it lands entirely on
+    // whichever reranked arm happens to run first. One throwaway pair,
+    // outside every timed region, removes it.
+    if let Some(r) = reranker.as_ref() {
+        if let Err(e) = r
+            .rerank("warm up the cross-encoder", &["warm up the cross-encoder".to_string()])
+            .await
+        {
+            eprintln!("  reranker warm-up failed ({e}); first reranked arm may tie-break differently");
+        }
+    }
+
     // One index for the whole run: the cache is per tenant, and LoCoMo's
     // questions arrive grouped by conversation, so the graph arms pay one
     // SQLite read per conversation rather than one per question.

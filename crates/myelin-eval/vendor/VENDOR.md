@@ -21,12 +21,12 @@ never a local patch.
 | upstream | `https://github.com/xiaowu0162/LongMemEval-V2` |
 | commit | `2cc8c54` ("Add news section to README with latest updates") |
 | license | Apache-2.0 (`longmemeval-v2/LICENSE`) |
-| vendored | 2026-09-14, 53 files, 776 KB |
+| vendored | 2026-09-14, 53 files, 1,436 KB |
 | requires | Python ≥ 3.11; `huggingface_hub numpy openai openai-agents pillow tqdm transformers` |
 | torch | `requirements-torch.txt` pins `torch==2.6.0+cu124`; **no such wheel exists for macOS arm64** |
 
 Vendored as a flat copy rather than a git submodule on purpose: the tree is
-776 KB, and a submodule's pin survives only as long as upstream keeps the
+1,436 KB, and a submodule's pin survives only as long as upstream keeps the
 object reachable. A submission has to be reproducible from this repository
 alone.
 

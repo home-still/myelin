@@ -65,7 +65,15 @@ GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
 # missing. Re-running on successive days accumulates a complete panel; a paid
 # key finishes it in one pass. Without the cache every 429 would throw away
 # the work already paid for.
-CACHE_PATH = Path(__file__).resolve().parent / ".judge_cache.json"
+#
+# The cache lives outside the repo by default (`~/.cache/myelin/`) so a
+# checkout is never polluted with verdicts; `MYELIN_JUDGE_CACHE` overrides it.
+# Keys are `<model>|<run>|<question_id>`: two runs routinely share question
+# ids — a rescore of the same corpus shares all of them — and a key without
+# run identity silently blends their verdicts into one kappa.
+CACHE_PATH = Path(
+    os.environ.get("MYELIN_JUDGE_CACHE", Path.home() / ".cache/myelin/judge_cache.json")
+)
 
 LLM_EVAL_FUNCTIONS = {"llm_abstention_checker", "llm_gotchas_checker"}
 
@@ -91,6 +99,7 @@ def load_cache() -> dict[str, int]:
 
 
 def save_cache(cache: dict[str, int]) -> None:
+    CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
     CACHE_PATH.write_text(json.dumps(cache, indent=0, sort_keys=True), encoding="utf-8")
 
 
@@ -199,8 +208,12 @@ def main() -> None:
     }
 
     cache = load_cache()
+    # The run directory's own name is the run identity. Two runs over the same
+    # corpus carry identical question ids, so without it a second run reads the
+    # first one's verdicts back as its own.
+    run_key = Path(args.run_dir).resolve().name
     for model in args.gemini_models:
-        todo = [r for r in rows if f"{model}|{r['question_id']}" not in cache]
+        todo = [r for r in rows if f"{model}|{run_key}|{r['question_id']}" not in cache]
         have = len(rows) - len(todo)
         print(f"  {model}: {have} cached, {len(todo)} to judge", flush=True)
 
@@ -209,7 +222,7 @@ def main() -> None:
             if exhausted:
                 break
             try:
-                cache[f"{model}|{row['question_id']}"] = judge_one(
+                cache[f"{model}|{run_key}|{row['question_id']}"] = judge_one(
                     row, model, GEMINI_BASE_URL, key
                 )
             except Exception as exc:  # noqa: BLE001 - want the message, not the type
@@ -226,7 +239,7 @@ def main() -> None:
             time.sleep(args.sleep)
         save_cache(cache)
 
-        got = [cache.get(f"{model}|{r['question_id']}") for r in rows]
+        got = [cache.get(f"{model}|{run_key}|{r['question_id']}") for r in rows]
         verdicts[model] = got
 
     # Only items every judge has scored can enter the panel.

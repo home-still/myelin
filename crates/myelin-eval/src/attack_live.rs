@@ -460,10 +460,21 @@ pub struct Condition {
     /// recovering it by rounding a stored rate is how a denominator change
     /// goes unnoticed.
     pub asr: Vec<(usize, usize)>,
-    /// Legitimate records admitted **per cohort** — every cohort writes the
-    /// same [`LEGITIMATE`] population, so the per-cohort figure is the one
-    /// that describes the memory each victim query was answered from.
-    pub legitimate_records: usize,
+    /// Legitimate records admitted, **averaged over cohorts** — every cohort
+    /// writes the same [`LEGITIMATE`] population, so the per-cohort figure is
+    /// the one that describes the memory each victim query was answered from.
+    ///
+    /// A mean, not a total, and named so. Its neighbours `legitimate_out`,
+    /// `adjudicated_out` and `injected` are all sums over the whole
+    /// condition, so a report row reading `legitimate_records: 83` beside
+    /// `legitimate_out: 41` invites the reading "83 records in this
+    /// condition", which is wrong by a factor of `cohorts`.
+    ///
+    /// The `alias` keeps the M18 artifacts readable: they were written
+    /// before the rename, and `standing` joins against them. A run artifact
+    /// is a record of a measurement, not source to be migrated.
+    #[serde(alias = "legitimate_records")]
+    pub legitimate_records_mean: usize,
     /// How many scratch stores this condition was measured over: one per
     /// surface form, so no two poison records in a store answer the same
     /// victim query.
@@ -801,7 +812,7 @@ async fn measure(
         legitimate_out,
         injection,
         asr,
-        legitimate_records: if groups.is_empty() {
+        legitimate_records_mean: if groups.is_empty() {
             0
         } else {
             legit_total / groups.len()
@@ -850,7 +861,11 @@ pub fn print(run: &AttackRun) {
     );
     println!(
         "\n{:<34} {:>9} {:>6} {:>6} {:>6}  {:<9} by k",
-        "condition (pre-pop/tier/defence)", "injected", "adj", "legit", "l.adj", "metric"
+        "condition (pre-pop/tier/defence)", "injected", "adj", "legit~", "l.adj", "metric"
+    );
+    println!(
+        "  legit~ is a per-cohort MEAN; every other count in this table is a sum \
+         over the condition."
     );
     for c in &run.conditions {
         print_condition(c);
@@ -1002,7 +1017,7 @@ fn print_condition(c: &Condition) {
         c.injected,
         c.attempted,
         c.adjudicated_out,
-        c.legitimate_records,
+        c.legitimate_records_mean,
         c.legitimate_out,
         "injection",
         curve(&c.injection, false)

@@ -274,6 +274,12 @@ pub enum Verdict {
     NotComparableSource { provenance: Provenance },
     IncompleteArtifact { detail: String },
     MissingArtifact { command: String },
+    /// The registry row's unit and ours cannot be converted into each other.
+    ///
+    /// A defect in the extractor table or the registry, not in the data — but
+    /// one malformed row must not abort the whole report, which is what the
+    /// `panic!` in `converted` used to do.
+    UnitMismatch { detail: String },
 }
 
 impl Verdict {
@@ -301,6 +307,7 @@ impl Verdict {
                 format!("not-comparable({})", prov_slug(*provenance))
             }
             Verdict::IncompleteArtifact { detail } => format!("incomplete({detail})"),
+            Verdict::UnitMismatch { detail } => format!("unit-mismatch({detail})"),
             Verdict::MissingArtifact { .. } => "missing-artifact".into(),
         }
     }
@@ -385,6 +392,13 @@ struct MetricDef {
     direction: Direction,
     /// Printed when no artifact supplies the metric.
     command: &'static str,
+    /// The population the metric id advertises, when it advertises one.
+    ///
+    /// `longmemeval_s.judge_score.n500` promises 500 rows; nothing enforced
+    /// it, so a `--limit 50` run produced a row labelled `.n500` carrying
+    /// n=50 and a number 450 questions short. The suffix is a contract, and
+    /// this is where it is checked.
+    nominal_n: Option<usize>,
 }
 
 const METRICS: &[MetricDef] = &[
@@ -392,31 +406,37 @@ const METRICS: &[MetricDef] = &[
         id: "locomo.judge_score.n1540",
         direction: Direction::HigherIsBetter,
         command: "myelin-eval judge --run runs/locomo_recall",
+        nominal_n: Some(1540),
     },
     MetricDef {
         id: "locomo.token_f1.n1540",
         direction: Direction::HigherIsBetter,
         command: "myelin-eval bench --corpus locomo --out runs/locomo_recall",
+        nominal_n: Some(1540),
     },
     MetricDef {
         id: "locomo.temporal.n1540",
         direction: Direction::HigherIsBetter,
         command: "myelin-eval rescore --run runs/locomo_recall --scorer temporal",
+        nominal_n: Some(1540),
     },
     MetricDef {
         id: "locomo.abstention_accuracy.n446",
         direction: Direction::HigherIsBetter,
         command: "myelin-eval bench --corpus locomo --out runs/locomo_recall",
+        nominal_n: Some(446),
     },
     MetricDef {
         id: "longmemeval_s.judge_score.n500",
         direction: Direction::HigherIsBetter,
         command: "myelin-eval judge --run runs/lme_s_recall",
+        nominal_n: Some(500),
     },
     MetricDef {
         id: "longmemeval_s.token_f1.n500",
         direction: Direction::HigherIsBetter,
         command: "myelin-eval bench --corpus longmemeval-s --out runs/lme_s_recall",
+        nominal_n: Some(500),
     },
     MetricDef {
         id: "dmr.accuracy.n500",
@@ -427,51 +447,61 @@ const METRICS: &[MetricDef] = &[
         // dropping a published number we have not matched would make the
         // table look more complete than the evidence.
         command: "no DMR runner exists (PLAN.md §11.2: DMR is saturated and out of scope)",
+        nominal_n: Some(500),
     },
     MetricDef {
         id: "lme_v2_small.overall_full_set.web",
         direction: Direction::HigherIsBetter,
         command: "adapters/run_myelin.py --domain web (LME-V2 harness, tier small)",
+        nominal_n: None,
     },
     MetricDef {
         id: "lme_v2_small.overall_full_set.enterprise",
         direction: Direction::HigherIsBetter,
         command: "adapters/run_myelin.py --domain enterprise (LME-V2 harness, tier small)",
+        nominal_n: None,
     },
     MetricDef {
         id: "lme_v2_small.overall_full_set.combined",
         direction: Direction::HigherIsBetter,
         command: "adapters/run_myelin.py for BOTH domains at one memory config",
+        nominal_n: None,
     },
     MetricDef {
         id: "lme_v2_small.memory_query_avg_seconds.web",
         direction: Direction::LowerIsBetter,
         command: "adapters/run_myelin.py --domain web (LME-V2 harness, tier small)",
+        nominal_n: None,
     },
     MetricDef {
         id: "lme_v2_small.memory_query_avg_seconds.enterprise",
         direction: Direction::LowerIsBetter,
         command: "adapters/run_myelin.py --domain enterprise (LME-V2 harness, tier small)",
+        nominal_n: None,
     },
     MetricDef {
         id: "lme_v2_small.lafs_gain.small",
         direction: Direction::HigherIsBetter,
         command: "<python> crates/myelin-eval/adapters/lafs_point.py <<< {\"tier\":\"small\",\"points\":[…]}",
+        nominal_n: None,
     },
     MetricDef {
         id: "minja.asr.k6_prepopulated",
         direction: Direction::LowerIsBetter,
         command: "myelin-eval attack --live --ledger-dir data --out runs/attack_live_m18",
+        nominal_n: None,
     },
     MetricDef {
         id: "minja.asr.k6_prepopulated_defended",
         direction: Direction::LowerIsBetter,
         command: "myelin-eval attack --live --ledger-dir data --out runs/attack_live_m18",
+        nominal_n: None,
     },
     MetricDef {
         id: "minja.injection_success.k6_prepopulated",
         direction: Direction::LowerIsBetter,
         command: "myelin-eval attack --live --ledger-dir data --out runs/attack_live_m18",
+        nominal_n: None,
     },
 ];
 
@@ -1254,15 +1284,31 @@ pub fn compare(reg: &Registry, ours: &BTreeMap<String, Ours>) -> StandingReport 
         if mine.is_some() {
             matched.insert(row.metric.as_str());
         }
-        let verdict = classify(row, mine);
-        let gap = match (&verdict, mine) {
-            (v, Some(m)) if v.quantified() => Some(gap(row, m)),
-            _ => None,
+        let mut verdict = classify(row, mine);
+        // One unconvertible unit pair degrades exactly its own row. It used
+        // to `panic!` inside `converted`, which threw away the whole report
+        // — including every row that was fine — for a defect in one registry
+        // or extractor entry.
+        let mut gap_value: Option<f64> = None;
+        if let (true, Some(m)) = (verdict.quantified(), mine) {
+            match gap(row, m) {
+                Ok(g) => gap_value = Some(g),
+                Err(detail) => verdict = Verdict::UnitMismatch { detail },
+            }
+        }
+        let gap = gap_value;
+        let ours_converted = match mine {
+            Some(m) => converted(m, row.unit).ok(),
+            None => None,
         };
-        let ours_converted = mine.map(|m| converted(m, row.unit));
         let claim_allowed = verdict == Verdict::Comparable && gap.is_some_and(|g| g > 0.0);
         if row.gate {
-            let ok = verdict.quantified()
+            // `Comparable`, not `quantified()`: a caveated comparison is a
+            // number whose protocol differs from the paper's, and a gate is
+            // a claim that we beat the paper. `claim_allowed` directly above
+            // already draws that line; a gate must not be laxer than the
+            // claim it licenses.
+            let ok = verdict == Verdict::Comparable
                 && gap.is_some_and(|g| match row.bar {
                     Bar::AtLeast => g >= 0.0,
                     Bar::GreaterThan => g > 0.0,
@@ -1276,7 +1322,7 @@ pub fn compare(reg: &Registry, ours: &BTreeMap<String, Ours>) -> StandingReport 
             metric: row.metric.clone(),
             system: row.system.clone(),
             theirs: row.value,
-            ours: mine.map(|m| converted(m, row.unit)),
+            ours: ours_converted,
             ours_n: mine.map(|m| m.n),
             gap,
             verdict,
@@ -1332,6 +1378,19 @@ fn classify(row: &RegistryRow, mine: Option<&Ours>) -> Verdict {
             theirs: row.n,
         };
     }
+    // The metric id's own promise, checked after the paper's population so
+    // the sharper message wins when both apply. It is the only check at all
+    // when `population_comparable` is false: `longmemeval_s.judge_score.n500`
+    // hardcodes 500 while `n` is whatever the run produced, so a `--limit 50`
+    // artifact would otherwise be published under a `.n500` label with no
+    // trace of the missing 450.
+    if let Some(nominal) = metric_def(&row.metric).and_then(|d| d.nominal_n) {
+        if mine.n != nominal {
+            return Verdict::IncompleteArtifact {
+                detail: format!("metric id advertises n={nominal}, artifact has n={}", mine.n),
+            };
+        }
+    }
     if mine.judge_class != row.judge_class {
         return Verdict::CaveatJudge {
             ours: mine.judge_class,
@@ -1356,27 +1415,27 @@ fn classify(row: &RegistryRow, mine: Option<&Ours>) -> Verdict {
 /// pairing (seconds against percent) is a category error in the extractor
 /// table rather than a data error, so it panics rather than scaling something
 /// uninterpretable.
-fn converted(mine: &Ours, unit: Unit) -> f64 {
+fn converted(mine: &Ours, unit: Unit) -> Result<f64, String> {
     match (mine.unit, unit) {
-        (a, b) if a == b => mine.value,
-        (Unit::FractionZeroOne, Unit::PctZeroHundred) => mine.value * 100.0,
-        (Unit::PctZeroHundred, Unit::FractionZeroOne) => mine.value / 100.0,
-        (a, b) => panic!(
+        (a, b) if a == b => Ok(mine.value),
+        (Unit::FractionZeroOne, Unit::PctZeroHundred) => Ok(mine.value * 100.0),
+        (Unit::PctZeroHundred, Unit::FractionZeroOne) => Ok(mine.value / 100.0),
+        (a, b) => Err(format!(
             "metric {}: cannot compare {} against {}",
             mine.metric,
             a.slug(),
             b.slug()
-        ),
+        )),
     }
 }
 
 /// Positive means we are ahead, whichever way the metric points.
-fn gap(row: &RegistryRow, mine: &Ours) -> f64 {
-    let ours = converted(mine, row.unit);
-    match row.direction {
+fn gap(row: &RegistryRow, mine: &Ours) -> Result<f64, String> {
+    let ours = converted(mine, row.unit)?;
+    Ok(match row.direction {
         Direction::HigherIsBetter => ours - row.value,
         Direction::LowerIsBetter => row.value - ours,
-    }
+    })
 }
 
 fn gate_failure(

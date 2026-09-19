@@ -441,6 +441,56 @@ fn percentile(sorted: &[f64], q: f64) -> f64 {
     sorted[idx]
 }
 
+/// Appends one JSON line to `per_question.jsonl` per scored question, and
+/// keeps a copy for the run-level aggregation.
+///
+/// The rows used to live only in a `Vec` until `finish_run`, which meant any
+/// error before that point destroyed the whole run: M17 lost 54 minutes of
+/// generations to an HTTP 400 raised in the *scoring* stage, after every
+/// answer had already been produced. The file is opened when the run
+/// directory is created and flushed after every row, so a run that dies —
+/// or is interrupted — keeps every question it finished.
+struct RowSink {
+    file: std::io::BufWriter<std::fs::File>,
+    rows: Vec<ScoredQuestion>,
+}
+
+impl RowSink {
+    /// Creates (and truncates) `per_question.jsonl` under `out_dir`.
+    fn create(out_dir: &Path) -> Result<Self> {
+        std::fs::create_dir_all(out_dir)
+            .with_context(|| format!("create {}", out_dir.display()))?;
+        let path = out_dir.join("per_question.jsonl");
+        let file = std::fs::File::create(&path)
+            .with_context(|| format!("create {}", path.display()))?;
+        Ok(Self {
+            file: std::io::BufWriter::new(file),
+            rows: Vec::new(),
+        })
+    }
+
+    /// Writes the row, flushes it, then keeps it. Flushing per row is the
+    /// whole point: a buffered line that never reaches the disk is exactly
+    /// the loss this type exists to prevent, and one `write` per reader call
+    /// is free next to the call itself.
+    fn push(&mut self, row: ScoredQuestion) -> Result<()> {
+        use std::io::Write;
+        serde_json::to_writer(&mut self.file, &row)?;
+        self.file.write_all(b"\n")?;
+        self.file.flush().context("flush per_question.jsonl")?;
+        self.rows.push(row);
+        Ok(())
+    }
+
+    fn len(&self) -> usize {
+        self.rows.len()
+    }
+
+    fn into_rows(self) -> Vec<ScoredQuestion> {
+        self.rows
+    }
+}
+
 /// Run LoCoMo end-to-end and score every question.
 #[allow(clippy::too_many_arguments)]
 pub async fn bench_locomo(
@@ -496,7 +546,9 @@ pub async fn bench_locomo(
         retriever = retriever.with_graph(&graph_index);
     }
 
-    let mut scored: Vec<ScoredQuestion> = Vec::new();
+    // Opened before the first reader call so an interrupted run keeps every
+    // question it finished (see `RowSink`).
+    let mut scored = RowSink::create(out_dir)?;
     let mut latencies: Vec<f64> = Vec::new();
     let system = READER_SYSTEM;
 
@@ -621,7 +673,7 @@ pub async fn bench_locomo(
                 retrieved_items: evidence.items.len(),
                 evidence: evidence.items.iter().map(|i| i.value.clone()).collect(),
                 memory_query_duration_seconds: elapsed,
-            });
+            })?;
         }
     }
 
@@ -636,7 +688,7 @@ pub async fn bench_locomo(
             scorer,
             rescored_from: None,
         },
-        scored,
+        scored.into_rows(),
         latencies,
         out_dir,
     )
@@ -704,7 +756,9 @@ pub async fn bench_longmemeval_s(
         retriever = retriever.with_graph(&graph_index);
     }
 
-    let mut scored: Vec<ScoredQuestion> = Vec::new();
+    // Opened before the first reader call so an interrupted run keeps every
+    // question it finished (see `RowSink`).
+    let mut scored = RowSink::create(out_dir)?;
     let mut latencies: Vec<f64> = Vec::new();
     let system = READER_SYSTEM;
 
@@ -784,7 +838,7 @@ pub async fn bench_longmemeval_s(
             retrieved_items: evidence.items.len(),
             evidence: evidence.items.iter().map(|i| i.value.clone()).collect(),
             memory_query_duration_seconds: elapsed,
-        });
+        })?;
     }
 
     finish_run(
@@ -798,7 +852,7 @@ pub async fn bench_longmemeval_s(
             scorer,
             rescored_from: None,
         },
-        scored,
+        scored.into_rows(),
         latencies,
         out_dir,
     )
@@ -909,15 +963,11 @@ fn finish_run(
         query_avg_seconds: avg,
     };
 
+    // `per_question.jsonl` is already on disk: `RowSink` wrote and flushed
+    // each row as it was scored. Only the aggregate is written here, so an
+    // error anywhere above still leaves every finished question.
     std::fs::create_dir_all(out_dir)
         .with_context(|| format!("create {}", out_dir.display()))?;
-    let mut lines = String::new();
-    for s in &scored {
-        lines.push_str(&serde_json::to_string(s)?);
-        lines.push('\n');
-    }
-    std::fs::write(out_dir.join("per_question.jsonl"), lines)
-        .context("write per_question.jsonl")?;
     std::fs::write(
         out_dir.join("aggregated_metrics.json"),
         serde_json::to_string_pretty(&run)?,
@@ -954,7 +1004,10 @@ pub fn rescore_run(source: &Path, out_dir: &Path, scorer: Scorer) -> Result<Benc
         _ => None,
     };
 
-    let mut scored: Vec<ScoredQuestion> = Vec::new();
+    // Truncates and rewrites rather than appending: every row is re-derived
+    // from the source run, so a partial file from an earlier attempt must not
+    // survive under the new rows.
+    let mut scored = RowSink::create(out_dir)?;
     let mut latencies: Vec<f64> = Vec::new();
     for line in text.lines().filter(|l| !l.trim().is_empty()) {
         // `runs/` also holds directories written by the vendored LME-V2
@@ -996,7 +1049,7 @@ pub fn rescore_run(source: &Path, out_dir: &Path, scorer: Scorer) -> Result<Benc
         row.score_temporal = s.temporal;
         row.temporal_kind = s.kind.to_string();
         latencies.push(row.memory_query_duration_seconds);
-        scored.push(row);
+        scored.push(row)?;
     }
 
     let metrics_path = source.join("aggregated_metrics.json");
@@ -1055,7 +1108,7 @@ pub fn rescore_run(source: &Path, out_dir: &Path, scorer: Scorer) -> Result<Benc
     };
     // Row order is preserved, so `paired_ci.py`'s id intersection pairs a
     // rescored run against its source or another rescored run unchanged.
-    finish_run(&spec, scored, latencies, out_dir)
+    finish_run(&spec, scored.into_rows(), latencies, out_dir)
 }
 
 /// Load `<run>/judge_verdicts.json`, naming the command that writes it.
@@ -1222,6 +1275,56 @@ mod tests {
         let answered = rows.iter().find(|r| r.question_id == "answered").unwrap();
         assert_eq!(answered.score_temporal, 1.0);
         assert_eq!(answered.temporal_kind, "interval");
+    }
+
+    /// A row is on disk as soon as it is scored, not when the run ends.
+    ///
+    /// This is the whole point of `RowSink`: M17 lost 54 minutes of
+    /// generations because every row lived in a `Vec` until `finish_run`,
+    /// and the run died in the scoring stage. Delete the `flush` and this
+    /// test fails; delete the streaming and it fails harder.
+    #[test]
+    fn a_scored_row_reaches_the_file_before_the_run_finishes() {
+        let tmp = tempfile::tempdir().unwrap();
+        let out = tmp.path().join("out");
+        let mut sink = RowSink::create(&out).unwrap();
+        let path = out.join("per_question.jsonl");
+        assert_eq!(
+            std::fs::read_to_string(&path).unwrap(),
+            "",
+            "the file must exist and be empty before the first row"
+        );
+
+        let row = ScoredQuestion {
+            question_id: "q1".into(),
+            tenant: "t".into(),
+            category: 1,
+            question_text: "when?".into(),
+            answer_gold: "June 2023".into(),
+            response_raw: "2023-06-15".into(),
+            score: 1.0,
+            exact_match: 0.0,
+            score_token_f1: 1.0,
+            score_temporal: 1.0,
+            temporal_kind: "interval".into(),
+            is_abstention_problem: false,
+            retrieved_items: 6,
+            evidence: vec!["e".into()],
+            memory_query_duration_seconds: 1.0,
+        };
+        sink.push(row.clone()).unwrap();
+
+        // Read it back while the sink is still open and the run unfinished.
+        let text = std::fs::read_to_string(&path).unwrap();
+        let back: ScoredQuestion = serde_json::from_str(text.trim()).unwrap();
+        assert_eq!(back.question_id, "q1");
+        assert_eq!(sink.len(), 1, "the row is kept for the aggregate too");
+
+        // A second `create` on the same directory truncates: `rescore_run`
+        // re-derives every row and must not append under a previous attempt.
+        let again = RowSink::create(&out).unwrap();
+        assert_eq!(again.len(), 0);
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "");
     }
 
     /// An answered row the judge never saw is a hard error, not a zero:

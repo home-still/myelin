@@ -157,6 +157,17 @@ pub struct BuildReport {
     pub per_unit: Vec<(String, WriteStats)>,
     pub total: WriteStats,
     pub wall_secs: f64,
+    /// Sessions the build walked, and how many of them carried no date this
+    /// build could parse.
+    ///
+    /// An unparseable session date is not an error anywhere in the write
+    /// path: `EpisodeDraft::t_valid` falls back to `Utc::now()`, so the
+    /// record silently gets the *build date* as its valid time. That is
+    /// exactly the M19 incident — 162,181 LongMemEval records stamped
+    /// 2026-09-15 because `parse_session_time` only understood LoCoMo's
+    /// format — and it survived six milestones because nothing counted it.
+    pub sessions_total: usize,
+    pub sessions_without_date: usize,
 }
 
 /// Ingest LoCoMo conversations into a namespace, one tenant per conversation.
@@ -199,6 +210,8 @@ pub async fn build_locomo(
         per_unit: Vec::new(),
         total: WriteStats::default(),
         wall_secs: 0.0,
+        sessions_total: 0,
+        sessions_without_date: 0,
     };
 
     // Resume: skip a conversation the ledger records as fully ingested.
@@ -221,6 +234,14 @@ pub async fn build_locomo(
             eprintln!("  {:<8} already ingested, skipping", conv.sample_id);
             continue;
         }
+        // Same tally as the LongMemEval path: a session whose date does not
+        // parse produces episodes stamped with the build date.
+        report.sessions_total += conv.sessions.len();
+        report.sessions_without_date += conv
+            .sessions
+            .iter()
+            .filter(|s| s.date_time.as_deref().and_then(parse_session_time).is_none())
+            .count();
         let turns = turns_for(conv);
 
         let mut write = WritePath::new(&llm, &embedder, &store, &ledger);
@@ -333,6 +354,8 @@ pub async fn build_lmev2(
         per_unit: Vec::new(),
         total: WriteStats::default(),
         wall_secs: 0.0,
+        sessions_total: 0,
+        sessions_without_date: 0,
     };
 
     // Stream the 1.2 GB file on a blocking thread and hand trajectories to
@@ -440,6 +463,8 @@ pub async fn build_longmemeval_s(
         per_unit: Vec::new(),
         total: WriteStats::default(),
         wall_secs: 0.0,
+        sessions_total: 0,
+        sessions_without_date: 0,
     };
     // Resume, exactly as `build_locomo` does. Without this a crash at unit
     // 341 of 500 costs a full re-walk: the write path is *safe* to repeat
@@ -471,6 +496,12 @@ pub async fn build_longmemeval_s(
                 .as_ref()
                 .and_then(|d| d.get(si))
                 .and_then(|s| parse_session_time(s));
+            // Counted, not shrugged at: `None` here means the episode will be
+            // stamped with the build date instead (M19).
+            report.sessions_total += 1;
+            if at.is_none() {
+                report.sessions_without_date += 1;
+            }
             let sid = item
                 .haystack_session_ids
                 .as_ref()
@@ -557,6 +588,12 @@ impl BuildReport {
         println!("  quarantined     {}", t.quarantined);
         println!("  rejected        {}", t.rejected);
         println!("approx tokens in   {}", t.approx_tokens);
+        // Printed unconditionally, including the zero: "0 of 1,500" is the
+        // evidence that the dates landed. A silent counter proves nothing.
+        println!(
+            "sessions w/o date  {} of {}",
+            self.sessions_without_date, self.sessions_total
+        );
         println!("records/unit       {:.2}", t.records_per_unit(units));
         println!("wall               {:.1}s", self.wall_secs);
         println!(
