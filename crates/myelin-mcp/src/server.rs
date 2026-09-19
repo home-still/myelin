@@ -227,7 +227,7 @@ impl MyelinServer {
         let (evidence, trace) = retriever
             .recall(&query)
             .await
-            .map_err(|e| ErrorData::internal_error(e.to_string(), None))?;
+            .map_err(mcp_err)?;
 
         Ok(Json(to_result(evidence, trace)))
     }
@@ -266,7 +266,7 @@ impl MyelinServer {
         let (evidence, trace) = Investigator::new(&self.backend.llm, &retriever)
             .investigate(&query)
             .await
-            .map_err(|e| ErrorData::internal_error(e.to_string(), None))?;
+            .map_err(mcp_err)?;
 
         Ok(Json(InvestigateResult {
             items: evidence.to_wire(),
@@ -343,7 +343,7 @@ impl MyelinServer {
             .ledger
             .visible(&scope, chrono::Utc::now(), limit)
             .await
-            .map_err(|e| ErrorData::internal_error(e.to_string(), None))?;
+            .map_err(mcp_err)?;
         Ok(Json(SearchResult {
             records: records.iter().map(RecordStub::from_record).collect(),
         }))
@@ -362,25 +362,25 @@ impl MyelinServer {
             Some(r) => Some(LinkKind::parse(r).map_err(|e| ErrorData::invalid_params(e.to_string(), None))?),
             None => None,
         };
+        // One SQL query for the edges that actually touch this record,
+        // instead of `links(namespace)` + a Rust filter. `links` joined only
+        // on the *source* record's namespace, so an inbound edge written
+        // from another namespace never reached the walk below — and a link
+        // is directional metadata about a pair, not a possession of the
+        // source's namespace. Hence no namespace argument on this path.
         let links = self
             .backend
             .ledger
-            .links(params.namespace.as_deref())
+            .links_incident(id)
             .await
-            .map_err(|e| ErrorData::internal_error(e.to_string(), None))?;
+            .map_err(mcp_err)?;
 
         let mut out = Vec::new();
         for link in links {
             // Edges are walked in both directions: `supersedes` is only
             // useful if you can ask "what replaced this?" as well as "what
             // did this replace?".
-            let other = if link.src == id {
-                link.dst
-            } else if link.dst == id {
-                link.src
-            } else {
-                continue;
-            };
+            let other = if link.src == id { link.dst } else { link.src };
             if relation.is_some_and(|r| r != link.relation) {
                 continue;
             }
@@ -389,7 +389,7 @@ impl MyelinServer {
                 .ledger
                 .get(other)
                 .await
-                .map_err(|e| ErrorData::internal_error(e.to_string(), None))?
+                .map_err(mcp_err)?
             {
                 out.push(NeighborStub {
                     relation: link.relation.as_str().to_string(),
@@ -421,9 +421,16 @@ impl MyelinServer {
                     .ledger
                     .apply(&Delta::Delete { target: id, reason: reason.clone() }, &actor)
                     .await
-                    .map_err(|e| ErrorData::internal_error(e.to_string(), None))?;
-                let _ = applied;
-                Ok(Json(ForgetResult { mode: "soft".into(), affected: vec![id.to_string()] }))
+                    .map_err(mcp_err)?;
+                // Report what the ledger actually invalidated, not the id
+                // the caller already knows. `Delta::Delete` invalidates one
+                // record today, but the tool's contract is "what changed",
+                // and echoing the input would keep saying "one" if that ever
+                // stopped being true.
+                Ok(Json(ForgetResult {
+                    mode: "soft".into(),
+                    affected: applied.invalidated.iter().map(|u| u.to_string()).collect(),
+                }))
             }
             "hard" => {
                 // C11 unlearning erases descendants too, so the confirmation
@@ -441,12 +448,12 @@ impl MyelinServer {
                     .ledger
                     .hard_delete(id, &actor, &reason)
                     .await
-                    .map_err(|e| ErrorData::internal_error(e.to_string(), None))?;
+                    .map_err(mcp_err)?;
                 self.backend
                     .store
                     .delete_points(&gone)
                     .await
-                    .map_err(|e| ErrorData::internal_error(e.to_string(), None))?;
+                    .map_err(mcp_err)?;
                 Ok(Json(ForgetResult {
                     mode: "hard".into(),
                     affected: gone.iter().map(|u| u.to_string()).collect(),
@@ -472,7 +479,7 @@ impl MyelinServer {
             .ledger
             .review_quarantine(params.limit.unwrap_or(20).min(200) as i64)
             .await
-            .map_err(|e| ErrorData::internal_error(e.to_string(), None))?;
+            .map_err(mcp_err)?;
         Ok(Json(QuarantineResult {
             staged: rows
                 .iter()
@@ -501,14 +508,14 @@ impl MyelinServer {
             .ledger
             .lineage(id)
             .await
-            .map_err(|e| ErrorData::internal_error(e.to_string(), None))?
+            .map_err(mcp_err)?
             .ok_or_else(|| ErrorData::invalid_params(format!("no record {id}"), None))?;
         let events = self
             .backend
             .ledger
             .events(Some(id))
             .await
-            .map_err(|e| ErrorData::internal_error(e.to_string(), None))?;
+            .map_err(mcp_err)?;
         Ok(Json(Explanation {
             lineage: LineageJson::from_node(&lineage),
             events: events
@@ -538,7 +545,7 @@ impl MyelinServer {
         )
         .insert(scope, turns)
         .await
-        .map_err(|e| ErrorData::internal_error(e.to_string(), None))?;
+        .map_err(mcp_err)?;
         Ok(Json(WriteResult {
             episodes: stats.episodes,
             candidates: stats.candidates,
@@ -635,6 +642,18 @@ impl ServerHandler for MyelinServer {
 fn parse_uuid(s: &str) -> Result<uuid::Uuid, ErrorData> {
     uuid::Uuid::parse_str(s)
         .map_err(|e| ErrorData::invalid_params(format!("bad record id {s:?}: {e}"), None))
+}
+
+/// Map a core error to an MCP error without telling the caller how the
+/// process is wired.
+///
+/// `MyelinError`'s own `Display` is clean, but the `Qdrant` and `Io` variants
+/// forward their inner error verbatim, and that text carries the Qdrant URL
+/// or a ledger path. An MCP caller is untrusted by construction (C12), so it
+/// gets the variant slug; the operator gets the whole error in the log.
+fn mcp_err(e: myelin_core::MyelinError) -> ErrorData {
+    tracing::error!(error = %e, "core error");
+    ErrorData::internal_error(e.kind_str().to_string(), None)
 }
 
 /// How much of a record's text a stub carries.
@@ -748,11 +767,9 @@ pub struct SearchParams {
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 pub struct NeighborsParams {
     pub record_id: String,
-    /// `supersedes` | `contradicts` | `supports` | `mentions`.
+    /// `supersedes` | `supports` | `mentions`.
     #[serde(default)]
     pub relation: Option<String>,
-    #[serde(default)]
-    pub namespace: Option<String>,
 }
 
 #[derive(Debug, Serialize, schemars::JsonSchema)]
