@@ -82,6 +82,26 @@ fi
 # A server-side default fixes every client at once.
 TEMPLATE_KWARGS='{"enable_thinking":false}'
 
+# Retire whatever is already listening on our ports before writing a new
+# pidfile.
+#
+# Measured the hard way in M19: this script writes /tmp/myelin-<name>.pid
+# unconditionally, so a second run in the same session overwrote the first
+# run's pidfile, `stop-models.sh` then killed only the newest process and
+# reported the older one as "not running", and an orphaned reranker sat on 994
+# MiB of a SHARED card for two and a half hours after the session had
+# announced itself finished. A pidfile is a claim; the process list is the
+# fact, so reconcile against the fact.
+#
+# `fuser -k` and not `pkill -f llama-server`: another tenant on this box runs
+# its own llama-server processes, and a pattern kill would take theirs too.
+for port in "$READER_PORT" "$EMBED_PORT" "$RERANK_PORT"; do
+  if fuser -k -n tcp "$port" 2>/dev/null; then
+    echo "retired an orphan already listening on :$port"
+  fi
+done
+sleep 2
+
 # Wait for VRAM before loading.
 #
 # Killing a llama-server does not free its VRAM synchronously. A 3-second
