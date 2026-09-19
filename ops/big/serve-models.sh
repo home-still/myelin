@@ -31,7 +31,7 @@ K=/home/ladvien/models/bge-reranker-v2-m3-GGUF
 # in 0.3 ms. Changing that needs sudo, so the driver reaches these over an SSH
 # tunnel:
 #
-#   ssh -N -L 5810:127.0.0.1:5810 -L 5811:127.0.0.1:5811 big
+#   ssh -N -L 5810:127.0.0.1:5810 -L 5813:127.0.0.1:5813 big
 #
 # which is also the better posture: an unauthenticated LLM endpoint does not
 # belong on the LAN just because the firewall would have to be asked nicely.
