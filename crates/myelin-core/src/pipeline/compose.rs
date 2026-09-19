@@ -168,6 +168,18 @@ pub struct ComposeConfig {
     /// because it is *about the user*; it does not lexically match "suggest
     /// some accessories".
     pub profile: bool,
+    /// Select the emitted records for joint coverage of the question rather
+    /// than by independent rank: maximal marginal relevance at this lambda,
+    /// 1.0 being pure relevance and 0.0 pure diversity.
+    ///
+    /// **Default off pending M21's measurement.** The diagnosis it answers:
+    /// `rerank_depth` is 25 and `retrieve.rs` sets
+    /// `depth = rerank_depth.max(k)`, so the k=6 and k=25 arms see an
+    /// identical pool whose gold-turn recall is 0.852 — and taking the top
+    /// six on independent cross-encoder rank delivers 0.662. The gold turns
+    /// occupy a median of 2 of those 25 items, so the evidence is discarded
+    /// by the truncation, not missed by retrieval.
+    pub mmr_lambda: Option<f32>,
 }
 
 impl Default for ComposeConfig {
@@ -182,6 +194,7 @@ impl Default for ComposeConfig {
             resolve_relative: true,
             timeline: true,
             profile: false,
+            mmr_lambda: None,
         }
     }
 }
@@ -232,6 +245,77 @@ fn label(record: &MemoryRecord, cfg: &ComposeConfig) -> String {
     out
 }
 
+/// Greedy maximal marginal relevance over the deduped candidates.
+///
+/// Relevance is the candidate's **rank** in `kept`, not its score: `score`
+/// here is a cross-encoder logit on one corpus and an RRF score on another,
+/// and mixing either with a cosine in [-1, 1] is the scale error
+/// [`crate::pipeline::retrieve::RetrieveConfig::tau_abstain`] documents. Rank
+/// is the one quantity both paths agree on, and [`compose`]'s contract
+/// already says the input is sorted best-first.
+///
+/// Returns the selection **in selection order** — relevance-ish, which is
+/// what [`bookend`] expects — and the tokens it spent.
+fn mmr_select(kept: Vec<Ranked>, lambda: f32, cfg: &ComposeConfig) -> (Vec<Ranked>, usize) {
+    if kept.is_empty() {
+        return (Vec::new(), 0);
+    }
+    let lambda = lambda.clamp(0.0, 1.0);
+    let n = kept.len();
+    let costs: Vec<usize> = kept
+        .iter()
+        .map(|r| approx_tokens(&r.record.text))
+        .collect();
+
+    // The first pick is `kept[0]` unconditionally, preserving the rank-order
+    // path's guarantee that the single best item is admitted even when it
+    // alone exceeds the budget.
+    let mut chosen: Vec<usize> = vec![0];
+    let mut taken = vec![false; n];
+    taken[0] = true;
+    let mut tokens = costs[0];
+
+    while chosen.len() < cfg.k {
+        let mut best: Option<(usize, f32)> = None;
+        for i in 0..n {
+            if taken[i] || tokens + costs[i] > cfg.max_tokens {
+                continue;
+            }
+            // `n > 1` here: a single-candidate pool was fully taken above.
+            let rel = 1.0 - i as f32 / (n - 1) as f32;
+            // No vector means no measurable redundancy, so the candidate is
+            // judged on relevance alone — the same fallback the dedup step
+            // above makes when it drops to exact text equality.
+            let red = match kept[i].vector.as_ref() {
+                None => 0.0,
+                Some(v) => chosen
+                    .iter()
+                    .filter_map(|&j| kept[j].vector.as_ref())
+                    .map(|w| cosine(v, w))
+                    .fold(0.0f32, f32::max),
+            };
+            let objective = lambda * rel - (1.0 - lambda) * red;
+            // Strict `>` over an ascending scan: ties go to the lower index,
+            // so the selection is deterministic and degenerate lambdas fall
+            // back to rank order rather than to a hash ordering.
+            if best.is_none_or(|(_, b)| objective > b) {
+                best = Some((i, objective));
+            }
+        }
+        let Some((pick, _)) = best else { break };
+        taken[pick] = true;
+        tokens += costs[pick];
+        chosen.push(pick);
+    }
+
+    let mut slots: Vec<Option<Ranked>> = kept.into_iter().map(Some).collect();
+    let selected = chosen
+        .into_iter()
+        .map(|i| slots[i].take().expect("each index is chosen once"))
+        .collect();
+    (selected, tokens)
+}
+
 pub fn compose(ranked: Vec<Ranked>, profile: &[MemoryRecord], cfg: &ComposeConfig) -> EvidenceSet {
     // 1. Dedup, keeping the higher-ranked copy.
     let mut kept: Vec<Ranked> = Vec::new();
@@ -250,22 +334,30 @@ pub fn compose(ranked: Vec<Ranked>, profile: &[MemoryRecord], cfg: &ComposeConfi
         }
     }
 
-    // 2. Budget: take in rank order until k or the token ceiling binds.
-    let mut selected: Vec<Ranked> = Vec::new();
-    let mut tokens = 0usize;
-    for candidate in kept {
-        if selected.len() >= cfg.k {
-            break;
+    // 2. Budget. Rank order by default; joint coverage when asked.
+    let (selected, tokens) = match cfg.mmr_lambda {
+        Some(lambda) => mmr_select(kept, lambda, cfg),
+        None => {
+            let mut selected: Vec<Ranked> = Vec::new();
+            let mut tokens = 0usize;
+            for candidate in kept {
+                if selected.len() >= cfg.k {
+                    break;
+                }
+                let cost = approx_tokens(&candidate.record.text);
+                // Always admit the top item: returning nothing because the
+                // single best piece of evidence is large is worse than
+                // overrunning slightly.
+                if !selected.is_empty() && tokens + cost > cfg.max_tokens {
+                    continue;
+                }
+                tokens += cost;
+                selected.push(candidate);
+            }
+            (selected, tokens)
         }
-        let cost = approx_tokens(&candidate.record.text);
-        // Always admit the top item: returning nothing because the single
-        // best piece of evidence is large is worse than overrunning slightly.
-        if !selected.is_empty() && tokens + cost > cfg.max_tokens {
-            continue;
-        }
-        tokens += cost;
-        selected.push(candidate);
-    }
+    };
+    let mut tokens = tokens;
 
     // 3. Order. Chronological when asked; otherwise bookend — strongest
     //    first, second-strongest last, rest in the middle.
@@ -601,6 +693,79 @@ mod tests {
         let set = compose(items, &[], &unstamped());
         assert_eq!(set.items.len(), 2, "{:?}", set.items);
         assert_eq!(set.items[0].value, "the user moved to Berlin");
+    }
+
+    /// Four near-orthogonal candidates whose pairwise cosines all sit *below*
+    /// `tau_near_dup`, so dedup leaves every one of them in the pool and the
+    /// only thing that can change the answer is the selector.
+    fn four_candidates_with_vectors() -> Vec<Ranked> {
+        // cos(v1, v2) = cos(v1, v3) = 0.90; cos(v2, v3) = 0.81; v4 ⟂ all.
+        let vectors = [
+            vec![1.0, 0.0, 0.0, 0.0],
+            vec![0.9, 0.435_889_9, 0.0, 0.0],
+            vec![0.9, 0.0, 0.435_889_9, 0.0],
+            vec![0.0, 0.0, 0.0, 1.0],
+        ];
+        ["rank1", "rank2", "rank3", "rank4"]
+            .iter()
+            .zip(vectors)
+            .enumerate()
+            .map(|(i, (text, vector))| Ranked {
+                record: record(text),
+                score: 1.0 - i as f32 * 0.1,
+                vector: Some(vector),
+            })
+            .collect()
+    }
+
+    /// The whole mechanism in one assertion: the second slot goes to new
+    /// information instead of to a near-restatement of the first.
+    ///
+    /// M21's diagnosis is that the reranked pool already holds the evidence
+    /// (0.852 gold-turn recall at depth 25) and rank-order truncation to six
+    /// delivers 0.662 of it, because the high-ranking items restate each
+    /// other. `rank2` and `rank3` are that restatement here.
+    #[test]
+    fn mmr_spends_the_second_slot_on_new_information() {
+        let cfg = |mmr_lambda: Option<f32>| ComposeConfig {
+            k: 2,
+            mmr_lambda,
+            ..unstamped()
+        };
+        let values = |cfg: &ComposeConfig| -> Vec<String> {
+            let mut v: Vec<String> = compose(four_candidates_with_vectors(), &[], cfg)
+                .items
+                .iter()
+                .map(|i| i.value.clone())
+                .collect();
+            v.sort();
+            v
+        };
+        assert_eq!(values(&cfg(None)), vec!["rank1", "rank2"]);
+        assert_eq!(values(&cfg(Some(0.5))), vec!["rank1", "rank4"]);
+    }
+
+    /// Without vectors there is no redundancy to measure, and the fallback
+    /// must be rank order rather than a silent reshuffle — the compose path
+    /// on a corpus whose candidates carry no dense vector would otherwise
+    /// change behaviour the moment the switch was flipped.
+    #[test]
+    fn mmr_without_vectors_reproduces_the_rank_order_selection() {
+        let texts = ["best", "second", "third", "fourth", "fifth"];
+        let plain = compose(ranked(&texts), &[], &unstamped());
+        let mmr = compose(
+            ranked(&texts),
+            &[],
+            &ComposeConfig {
+                mmr_lambda: Some(0.5),
+                ..unstamped()
+            },
+        );
+        let values = |set: &EvidenceSet| -> Vec<String> {
+            set.items.iter().map(|i| i.value.clone()).collect()
+        };
+        assert_eq!(values(&plain), values(&mmr));
+        assert_eq!(plain.tokens, mmr.tokens);
     }
 
     /// The token ceiling binds before k does when items are large.

@@ -1,0 +1,1211 @@
+{
+  "run": "/Users/ladvien/myelin/crates/myelin-eval/../../runs/m19_lme_t_armWinv",
+  "corpus": "longmemeval_s",
+  "annotated": 132,
+  "unannotated": 1,
+  "mean_recall": 0.6532828282828282,
+  "dangling_evidence": 0,
+  "by_category": [
+    {
+      "category": 5,
+      "annotated": 132,
+      "mean_recall": 0.6532828282828282,
+      "all": 69,
+      "partial": 36,
+      "none": 27,
+      "mean_score_all": 0.3181880921011356,
+      "mean_score_partial": 0.20734000761221216,
+      "mean_score_none": 0.12181069958847736
+    }
+  ],
+  "rows": [
+    {
+      "question_id": "gpt4_59149c77",
+      "category": 5,
+      "gold_units": 2,
+      "found": 1,
+      "recall": 0.5,
+      "bucket": "partial",
+      "score": 0.0
+    },
+    {
+      "question_id": "gpt4_f49edff3",
+      "category": 5,
+      "gold_units": 3,
+      "found": 3,
+      "recall": 1.0,
+      "bucket": "all",
+      "score": 0.0
+    },
+    {
+      "question_id": "71017276",
+      "category": 5,
+      "gold_units": 1,
+      "found": 1,
+      "recall": 1.0,
+      "bucket": "all",
+      "score": 0.0
+    },
+    {
+      "question_id": "b46e15ed",
+      "category": 5,
+      "gold_units": 5,
+      "found": 1,
+      "recall": 0.2,
+      "bucket": "partial",
+      "score": 0.0
+    },
+    {
+      "question_id": "gpt4_fa19884c",
+      "category": 5,
+      "gold_units": 2,
+      "found": 2,
+      "recall": 1.0,
+      "bucket": "all",
+      "score": 0.18181818181818185
+    },
+    {
+      "question_id": "0bc8ad92",
+      "category": 5,
+      "gold_units": 3,
+      "found": 1,
+      "recall": 0.3333333333333333,
+      "bucket": "partial",
+      "score": 0.0
+    },
+    {
+      "question_id": "af082822",
+      "category": 5,
+      "gold_units": 1,
+      "found": 1,
+      "recall": 1.0,
+      "bucket": "all",
+      "score": 0.5
+    },
+    {
+      "question_id": "gpt4_4929293a",
+      "category": 5,
+      "gold_units": 2,
+      "found": 2,
+      "recall": 1.0,
+      "bucket": "all",
+      "score": 1.0
+    },
+    {
+      "question_id": "gpt4_b5700ca9",
+      "category": 5,
+      "gold_units": 1,
+      "found": 1,
+      "recall": 1.0,
+      "bucket": "all",
+      "score": 0.8
+    },
+    {
+      "question_id": "9a707b81",
+      "category": 5,
+      "gold_units": 2,
+      "found": 2,
+      "recall": 1.0,
+      "bucket": "all",
+      "score": 0.0
+    },
+    {
+      "question_id": "gpt4_1d4ab0c9",
+      "category": 5,
+      "gold_units": 2,
+      "found": 1,
+      "recall": 0.5,
+      "bucket": "partial",
+      "score": 0.0
+    },
+    {
+      "question_id": "gpt4_e072b769",
+      "category": 5,
+      "gold_units": 1,
+      "found": 1,
+      "recall": 1.0,
+      "bucket": "all",
+      "score": 0.0
+    },
+    {
+      "question_id": "0db4c65d",
+      "category": 5,
+      "gold_units": 2,
+      "found": 2,
+      "recall": 1.0,
+      "bucket": "all",
+      "score": 0.0
+    },
+    {
+      "question_id": "gpt4_1d80365e",
+      "category": 5,
+      "gold_units": 2,
+      "found": 2,
+      "recall": 1.0,
+      "bucket": "all",
+      "score": 0.0
+    },
+    {
+      "question_id": "gpt4_7f6b06db",
+      "category": 5,
+      "gold_units": 3,
+      "found": 1,
+      "recall": 0.3333333333333333,
+      "bucket": "partial",
+      "score": 0.4590163934426229
+    },
+    {
+      "question_id": "gpt4_6dc9b45b",
+      "category": 5,
+      "gold_units": 1,
+      "found": 1,
+      "recall": 1.0,
+      "bucket": "all",
+      "score": 0.5
+    },
+    {
+      "question_id": "gpt4_8279ba02",
+      "category": 5,
+      "gold_units": 1,
+      "found": 0,
+      "recall": 0.0,
+      "bucket": "none",
+      "score": 0.0
+    },
+    {
+      "question_id": "gpt4_18c2b244",
+      "category": 5,
+      "gold_units": 3,
+      "found": 2,
+      "recall": 0.6666666666666666,
+      "bucket": "partial",
+      "score": 0.955223880597015
+    },
+    {
+      "question_id": "gpt4_a1b77f9c",
+      "category": 5,
+      "gold_units": 6,
+      "found": 0,
+      "recall": 0.0,
+      "bucket": "none",
+      "score": 0.0
+    },
+    {
+      "question_id": "gpt4_1916e0ea",
+      "category": 5,
+      "gold_units": 2,
+      "found": 2,
+      "recall": 1.0,
+      "bucket": "all",
+      "score": 0.0
+    },
+    {
+      "question_id": "gpt4_7a0daae1",
+      "category": 5,
+      "gold_units": 2,
+      "found": 1,
+      "recall": 0.5,
+      "bucket": "partial",
+      "score": 0.0
+    },
+    {
+      "question_id": "gpt4_468eb063",
+      "category": 5,
+      "gold_units": 1,
+      "found": 1,
+      "recall": 1.0,
+      "bucket": "all",
+      "score": 0.0
+    },
+    {
+      "question_id": "gpt4_7abb270c",
+      "category": 5,
+      "gold_units": 6,
+      "found": 0,
+      "recall": 0.0,
+      "bucket": "none",
+      "score": 0.0
+    },
+    {
+      "question_id": "gpt4_1e4a8aeb",
+      "category": 5,
+      "gold_units": 2,
+      "found": 0,
+      "recall": 0.0,
+      "bucket": "none",
+      "score": 0.0
+    },
+    {
+      "question_id": "gpt4_4fc4f797",
+      "category": 5,
+      "gold_units": 2,
+      "found": 1,
+      "recall": 0.5,
+      "bucket": "partial",
+      "score": 0.0
+    },
+    {
+      "question_id": "4dfccbf7",
+      "category": 5,
+      "gold_units": 2,
+      "found": 2,
+      "recall": 1.0,
+      "bucket": "all",
+      "score": 0.0
+    },
+    {
+      "question_id": "gpt4_61e13b3c",
+      "category": 5,
+      "gold_units": 2,
+      "found": 1,
+      "recall": 0.5,
+      "bucket": "partial",
+      "score": 0.0
+    },
+    {
+      "question_id": "gpt4_45189cb4",
+      "category": 5,
+      "gold_units": 3,
+      "found": 3,
+      "recall": 1.0,
+      "bucket": "all",
+      "score": 0.1904761904761905
+    },
+    {
+      "question_id": "2ebe6c90",
+      "category": 5,
+      "gold_units": 2,
+      "found": 1,
+      "recall": 0.5,
+      "bucket": "partial",
+      "score": 0.0
+    },
+    {
+      "question_id": "gpt4_e061b84f",
+      "category": 5,
+      "gold_units": 3,
+      "found": 1,
+      "recall": 0.3333333333333333,
+      "bucket": "partial",
+      "score": 0.0
+    },
+    {
+      "question_id": "370a8ff4",
+      "category": 5,
+      "gold_units": 2,
+      "found": 2,
+      "recall": 1.0,
+      "bucket": "all",
+      "score": 0.0
+    },
+    {
+      "question_id": "gpt4_d6585ce8",
+      "category": 5,
+      "gold_units": 5,
+      "found": 1,
+      "recall": 0.2,
+      "bucket": "partial",
+      "score": 0.0
+    },
+    {
+      "question_id": "gpt4_4ef30696",
+      "category": 5,
+      "gold_units": 2,
+      "found": 2,
+      "recall": 1.0,
+      "bucket": "all",
+      "score": 0.0
+    },
+    {
+      "question_id": "gpt4_ec93e27f",
+      "category": 5,
+      "gold_units": 2,
+      "found": 0,
+      "recall": 0.0,
+      "bucket": "none",
+      "score": 1.0
+    },
+    {
+      "question_id": "6e984301",
+      "category": 5,
+      "gold_units": 2,
+      "found": 1,
+      "recall": 0.5,
+      "bucket": "partial",
+      "score": 0.0
+    },
+    {
+      "question_id": "8077ef71",
+      "category": 5,
+      "gold_units": 1,
+      "found": 1,
+      "recall": 1.0,
+      "bucket": "all",
+      "score": 0.0
+    },
+    {
+      "question_id": "gpt4_f420262c",
+      "category": 5,
+      "gold_units": 5,
+      "found": 0,
+      "recall": 0.0,
+      "bucket": "none",
+      "score": 0.0
+    },
+    {
+      "question_id": "gpt4_8e165409",
+      "category": 5,
+      "gold_units": 2,
+      "found": 2,
+      "recall": 1.0,
+      "bucket": "all",
+      "score": 0.18181818181818185
+    },
+    {
+      "question_id": "gpt4_74aed68e",
+      "category": 5,
+      "gold_units": 2,
+      "found": 2,
+      "recall": 1.0,
+      "bucket": "all",
+      "score": 0.0
+    },
+    {
+      "question_id": "bcbe585f",
+      "category": 5,
+      "gold_units": 1,
+      "found": 1,
+      "recall": 1.0,
+      "bucket": "all",
+      "score": 0.0
+    },
+    {
+      "question_id": "gpt4_21adecb5",
+      "category": 5,
+      "gold_units": 2,
+      "found": 1,
+      "recall": 0.5,
+      "bucket": "partial",
+      "score": 0.0
+    },
+    {
+      "question_id": "5e1b23de",
+      "category": 5,
+      "gold_units": 1,
+      "found": 1,
+      "recall": 1.0,
+      "bucket": "all",
+      "score": 0.0
+    },
+    {
+      "question_id": "gpt4_98f46fc6",
+      "category": 5,
+      "gold_units": 2,
+      "found": 1,
+      "recall": 0.5,
+      "bucket": "partial",
+      "score": 0.6
+    },
+    {
+      "question_id": "gpt4_af6db32f",
+      "category": 5,
+      "gold_units": 1,
+      "found": 0,
+      "recall": 0.0,
+      "bucket": "none",
+      "score": 0.0
+    },
+    {
+      "question_id": "eac54adc",
+      "category": 5,
+      "gold_units": 2,
+      "found": 2,
+      "recall": 1.0,
+      "bucket": "all",
+      "score": 0.0
+    },
+    {
+      "question_id": "gpt4_7ddcf75f",
+      "category": 5,
+      "gold_units": 1,
+      "found": 1,
+      "recall": 1.0,
+      "bucket": "all",
+      "score": 0.16666666666666669
+    },
+    {
+      "question_id": "gpt4_a2d1d1f6",
+      "category": 5,
+      "gold_units": 1,
+      "found": 1,
+      "recall": 1.0,
+      "bucket": "all",
+      "score": 0.16666666666666669
+    },
+    {
+      "question_id": "gpt4_85da3956",
+      "category": 5,
+      "gold_units": 1,
+      "found": 1,
+      "recall": 1.0,
+      "bucket": "all",
+      "score": 0.0
+    },
+    {
+      "question_id": "gpt4_b0863698",
+      "category": 5,
+      "gold_units": 1,
+      "found": 1,
+      "recall": 1.0,
+      "bucket": "all",
+      "score": 0.16666666666666669
+    },
+    {
+      "question_id": "gpt4_68e94287",
+      "category": 5,
+      "gold_units": 2,
+      "found": 2,
+      "recall": 1.0,
+      "bucket": "all",
+      "score": 0.4
+    },
+    {
+      "question_id": "gpt4_e414231e",
+      "category": 5,
+      "gold_units": 2,
+      "found": 2,
+      "recall": 1.0,
+      "bucket": "all",
+      "score": 0.18181818181818185
+    },
+    {
+      "question_id": "gpt4_7ca326fa",
+      "category": 5,
+      "gold_units": 3,
+      "found": 0,
+      "recall": 0.0,
+      "bucket": "none",
+      "score": 0.0
+    },
+    {
+      "question_id": "gpt4_7bc6cf22",
+      "category": 5,
+      "gold_units": 1,
+      "found": 1,
+      "recall": 1.0,
+      "bucket": "all",
+      "score": 0.0
+    },
+    {
+      "question_id": "2ebe6c92",
+      "category": 5,
+      "gold_units": 2,
+      "found": 1,
+      "recall": 0.5,
+      "bucket": "partial",
+      "score": 0.0
+    },
+    {
+      "question_id": "gpt4_e061b84g",
+      "category": 5,
+      "gold_units": 1,
+      "found": 1,
+      "recall": 1.0,
+      "bucket": "all",
+      "score": 0.0
+    },
+    {
+      "question_id": "71017277",
+      "category": 5,
+      "gold_units": 1,
+      "found": 0,
+      "recall": 0.0,
+      "bucket": "none",
+      "score": 0.0
+    },
+    {
+      "question_id": "b46e15ee",
+      "category": 5,
+      "gold_units": 1,
+      "found": 1,
+      "recall": 1.0,
+      "bucket": "all",
+      "score": 0.0
+    },
+    {
+      "question_id": "gpt4_d6585ce9",
+      "category": 5,
+      "gold_units": 1,
+      "found": 0,
+      "recall": 0.0,
+      "bucket": "none",
+      "score": 0.0
+    },
+    {
+      "question_id": "gpt4_1e4a8aec",
+      "category": 5,
+      "gold_units": 1,
+      "found": 0,
+      "recall": 0.0,
+      "bucket": "none",
+      "score": 0.0
+    },
+    {
+      "question_id": "gpt4_f420262d",
+      "category": 5,
+      "gold_units": 3,
+      "found": 0,
+      "recall": 0.0,
+      "bucket": "none",
+      "score": 0.0
+    },
+    {
+      "question_id": "gpt4_59149c78",
+      "category": 5,
+      "gold_units": 1,
+      "found": 0,
+      "recall": 0.0,
+      "bucket": "none",
+      "score": 0.0
+    },
+    {
+      "question_id": "gpt4_e414231f",
+      "category": 5,
+      "gold_units": 1,
+      "found": 0,
+      "recall": 0.0,
+      "bucket": "none",
+      "score": 0.5
+    },
+    {
+      "question_id": "gpt4_4929293b",
+      "category": 5,
+      "gold_units": 1,
+      "found": 0,
+      "recall": 0.0,
+      "bucket": "none",
+      "score": 0.0
+    },
+    {
+      "question_id": "gpt4_468eb064",
+      "category": 5,
+      "gold_units": 1,
+      "found": 1,
+      "recall": 1.0,
+      "bucket": "all",
+      "score": 1.0
+    },
+    {
+      "question_id": "gpt4_fa19884d",
+      "category": 5,
+      "gold_units": 1,
+      "found": 1,
+      "recall": 1.0,
+      "bucket": "all",
+      "score": 0.0
+    },
+    {
+      "question_id": "9a707b82",
+      "category": 5,
+      "gold_units": 1,
+      "found": 0,
+      "recall": 0.0,
+      "bucket": "none",
+      "score": 0.0
+    },
+    {
+      "question_id": "eac54add",
+      "category": 5,
+      "gold_units": 1,
+      "found": 0,
+      "recall": 0.0,
+      "bucket": "none",
+      "score": 0.0
+    },
+    {
+      "question_id": "4dfccbf8",
+      "category": 5,
+      "gold_units": 1,
+      "found": 0,
+      "recall": 0.0,
+      "bucket": "none",
+      "score": 0.0
+    },
+    {
+      "question_id": "0bc8ad93",
+      "category": 5,
+      "gold_units": 1,
+      "found": 0,
+      "recall": 0.0,
+      "bucket": "none",
+      "score": 0.4
+    },
+    {
+      "question_id": "6e984302",
+      "category": 5,
+      "gold_units": 1,
+      "found": 0,
+      "recall": 0.0,
+      "bucket": "none",
+      "score": 0.0
+    },
+    {
+      "question_id": "gpt4_8279ba03",
+      "category": 5,
+      "gold_units": 1,
+      "found": 0,
+      "recall": 0.0,
+      "bucket": "none",
+      "score": 0.0
+    },
+    {
+      "question_id": "gpt4_b5700ca0",
+      "category": 5,
+      "gold_units": 1,
+      "found": 1,
+      "recall": 1.0,
+      "bucket": "all",
+      "score": 1.0
+    },
+    {
+      "question_id": "gpt4_68e94288",
+      "category": 5,
+      "gold_units": 1,
+      "found": 0,
+      "recall": 0.0,
+      "bucket": "none",
+      "score": 0.2222222222222222
+    },
+    {
+      "question_id": "gpt4_2655b836",
+      "category": 5,
+      "gold_units": 2,
+      "found": 2,
+      "recall": 1.0,
+      "bucket": "all",
+      "score": 0.5
+    },
+    {
+      "question_id": "gpt4_2487a7cb",
+      "category": 5,
+      "gold_units": 2,
+      "found": 2,
+      "recall": 1.0,
+      "bucket": "all",
+      "score": 1.0
+    },
+    {
+      "question_id": "gpt4_76048e76",
+      "category": 5,
+      "gold_units": 2,
+      "found": 2,
+      "recall": 1.0,
+      "bucket": "all",
+      "score": 1.0
+    },
+    {
+      "question_id": "gpt4_2312f94c",
+      "category": 5,
+      "gold_units": 2,
+      "found": 2,
+      "recall": 1.0,
+      "bucket": "all",
+      "score": 0.0
+    },
+    {
+      "question_id": "0bb5a684",
+      "category": 5,
+      "gold_units": 2,
+      "found": 1,
+      "recall": 0.5,
+      "bucket": "partial",
+      "score": 0.0
+    },
+    {
+      "question_id": "08f4fc43",
+      "category": 5,
+      "gold_units": 2,
+      "found": 2,
+      "recall": 1.0,
+      "bucket": "all",
+      "score": 0.0
+    },
+    {
+      "question_id": "2c63a862",
+      "category": 5,
+      "gold_units": 2,
+      "found": 0,
+      "recall": 0.0,
+      "bucket": "none",
+      "score": 0.16666666666666669
+    },
+    {
+      "question_id": "gpt4_385a5000",
+      "category": 5,
+      "gold_units": 2,
+      "found": 1,
+      "recall": 0.5,
+      "bucket": "partial",
+      "score": 0.0
+    },
+    {
+      "question_id": "2a1811e2",
+      "category": 5,
+      "gold_units": 2,
+      "found": 1,
+      "recall": 0.5,
+      "bucket": "partial",
+      "score": 0.0
+    },
+    {
+      "question_id": "bbf86515",
+      "category": 5,
+      "gold_units": 2,
+      "found": 1,
+      "recall": 0.5,
+      "bucket": "partial",
+      "score": 0.0
+    },
+    {
+      "question_id": "gpt4_5dcc0aab",
+      "category": 5,
+      "gold_units": 1,
+      "found": 1,
+      "recall": 1.0,
+      "bucket": "all",
+      "score": 1.0
+    },
+    {
+      "question_id": "gpt4_0b2f1d21",
+      "category": 5,
+      "gold_units": 2,
+      "found": 1,
+      "recall": 0.5,
+      "bucket": "partial",
+      "score": 0.25
+    },
+    {
+      "question_id": "f0853d11",
+      "category": 5,
+      "gold_units": 2,
+      "found": 1,
+      "recall": 0.5,
+      "bucket": "partial",
+      "score": 0.0
+    },
+    {
+      "question_id": "gpt4_6ed717ea",
+      "category": 5,
+      "gold_units": 2,
+      "found": 1,
+      "recall": 0.5,
+      "bucket": "partial",
+      "score": 1.0
+    },
+    {
+      "question_id": "gpt4_70e84552",
+      "category": 5,
+      "gold_units": 2,
+      "found": 2,
+      "recall": 1.0,
+      "bucket": "all",
+      "score": 0.0
+    },
+    {
+      "question_id": "a3838d2b",
+      "category": 5,
+      "gold_units": 6,
+      "found": 1,
+      "recall": 0.16666666666666666,
+      "bucket": "partial",
+      "score": 0.0
+    },
+    {
+      "question_id": "gpt4_93159ced",
+      "category": 5,
+      "gold_units": 3,
+      "found": 2,
+      "recall": 0.6666666666666666,
+      "bucket": "partial",
+      "score": 0.8000000000000002
+    },
+    {
+      "question_id": "gpt4_2d58bcd6",
+      "category": 5,
+      "gold_units": 2,
+      "found": 1,
+      "recall": 0.5,
+      "bucket": "partial",
+      "score": 1.0
+    },
+    {
+      "question_id": "gpt4_65aabe59",
+      "category": 5,
+      "gold_units": 3,
+      "found": 2,
+      "recall": 0.6666666666666666,
+      "bucket": "partial",
+      "score": 0.0
+    },
+    {
+      "question_id": "982b5123",
+      "category": 5,
+      "gold_units": 2,
+      "found": 2,
+      "recall": 1.0,
+      "bucket": "all",
+      "score": 0.0
+    },
+    {
+      "question_id": "b9cfe692",
+      "category": 5,
+      "gold_units": 2,
+      "found": 2,
+      "recall": 1.0,
+      "bucket": "all",
+      "score": 0.4
+    },
+    {
+      "question_id": "gpt4_4edbafa2",
+      "category": 5,
+      "gold_units": 2,
+      "found": 2,
+      "recall": 1.0,
+      "bucket": "all",
+      "score": 1.0
+    },
+    {
+      "question_id": "c8090214",
+      "category": 5,
+      "gold_units": 2,
+      "found": 2,
+      "recall": 1.0,
+      "bucket": "all",
+      "score": 0.0
+    },
+    {
+      "question_id": "gpt4_483dd43c",
+      "category": 5,
+      "gold_units": 2,
+      "found": 2,
+      "recall": 1.0,
+      "bucket": "all",
+      "score": 0.0
+    },
+    {
+      "question_id": "e4e14d04",
+      "category": 5,
+      "gold_units": 2,
+      "found": 2,
+      "recall": 1.0,
+      "bucket": "all",
+      "score": 0.5
+    },
+    {
+      "question_id": "c9f37c46",
+      "category": 5,
+      "gold_units": 2,
+      "found": 2,
+      "recall": 1.0,
+      "bucket": "all",
+      "score": 0.5
+    },
+    {
+      "question_id": "gpt4_2c50253f",
+      "category": 5,
+      "gold_units": 2,
+      "found": 2,
+      "recall": 1.0,
+      "bucket": "all",
+      "score": 0.3333333333333333
+    },
+    {
+      "question_id": "dcfa8644",
+      "category": 5,
+      "gold_units": 2,
+      "found": 1,
+      "recall": 0.5,
+      "bucket": "partial",
+      "score": 0.0
+    },
+    {
+      "question_id": "gpt4_b4a80587",
+      "category": 5,
+      "gold_units": 2,
+      "found": 0,
+      "recall": 0.0,
+      "bucket": "none",
+      "score": 0.0
+    },
+    {
+      "question_id": "gpt4_9a159967",
+      "category": 5,
+      "gold_units": 3,
+      "found": 3,
+      "recall": 1.0,
+      "bucket": "all",
+      "score": 0.5
+    },
+    {
+      "question_id": "cc6d1ec1",
+      "category": 5,
+      "gold_units": 2,
+      "found": 2,
+      "recall": 1.0,
+      "bucket": "all",
+      "score": 0.5
+    },
+    {
+      "question_id": "gpt4_8c8961ae",
+      "category": 5,
+      "gold_units": 2,
+      "found": 1,
+      "recall": 0.5,
+      "bucket": "partial",
+      "score": 0.4
+    },
+    {
+      "question_id": "gpt4_d9af6064",
+      "category": 5,
+      "gold_units": 2,
+      "found": 1,
+      "recall": 0.5,
+      "bucket": "partial",
+      "score": 0.0
+    },
+    {
+      "question_id": "gpt4_7de946e7",
+      "category": 5,
+      "gold_units": 2,
+      "found": 2,
+      "recall": 1.0,
+      "bucket": "all",
+      "score": 1.0
+    },
+    {
+      "question_id": "d01c6aa8",
+      "category": 5,
+      "gold_units": 2,
+      "found": 0,
+      "recall": 0.0,
+      "bucket": "none",
+      "score": 0.0
+    },
+    {
+      "question_id": "993da5e2",
+      "category": 5,
+      "gold_units": 2,
+      "found": 2,
+      "recall": 1.0,
+      "bucket": "all",
+      "score": 0.0
+    },
+    {
+      "question_id": "a3045048",
+      "category": 5,
+      "gold_units": 2,
+      "found": 2,
+      "recall": 1.0,
+      "bucket": "all",
+      "score": 0.0
+    },
+    {
+      "question_id": "gpt4_d31cdae3",
+      "category": 5,
+      "gold_units": 2,
+      "found": 2,
+      "recall": 1.0,
+      "bucket": "all",
+      "score": 1.0
+    },
+    {
+      "question_id": "gpt4_cd90e484",
+      "category": 5,
+      "gold_units": 2,
+      "found": 2,
+      "recall": 1.0,
+      "bucket": "all",
+      "score": 0.0
+    },
+    {
+      "question_id": "gpt4_88806d6e",
+      "category": 5,
+      "gold_units": 2,
+      "found": 1,
+      "recall": 0.5,
+      "bucket": "partial",
+      "score": 0.0
+    },
+    {
+      "question_id": "gpt4_4cd9eba1",
+      "category": 5,
+      "gold_units": 2,
+      "found": 2,
+      "recall": 1.0,
+      "bucket": "all",
+      "score": 0.0
+    },
+    {
+      "question_id": "gpt4_93f6379c",
+      "category": 5,
+      "gold_units": 2,
+      "found": 2,
+      "recall": 1.0,
+      "bucket": "all",
+      "score": 0.0
+    },
+    {
+      "question_id": "b29f3365",
+      "category": 5,
+      "gold_units": 2,
+      "found": 2,
+      "recall": 1.0,
+      "bucket": "all",
+      "score": 0.0
+    },
+    {
+      "question_id": "gpt4_2f56ae70",
+      "category": 5,
+      "gold_units": 3,
+      "found": 2,
+      "recall": 0.6666666666666666,
+      "bucket": "partial",
+      "score": 0.0
+    },
+    {
+      "question_id": "6613b389",
+      "category": 5,
+      "gold_units": 2,
+      "found": 2,
+      "recall": 1.0,
+      "bucket": "all",
+      "score": 1.0
+    },
+    {
+      "question_id": "gpt4_78cf46a3",
+      "category": 5,
+      "gold_units": 2,
+      "found": 2,
+      "recall": 1.0,
+      "bucket": "all",
+      "score": 0.28571428571428575
+    },
+    {
+      "question_id": "gpt4_0a05b494",
+      "category": 5,
+      "gold_units": 2,
+      "found": 2,
+      "recall": 1.0,
+      "bucket": "all",
+      "score": 0.0
+    },
+    {
+      "question_id": "gpt4_1a1dc16d",
+      "category": 5,
+      "gold_units": 2,
+      "found": 2,
+      "recall": 1.0,
+      "bucket": "all",
+      "score": 1.0
+    },
+    {
+      "question_id": "gpt4_2f584639",
+      "category": 5,
+      "gold_units": 2,
+      "found": 0,
+      "recall": 0.0,
+      "bucket": "none",
+      "score": 0.0
+    },
+    {
+      "question_id": "gpt4_213fd887",
+      "category": 5,
+      "gold_units": 2,
+      "found": 1,
+      "recall": 0.5,
+      "bucket": "partial",
+      "score": 0.0
+    },
+    {
+      "question_id": "gpt4_5438fa52",
+      "category": 5,
+      "gold_units": 2,
+      "found": 1,
+      "recall": 0.5,
+      "bucket": "partial",
+      "score": 0.0
+    },
+    {
+      "question_id": "gpt4_c27434e8",
+      "category": 5,
+      "gold_units": 2,
+      "found": 1,
+      "recall": 0.5,
+      "bucket": "partial",
+      "score": 1.0
+    },
+    {
+      "question_id": "gpt4_fe651585",
+      "category": 5,
+      "gold_units": 2,
+      "found": 1,
+      "recall": 0.5,
+      "bucket": "partial",
+      "score": 1.0
+    },
+    {
+      "question_id": "8c18457d",
+      "category": 5,
+      "gold_units": 3,
+      "found": 3,
+      "recall": 1.0,
+      "bucket": "all",
+      "score": 0.0
+    },
+    {
+      "question_id": "gpt4_70e84552_abs",
+      "category": 5,
+      "gold_units": 1,
+      "found": 1,
+      "recall": 1.0,
+      "bucket": "all",
+      "score": 1.0
+    },
+    {
+      "question_id": "982b5123_abs",
+      "category": 5,
+      "gold_units": 1,
+      "found": 1,
+      "recall": 1.0,
+      "bucket": "all",
+      "score": 1.0
+    },
+    {
+      "question_id": "c8090214_abs",
+      "category": 5,
+      "gold_units": 2,
+      "found": 2,
+      "recall": 1.0,
+      "bucket": "all",
+      "score": 1.0
+    },
+    {
+      "question_id": "gpt4_c27434e8_abs",
+      "category": 5,
+      "gold_units": 1,
+      "found": 0,
+      "recall": 0.0,
+      "bucket": "none",
+      "score": 1.0
+    },
+    {
+      "question_id": "gpt4_fe651585_abs",
+      "category": 5,
+      "gold_units": 1,
+      "found": 1,
+      "recall": 1.0,
+      "bucket": "all",
+      "score": 1.0
+    }
+  ]
+}

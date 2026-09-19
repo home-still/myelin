@@ -19,4 +19,5 @@ pub mod ingest;
 pub mod investigate;
 pub mod phrases;
 pub mod retrieve;
+pub mod select;
 pub mod write;

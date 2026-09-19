@@ -5,6 +5,12 @@ edition = "2021"
 rust-version = "1.88"
 license.workspace = true
 
+[features]
+# Pins `coverage` against the measured M19 run directories. Off by default
+# because `runs/**/per_question.jsonl` and `/data/` are both gitignored: the
+# artifacts live on the measurement host, not in a clean checkout.
+artifacts = []
+
 [lib]
 name = "myelin_eval"
 path = "src/lib.rs"

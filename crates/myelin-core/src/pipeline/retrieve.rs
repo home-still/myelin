@@ -24,6 +24,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::embed::Embedder;
 use crate::error::Result;
+use crate::llm::Llm;
 use crate::model::evidence::EvidenceSet;
 use crate::model::query::Recall;
 use crate::model::record::RecordKind;
@@ -35,6 +36,7 @@ use crate::store::qdrant::QdrantStore;
 use super::compose::{compose, ComposeConfig, Ranked, PROFILE_MAX_RECORDS};
 use super::fuse::{rrf, RankedList, DEFAULT_RRF_K};
 use super::phrases::phrases;
+use super::select::Selector;
 
 /// Which retrieval channels participate. The ablation axis of M4.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -132,6 +134,23 @@ pub struct RetrieveConfig {
     /// parameter to tune, not a constant.
     pub graph_damping: f32,
     pub graph_iterations: usize,
+    /// Ask the model which of the reranked candidates jointly answer the
+    /// question, and put those first (M21,
+    /// [`crate::pipeline::select::Selector`]).
+    ///
+    /// **This can never become a `recall` default.** `PLAN.md` §7.1 specifies
+    /// this path as "target p95 < 100 ms, **no LLM in the loop**", and a
+    /// model call per query violates that by construction whatever the switch
+    /// measures. It exists as a ceiling probe against
+    /// [`ComposeConfig::mmr_lambda`]: MMR diversifies by vector distance,
+    /// which is a proxy for "covers something else" rather than for "covers
+    /// what the question needs", and this says whether MMR's shortfall is the
+    /// heuristic or something deeper. If it wins, its home is `investigate`.
+    ///
+    /// Inert without [`Retriever::with_llm`] — the switch alone does nothing,
+    /// the same contract [`RetrieveConfig::graph`] has with
+    /// [`Retriever::with_graph`].
+    pub select_sufficient: bool,
     pub compose: ComposeConfig,
 }
 
@@ -147,6 +166,7 @@ impl Default for RetrieveConfig {
             graph_limit: 50,
             graph_damping: DEFAULT_DAMPING,
             graph_iterations: DEFAULT_ITERATIONS,
+            select_sufficient: false,
             compose: ComposeConfig::default(),
         }
     }
@@ -187,6 +207,14 @@ pub struct RecallTrace {
     /// [`ComposeConfig::profile`] is off or the tenant has none.
     #[serde(default)]
     pub profile_records: usize,
+    /// How many candidates the sufficiency selector kept, and what the model
+    /// call cost. Zero when [`RetrieveConfig::select_sufficient`] is off or
+    /// no [`Llm`] was wired — which is the check that catches an inert
+    /// switch before a whole arm is measured against nothing.
+    #[serde(default)]
+    pub selected: usize,
+    #[serde(default)]
+    pub select_ms: u128,
 }
 
 pub struct Retriever<'a> {
@@ -196,6 +224,9 @@ pub struct Retriever<'a> {
     pub reranker: Option<&'a dyn Reranker>,
     /// Present only when the caller wired one; the switch alone is inert.
     pub graph: Option<&'a GraphIndex>,
+    /// Present only when the caller wired one;
+    /// [`RetrieveConfig::select_sufficient`] alone is inert.
+    pub llm: Option<&'a dyn Llm>,
     pub config: RetrieveConfig,
 }
 
@@ -207,6 +238,7 @@ impl<'a> Retriever<'a> {
             ledger,
             reranker: None,
             graph: None,
+            llm: None,
             config: RetrieveConfig::default(),
         }
     }
@@ -223,6 +255,11 @@ impl<'a> Retriever<'a> {
 
     pub fn with_graph(mut self, graph: &'a GraphIndex) -> Self {
         self.graph = Some(graph);
+        self
+    }
+
+    pub fn with_llm(mut self, llm: &'a dyn Llm) -> Self {
+        self.llm = Some(llm);
         self
     }
 
@@ -436,6 +473,37 @@ impl<'a> Retriever<'a> {
             }
         }
         trace.rerank_ms = t2.elapsed().as_millis();
+
+        // The sufficiency selector (M21). After the rerank sort, because it
+        // reorders the reranked pool rather than replacing it, and before
+        // the `k * 3` materialisation below, because the whole point is to
+        // reach past the head of that window. `compose` is untouched — it
+        // still takes the head of whatever order it is handed.
+        if self.config.select_sufficient && !admissible.is_empty() {
+            if let Some(llm) = self.llm {
+                let t3 = std::time::Instant::now();
+                let docs: Vec<String> = admissible.iter().map(|(_, _, t)| t.clone()).collect();
+                let keep = Selector::new(llm)
+                    .select(&query.text, &docs, query.budget.k)
+                    .await?;
+                // Stable partition: the kept ids move to the front in the
+                // model's order, everything else keeps its reranked order
+                // behind them. Nothing is dropped, so a selector that picks
+                // badly costs rank positions and never evidence.
+                let mut slots: Vec<Option<(uuid::Uuid, f32, String)>> =
+                    admissible.into_iter().map(Some).collect();
+                let mut front = Vec::with_capacity(slots.len());
+                for &i in &keep {
+                    if let Some(slot) = slots[i].take() {
+                        front.push(slot);
+                    }
+                }
+                front.extend(slots.into_iter().flatten());
+                admissible = front;
+                trace.selected = keep.len();
+                trace.select_ms = t3.elapsed().as_millis();
+            }
+        }
 
         // R4: `k` and the token budget are QUERY-time parameters against one
         // identical store, so the request wins over the configured default.

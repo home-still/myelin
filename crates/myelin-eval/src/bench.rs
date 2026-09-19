@@ -205,6 +205,15 @@ pub struct BenchRun {
     pub profile: bool,
     #[serde(default)]
     pub profile_clause: bool,
+    /// M21's two arms, mirroring `ComposeConfig::mmr_lambda` and
+    /// `RetrieveConfig::select_sufficient`. Recorded per run for the reason
+    /// M20's pair is: neither has shipped into a default, so the artifact is
+    /// the only record of which mechanism produced its rows — and
+    /// `rescore_run` reads them back so a rescored artifact does not forget.
+    #[serde(default)]
+    pub mmr: Option<f32>,
+    #[serde(default)]
+    pub select_sufficient: bool,
     /// Which category codes were scored. Empty means every one of them,
     /// which is what every run before M19 did.
     #[serde(default)]
@@ -257,6 +266,14 @@ pub struct BenchSwitches {
     /// Two independent switches because M20 measures A and B alone and
     /// together; one combined flag cannot produce the marginals.
     pub profile_clause: bool,
+    /// Select the evidence for joint coverage instead of independent rank —
+    /// M21 arm A, `ComposeConfig::mmr_lambda`.
+    pub mmr: Option<f32>,
+    /// Ask the model which candidates jointly answer the question — M21 arm
+    /// B, `RetrieveConfig::select_sufficient`. A ceiling probe: `PLAN.md`
+    /// §7.1 forbids an LLM in the `recall` loop, so this can never become a
+    /// `recall` default whatever it measures.
+    pub select_sufficient: bool,
     /// Score only these category codes. Empty means all of them.
     ///
     /// A stratum arm has to be runnable over 321 or 127 questions rather than
@@ -565,6 +582,7 @@ pub async fn bench_locomo(
     // composes with no extra wiring.
     let mut retriever = Retriever::new(&embedder, &store, &ledger).with_config(RetrieveConfig {
         graph: switches.graph,
+        select_sufficient: switches.select_sufficient,
         // `resolve_relative` is NOT overridden: it ships on, and a bench run
         // that silently disabled the shipped mechanism because a flag
         // defaulted false would measure a configuration nobody runs. Same
@@ -572,6 +590,7 @@ pub async fn bench_locomo(
         compose: myelin_core::pipeline::compose::ComposeConfig {
             chronological: switches.chronological,
             profile: switches.profile,
+            mmr_lambda: switches.mmr,
             ..Default::default()
         },
         ..Default::default()
@@ -582,6 +601,21 @@ pub async fn bench_locomo(
     if switches.graph {
         retriever = retriever.with_graph(&graph_index);
     }
+    // Unconditional, like `with_reranker`: `RetrieveConfig::select_sufficient`
+    // defaults false, so a wired client is inert until the switch is on — and
+    // wiring it only under the switch is the exact class of failure M12, M14
+    // and M20 each lost a run to.
+    retriever = retriever.with_llm(&llm);
+
+    // `InvestigateConfig::select_sufficient` ships **on**, but a bench that
+    // read the shipped default could only ever produce one of the two arms —
+    // and M21 has to measure the default it is about to set. So the loop's
+    // switch follows `--select-sufficient` here, exactly as the `recall`
+    // path's does, and `BenchSwitches::default()` stays the all-off arm.
+    let investigate_cfg = myelin_core::pipeline::investigate::InvestigateConfig {
+        select_sufficient: switches.select_sufficient,
+        ..Default::default()
+    };
 
     // Opened before the first reader call so an interrupted run keeps every
     // question it finished (see `RowSink`).
@@ -651,6 +685,7 @@ pub async fn bench_locomo(
             let evidence = match mode {
                 Mode::Investigate => {
                     Investigator::new(&llm, &retriever)
+                        .with_config(investigate_cfg)
                         .investigate(&query)
                         .await
                         .with_context(|| format!("investigate {tenant}#{i}"))?
@@ -785,9 +820,11 @@ pub async fn bench_longmemeval_s(
     // `RetrieveConfig::default()` field for field.
     let mut retriever = Retriever::new(&embedder, &store, &ledger).with_config(RetrieveConfig {
         graph: switches.graph,
+        select_sufficient: switches.select_sufficient,
         compose: myelin_core::pipeline::compose::ComposeConfig {
             chronological: switches.chronological,
             profile: switches.profile,
+            mmr_lambda: switches.mmr,
             ..Default::default()
         },
         ..Default::default()
@@ -798,6 +835,14 @@ pub async fn bench_longmemeval_s(
     if switches.graph {
         retriever = retriever.with_graph(&graph_index);
     }
+    // See `bench_locomo`: wired unconditionally so the switch cannot be inert.
+    retriever = retriever.with_llm(&llm);
+
+    // See `bench_locomo`: switch-driven so both investigate arms exist.
+    let investigate_cfg = myelin_core::pipeline::investigate::InvestigateConfig {
+        select_sufficient: switches.select_sufficient,
+        ..Default::default()
+    };
 
     // Opened before the first reader call so an interrupted run keeps every
     // question it finished (see `RowSink`).
@@ -831,6 +876,7 @@ pub async fn bench_longmemeval_s(
         let evidence = match mode {
             Mode::Investigate => {
                 Investigator::new(&llm, &retriever)
+                    .with_config(investigate_cfg)
                     .investigate(&query)
                     .await
                     .with_context(|| format!("investigate {}", item.question_id))?
@@ -1005,6 +1051,10 @@ fn finish_run(
         // which one produced it.
         profile: spec.switches.profile,
         profile_clause: spec.switches.profile_clause,
+        // Same rule for M21's pair: both default off, so only the artifact
+        // says which produced these rows.
+        mmr: spec.switches.mmr,
+        select_sufficient: spec.switches.select_sufficient,
         categories: spec.switches.categories.clone(),
         scorer: spec.scorer.slug().to_string(),
         rescored_from: spec.rescored_from.clone(),
@@ -1147,6 +1197,11 @@ pub fn rescore_run(source: &Path, out_dir: &Path, scorer: Scorer) -> Result<Benc
             question_date: flag("question_date"),
             profile: flag("profile"),
             profile_clause: flag("profile_clause"),
+            mmr: metrics
+                .get("mmr")
+                .and_then(serde_json::Value::as_f64)
+                .map(|v| v as f32),
+            select_sufficient: flag("select_sufficient"),
             categories: metrics
                 .get("categories")
                 .and_then(serde_json::Value::as_array)

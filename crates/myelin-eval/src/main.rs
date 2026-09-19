@@ -103,8 +103,14 @@ fn bench_out_dir(
         let codes: Vec<String> = switches.categories.iter().map(u8::to_string).collect();
         format!("_cat{}", codes.join(""))
     };
+    // λ as an integer percentage: a directory named `_mmr0.7` would carry a
+    // `.` into every path, and `_mmr70` sorts.
+    let mmr = switches
+        .mmr
+        .map(|lambda| format!("_mmr{}", (lambda * 100.0).round() as u32))
+        .unwrap_or_default();
     format!(
-        "runs/{slug}_{}{}{}{}{}{}{cats}{}",
+        "runs/{slug}_{}{}{}{}{mmr}{}{}{}{cats}{}",
         mode_slug(mode),
         if switches.graph { "_graph" } else { "" },
         if switches.chronological {
@@ -113,6 +119,7 @@ fn bench_out_dir(
             ""
         },
         if switches.question_date { "_qdate" } else { "" },
+        if switches.select_sufficient { "_sel" } else { "" },
         if switches.profile { "_prof" } else { "" },
         if switches.profile_clause {
             "_pclause"
@@ -181,6 +188,23 @@ mod tests {
             ),
             "runs/locomo_investigate_chrono"
         );
+        // M21's two arms take their places in the same fixed order, between
+        // `_qdate` and `_prof`.
+        assert_eq!(
+            bench_out_dir(
+                "lme_s",
+                Mode::Recall,
+                &BenchSwitches {
+                    question_date: true,
+                    mmr: Some(0.7),
+                    select_sufficient: true,
+                    profile: true,
+                    ..Default::default()
+                },
+                Scorer::Judge
+            ),
+            "runs/lme_s_recall_qdate_mmr70_sel_prof_judge"
+        );
     }
 
     /// M20's two arms are independent, so all four combinations must name
@@ -205,6 +229,30 @@ mod tests {
         assert_eq!(arm(true, false), "runs/lme_s_recall_prof_cat3_judge");
         assert_eq!(arm(false, true), "runs/lme_s_recall_pclause_cat3_judge");
         assert_eq!(arm(true, true), "runs/lme_s_recall_prof_pclause_cat3_judge");
+    }
+
+    /// M21's arms are measured against a base run on the same store, so the
+    /// three directories must be three directories — and λ has to survive
+    /// into the name, or two sweep points would overwrite each other.
+    #[test]
+    fn the_two_selection_arms_never_share_a_directory() {
+        let arm = |mmr: Option<f32>, select_sufficient: bool| {
+            bench_out_dir(
+                "lme_s",
+                Mode::Recall,
+                &BenchSwitches {
+                    mmr,
+                    select_sufficient,
+                    categories: vec![4],
+                    ..Default::default()
+                },
+                Scorer::Judge,
+            )
+        };
+        assert_eq!(arm(None, false), "runs/lme_s_recall_cat4_judge");
+        assert_eq!(arm(Some(0.7), false), "runs/lme_s_recall_mmr70_cat4_judge");
+        assert_eq!(arm(Some(0.3), false), "runs/lme_s_recall_mmr30_cat4_judge");
+        assert_eq!(arm(None, true), "runs/lme_s_recall_sel_cat4_judge");
     }
 
     /// A stratum arm never names the full-set path it is measured against.
@@ -384,6 +432,17 @@ enum Command {
         /// user's stated preferences (M20 arm B).
         #[arg(long)]
         profile_clause: bool,
+        /// Select the composed evidence for joint coverage of the question
+        /// instead of by independent rank: maximal marginal relevance at
+        /// this lambda, 1.0 pure relevance and 0.0 pure diversity (M21 arm A).
+        #[arg(long)]
+        mmr: Option<f32>,
+        /// Ask the model which of the reranked candidates jointly answer the
+        /// question and put those first (M21 arm B). A ceiling probe: it
+        /// costs a model call per query, which `PLAN.md` §7.1 forbids in
+        /// `recall`, so it can never become a `recall` default.
+        #[arg(long)]
+        select_sufficient: bool,
         /// Score only these category codes, for a stratum arm. LoCoMo: 1
         /// multi-hop, 2 temporal, 3 open-domain, 4 single-hop, 5 adversarial.
         /// LongMemEval_S: 1 ss-user, 2 ss-assistant, 3 ss-preference,
@@ -485,6 +544,19 @@ enum Command {
         #[arg(long)]
         limit: Option<usize>,
     },
+    /// Did the reader ever see the gold evidence? Joins a `bench` run's
+    /// composed evidence against the corpus's own per-turn annotation
+    /// (LongMemEval_S `has_answer`, LoCoMo `qa[].evidence`) and reports
+    /// gold-unit recall per category. Fully offline: no store, no reader (M21).
+    Coverage {
+        /// A run directory written by `myelin-eval bench` or `rescore`.
+        #[arg(long)]
+        run: String,
+        /// Defaults to `data/longmemeval_s.json` or `data/locomo10.json`
+        /// according to the run's own `corpus` field.
+        #[arg(long)]
+        dataset: Option<String>,
+    },
     /// Join docs/sota/registry.json against the run artifacts and report where
     /// we stand, with a comparability verdict per row
     Standing {
@@ -517,6 +589,7 @@ impl Command {
             Command::Rescore { .. } => "rescore",
             Command::Judge { .. } => "judge",
             Command::EvidenceAudit { .. } => "evidence-audit",
+            Command::Coverage { .. } => "coverage",
             Command::Standing { .. } => "standing",
             Command::Package => "package",
         }
@@ -658,6 +731,8 @@ async fn main() -> anyhow::Result<()> {
             question_date,
             profile,
             profile_clause,
+            mmr,
+            select_sufficient,
             ref categories,
             scorer,
         } => {
@@ -677,6 +752,8 @@ async fn main() -> anyhow::Result<()> {
                     question_date,
                     profile,
                     profile_clause,
+                    mmr,
+                    select_sufficient,
                     categories: categories.clone().unwrap_or_default(),
                 },
                 scorer,
@@ -694,6 +771,17 @@ async fn main() -> anyhow::Result<()> {
             limit,
         } => judge_cmd(run, category, limit).await,
         Command::EvidenceAudit { ref run, limit } => evidence_audit_cmd(run, limit).await,
+        Command::Coverage {
+            ref run,
+            ref dataset,
+        } => {
+            let report = myelin_eval::coverage::run(
+                Path::new(run),
+                dataset.as_deref().map(Path::new),
+            )?;
+            myelin_eval::coverage::print_table(&report);
+            Ok(())
+        }
         Command::Standing {
             ref registry,
             ref runs,
@@ -946,6 +1034,14 @@ async fn bench_cmd(
         scorer != Some(myelin_eval::bench::Scorer::Judge),
         "--scorer judge is rescore-only: run bench, then judge --run <out>, \
          then rescore --run <out> --scorer judge"
+    );
+    // `mmr_select` clamps, so `--mmr 70` would silently run pure relevance —
+    // the base arm under an arm's directory name, which is the most
+    // expensive kind of typo there is.
+    anyhow::ensure!(
+        switches.mmr.is_none_or(|l| (0.0..=1.0).contains(&l)),
+        "--mmr is a lambda in [0.0, 1.0] (1.0 pure relevance, 0.0 pure diversity), got {:?}",
+        switches.mmr
     );
     let d = corpus.defaults();
     let dataset = dataset.unwrap_or(d.dataset);

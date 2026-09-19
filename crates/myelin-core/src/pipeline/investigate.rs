@@ -36,9 +36,11 @@ use crate::model::query::{Mode, Recall};
 use crate::model::record::{RecordKind, SourceRef, TrustTier};
 
 use super::compose::{compose, ComposeConfig, Ranked, PROFILE_MAX_RECORDS};
-use super::retrieve::Retriever;
+use super::retrieve::{RetrieveConfig, Retriever};
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+/// `Copy`: every field is a `usize` or a `bool`, and a per-question bench
+/// loop should not clone a config to read it.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct InvestigateConfig {
     /// Per-step evidence width. Wider than `recall`'s `k` because these
     /// items are the *loop's* working set, not the answer: they are what the
@@ -93,6 +95,34 @@ pub struct InvestigateConfig {
     /// signal was too weak to notice; it was noticed, acknowledged, and
     /// overridden.
     pub abstain_on_insufficient: bool,
+    /// Ask the model which retrieved candidates jointly answer the question,
+    /// on every probe ([`crate::pipeline::select::Selector`]).
+    ///
+    /// **Default off, because it was measured *here* and it does nothing
+    /// here.** M21 planned this as the switch's home: the mechanism is a
+    /// large win in the `recall` path — gold-turn recall of the composed set
+    /// 0.658 → **0.838** (multi-session) and 0.658 → **0.809**
+    /// (temporal-reasoning) against a 0.852 ceiling `k = 25` needs four times
+    /// the items to reach, judged **+6.0 ([+1.5, +10.5], p = 0.0081)** on
+    /// temporal-reasoning and **+3.8 ([+1.0, +6.6], p = 0.0087)** over all
+    /// 500 — and `PLAN.md` §7.1 pins `recall` at "no LLM in the loop", so
+    /// this loop, which already pays for a model call per step, was the only
+    /// path it could default on.
+    ///
+    /// Measured in this loop on the same store and the same stratum, it is
+    /// **exactly +0.0 (95% CI [−3.8, +3.8], p = 1.0000)** at **+1.87 s per
+    /// query** (p50 2.60 s → 4.47 s), and gold-turn recall moves 0.653 →
+    /// 0.660.
+    ///
+    /// The cause is this loop's own shape: [`InvestigateConfig::step_k`] is
+    /// 10 and [`InvestigateConfig::max_pool`] is 60, so the probes' results
+    /// are *unioned* across steps and re-composed here. Reordering one
+    /// probe's admissible list barely changes that union — the selector is
+    /// choosing which items enter a pool that was going to hold them anyway.
+    ///
+    /// Kept as a switch, off, with the number that killed it. Verdict:
+    /// `docs/measurements/m21-evidence-selection.md`.
+    pub select_sufficient: bool,
 }
 
 impl Default for InvestigateConfig {
@@ -102,6 +132,7 @@ impl Default for InvestigateConfig {
             max_steps: 2,
             max_pool: 60,
             abstain_on_insufficient: false,
+            select_sufficient: false,
         }
     }
 }
@@ -237,6 +268,36 @@ impl<'a> Investigator<'a> {
         // only the fallback for callers that do not set one.
         let max_steps = query.budget.max_steps.max(1).min(self.config.max_steps);
 
+        // The sufficiency selector is ON here and OFF in `recall`: `PLAN.md`
+        // §7.1 pins the fast path at "no LLM in the loop", and this loop
+        // already spends a model call per step on the reflect gate.
+        //
+        // A local view rather than a mutation: `Investigator` borrows the
+        // retriever immutably, and every field of `Retriever` is either a
+        // shared reference or a `Copy`-shaped config, so this is a stack
+        // copy and not an allocation.
+        let probe_retriever;
+        let retriever = if self.config.select_sufficient
+            && !self.retriever.config.select_sufficient
+        {
+            probe_retriever = Retriever {
+                embedder: self.retriever.embedder,
+                store: self.retriever.store,
+                ledger: self.retriever.ledger,
+                reranker: self.retriever.reranker,
+                graph: self.retriever.graph,
+                // The gate's own model, so the switch can never be inert here.
+                llm: Some(self.llm),
+                config: RetrieveConfig {
+                    select_sufficient: true,
+                    ..self.retriever.config.clone()
+                },
+            };
+            &probe_retriever
+        } else {
+            self.retriever
+        };
+
         let mut pool: HashMap<Uuid, Ranked> = HashMap::new();
         let mut asked: Vec<String> = Vec::new();
         let mut search = query.text.clone();
@@ -248,7 +309,7 @@ impl<'a> Investigator<'a> {
             probe.budget.k = self.config.step_k;
 
             let t0 = std::time::Instant::now();
-            let (found, step_trace) = self.retriever.recall(&probe).await?;
+            let (found, step_trace) = retriever.recall(&probe).await?;
             trace.search_ms += t0.elapsed().as_millis();
             let _ = step_trace;
 
@@ -257,7 +318,7 @@ impl<'a> Investigator<'a> {
                 if pool.len() >= self.config.max_pool {
                     break;
                 }
-                if let Some(record) = self.retriever.ledger.get(item.record_id).await? {
+                if let Some(record) = retriever.ledger.get(item.record_id).await? {
                     pool.entry(item.record_id).or_insert(Ranked {
                         record,
                         score: item.score,

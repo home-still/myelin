@@ -1,0 +1,57 @@
+{
+  "corpus": "longmemeval_s",
+  "collection": "myelin_longmemeval_s",
+  "mode": "recall",
+  "k": 6,
+  "max_steps": 2,
+  "graph": false,
+  "chronological": false,
+  "question_date": false,
+  "resolve_dates": true,
+  "timeline": true,
+  "profile": false,
+  "profile_clause": false,
+  "mmr": null,
+  "select_sufficient": true,
+  "categories": [],
+  "scorer": "token_f1",
+  "rescored_from": null,
+  "questions": 500,
+  "f1_answerable": 0.5007363960397371,
+  "em_answerable": 0.3872340425531915,
+  "abstention_accuracy": 0.9333333333333333,
+  "by_category": [
+    {
+      "category": 1,
+      "count": 70,
+      "mean_score": 0.9225757575757574
+    },
+    {
+      "category": 2,
+      "count": 56,
+      "mean_score": 0.8139552355133667
+    },
+    {
+      "category": 3,
+      "count": 30,
+      "mean_score": 0.05198708888735119
+    },
+    {
+      "category": 4,
+      "count": 133,
+      "mean_score": 0.40930210140736456
+    },
+    {
+      "category": 5,
+      "count": 133,
+      "mean_score": 0.3044137546265888
+    },
+    {
+      "category": 6,
+      "count": 78,
+      "mean_score": 0.7269293384678001
+    }
+  ],
+  "query_p50_seconds": 1.486651667,
+  "query_avg_seconds": 1.5083308659080006
+}

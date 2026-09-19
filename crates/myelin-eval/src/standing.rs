@@ -249,6 +249,16 @@ pub struct Ours {
     /// computed so a reader can see what the partial artifact says, but the
     /// row is never claimable.
     pub incomplete: Option<String>,
+    /// The run carries a mechanism switch that does **not** ship on, so it
+    /// measures an arm rather than the system.
+    ///
+    /// Before M21 every full-population run was a shipped-default run and
+    /// this could not matter. M21 added `runs/m21_full_sel`, a 500-question
+    /// arm that scores 60.40 against the default configuration's 56.60 —
+    /// and the selection rule below is value-ordered, so the standing table
+    /// published the arm. "Where we stand" is what the defaults do.
+    #[serde(default)]
+    pub arm: bool,
     /// Every run that supplied this metric, so the report shows what was not
     /// selected.
     pub candidates: Vec<Candidate>,
@@ -653,8 +663,8 @@ pub fn collect(runs: &Path, python: &str) -> Result<BTreeMap<String, Ours>> {
         let direction = metric_def(&metric)
             .map(|d| d.direction)
             .unwrap_or(Direction::HigherIsBetter);
-        // Complete first, then the largest population, then best by
-        // direction.
+        // Complete first, then the shipped configuration, then the largest
+        // population, then best by direction.
         //
         // Population before value on purpose: `runs/lme_s_recall_probe` is a
         // 114-row smoke run and scores higher than the 470-row real one, so a
@@ -662,18 +672,16 @@ pub fn collect(runs: &Path, python: &str) -> Result<BTreeMap<String, Ours>> {
         // report "not comparable" for a benchmark we have a comparable
         // artifact for. Ties inside one population are broken by the metric's
         // own direction, and by path so the report is deterministic.
-        candidates.sort_by(|a, b| {
-            let (x, y) = match direction {
-                Direction::HigherIsBetter => (b.value, a.value),
-                Direction::LowerIsBetter => (a.value, b.value),
-            };
-            a.incomplete
-                .is_some()
-                .cmp(&b.incomplete.is_some())
-                .then_with(|| b.n.cmp(&a.n))
-                .then_with(|| x.partial_cmp(&y).unwrap_or(std::cmp::Ordering::Equal))
-                .then_with(|| a.run.cmp(&b.run))
-        });
+        //
+        // **Defaults before population, and before value.** `standing`
+        // answers "where do we stand", and we stand where the defaults put
+        // us. M21 is where this started to matter: `runs/m21_full_sel` is a
+        // complete 500-question artifact scoring 60.40 against the default
+        // configuration's 56.60, and it measures a switch that ships **off**
+        // — so a value-ordered rule published a number no default produces.
+        // An arm is still listed in `candidates`, and is still selected when
+        // it is the only artifact for a metric.
+        candidates.sort_by(|a, b| prefer(a, b, direction));
         let listing: Vec<Candidate> = candidates
             .iter()
             .map(|c| Candidate {
@@ -686,6 +694,25 @@ pub fn collect(runs: &Path, python: &str) -> Result<BTreeMap<String, Ours>> {
         out.insert(metric, best);
     }
     Ok(out)
+}
+
+/// Which of two artifacts for the same metric the report should quote.
+///
+/// Complete before partial, **shipped configuration before arm**, larger
+/// population before smaller, then the metric's own direction, then path so
+/// the report is deterministic.
+fn prefer(a: &Ours, b: &Ours, direction: Direction) -> std::cmp::Ordering {
+    let (x, y) = match direction {
+        Direction::HigherIsBetter => (b.value, a.value),
+        Direction::LowerIsBetter => (a.value, b.value),
+    };
+    a.incomplete
+        .is_some()
+        .cmp(&b.incomplete.is_some())
+        .then_with(|| a.arm.cmp(&b.arm))
+        .then_with(|| b.n.cmp(&a.n))
+        .then_with(|| x.partial_cmp(&y).unwrap_or(std::cmp::Ordering::Equal))
+        .then_with(|| a.run.cmp(&b.run))
 }
 
 /// Depth-capped directory walk. `runs/rescored/<run>` is two levels down, and
@@ -732,6 +759,19 @@ fn bench_metrics(dir: &Path, agg_text: &str) -> Result<Vec<Ours>> {
         run.scorer.as_str()
     };
 
+    // Does this run measure the system, or an arm of it? Every switch below
+    // ships **off**, so any of them being set makes the run a measurement of
+    // something the defaults do not do. `resolve_dates` and `timeline` are
+    // deliberately absent: both ship on since M19, and a run that carries
+    // them is the shipped configuration.
+    let arm = run.graph
+        || run.chronological
+        || run.question_date
+        || run.profile
+        || run.profile_clause
+        || run.mmr.is_some()
+        || run.select_sufficient;
+
     match run.corpus.as_str() {
         "locomo" => {
             let stratum: Vec<&ScoredQuestion> = rows
@@ -754,6 +794,7 @@ fn bench_metrics(dir: &Path, agg_text: &str) -> Result<Vec<Ours>> {
                         run.mode, run.k
                     ),
                     incomplete: None,
+                    arm: false,
                     candidates: Vec::new(),
                 });
             }
@@ -771,6 +812,7 @@ fn bench_metrics(dir: &Path, agg_text: &str) -> Result<Vec<Ours>> {
                         run.rescored_from.clone().unwrap_or_else(|| "live run".into())
                     ),
                     incomplete: None,
+                    arm: false,
                     candidates: Vec::new(),
                 });
             }
@@ -784,6 +826,7 @@ fn bench_metrics(dir: &Path, agg_text: &str) -> Result<Vec<Ours>> {
                 run: dir.to_path_buf(),
                 detail: "aggregated_metrics.json abstention_accuracy over category 5".into(),
                 incomplete: None,
+                arm: false,
                 candidates: Vec::new(),
             });
             if let Some(judge) = &verdicts {
@@ -815,6 +858,7 @@ fn bench_metrics(dir: &Path, agg_text: &str) -> Result<Vec<Ours>> {
                         run.k
                     ),
                     incomplete: None,
+                    arm: false,
                     candidates: Vec::new(),
                 });
             }
@@ -847,6 +891,11 @@ fn bench_metrics(dir: &Path, agg_text: &str) -> Result<Vec<Ours>> {
     // produced — and it counts as *complete*, which is the half of the
     // selection rule that runs before "prefer the larger n".
     out.retain(|o| o.n > 0);
+    // One flag per run, stamped on every metric it produced, rather than
+    // threaded through each literal and `judged`'s signature.
+    for o in &mut out {
+        o.arm = arm;
+    }
     Ok(out)
 }
 
@@ -918,6 +967,7 @@ fn judged(
             judge.model
         ),
         incomplete,
+        arm: false,
         candidates: Vec::new(),
     }
 }
@@ -1015,6 +1065,7 @@ fn harness_metrics(dir: &Path, agg: &Value) -> Result<(HarnessRun, Vec<Ours>)> {
                 if evaluator.is_empty() { "(unset)" } else { &evaluator }
             ),
             incomplete: None,
+            arm: false,
             candidates: Vec::new(),
         });
         out.push(Ours {
@@ -1027,6 +1078,7 @@ fn harness_metrics(dir: &Path, agg: &Value) -> Result<(HarnessRun, Vec<Ours>)> {
             run: dir.to_path_buf(),
             detail: format!("memory_query.avg_seconds over {count} questions"),
             incomplete: None,
+            arm: false,
             candidates: Vec::new(),
         });
     }
@@ -1128,6 +1180,7 @@ fn pair_metrics(harness: &[HarnessRun], python: &str) -> Vec<Ours> {
                 web.fingerprint
             ),
             incomplete: None,
+            arm: false,
             candidates: Vec::new(),
         });
         points.push((name, acc, latency, n, web.dir.clone()));
@@ -1166,6 +1219,7 @@ fn pair_metrics(harness: &[HarnessRun], python: &str) -> Vec<Ours> {
                     .join(", ")
             ),
             incomplete: None,
+            arm: false,
             candidates: Vec::new(),
         }),
         Err(err) => eprintln!(
@@ -1261,6 +1315,7 @@ fn attack_metrics(dir: &Path, path: &Path) -> Result<Vec<Ours>> {
                 cond.name, cond.attempted, cond.cohorts, cond.injected
             ),
             incomplete: None,
+            arm: false,
             candidates: Vec::new(),
         });
     }
@@ -1727,6 +1782,7 @@ mod tests {
             run: PathBuf::from("runs/test"),
             detail: "fixture".into(),
             incomplete: None,
+            arm: false,
             candidates: Vec::new(),
         }
     }
@@ -1742,6 +1798,49 @@ mod tests {
             &map,
         );
         report.rows.into_iter().next().unwrap()
+    }
+
+    /// `standing` answers "where do we stand", and we stand where the
+    /// defaults put us. M21 produced `runs/m21_full_sel`, a complete
+    /// 500-question artifact scoring 60.40 against the default
+    /// configuration's 56.60 — measuring a switch that ships **off**. A
+    /// value-ordered rule published the arm.
+    #[test]
+    fn a_higher_scoring_arm_never_displaces_the_shipped_configuration() {
+        let shipped = |value: f64| Ours {
+            run: PathBuf::from("runs/m21_full_base"),
+            ..mine("longmemeval_s.judge_score.n500", value, 500)
+        };
+        let arm = |value: f64| Ours {
+            run: PathBuf::from("runs/m21_full_sel"),
+            arm: true,
+            ..mine("longmemeval_s.judge_score.n500", value, 500)
+        };
+        let mut rows = vec![arm(60.40), shipped(56.60)];
+        rows.sort_by(|a, b| prefer(a, b, Direction::HigherIsBetter));
+        assert_eq!(rows[0].run, PathBuf::from("runs/m21_full_base"));
+        assert_eq!(rows[0].value, 56.60);
+
+        // …even when the arm covers a larger population, because a number
+        // the defaults do not produce is not where we stand.
+        let mut wider = vec![
+            Ours { n: 500, ..arm(60.40) },
+            Ours { n: 470, ..shipped(56.60) },
+        ];
+        wider.sort_by(|a, b| prefer(a, b, Direction::HigherIsBetter));
+        assert_eq!(wider[0].run, PathBuf::from("runs/m21_full_base"));
+
+        // But an incomplete default never displaces a complete arm: a
+        // partial artifact is not a configuration, it is a broken run.
+        let mut partial = vec![
+            arm(60.40),
+            Ours {
+                incomplete: Some("300/500 judged".into()),
+                ..shipped(56.60)
+            },
+        ];
+        partial.sort_by(|a, b| prefer(a, b, Direction::HigherIsBetter));
+        assert_eq!(partial[0].run, PathBuf::from("runs/m21_full_sel"));
     }
 
     #[test]

@@ -1,19 +1,19 @@
-# `myelin-eval standing` — commit `49a20e6564d8bbfdee444eebecb8c1c4a7bd5a25-dirty`, generated 2026-09-16T20:20:13Z
+# `myelin-eval standing` — commit `b92456fffec27b98b5008baeceecb63ab75c9950-dirty`, generated 2026-09-19T21:03:26Z
 
 | metric | system | theirs | ours | gap | verdict | claim | run |
 |---|---|---|---|---|---|---|---|
 | locomo.judge_score.n1540 | MemPro-15 | 84.93 | 69.87 | -15.06 | caveat-judge(open_weights_local vs frontier_api) | no | `runs/m19_locomo_full` |
 | locomo.judge_score.n1540 | MemPro-15 (Qwen3-30B) **(gate)** | 77.85 | 69.87 | -7.98 | caveat-judge(open_weights_local vs frontier_api) | no | `runs/m19_locomo_full` |
-| longmemeval_s.judge_score.n500 | MemPro-15 | 79.00 | 56.40 | -22.60 | caveat-judge(open_weights_local vs frontier_api) | no | `runs/m19_lme_s_full` |
-| longmemeval_s.judge_score.n500 | MemPro-15 (Qwen3-30B) **(gate)** | 80.80 | 56.40 | -24.40 | caveat-judge(open_weights_local vs frontier_api) | no | `runs/m19_lme_s_full` |
+| longmemeval_s.judge_score.n500 | MemPro-15 | 79.00 | 56.60 | -22.40 | caveat-judge(open_weights_local vs frontier_api) | no | `runs/m21_full_base` |
+| longmemeval_s.judge_score.n500 | MemPro-15 (Qwen3-30B) **(gate)** | 80.80 | 56.60 | -24.20 | caveat-judge(open_weights_local vs frontier_api) | no | `runs/m21_full_base` |
 | locomo.judge_score.n1540 | EverMemOS | 93.05 | 69.87 | -23.18 | caveat-judge(open_weights_local vs frontier_api) | no | `runs/m19_locomo_full` |
-| longmemeval_s.judge_score.n500 | EverMemOS | 83.00 | 56.40 | -26.60 | caveat-judge(open_weights_local vs frontier_api) | no | `runs/m19_lme_s_full` |
+| longmemeval_s.judge_score.n500 | EverMemOS | 83.00 | 56.60 | -26.40 | caveat-judge(open_weights_local vs frontier_api) | no | `runs/m21_full_base` |
 | locomo.judge_score.n1540 | Mem0 (paper) | 66.88 | 69.87 | +2.99 | caveat-judge(open_weights_local vs frontier_api) | no | `runs/m19_locomo_full` |
 | locomo.judge_score.n1540 | Mem0 (vendor) | 92.50 | 69.87 | — | not-comparable(vendor) | no | `runs/m19_locomo_full` |
-| longmemeval_s.judge_score.n500 | Mem0 (vendor) | 94.40 | 56.40 | — | not-comparable(vendor) | no | `runs/m19_lme_s_full` |
-| locomo.token_f1.n1540 | GAM | 40.00 | 53.15 | +13.15 | comparable | yes | `runs/locomo_recall_graph` |
-| locomo.abstention_accuracy.n446 | HiGMem | 0.78 | 0.73 | -0.05 | caveat-backbone(open_weights vs frontier_api) | no | `runs/locomo_recall_qdate` |
-| longmemeval_s.judge_score.n500 | Zep | 71.20 | 56.40 | -14.80 | caveat-judge(open_weights_local vs frontier_api) | no | `runs/m19_lme_s_full` |
+| longmemeval_s.judge_score.n500 | Mem0 (vendor) | 94.40 | 56.60 | — | not-comparable(vendor) | no | `runs/m21_full_base` |
+| locomo.token_f1.n1540 | GAM | 40.00 | 53.07 | +13.07 | comparable | yes | `runs/locomo_recall` |
+| locomo.abstention_accuracy.n446 | HiGMem | 0.78 | 0.70 | -0.08 | caveat-backbone(open_weights vs frontier_api) | no | `runs/locomo_recall` |
+| longmemeval_s.judge_score.n500 | Zep | 71.20 | 56.60 | -14.60 | caveat-judge(open_weights_local vs frontier_api) | no | `runs/m21_full_base` |
 | dmr.accuracy.n500 | Zep | 98.20 | — | — | missing-artifact | no | — |
 | dmr.accuracy.n500 | Zep (gpt-4-turbo) | 94.80 | — | — | missing-artifact | no | — |
 | lme_v2_small.overall_full_set.combined | AgentRunbook-C **(gate)** | 74.90 | 39.91 | -34.99 | caveat-judge(open_weights_local vs frontier_api) | no | `runs/myelin_inv2_web_small` |
@@ -21,22 +21,22 @@
 | lme_v2_small.overall_full_set.combined | Codex (vanilla) | 69.90 | 39.91 | -29.99 | caveat-judge(open_weights_local vs frontier_api) | no | `runs/myelin_inv2_web_small` |
 | lme_v2_small.overall_full_set.combined | RAG slice+notes | 51.00 | 39.91 | -11.09 | caveat-judge(open_weights_local vs frontier_api) | no | `runs/myelin_inv2_web_small` |
 | lme_v2_small.lafs_gain.small | LME-V2 reference frontier **(gate)** | 0.00 | 0.00 | +0.00 | caveat-judge(open_weights_local vs frontier_api) | no | `runs/myelin_inv2_web_small` |
-| longmemeval_s.judge_score.n500 | NEMORI | 74.60 | 56.40 | -18.20 | caveat-judge(open_weights_local vs frontier_api) | no | `runs/m19_lme_s_full` |
+| longmemeval_s.judge_score.n500 | NEMORI | 74.60 | 56.60 | -18.00 | caveat-judge(open_weights_local vs frontier_api) | no | `runs/m21_full_base` |
 | locomo.judge_score.n1540 | NEMORI | 80.80 | 69.87 | -10.93 | caveat-judge(open_weights_local vs frontier_api) | no | `runs/m19_locomo_full` |
 | minja.asr.k6_prepopulated | MINJA | 76.80 | 77.50 | -0.70 | caveat-backbone(open_weights vs frontier_api) | no | `runs/attack_live_m18` |
 | minja.injection_success.k6_prepopulated | MINJA | 98.20 | 92.50 | +5.70 | caveat-backbone(open_weights vs frontier_api) | no | `runs/attack_live_m18` |
 | minja.asr.k6_prepopulated | EHR poisoning (k=3) | 6.67 | 77.50 | -70.83 | caveat-backbone(open_weights vs frontier_api) | no | `runs/attack_live_m18` |
 | minja.asr.k6_prepopulated_defended | G3 gate (PLAN.md 11.5) **(gate)** | 10.00 | 12.50 | -2.50 | comparable | no | `runs/attack_live_m18` |
-| longmemeval_s.judge_score.n500 | Memanto | 89.80 | 56.40 | -33.40 | caveat-judge(open_weights_local vs frontier_api) | no | `runs/m19_lme_s_full` |
+| longmemeval_s.judge_score.n500 | Memanto | 89.80 | 56.60 | -33.20 | caveat-judge(open_weights_local vs frontier_api) | no | `runs/m21_full_base` |
 | locomo.judge_score.n1540 | Memanto | 87.10 | 69.87 | -17.23 | caveat-judge(open_weights_local vs frontier_api) | no | `runs/m19_locomo_full` |
 | locomo.judge_score.n1540 | APEX-MEM | 88.88 | 69.87 | -19.01 | caveat-judge(open_weights_local vs frontier_api) | no | `runs/m19_locomo_full` |
-| longmemeval_s.judge_score.n500 | APEX-MEM | 86.20 | 56.40 | -29.80 | caveat-judge(open_weights_local vs frontier_api) | no | `runs/m19_lme_s_full` |
-| longmemeval_s.judge_score.n500 | Chronos High | 95.60 | 56.40 | -39.20 | caveat-judge(open_weights_local vs frontier_api) | no | `runs/m19_lme_s_full` |
+| longmemeval_s.judge_score.n500 | APEX-MEM | 86.20 | 56.60 | -29.60 | caveat-judge(open_weights_local vs frontier_api) | no | `runs/m21_full_base` |
+| longmemeval_s.judge_score.n500 | Chronos High | 95.60 | 56.60 | -39.00 | caveat-judge(open_weights_local vs frontier_api) | no | `runs/m21_full_base` |
 
 ## Unsupported gates (5)
 
 - locomo.judge.mempro15.qwen3_30b [locomo.judge_score.n1540] behind by 7.98 (ours 69.87, gate needs >= 77.85)
-- longmemeval_s.judge.mempro15.qwen3_30b [longmemeval_s.judge_score.n500] behind by 24.40 (ours 56.40, gate needs >= 80.80)
+- longmemeval_s.judge.mempro15.qwen3_30b [longmemeval_s.judge_score.n500] behind by 24.20 (ours 56.60, gate needs >= 80.80)
 - lme_v2_small.agentrunbook_c [lme_v2_small.overall_full_set.combined] behind by 34.99 (ours 39.91, gate needs >= 74.90)
 - lme_v2_small.lafs_gain.frontier [lme_v2_small.lafs_gain.small] tied at 0.00; this gate needs a strict improvement, and a tie is what a dominated submission scores
 - minja.asr.g3_gate [minja.asr.k6_prepopulated_defended] behind by 2.50 (ours 12.50, gate needs >= 10.00)
@@ -86,12 +86,12 @@ Values are in the extractor's own unit, which is the one the run artifact carrie
 | lme_v2_small.overall_full_set.combined | 39.91 | 451 | 4 | question-weighted mean of myelin_inv2_web_small (45.00 over 240) and myelin_inv2_enterprise_small (34.12 over 211); mode="investigate" k=25 budget_tokens=10000 max_steps=2 prefetch_limit=null rerank_depth=null | `myelin_inv2_web_small` 39.91, `myelin_k25_web_small` 35.70 |
 | lme_v2_small.overall_full_set.enterprise | 34.60 | 211 | none | overall.overall_full_set x 100 over 211 questions, evaluator Qwen/Qwen3.5-9B | `myelin_k25_enterprise_small` 34.60, `myelin_inv2_enterprise_small` 34.12 |
 | lme_v2_small.overall_full_set.web | 45.00 | 240 | none | overall.overall_full_set x 100 over 240 questions, evaluator Qwen/Qwen3.5-9B | `myelin_inv2_web_small` 45.00, `myelin_k25_web_small` 36.67, `myelin_fast_web_small` 30.83 |
-| locomo.abstention_accuracy.n446 | 73.09 | 446 | 1 | aggregated_metrics.json abstention_accuracy over category 5 | `locomo_recall_qdate` 73.09, `locomo_recall_qdate_temporal` 73.09, `locomo_recall_chrono_qdate` 72.42, `locomo_recall_chrono_qdate_temporal` 72.42, `locomo_recall_graph` 71.75, `locomo_recall_graph_temporal` 71.75, `locomo_recall_chrono` 70.63, `locomo_recall_chrono_temporal` 70.63, `locomo_recall` 69.96, `m19_locomo_full` 69.96, `locomo_recall_judge` 69.96, `locomo_recall_temporal` 69.96, `m19_locomo_full_judge` 69.96, `locomo_investigate` 69.73, `locomo_investigate_temporal` 69.73, `locomo_recall_probe` 65.96, `locomo_recall_probe_temporal` 65.96 |
-| locomo.judge_score.n1540 | 69.87 | 1540 | 8 | judge qwen3.5-9b : 1076 of 1540 correct (121 declines scored 0) | `m19_locomo_full` 69.87, `locomo_recall` 62.66 |
-| locomo.temporal.n1540 | 59.98 | 1540 | none | date-aware scorer, f1_answerable over categories 1-4, rescored_from=live run | `m19_locomo_full` 59.98, `locomo_recall_graph_temporal` 51.64, `locomo_recall_chrono_qdate_temporal` 51.43, `locomo_recall_temporal` 51.38, `locomo_investigate_temporal` 51.24, `locomo_recall_qdate_temporal` 51.23, `locomo_recall_chrono_temporal` 51.16, `m19_locomo_t_armAB` 63.01, `m19_locomo_t_armA` 57.84, `m19_locomo_t_armB` 34.57, `m19_locomo_t_armD` 20.54, `locomo_recall_probe_temporal` 40.84 |
-| locomo.token_f1.n1540 | 53.15 | 1540 | 1 | aggregated_metrics.json f1_answerable over categories 1-4, mode=recall k=6 | `locomo_recall_graph` 53.15, `locomo_recall` 53.07, `locomo_recall_qdate` 53.03, `locomo_investigate` 52.98, `locomo_recall_chrono_qdate` 52.93, `locomo_recall_chrono` 52.90, `locomo_recall_probe` 44.51 |
-| longmemeval_s.judge_score.n500 | 56.40 | 500 | 9 | judge qwen3.5-9b : 282 of 500 correct (103 declines scored 0) | `m19_lme_s_full` 56.40, `lme_s_recall` 52.00, `m19_lme_t_armDW25` 37.59, `m19_lme_t_armD` 33.83, `m19_lme_t_armW25` 30.83, `m19_lme_t_armWinv` 27.07, `m19_lme_t_base` 27.07 |
-| longmemeval_s.token_f1.n500 | 46.82 | 470 | none | aggregated_metrics.json f1_answerable over the 470 answerable rows, mode=recall k=6 | `m19_lme_s_full` 46.82, `lme_s_recall_chrono` 44.73, `lme_s_recall` 43.69, `lme_s_recall_graph` 43.15, `m19_lme_t_armDW25` 28.40, `m19_lme_t_armW25` 25.65, `m19_lme_t_armD` 24.41, `m19_lme_t_base` 22.64, `m19_lme_t_armWinv` 21.82, `lme_s_recall_probe` 56.61 |
+| locomo.abstention_accuracy.n446 | 69.96 | 446 | 1 | aggregated_metrics.json abstention_accuracy over category 5 | `locomo_recall` 69.96, `m19_locomo_full` 69.96, `locomo_recall_judge` 69.96, `locomo_recall_temporal` 69.96, `m19_locomo_full_judge` 69.96, `locomo_investigate` 69.73, `locomo_investigate_temporal` 69.73, `locomo_recall_probe` 65.96, `locomo_recall_probe_temporal` 65.96, `locomo_recall_qdate` 73.09, `locomo_recall_qdate_temporal` 73.09, `locomo_recall_chrono_qdate` 72.42, `locomo_recall_chrono_qdate_temporal` 72.42, `locomo_recall_graph` 71.75, `locomo_recall_graph_temporal` 71.75, `locomo_recall_chrono` 70.63, `locomo_recall_chrono_temporal` 70.63 |
+| locomo.judge_score.n1540 | 69.87 | 1540 | 8 | judge qwen3.5-9b : 1076 of 1540 correct (121 declines scored 0) | `m19_locomo_full` 69.87, `locomo_recall` 62.66, `m21_mh_base` 58.16, `m21_mh_sel` 54.96 |
+| locomo.temporal.n1540 | 59.98 | 1540 | none | date-aware scorer, f1_answerable over categories 1-4, rescored_from=live run | `m19_locomo_full` 59.98, `locomo_recall_temporal` 51.38, `locomo_investigate_temporal` 51.24, `m19_locomo_t_armAB` 63.01, `m19_locomo_t_armA` 57.84, `m19_locomo_t_armB` 34.57, `m19_locomo_t_armD` 20.54, `m21_mh_base` 42.52, `locomo_recall_probe_temporal` 40.84, `locomo_recall_graph_temporal` 51.64, `locomo_recall_chrono_qdate_temporal` 51.43, `locomo_recall_qdate_temporal` 51.23, `locomo_recall_chrono_temporal` 51.16, `m21_mh_sel` 41.54 |
+| locomo.token_f1.n1540 | 53.07 | 1540 | 1 | aggregated_metrics.json f1_answerable over categories 1-4, mode=recall k=6 | `locomo_recall` 53.07, `locomo_investigate` 52.98, `locomo_recall_probe` 44.51, `locomo_recall_graph` 53.15, `locomo_recall_qdate` 53.03, `locomo_recall_chrono_qdate` 52.93, `locomo_recall_chrono` 52.90 |
+| longmemeval_s.judge_score.n500 | 56.60 | 500 | 9 | judge qwen3.5-9b : 283 of 500 correct (104 declines scored 0) | `m21_full_base` 56.60, `m19_lme_s_full` 56.40, `lme_s_recall` 52.00, `m21_ms_base` 38.35, `m19_lme_t_armDW25` 37.59, `m21_inv_base` 36.84, `m19_lme_t_armD` 33.83, `m21_tr_base` 33.83, `m19_lme_t_armW25` 30.83, `m19_lme_t_armWinv` 27.07, `m19_lme_t_base` 27.07, `m20_pref_base` 30.00, `m21_full_sel` 60.40, `m21_ms_sel` 45.86, `m21_tr_sel` 39.85, `m21_inv_sel` 36.84, `m21_ms_mmr` 33.08, `m21_tr_mmr` 24.06, `m20_pref_armAB` 36.67, `m20_pref_armB` 33.33, `m20_pref_armA` 30.00 |
+| longmemeval_s.token_f1.n500 | 47.06 | 470 | none | aggregated_metrics.json f1_answerable over the 470 answerable rows, mode=recall k=6 | `m21_full_base` 47.06, `m19_lme_s_full` 46.82, `lme_s_recall` 43.69, `m19_lme_t_armDW25` 28.40, `m19_lme_t_armW25` 25.65, `m21_inv_base` 25.62, `m19_lme_t_armD` 24.41, `m21_tr_base` 24.41, `m19_lme_t_base` 22.64, `m19_lme_t_armWinv` 21.82, `m21_ms_base` 28.78, `lme_s_recall_probe` 56.61, `m21_ku_base` 70.38, `m20_pref_base` 5.04, `m21_full_sel` 50.07, `lme_s_recall_chrono` 44.73, `lme_s_recall_graph` 43.15, `m21_tr_sel` 27.16, `m21_inv_sel` 26.91, `m21_tr_mmr` 16.69, `m21_ms_sel` 35.90, `m21_ms_mmr` 24.09, `m21_ku_mmr07` 70.84, `m21_ku_mmr05` 69.71, `m21_ku_mmr09` 68.99, `m21_ku_mmr03` 68.81, `m20_pref_armAB` 6.04, `m20_pref_armB` 5.97, `m20_pref_armA` 4.57 |
 | minja.asr.k6_prepopulated | 77.50 | 40 | 2 | condition "pre-pop/untrusted/undefended": 31/40 at k=6 over 8 cohorts, 39 injections admitted | `attack_live_m18` 77.50 |
 | minja.asr.k6_prepopulated_defended | 12.50 | 40 | 1 | condition "pre-pop/untrusted/defended": 5/40 at k=6 over 8 cohorts, 9 injections admitted | `attack_live_m18` 12.50 |
 | minja.injection_success.k6_prepopulated | 92.50 | 40 | 1 | condition "pre-pop/untrusted/undefended": 37/40 at k=6 over 8 cohorts, 39 injections admitted | `attack_live_m18` 92.50 |
