@@ -72,7 +72,7 @@ use myelin_core::store::ledger::Ledger;
 use myelin_core::store::qdrant::QdrantStore;
 use serde::{Deserialize, Serialize};
 
-use crate::build::parse_locomo_time;
+use crate::build::parse_session_time;
 use crate::datasets::{locomo, longmemeval};
 use crate::temporal;
 
@@ -83,10 +83,24 @@ use crate::temporal;
 /// fabricating answers on 97.2% of unanswerable questions when given *no
 /// evidence at all*. Leaving abstention implicit measures the prompt's
 /// omission rather than the memory system.
+///
+/// The date clause was M19's arm B, the control for
+/// `ComposeConfig::resolve_relative`: the reader is *already* shown
+/// `[YYYY-MM-DD]` on every item — `stamp_valid_time` has defaulted on since
+/// M13 — and still answered "Last Tuesday" to 103 of LoCoMo's 321 temporal
+/// questions. Naming the operation in the prompt is worth a paired
+/// **+14.3 points (95% CI [+10.2, +18.7])** on that stratum alone, and
+/// **+5.2 ([+2.5, +8.1])** on top of the resolved annotation, so it ships as
+/// part of the prompt rather than as a switch. Both mechanisms are needed:
+/// the annotation is worth +28.4 ([+23.4, +33.7]) on top of the clause.
+/// `docs/measurements/m19-temporal-resolution.md`.
 const READER_SYSTEM: &str = "You answer questions using only the supplied memories. \
 Answer in as few words as possible — a name, a date, a short phrase. \
 Do not explain. Do not restate the question. \
-If the memories do not contain the answer, reply exactly: I don't know.";
+If the memories do not contain the answer, reply exactly: I don't know. \
+Each memory is prefixed in brackets with the date it was recorded. \
+When the question asks when something happened, resolve relative expressions such as \"last Tuesday\" or \
+\"two weeks ago\" against that bracketed date and answer with an absolute date.";
 
 /// One scored question, written to `per_question.jsonl`.
 ///
@@ -116,11 +130,28 @@ pub struct ScoredQuestion {
     pub temporal_kind: String,
     pub is_abstention_problem: bool,
     pub retrieved_items: usize,
+    /// What the reader was actually shown: every
+    /// [`myelin_core::model::EvidenceItem::value`] in emitted order, labels
+    /// and date stamps included.
+    ///
+    /// Always on, and not a flag. Nothing on disk recorded this before M19,
+    /// so every claim of the form "retrieval found the record and the reader
+    /// failed to use it" was an inference; with it, `V2` in
+    /// `docs/measurements/m19-temporal-resolution.md` is an arithmetic check
+    /// against `data/locomo10.json`. `#[serde(default)]` so the 28 historical
+    /// run artifacts `standing` reads still parse.
+    #[serde(default)]
+    pub evidence: Vec<String>,
     pub memory_query_duration_seconds: f64,
 }
 
 /// Aggregate over one bench run.
-#[derive(Debug, Clone, Serialize)]
+///
+/// `Deserialize` as well as `Serialize`: `myelin-eval standing` reads these
+/// artifacts back off disk, and the five switch fields carry
+/// `#[serde(default)]` because runs written before M13 genuinely lack those
+/// keys.
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BenchRun {
     pub corpus: String,
     pub collection: String,
@@ -129,12 +160,32 @@ pub struct BenchRun {
     pub max_steps: usize,
     /// Which mechanisms produced this run. A run artifact that does not
     /// record that is not reproducible.
+    #[serde(default)]
     pub graph: bool,
+    #[serde(default)]
     pub chronological: bool,
+    #[serde(default)]
     pub question_date: bool,
+    /// M19's mechanisms, mirroring `ComposeConfig::resolve_relative` and
+    /// `ComposeConfig::timeline`. **Both ship on**, and both are recorded on
+    /// every run so a future flip is visible in the artifact rather than only
+    /// in git. Arm B is not here: the date clause became part of
+    /// `READER_SYSTEM`, so every run after M19 carries it and a per-run field
+    /// would only ever say `true`.
+    #[serde(default)]
+    pub resolve_dates: bool,
+    #[serde(default)]
+    pub timeline: bool,
+    /// Which category codes were scored. Empty means every one of them,
+    /// which is what every run before M19 did.
+    #[serde(default)]
+    pub categories: Vec<u8>,
     /// Which column `score` carries, and where the row scores came from.
-    /// `rescored_from` is `None` for a live bench run.
+    /// `rescored_from` is `None` for a live bench run. Empty on a pre-M14
+    /// artifact, which is token F1 by definition.
+    #[serde(default)]
     pub scorer: String,
+    #[serde(default)]
     pub rescored_from: Option<String>,
     pub questions: usize,
     /// Mean token F1 over non-adversarial items (categories 1–4).
@@ -148,11 +199,41 @@ pub struct BenchRun {
     pub query_avg_seconds: f64,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CategoryScore {
     pub category: u8,
     pub count: usize,
     pub mean_score: f64,
+}
+
+/// The switch set for one bench run.
+///
+/// A struct and not seven more positional parameters: [`bench_locomo`]
+/// already carried twelve, and [`RunSpec`] exists in this file for exactly
+/// this reason. `Default` is the all-off arm, which is
+/// `RetrieveConfig::default()` field for field and therefore the path the M9
+/// and M12 baselines exercised.
+#[derive(Debug, Clone, Default)]
+pub struct BenchSwitches {
+    /// Fuse the PPR channel over the phrase↔record graph (M12).
+    pub graph: bool,
+    /// Emit evidence oldest-first instead of `bookend`'s interleave (M13).
+    pub chronological: bool,
+    /// Give LoCoMo's reader a `<today>` reference date (M13).
+    pub question_date: bool,
+    /// Score only these category codes. Empty means all of them.
+    ///
+    /// A stratum arm has to be runnable over 321 or 127 questions rather than
+    /// 1,986 or 500, or M19 does not fit in one GPU window. Filtering happens
+    /// **before** retrieval, so a skipped question costs nothing.
+    pub categories: Vec<u8>,
+}
+
+impl BenchSwitches {
+    /// Is this question in the scored stratum?
+    fn wants(&self, category: u8) -> bool {
+        self.categories.is_empty() || self.categories.contains(&category)
+    }
 }
 
 /// Which column [`ScoredQuestion::score`] carries.
@@ -164,6 +245,17 @@ pub enum Scorer {
     /// Date-aware: [`temporal::temporal_score`] where the gold answer names a
     /// time, token F1 everywhere else.
     Temporal,
+    /// Read verdicts written by `myelin-eval judge` off disk. Rescore-only:
+    /// a live `bench` has no verdicts yet.
+    ///
+    /// It exists because the deterministic scorers are both wrong for
+    /// LongMemEval_S's temporal stratum: only 4 of its 127 golds parse as
+    /// durations (the order questions' golds are event names), and token F1
+    /// credits "Three weeks" against "Two weeks" at 0.5 — the exact failure
+    /// M14 existed to remove. `adapters/paired_ci.py` pairs on the `score`
+    /// field, so a judged comparison needs the verdicts *in* that field.
+    #[value(name = "judge")]
+    Judge,
 }
 
 impl Scorer {
@@ -173,6 +265,7 @@ impl Scorer {
         match self {
             Scorer::TokenF1 => "token_f1",
             Scorer::Temporal => "temporal",
+            Scorer::Judge => "judge",
         }
     }
 }
@@ -240,6 +333,12 @@ pub fn score_one(response: &str, gold: &str, adversarial: bool, scorer: Scorer) 
                 f64::from(u8::from(temporal == 1.0))
             },
         ),
+        // `judge` names no deterministic column: [`rescore_run`] fills it
+        // from `<run>/judge_verdicts.json` and `bench_cmd` refuses the
+        // scorer before any GPU work. Reaching here means a deterministic
+        // function was asked for a judged score, so it reports the
+        // deterministic one it has rather than inventing a verdict.
+        Scorer::Judge => (f1, em_f1),
     };
     Scores {
         score,
@@ -352,9 +451,7 @@ pub async fn bench_locomo(
     mode: Mode,
     max_steps: usize,
     limit: Option<usize>,
-    graph: bool,
-    chronological: bool,
-    question_date: bool,
+    switches: &BenchSwitches,
     scorer: Scorer,
     out_dir: &Path,
 ) -> Result<BenchRun> {
@@ -381,9 +478,13 @@ pub async fn bench_locomo(
     // `Investigator` wraps `&Retriever`, so `--mode investigate --graph`
     // composes with no extra wiring.
     let mut retriever = Retriever::new(&embedder, &store, &ledger).with_config(RetrieveConfig {
-        graph,
+        graph: switches.graph,
+        // `resolve_relative` is NOT overridden: it ships on, and a bench run
+        // that silently disabled the shipped mechanism because a flag
+        // defaulted false would measure a configuration nobody runs. Same
+        // treatment `stamp_valid_time` has had since M13.
         compose: myelin_core::pipeline::compose::ComposeConfig {
-            chronological,
+            chronological: switches.chronological,
             ..Default::default()
         },
         ..Default::default()
@@ -391,12 +492,13 @@ pub async fn bench_locomo(
     if let Some(r) = reranker.as_ref() {
         retriever = retriever.with_reranker(r as &dyn Reranker);
     }
-    if graph {
+    if switches.graph {
         retriever = retriever.with_graph(&graph_index);
     }
 
     let mut scored: Vec<ScoredQuestion> = Vec::new();
     let mut latencies: Vec<f64> = Vec::new();
+    let system = READER_SYSTEM;
 
     'outer: for conv in &conversations {
         let tenant = format!("locomo/{}", conv.sample_id);
@@ -419,9 +521,15 @@ pub async fn bench_locomo(
         let today = conv
             .sessions
             .iter()
-            .filter_map(|s| s.date_time.as_deref().and_then(parse_locomo_time))
+            .filter_map(|s| s.date_time.as_deref().and_then(parse_session_time))
             .max();
         for (i, qa) in conv.qa.iter().enumerate() {
+            // Before retrieval, so a stratum arm costs nothing for the
+            // questions it skips. `question_id` keeps the *unfiltered* index
+            // `i`, so `paired_ci.py` pairs a stratum run against a full run.
+            if !switches.wants(qa.category) {
+                continue;
+            }
             if let Some(n) = limit {
                 if scored.len() >= n {
                     break 'outer;
@@ -469,7 +577,7 @@ pub async fn bench_locomo(
                 .map(|(n, it)| format!("[{n}] {}", it.value))
                 .collect::<Vec<_>>()
                 .join("\n");
-            let user = match today.filter(|_| question_date) {
+            let user = match today.filter(|_| switches.question_date) {
                 // The same `<today>` tag and the same ISO format the
                 // LongMemEval_S prompt already uses, so the two corpora do
                 // not present the date two ways.
@@ -486,7 +594,7 @@ pub async fn bench_locomo(
             let response = llm
                 .complete(
                     &CompletionRequest::new(vec![
-                        Message::system(READER_SYSTEM),
+                        Message::system(system),
                         Message::user(user),
                     ])
                     .with_max_tokens(160),
@@ -511,6 +619,7 @@ pub async fn bench_locomo(
                 temporal_kind: s.kind.to_string(),
                 is_abstention_problem: adversarial,
                 retrieved_items: evidence.items.len(),
+                evidence: evidence.items.iter().map(|i| i.value.clone()).collect(),
                 memory_query_duration_seconds: elapsed,
             });
         }
@@ -523,9 +632,7 @@ pub async fn bench_locomo(
             mode,
             k,
             max_steps,
-            graph,
-            chronological,
-            question_date,
+            switches: switches.clone(),
             scorer,
             rescored_from: None,
         },
@@ -557,14 +664,15 @@ pub async fn bench_longmemeval_s(
     mode: Mode,
     max_steps: usize,
     limit: Option<usize>,
-    graph: bool,
-    chronological: bool,
-    question_date: bool,
+    switches: &BenchSwitches,
     scorer: Scorer,
     out_dir: &Path,
 ) -> Result<BenchRun> {
     let cfg = MyelinConfig::load().context("load myelin config")?;
     let mut items = longmemeval::load(dataset).context("load longmemeval_s")?;
+    // Stratum before `--limit`: truncating the 500 to N and *then* filtering
+    // would leave a handful of rows for a 127-question stratum.
+    items.retain(|it| switches.wants(question_type_code(&it.question_type)));
     if let Some(n) = limit {
         items.truncate(n);
     }
@@ -582,9 +690,9 @@ pub async fn bench_longmemeval_s(
     // See `bench_locomo`: one config, always passed, so the all-off arm is
     // `RetrieveConfig::default()` field for field.
     let mut retriever = Retriever::new(&embedder, &store, &ledger).with_config(RetrieveConfig {
-        graph,
+        graph: switches.graph,
         compose: myelin_core::pipeline::compose::ComposeConfig {
-            chronological,
+            chronological: switches.chronological,
             ..Default::default()
         },
         ..Default::default()
@@ -592,12 +700,13 @@ pub async fn bench_longmemeval_s(
     if let Some(r) = reranker.as_ref() {
         retriever = retriever.with_reranker(r as &dyn Reranker);
     }
-    if graph {
+    if switches.graph {
         retriever = retriever.with_graph(&graph_index);
     }
 
     let mut scored: Vec<ScoredQuestion> = Vec::new();
     let mut latencies: Vec<f64> = Vec::new();
+    let system = READER_SYSTEM;
 
     for item in &items {
         let adversarial = item.is_abstention();
@@ -645,7 +754,7 @@ pub async fn bench_longmemeval_s(
         let response = llm
             .complete(
                 &CompletionRequest::new(vec![
-                    Message::system(READER_SYSTEM),
+                    Message::system(system),
                     Message::user(format!(
                         "<memories>\n{context}\n</memories>\n<today>\n{}\n</today>\n<question>\n{}\n</question>",
                         item.question_date, item.question
@@ -673,6 +782,7 @@ pub async fn bench_longmemeval_s(
             temporal_kind: s.kind.to_string(),
             is_abstention_problem: adversarial,
             retrieved_items: evidence.items.len(),
+            evidence: evidence.items.iter().map(|i| i.value.clone()).collect(),
             memory_query_duration_seconds: elapsed,
         });
     }
@@ -684,9 +794,7 @@ pub async fn bench_longmemeval_s(
             mode,
             k,
             max_steps,
-            graph,
-            chronological,
-            question_date,
+            switches: switches.clone(),
             scorer,
             rescored_from: None,
         },
@@ -720,9 +828,9 @@ pub struct RunSpec {
     pub mode: Mode,
     pub k: usize,
     pub max_steps: usize,
-    pub graph: bool,
-    pub chronological: bool,
-    pub question_date: bool,
+    /// Which mechanisms were on. Carried whole rather than field by field:
+    /// this list has grown at every milestone since M12.
+    pub switches: BenchSwitches,
     pub scorer: Scorer,
     pub rescored_from: Option<String>,
 }
@@ -782,9 +890,14 @@ fn finish_run(
         },
         k: spec.k,
         max_steps: spec.max_steps,
-        graph: spec.graph,
-        chronological: spec.chronological,
-        question_date: spec.question_date,
+        graph: spec.switches.graph,
+        chronological: spec.switches.chronological,
+        question_date: spec.switches.question_date,
+        // Read off the shipped defaults rather than switches: `bench` no
+        // longer overrides either, so this is what the run actually used.
+        resolve_dates: myelin_core::pipeline::compose::ComposeConfig::default().resolve_relative,
+        timeline: myelin_core::pipeline::compose::ComposeConfig::default().timeline,
+        categories: spec.switches.categories.clone(),
         scorer: spec.scorer.slug().to_string(),
         rescored_from: spec.rescored_from.clone(),
         questions: scored.len(),
@@ -832,6 +945,15 @@ pub fn rescore_run(source: &Path, out_dir: &Path, scorer: Scorer) -> Result<Benc
     let text = std::fs::read_to_string(&rows_path)
         .with_context(|| format!("read {}", rows_path.display()))?;
 
+    // `--scorer judge` reports what the judge said, so the verdicts have to
+    // be on disk before a single row is scored: failing half way through
+    // would leave a directory whose `scorer: "judge"` is a claim nothing
+    // backs.
+    let verdicts = match scorer {
+        Scorer::Judge => Some(read_judge_file(source)?),
+        _ => None,
+    };
+
     let mut scored: Vec<ScoredQuestion> = Vec::new();
     let mut latencies: Vec<f64> = Vec::new();
     for line in text.lines().filter(|l| !l.trim().is_empty()) {
@@ -846,14 +968,30 @@ pub fn rescore_run(source: &Path, out_dir: &Path, scorer: Scorer) -> Result<Benc
                 source.display()
             )
         })?;
+        // The deterministic columns are recomputed under token F1 whatever
+        // the reported scorer is, so `score_token_f1` and `score_temporal`
+        // stay readable on a judged artifact too.
         let s = score_one(
             &row.response_raw,
             &row.answer_gold,
             row.is_abstention_problem,
-            scorer,
+            if scorer == Scorer::Judge {
+                Scorer::TokenF1
+            } else {
+                scorer
+            },
         );
-        row.score = s.score;
-        row.exact_match = s.exact;
+        row.score = match &verdicts {
+            Some(judge) => judged_score(judge, &row)?,
+            None => s.score,
+        };
+        row.exact_match = match &verdicts {
+            // A judged verdict is already 0/1: "exactly right" and "right"
+            // are the same claim, so reporting a separate exact match would
+            // be a second, unbacked number.
+            Some(_) => row.score,
+            None => s.exact,
+        };
         row.score_token_f1 = s.token_f1;
         row.score_temporal = s.temporal;
         row.temporal_kind = s.kind.to_string();
@@ -894,15 +1032,69 @@ pub fn rescore_run(source: &Path, out_dir: &Path, scorer: Scorer) -> Result<Benc
         },
         k: count("k"),
         max_steps: count("max_steps"),
-        graph: flag("graph"),
-        chronological: flag("chronological"),
-        question_date: flag("question_date"),
+        // Read back rather than defaulted: a rescored artifact that forgot
+        // which mechanisms produced its rows would break every later
+        // comparison against the run it came from.
+        switches: BenchSwitches {
+            graph: flag("graph"),
+            chronological: flag("chronological"),
+            question_date: flag("question_date"),
+            categories: metrics
+                .get("categories")
+                .and_then(serde_json::Value::as_array)
+                .map(|a| {
+                    a.iter()
+                        .filter_map(serde_json::Value::as_u64)
+                        .filter_map(|n| u8::try_from(n).ok())
+                        .collect()
+                })
+                .unwrap_or_default(),
+        },
         scorer,
         rescored_from: Some(source.display().to_string()),
     };
     // Row order is preserved, so `paired_ci.py`'s id intersection pairs a
     // rescored run against its source or another rescored run unchanged.
     finish_run(&spec, scored, latencies, out_dir)
+}
+
+/// Load `<run>/judge_verdicts.json`, naming the command that writes it.
+fn read_judge_file(run: &Path) -> Result<crate::judge::JudgeFile> {
+    let path = run.join("judge_verdicts.json");
+    let text = std::fs::read_to_string(&path).with_context(|| {
+        format!(
+            "{} has no judge_verdicts.json; run `myelin-eval judge --run {}` first",
+            run.display(),
+            run.display()
+        )
+    })?;
+    serde_json::from_str(&text).with_context(|| format!("parse {}", path.display()))
+}
+
+/// One row's judged score.
+///
+/// A missing verdict is **not** a zero. [`crate::judge`] never sends an
+/// adversarial item or a declined answer to the judge, and both of those are
+/// scored by the same deterministic rule `score_one` uses. A missing verdict
+/// on an *answered* answerable row means the judge never saw it, and scoring
+/// it as wrong would report a number the judge did not produce — so it is a
+/// hard error naming the id, matching `standing::judged`'s
+/// `IncompleteArtifact` rule.
+fn judged_score(judge: &crate::judge::JudgeFile, row: &ScoredQuestion) -> Result<f64> {
+    let declined = is_abstention(&row.response_raw);
+    if row.is_abstention_problem {
+        return Ok(f64::from(u8::from(declined)));
+    }
+    match judge.verdicts.get(&row.question_id) {
+        Some(v) => Ok(f64::from(u8::from(*v == 1))),
+        None if declined => Ok(0.0),
+        None => anyhow::bail!(
+            "question {} was answered but has no verdict from judge {}; \
+             re-run `myelin-eval judge` over the whole run before rescoring",
+            row.question_id,
+            judge.model
+        ),
+    }
 }
 
 #[cfg(test)]
@@ -955,5 +1147,105 @@ mod tests {
         assert_eq!(gold_answer(Some(&json!(7))), "7");
         assert_eq!(gold_answer(None), "");
         assert_eq!(gold_answer(Some(&serde_json::Value::Null)), "");
+    }
+
+    /// A run directory with three rows and one verdict, for the judged
+    /// rescore path.
+    fn fixture_run(dir: &Path, verdicts: &[(&str, u8)]) {
+        std::fs::create_dir_all(dir).unwrap();
+        let row = |id: &str, response: &str, adversarial: bool| {
+            serde_json::json!({
+                "question_id": id,
+                "tenant": "locomo/t",
+                "category": 2,
+                "question_text": "when?",
+                "answer_gold": "June 2023",
+                "response_raw": response,
+                "score": 0.0,
+                "exact_match": 0.0,
+                "is_abstention_problem": adversarial,
+                "retrieved_items": 6,
+                "memory_query_duration_seconds": 1.0,
+            })
+            .to_string()
+        };
+        let rows = [
+            row("answered", "2023-06-15", false),
+            row("declined", "I don't know", false),
+            row("adversarial", "I don't know", true),
+        ];
+        std::fs::write(dir.join("per_question.jsonl"), rows.join("\n")).unwrap();
+        std::fs::write(
+            dir.join("aggregated_metrics.json"),
+            serde_json::json!({"corpus": "locomo", "collection": "c", "mode": "recall", "k": 6})
+                .to_string(),
+        )
+        .unwrap();
+        let map: std::collections::BTreeMap<String, u8> = verdicts
+            .iter()
+            .map(|(id, v)| ((*id).to_string(), *v))
+            .collect();
+        std::fs::write(
+            dir.join("judge_verdicts.json"),
+            serde_json::to_string(&crate::judge::JudgeFile {
+                model: "test-judge".into(),
+                verdicts: map,
+            })
+            .unwrap(),
+        )
+        .unwrap();
+    }
+
+    /// The judged column reports what the judge said, and the two rows the
+    /// judge never sees are scored by the shared decline rule instead of
+    /// being dropped.
+    #[test]
+    fn the_judge_scorer_reads_verdicts_and_applies_the_decline_rule() {
+        let tmp = tempfile::tempdir().unwrap();
+        let src = tmp.path().join("run");
+        fixture_run(&src, &[("answered", 1)]);
+        let run = rescore_run(&src, &tmp.path().join("out"), Scorer::Judge).unwrap();
+        assert_eq!(run.scorer, "judge");
+
+        let rows: Vec<ScoredQuestion> =
+            std::fs::read_to_string(tmp.path().join("out/per_question.jsonl"))
+                .unwrap()
+                .lines()
+                .map(|l| serde_json::from_str(l).unwrap())
+                .collect();
+        let score = |id: &str| rows.iter().find(|r| r.question_id == id).unwrap().score;
+        assert_eq!(score("answered"), 1.0, "verdict 1 is a point");
+        assert_eq!(score("declined"), 0.0, "a decline on an answerable item");
+        assert_eq!(score("adversarial"), 1.0, "declining an unanswerable one");
+        // The deterministic columns survive a judged rescore, so the artifact
+        // stays readable under either metric.
+        let answered = rows.iter().find(|r| r.question_id == "answered").unwrap();
+        assert_eq!(answered.score_temporal, 1.0);
+        assert_eq!(answered.temporal_kind, "interval");
+    }
+
+    /// An answered row the judge never saw is a hard error, not a zero:
+    /// scoring it wrong would report a number the judge did not produce.
+    #[test]
+    fn an_answered_row_with_no_verdict_is_an_error_naming_the_question() {
+        let tmp = tempfile::tempdir().unwrap();
+        let src = tmp.path().join("run");
+        fixture_run(&src, &[]);
+        let err = rescore_run(&src, &tmp.path().join("out"), Scorer::Judge).unwrap_err();
+        let msg = format!("{err:#}");
+        assert!(msg.contains("answered"), "{msg}");
+        assert!(msg.contains("no verdict"), "{msg}");
+    }
+
+    /// A missing verdicts file names the command that writes it.
+    #[test]
+    fn a_missing_verdicts_file_names_the_judge_command() {
+        let tmp = tempfile::tempdir().unwrap();
+        let src = tmp.path().join("run");
+        fixture_run(&src, &[("answered", 1)]);
+        std::fs::remove_file(src.join("judge_verdicts.json")).unwrap();
+        let err = rescore_run(&src, &tmp.path().join("out"), Scorer::Judge).unwrap_err();
+        let msg = format!("{err:#}");
+        assert!(msg.contains("myelin-eval judge --run"), "{msg}");
     }
 }

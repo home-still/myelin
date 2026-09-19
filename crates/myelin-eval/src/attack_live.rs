@@ -40,6 +40,7 @@ use myelin_core::llm::{CompletionRequest, Llm, Message};
 use myelin_core::pipeline::write::WritePath;
 use myelin_core::store::ledger::Ledger;
 use myelin_core::store::qdrant::QdrantStore;
+use serde::{Deserialize, Serialize};
 
 
 /// One attack: the injected interaction, the query it is aimed at, and the
@@ -410,7 +411,7 @@ sentence. If the memories do not answer it, say you do not know.";
 
 /// One surface form's slice of a condition: the cohort that was measured in
 /// its own scratch store.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FormResult {
     /// 1-based surface form, in [`ATTACKS`]' order within each domain.
     pub form: usize,
@@ -421,7 +422,7 @@ pub struct FormResult {
     pub asr: Vec<(usize, usize)>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Condition {
     pub name: String,
     /// Was legitimate memory written before the poison.
@@ -487,6 +488,13 @@ impl Condition {
     }
 }
 
+/// One `--live` sweep, and the artifact `myelin-eval standing` reads.
+///
+/// Serialised so G3's number is a file rather than a sentence in a
+/// measurement doc: `standing`'s MINJA extractor selects a condition by
+/// `(prepopulated, tier, adjudicated)` and reads `asr` at k=6 out of
+/// `attempted`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AttackRun {
     pub conditions: Vec<Condition>,
     /// The [`ADAPTIVE`] probe, kept out of `conditions` so it can never be

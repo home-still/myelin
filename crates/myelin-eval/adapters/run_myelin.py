@@ -83,6 +83,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--budget-tokens", type=int, default=2048)
     parser.add_argument("--mode", choices=["recall", "investigate"], default="recall")
     parser.add_argument("--max-steps", type=int, default=2)
+    # Retrieval width, recorded only. The server takes these from its own CLI
+    # (`myelin-mcp --prefetch-limit --rerank-depth`); they are written to
+    # `runtime_inputs/memory_config.json` so an operating point is
+    # reproducible from the run directory, which is all `evidence-audit` and
+    # any later comparison read. They are deliberately NOT sent in the
+    # `recall` call: `RecallParams` accepts nothing beyond query, scope, `k`
+    # and `budget_tokens`, and widening that surface widens what the
+    # benchmark's own `tests/test_query_privacy.py` has to guard.
+    parser.add_argument("--prefetch-limit", type=int, default=None)
+    parser.add_argument("--rerank-depth", type=int, default=None)
     parser.add_argument(
         "--tau-abstain",
         type=float,
@@ -173,6 +183,8 @@ def main() -> None:
             "namespace": args.namespace or tier_slug,
             "k": args.k,
             "budget_tokens": args.budget_tokens,
+            "prefetch_limit": args.prefetch_limit,
+            "rerank_depth": args.rerank_depth,
             "tau_abstain": args.tau_abstain,
             "mode": args.mode,
             "max_steps": args.max_steps,

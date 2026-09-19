@@ -26,18 +26,43 @@ use crate::datasets::lmev2;
 use crate::datasets::longmemeval;
 use crate::datasets::locomo::{self, LocomoConversation};
 
-/// LoCoMo timestamps look like `1:56 pm on 8 May, 2023`. A turn with no
-/// parseable time simply has none — the segmenter treats a missing timestamp
-/// as "no gap evidence" rather than inventing one.
+/// Parse a corpus session timestamp.
+///
+/// Two formats, because the two corpora write time two ways and both feed
+/// the same `t_valid`:
+///
+/// - LoCoMo: `1:56 pm on 8 May, 2023`
+/// - LongMemEval_S: `2023/05/20 (Sat) 02:21`
+///
+/// The LongMemEval form was **not handled until M19**, and the cost was not
+/// a missing field: `WritePath` falls back to the ingest time, so all 162,181
+/// records of `longmemeval_s` carried the *build date* as their `t_valid`,
+/// every one of the 500 memories showed the reader `[2026-09-15]` under
+/// `ComposeConfig::stamp_valid_time`, and the 133 temporal-reasoning
+/// questions were being asked of a corpus with no time in it. Found by
+/// M19's `--timeline` arm, whose dated index came out as six entries at
+/// `+0d`. See `docs/measurements/m19-temporal-resolution.md`.
+///
+/// A turn with no parseable time simply has none — the segmenter treats a
+/// missing timestamp as "no gap evidence" rather than inventing one.
 ///
 /// `pub(crate)` because `bench` needs the same cleanup to derive a
 /// conversation's reference date; a second copy of the `" on "`/comma
 /// handling would drift.
-pub(crate) fn parse_locomo_time(s: &str) -> Option<DateTime<Utc>> {
-    let cleaned = s.trim().replace(" on ", " ").replace(',', "");
-    if cleaned.is_empty() {
+pub(crate) fn parse_session_time(s: &str) -> Option<DateTime<Utc>> {
+    let trimmed = s.trim();
+    if trimmed.is_empty() {
         return None;
     }
+    // LongMemEval_S first: its `(Sat)` weekday is redundant with the date
+    // and `%a` will only match it in the right position, so a false positive
+    // is not possible.
+    for fmt in ["%Y/%m/%d (%a) %H:%M", "%Y/%m/%d %H:%M"] {
+        if let Ok(naive) = NaiveDateTime::parse_from_str(trimmed, fmt) {
+            return Some(Utc.from_utc_datetime(&naive));
+        }
+    }
+    let cleaned = trimmed.replace(" on ", " ").replace(',', "");
     // Real LoCoMo always carries a time ("1:56 pm on 8 May, 2023"); the
     // date-only branch is a fallback for corpora that do not.
     for fmt in ["%l:%M %P %d %B %Y", "%I:%M %p %d %B %Y"] {
@@ -59,7 +84,7 @@ pub(crate) fn parse_locomo_time(s: &str) -> Option<DateTime<Utc>> {
 pub fn turns_for(conv: &LocomoConversation) -> Vec<Turn> {
     let mut turns = Vec::new();
     for session in &conv.sessions {
-        let at = session.date_time.as_deref().and_then(parse_locomo_time);
+        let at = session.date_time.as_deref().and_then(parse_session_time);
         for t in &session.turns {
             let mut text = t.text.clone();
             // A shared photo is part of what was said. Dropping the caption
@@ -416,6 +441,14 @@ pub async fn build_longmemeval_s(
         total: WriteStats::default(),
         wall_secs: 0.0,
     };
+    // Resume, exactly as `build_locomo` does. Without this a crash at unit
+    // 341 of 500 costs a full re-walk: the write path is *safe* to repeat
+    // (episode ids are content-derived, so an existing record is a no-op)
+    // but not *cheap* — it re-embeds every episode of every completed
+    // tenant. Measured in M19: 29 s per already-ingested unit, which is 4
+    // hours over the corpus. Completion is a fact about the process, so it
+    // is recorded as an audit event rather than inferred from a row count.
+    let mut resumed = 0usize;
 
     for (qi, item) in items.iter().enumerate() {
         let scope = Scope::new(
@@ -423,6 +456,10 @@ pub async fn build_longmemeval_s(
             "myelin",
             "longmemeval_s",
         );
+        if ledger.unit_is_complete(&scope.tenant).await? {
+            resumed += 1;
+            continue;
+        }
 
         let mut turns = Vec::new();
         for (si, session) in item.haystack_sessions.iter().enumerate() {
@@ -433,7 +470,7 @@ pub async fn build_longmemeval_s(
                 .haystack_dates
                 .as_ref()
                 .and_then(|d| d.get(si))
-                .and_then(|s| parse_locomo_time(s));
+                .and_then(|s| parse_session_time(s));
             let sid = item
                 .haystack_session_ids
                 .as_ref()
@@ -474,8 +511,22 @@ pub async fn build_longmemeval_s(
             );
         }
 
+        ledger
+            .mark_unit_complete(
+                &scope.tenant,
+                &ActorId::new("myelin-eval"),
+                serde_json::json!({
+                    "turns": stats.turns,
+                    "episodes": stats.episodes,
+                    "wall_ms": stats.wall_ms,
+                }),
+            )
+            .await?;
         report.total.merge(&stats);
         report.per_unit.push((item.question_id.clone(), stats));
+    }
+    if resumed > 0 {
+        eprintln!("  resumed: {resumed} of {} units already ingested", items.len());
     }
 
     report.wall_secs = started.elapsed().as_secs_f64();
@@ -536,11 +587,24 @@ mod tests {
     /// its `t_valid` and the temporal questions become unanswerable.
     #[test]
     fn locomo_session_timestamps_parse() {
-        let parsed = parse_locomo_time("1:56 pm on 8 May, 2023").expect("should parse");
+        let parsed = parse_session_time("1:56 pm on 8 May, 2023").expect("should parse");
         assert_eq!(parsed.format("%Y-%m-%d %H:%M").to_string(), "2023-05-08 13:56");
 
-        let midnight = parse_locomo_time("7 May, 2023").expect("date-only should parse");
+        let midnight = parse_session_time("7 May, 2023").expect("date-only should parse");
         assert_eq!(midnight.format("%Y-%m-%d").to_string(), "2023-05-07");
+    }
+
+    /// LongMemEval_S's format, which went unparsed from M6 to M19 and cost
+    /// the whole corpus its `t_valid`: `WritePath` falls back to the ingest
+    /// time, so every memory showed the reader the build date instead of the
+    /// conversation date.
+    #[test]
+    fn longmemeval_session_timestamps_parse() {
+        let parsed = parse_session_time("2023/05/20 (Sat) 02:21").expect("should parse");
+        assert_eq!(parsed.format("%Y-%m-%d %H:%M").to_string(), "2023-05-20 02:21");
+        // The weekday is redundant with the date and is allowed to be absent.
+        let no_day = parse_session_time("2023/05/30 23:40").expect("should parse");
+        assert_eq!(no_day.format("%Y-%m-%d %H:%M").to_string(), "2023-05-30 23:40");
     }
 
     /// An unparseable timestamp must yield `None`, not a fabricated date: a
@@ -548,7 +612,7 @@ mod tests {
     /// reorders the bi-temporal history.
     #[test]
     fn an_unparseable_timestamp_is_none() {
-        assert!(parse_locomo_time("").is_none());
-        assert!(parse_locomo_time("sometime last spring").is_none());
+        assert!(parse_session_time("").is_none());
+        assert!(parse_session_time("sometime last spring").is_none());
     }
 }

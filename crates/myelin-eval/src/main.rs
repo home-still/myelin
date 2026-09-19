@@ -95,20 +95,25 @@ fn mode_slug(mode: Mode) -> &'static str {
 fn bench_out_dir(
     slug: &str,
     mode: Mode,
-    graph: bool,
-    chronological: bool,
-    question_date: bool,
+    switches: &myelin_eval::bench::BenchSwitches,
     scorer: myelin_eval::bench::Scorer,
 ) -> String {
+    let cats = if switches.categories.is_empty() {
+        String::new()
+    } else {
+        let codes: Vec<String> = switches.categories.iter().map(u8::to_string).collect();
+        format!("_cat{}", codes.join(""))
+    };
     format!(
-        "runs/{slug}_{}{}{}{}{}",
+        "runs/{slug}_{}{}{}{}{cats}{}",
         mode_slug(mode),
-        if graph { "_graph" } else { "" },
-        if chronological { "_chrono" } else { "" },
-        if question_date { "_qdate" } else { "" },
+        if switches.graph { "_graph" } else { "" },
+        if switches.chronological { "_chrono" } else { "" },
+        if switches.question_date { "_qdate" } else { "" },
         match scorer {
             myelin_eval::bench::Scorer::TokenF1 => "",
             myelin_eval::bench::Scorer::Temporal => "_temporal",
+            myelin_eval::bench::Scorer::Judge => "_judge",
         }
     )
 }
@@ -116,24 +121,25 @@ fn bench_out_dir(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use myelin_eval::bench::Scorer;
+    use myelin_eval::bench::{BenchSwitches, Scorer};
 
     #[test]
     fn only_token_f1_with_every_switch_off_reaches_the_m9_baseline_path() {
         // `runs/locomo_recall` and `runs/lme_s_recall` are the committed M9
         // artifacts every paired CI is measured against. Exactly one switch
         // set may name them, and it is the one that produced them.
+        let off = BenchSwitches::default();
         assert_eq!(
-            bench_out_dir("locomo", Mode::Recall, false, false, false, Scorer::TokenF1),
+            bench_out_dir("locomo", Mode::Recall, &off, Scorer::TokenF1),
             "runs/locomo_recall"
         );
         assert_eq!(
-            bench_out_dir("lme_s", Mode::Recall, false, false, false, Scorer::TokenF1),
+            bench_out_dir("lme_s", Mode::Recall, &off, Scorer::TokenF1),
             "runs/lme_s_recall"
         );
         // The post-M14 LoCoMo default must not be one of them.
         assert_eq!(
-            bench_out_dir("locomo", Mode::Recall, false, false, false, Scorer::Temporal),
+            bench_out_dir("locomo", Mode::Recall, &off, Scorer::Temporal),
             "runs/locomo_recall_temporal"
         );
     }
@@ -141,13 +147,51 @@ mod tests {
     #[test]
     fn switch_suffixes_keep_their_fixed_order() {
         assert_eq!(
-            bench_out_dir("locomo", Mode::Recall, true, true, true, Scorer::Temporal),
+            bench_out_dir(
+                "locomo",
+                Mode::Recall,
+                &BenchSwitches {
+                    graph: true,
+                    chronological: true,
+                    question_date: true,
+                    ..Default::default()
+                },
+                Scorer::Temporal
+            ),
             "runs/locomo_recall_graph_chrono_qdate_temporal"
         );
         assert_eq!(
-            bench_out_dir("locomo", Mode::Investigate, false, true, false, Scorer::TokenF1),
+            bench_out_dir(
+                "locomo",
+                Mode::Investigate,
+                &BenchSwitches {
+                    chronological: true,
+                    ..Default::default()
+                },
+                Scorer::TokenF1
+            ),
             "runs/locomo_investigate_chrono"
         );
+    }
+
+    /// A stratum arm never names the full-set path it is measured against.
+    #[test]
+    fn a_stratum_arm_cannot_clobber_the_full_set_path() {
+        let arm = |categories: &[u8]| {
+            bench_out_dir(
+                "locomo",
+                Mode::Recall,
+                &BenchSwitches {
+                    categories: categories.to_vec(),
+                    ..Default::default()
+                },
+                Scorer::Temporal,
+            )
+        };
+        assert_eq!(arm(&[2]), "runs/locomo_recall_cat2_temporal");
+        assert_eq!(arm(&[2, 5]), "runs/locomo_recall_cat25_temporal");
+        // No stratum: the 1,540-question path the baseline owns.
+        assert_eq!(arm(&[]), "runs/locomo_recall_temporal");
     }
 
     #[test]
@@ -275,6 +319,12 @@ enum Command {
         /// carries one; this adds LoCoMo's last session date.
         #[arg(long)]
         question_date: bool,
+        /// Score only these category codes, for a stratum arm. LoCoMo: 1
+        /// multi-hop, 2 temporal, 3 open-domain, 4 single-hop, 5 adversarial.
+        /// LongMemEval_S: 1 ss-user, 2 ss-assistant, 3 ss-preference,
+        /// 4 multi-session, 5 temporal-reasoning, 6 knowledge-update.
+        #[arg(long, value_delimiter = ',')]
+        categories: Option<Vec<u8>>,
         /// Which scorer `score` reports. Both columns are always written on
         /// every row, so a run stays readable under either. Defaults follow
         /// `--corpus`.
@@ -290,6 +340,12 @@ enum Command {
         /// Where scratch ledgers go. Deleted when the run finishes.
         #[arg(long, default_value = "data")]
         ledger_dir: String,
+        /// Where to serialise the `--live` sweep: writes
+        /// `<dir>/attack_live.json`, which is the artifact `standing` reads
+        /// for G3. Without it a 54-minute run leaves nothing on disk but
+        /// stdout.
+        #[arg(long)]
+        out: Option<String>,
     },
     /// Run the injection adjudicator over LoCoMo's real episodes and report
     /// the false-positive rate (M15). Reader only — no store.
@@ -364,8 +420,21 @@ enum Command {
         #[arg(long)]
         limit: Option<usize>,
     },
-    /// Render comparison tables and the Pareto/LAFS report
-    Report,
+    /// Join docs/sota/registry.json against the run artifacts and report where
+    /// we stand, with a comparability verdict per row
+    Standing {
+        #[arg(long, default_value = "docs/sota/registry.json")]
+        registry: String,
+        #[arg(long, default_value = "runs")]
+        runs: String,
+        #[arg(long, default_value = "runs/standing")]
+        out: String,
+        /// Exit non-zero when a `gate: true` row is unsupported or not beaten
+        #[arg(long)]
+        gate: bool,
+        #[arg(long, default_value = ".venv/bin/python")]
+        python: String,
+    },
     /// Package a leaderboard submission
     Package,
 }
@@ -383,7 +452,7 @@ impl Command {
             Command::Rescore { .. } => "rescore",
             Command::Judge { .. } => "judge",
             Command::EvidenceAudit { .. } => "evidence-audit",
-            Command::Report => "report",
+            Command::Standing { .. } => "standing",
             Command::Package => "package",
         }
     }
@@ -439,7 +508,11 @@ async fn main() -> anyhow::Result<()> {
             );
             Ok(())
         }
-        Command::Attack { live, ref ledger_dir } => {
+        Command::Attack {
+            live,
+            ref ledger_dir,
+            ref out,
+        } => {
             let (e3, e5) = myelin_eval::attack::run_offline()?;
             myelin_eval::attack::print_gate_report(&e3, &e5);
             anyhow::ensure!(
@@ -452,10 +525,24 @@ async fn main() -> anyhow::Result<()> {
                 "E5 gate: {} poisoned records admitted at first-party trust",
                 e5.admitted
             );
+            anyhow::ensure!(
+                live || out.is_none(),
+                "--out serialises the --live sweep; the offline E3/E5 gates have \
+                 no per-condition artifact. Pass --live."
+            );
             if live {
                 let run =
                     myelin_eval::attack_live::run(Path::new(ledger_dir), &[3, 6, 10]).await?;
                 myelin_eval::attack_live::print(&run);
+                if let Some(dir) = out {
+                    let dir = Path::new(dir);
+                    std::fs::create_dir_all(dir)
+                        .with_context(|| format!("create {}", dir.display()))?;
+                    let path = dir.join("attack_live.json");
+                    std::fs::write(&path, serde_json::to_string_pretty(&run)?)
+                        .with_context(|| format!("write {}", path.display()))?;
+                    println!("\nwrote {}", path.display());
+                }
             } else {
                 println!("\nE1/E2 skipped (pass --live; they need a GPU and a live store).");
             }
@@ -499,6 +586,7 @@ async fn main() -> anyhow::Result<()> {
             graph,
             chronological,
             question_date,
+            ref categories,
             scorer,
         } => {
             bench_cmd(
@@ -511,9 +599,12 @@ async fn main() -> anyhow::Result<()> {
                 max_steps,
                 limit,
                 out.as_deref(),
-                graph,
-                chronological,
-                question_date,
+                myelin_eval::bench::BenchSwitches {
+                    graph,
+                    chronological,
+                    question_date,
+                    categories: categories.clone().unwrap_or_default(),
+                },
                 scorer,
             )
             .await
@@ -529,6 +620,20 @@ async fn main() -> anyhow::Result<()> {
             limit,
         } => judge_cmd(run, category, limit).await,
         Command::EvidenceAudit { ref run, limit } => evidence_audit_cmd(run, limit).await,
+        Command::Standing {
+            ref registry,
+            ref runs,
+            ref out,
+            gate,
+            ref python,
+        } => myelin_eval::standing::run(
+            Path::new(registry),
+            Path::new(runs),
+            Path::new(out),
+            gate,
+            python,
+        )
+        .map(|_| ()),
         rest => {
             println!("{}: not implemented (milestone M5+)", rest.name());
             Ok(())
@@ -715,9 +820,7 @@ async fn bench_cmd(
     max_steps: usize,
     limit: Option<usize>,
     out: Option<&str>,
-    graph: bool,
-    chronological: bool,
-    question_date: bool,
+    switches: myelin_eval::bench::BenchSwitches,
     scorer: Option<myelin_eval::bench::Scorer>,
 ) -> anyhow::Result<()> {
     let mode = match mode {
@@ -726,8 +829,16 @@ async fn bench_cmd(
         other => anyhow::bail!("--mode must be recall or investigate, got {other:?}"),
     };
     anyhow::ensure!(
-        !(question_date && corpus == BenchCorpus::LongmemevalS),
+        !(switches.question_date && corpus == BenchCorpus::LongmemevalS),
         "--question-date is LoCoMo-only; the LongMemEval_S prompt already carries <today>"
+    );
+    // Before any GPU work: a judged run needs verdicts, and a live `bench`
+    // has none. Discovering that after 50 minutes of reader calls would
+    // throw the run away.
+    anyhow::ensure!(
+        scorer != Some(myelin_eval::bench::Scorer::Judge),
+        "--scorer judge is rescore-only: run bench, then judge --run <out>, \
+         then rescore --run <out> --scorer judge"
     );
     let d = corpus.defaults();
     let dataset = dataset.unwrap_or(d.dataset);
@@ -735,7 +846,7 @@ async fn bench_cmd(
     let ledger = ledger.unwrap_or(d.ledger);
     let scorer = scorer.unwrap_or(d.scorer);
     let owned_out = out.map_or_else(
-        || bench_out_dir(d.slug, mode, graph, chronological, question_date, scorer),
+        || bench_out_dir(d.slug, mode, &switches, scorer),
         str::to_string,
     );
     let out = owned_out.as_str();
@@ -750,9 +861,7 @@ async fn bench_cmd(
                 mode,
                 max_steps,
                 limit,
-                graph,
-                chronological,
-                question_date,
+                &switches,
                 scorer,
                 Path::new(out),
             )
@@ -767,9 +876,7 @@ async fn bench_cmd(
                 mode,
                 max_steps,
                 limit,
-                graph,
-                chronological,
-                question_date,
+                &switches,
                 scorer,
                 Path::new(out),
             )

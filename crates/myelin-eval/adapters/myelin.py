@@ -33,7 +33,9 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 import threading
+import time
 import urllib.error
 import urllib.request
 from typing import Any
@@ -152,7 +154,41 @@ class _McpSession:
         # server refuses tool calls until it has been sent.
         self._post({"jsonrpc": "2.0", "method": "notifications/initialized", "params": {}})
 
+    # Reads are idempotent, so a failed `tools/call` is retried a bounded
+    # number of times. This is harness plumbing, not a change to the system
+    # under test: `recall`/`investigate` are pure functions of the store and
+    # the query, and nothing here is retried that succeeded.
+    #
+    # It exists because the reader and reranker on `big` are reachable only
+    # through an SSH tunnel (the host firewalls those ports), and one
+    # `Connection reset by peer` on that tunnel killed a 240-question run at
+    # question 97d5309a after 14 minutes — `harness.py` raises
+    # `Prompt building failed for question ...` on the first exception. The
+    # retry is logged to stderr so a run's log shows how often it fired; a
+    # retried question's `memory_query_duration_seconds` includes the wait.
+    CALL_ATTEMPTS = 3
+    CALL_BACKOFF_SECONDS = 2.0
+
     def call_tool(self, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+        last: McpError | None = None
+        for attempt in range(1, self.CALL_ATTEMPTS + 1):
+            try:
+                return self._call_tool_once(name, arguments)
+            except McpError as exc:
+                last = exc
+                if attempt == self.CALL_ATTEMPTS:
+                    break
+                delay = self.CALL_BACKOFF_SECONDS * attempt
+                print(
+                    f"myelin adapter: {name} attempt {attempt}/{self.CALL_ATTEMPTS} "
+                    f"failed ({exc}); retrying in {delay:.0f}s",
+                    file=sys.stderr,
+                    flush=True,
+                )
+                time.sleep(delay)
+        raise McpError(f"{name}: {self.CALL_ATTEMPTS} attempts failed; last: {last}")
+
+    def _call_tool_once(self, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         result = self._rpc("tools/call", {"name": name, "arguments": arguments})
         if result.get("isError"):
             raise McpError(f"{name}: {result.get('content')}")
@@ -182,10 +218,16 @@ class MyelinMemory(Memory):
     | `max_steps` | `2` | `investigate` only: iteration cap |
     | `tau_abstain` | `None` | withhold evidence below this rerank score |
     | `timeout` | `120.0` | per-call seconds |
+    | `prefetch_limit` | `None` | recorded only; set on the server's CLI |
+    | `rerank_depth` | `None` | recorded only; set on the server's CLI |
 
     `tenant` is required and has no default on purpose. The whole point of a
     per-domain build is that a `web` question must not be answered from the
     `enterprise` memory, and a defaulted tenant is how that silently happens.
+
+    `prefetch_limit` and `rerank_depth` are read by nothing here. They are
+    carried in the manifest so a run directory names the candidate-pool width
+    the server was started with, since `recall` takes no such argument.
     """
 
     memory_type = "myelin"
