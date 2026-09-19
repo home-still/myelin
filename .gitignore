@@ -33,3 +33,11 @@ crates/myelin-eval/adapters/.judge_cache.json
 
 data/longmemeval_s.json
 data/*.ledger
+
+# Scratch: sweep/probe working dirs, never part of a milestone.
+/tmp_local/
+tmp/
+
+# Per-run prompt/answer dumps: 20-30 MB each, regenerable from the run's config.
+runs/**/prompt_rows.jsonl
+runs/**/per_question.jsonl
