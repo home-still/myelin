@@ -23,13 +23,18 @@ Two distinct problems, and they are usually conflated:
 
 Plus two non-accuracy gates: `lafs_gain > 0` (currently exactly **0.00** — both our operating points are
 dominated by the reference frontier's fastest, 51.0 @ 0.2 s) and MINJA defended ASR ≤ 10% (currently
-**12.50%**, one attack out of 40).
+**12.50% [5.5–26.1]**, five attacks out of 40 at k=6 — the figure `standing` reads from
+`runs/attack_live_m18/attack_live.json`; M15's earlier run of the same condition measured 6/40 = 15.0%
+[7.1–29.1], and both are above the bar).
 
-**(b) Being *allowed* to claim it.** Of 30 registry comparisons, **20 carry a judge-class caveat** and
-**exactly one is claimable** (GAM's LoCoMo token F1, +13.15). Our grader is a local Qwen3.5-9B; theirs are
-GPT-4o-mini, GPT-4.1-mini, GPT-5.2 and Claude Sonnet 4. `standing`'s rule refuses `claim_allowed` across
-judge classes, and that refusal is correct — it is also why **a perfect system here still could not claim
-SOTA today**. Problem (b) is at least as important as (a) and is much cheaper to solve. It is RQ1.
+**(b) Being *allowed* to claim it.** Of 30 registry comparisons, **20 come back `caveat-judge`** — our
+grader's class differs from the paper's — and **exactly one is claimable** (GAM's LoCoMo token F1, `+13.15`).
+(24 of the 30 published rows are scored by a frontier-API judge; the other 20/30 figure is the *verdict*
+count in `runs/standing/standing.json`, which is the number this paragraph is about.)
+Our grader is a local Qwen3.5-9B; theirs are GPT-4o-mini, GPT-4.1-mini, GPT-5.2 and Claude Sonnet 4.
+`standing`'s rule refuses `claim_allowed` across judge classes, and that refusal is correct — it is also why
+**a perfect system here still could not claim SOTA today**. Problem (b) is at least as important as (a) and
+is much cheaper to solve. It is RQ1.
 
 ---
 
@@ -113,7 +118,7 @@ informative as the wins and the reviewer should treat them as closed:
 | chronological evidence order | coin flip: 668 answers change, 208 better / 211 worse | M13 |
 | `<today>` in the prompt | +0.2 on the target stratum; real gain is +3.1 abstention | M13 |
 | date-aware scorer (instrument, not mechanism) | token F1 was *inflating* LoCoMo temporal by 8.03 | M14 |
-| injection adjudicator | ASR 77.5% → 12.5%, still misses the ≤10% gate | M15 |
+| injection adjudicator | ASR 77.5% → 12.50% [5.5–26.1] (5/40, k=6; M15 measured 6/40), still misses the ≤10% gate | M15, re-run M18 |
 | wider evidence (`k = 25`) on LongMemEval temporal | +3.8, CI spans zero | M19 |
 | `investigate max_steps = 2` on LongMemEval temporal | **exactly 0.0**, at 6.5× latency | M19 |
 | reader-side prompt instruction to resolve dates | +14.3 alone, but only +5.2 on top of doing it in memory | M19 |
@@ -225,7 +230,9 @@ leaderboard's own `compute_lafs.py` (already wired via `adapters/lafs_point.py`)
 
 ### RQ8 — Closing 12.5% → ≤10% ASR without a false-positive cost
 Known: undefended 77.5% (MINJA reports 76.80 — we are exactly as poisonable as the literature's victims),
-defended 12.5% [Wilson 5.5–26.1], 0/550 false positives on real LoCoMo episodes, and **every surviving
+defended 12.50% [Wilson 5.5–26.1] (5/40 at k=6, `runs/attack_live_m18`; M15's run of the same condition
+gave 6/40 = 15.0% [7.1–29.1], so the gate misses by one to two attacks depending on the run),
+0/550 false positives on real LoCoMo episodes, and **every
 attack is one of two surface forms** (forged audit provenance, negating redirect) whose only defect is being
 false. The ungated adaptive probe — poison with no mechanic at all, only falsehood — is admitted 10/10, which
 M15 argues is the ceiling of any content classifier.

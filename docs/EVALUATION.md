@@ -183,10 +183,12 @@ hybrid BM25+dense with reranking. **That is the specific, identified gap in the 
 Also note **temperature 0.6, not 0**. The reference protocol is stochastic, so single runs are not
 comparable; §5 fixes the statistics.
 
-Two models must be served locally that are not on `big` today **[probed]** — `llama-swap` serves
-`qwen3.8-27b`, `qwen3-vl`, `olmocr`, `glm-ocr`, and ollama has `qwen3:4b/8b`, `qwen3-vl:8b`,
-`gpt-oss-20b-heretic`, `qwen2.5:7b`, `bge-m3`. Neither `Qwen3.5-9B` nor `Qwen3-Embedding-8B` is present.
-Adding them is a prerequisite task, and `skill://serve-gguf-on-big` is the procedure.
+The pinned models are now served on `big` **[probed]** — `Qwen3.5-9B` (the reader, served by
+`llama.cpp` at `:5810`) and `bge-reranker-v2-m3` (the cross-encoder, at `:5813`). `Qwen3-Embedding-8B` is
+served only when `MYELIN_EMBEDDER=qwen` (the M4 ablation); the default dense embedder is `bge-m3` via ollama
+(`:11434`). `llama-swap` also serves `qwen3.8-27b`, `qwen3-vl`, `olmocr`, `glm-ocr`, and ollama has
+`qwen3:4b/8b`, `qwen3-vl:8b`, `gpt-oss-20b-heretic`, `qwen2.5:7b`. Adding a model not already listed is a
+prerequisite task, and `skill://serve-gguf-on-big` is the procedure.
 
 ### 2.6 GPU capacity is the binding constraint — measured
 
@@ -219,6 +221,23 @@ Operational rules that follow, and they are part of the harness, not the README:
 `localhost:11434/v1`, with `olmocr` concurrently holding 13.7 GB, returned **`finish_reason: "tool_calls"`**
 with a well-formed call `recall({"k":1,"query":"cat"})` in 13.7 s **[probed]**. A 9B-class controller
 therefore fits and behaves, alongside another resident model.
+
+---
+
+### 2.7 Ports to forward to `big`
+
+The reader, reranker, and Qdrant gRPC are firewalled (§2.6) and reached via SSH tunnel. Ollama connects
+directly. A tunnel for a full eval run forwards:
+
+| port | service | engine |
+|---|---|---|
+| 5810 | reader (OpenAI-compatible `/v1`) | llama.cpp `llama-server` |
+| 5813 | reranker / cross-encoder | llama.cpp `llama-server` `--reranking` |
+| 6334 | Qdrant gRPC | qdrant server |
+| 11434 | ollama (default embedder `bge-m3`) | ollama |
+
+`5811` (the Qwen3-Embedding-8B embedder) starts only when `MYELIN_EMBEDDER=qwen`; forward it too for that
+arm.
 
 ---
 
@@ -415,10 +434,12 @@ use a local open-weights panel and prove it is trustworthy rather than asserting
 2. **Reuse the benchmark authors' published judge prompts verbatim.** Zep's high human correlation came
    from using LongMemEval's own prompts **[paper: arXiv 2501.13956]**.
 3. Position-shuffle each candidate under two orderings and average **[paper: MT-Bench, arXiv 2306.05685]**.
-4. Three judges (`qwen3:8b`, `qwen2.5:7b`, `gpt-oss-20b`), averaged, **with inter-judge Cohen's κ printed
-   next to every number**. EverMemOS's three-blind-judge protocol reaches κ = 0.891 (LoCoMo) and 0.979
-   (LongMemEval) against five human annotators over 25 Q&A pairs each **[paper: arXiv 2601.02163]** — that
-   is the bar.
+4. Two judges — the local Qwen3.5-9B reader plus `gemini-3.1-flash-lite` — over 86 questions, **with
+   inter-judge Cohen's κ printed next to every number**. The measured agreement is raw 95.3%,
+   κ = **0.8813** (`docs/measurements/m9-judge-panel.md`); a quota-limited 12-question third-judge subset
+   adding `gemini-3-flash-preview` is not reportable (κ = 0.7037 at n = 12). EverMemOS's three-blind-judge
+   protocol reaches κ = 0.891 (LoCoMo) and 0.979 (LongMemEval) against five human annotators over 25 Q&A
+   pairs each **[paper: arXiv 2601.02163]** — that is the bar.
 5. Calibrate on 50 gold answers; require ρ ≥ 0.9 against the reference ranking before a full run. **If the
    panel fails calibration, the judge is the finding and the run is void.**
 6. Never mix judge families inside one comparison.

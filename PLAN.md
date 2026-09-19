@@ -822,14 +822,24 @@ web UI — the MCP surface and the eval report are the interfaces.
 
 ## 15. Immediate next step
 
-Two things, in this order.
+M0–M19 are done and committed. `docs/measurements/` carries one file per milestone; the standing table
+against the published literature is `docs/sota/registry.json` + `runs/standing/`.
 
-1. **M0** — scaffold the workspace and turn `docs/research/00-verified-environment.md` §3 into
-   `crates/myelin-core/tests/qdrant_capability.rs`, so the four probe findings become assertions that fail
-   loudly when the environment shifts. The probe code that produced them already exists, is preserved in
-   [`docs/probes/qdrant_capability.rs`](docs/probes/qdrant_capability.rs), and ran green against the live
-   instance this session.
-2. **M2** — serve `Qwen/Qwen3.5-9B` and `Qwen/Qwen3-Embedding-8B` on `big` per
-   `skill://serve-gguf-on-big`. Nothing about G1 can be measured until the pinned reader and embedder exist
-   locally, and the VRAM envelope (§7 of the environment doc) says they only coexist under a
-   `gpu-tenant claim`. Establishing that envelope early de-risks every later milestone.
+**M20 — the preference/persona profile layer.** `docs/measurements/m19-temporal-resolution.md` §10 states
+its arithmetic in full: `single-session-preference` is 30 questions, judged **26.67** against MemPro's
+**80.00**, with 13 of the 30 declined. That is 3.4 points of the remaining 24.40-point LongMemEval gap and
+the largest *relative* deficit on either benchmark, and it is the one large stratum no milestone has
+worked. M19's temporal arms did not move it (+3.3 on n=30, one question), because a preference is not a
+dated fact: it is a disposition that accumulates across sessions, and nothing in the store represents one.
+
+Build the shape PERMA (`10.48550/arXiv.2603.23231`) evaluates and MemMachine
+(`10.48550/arXiv.2604.04853`) and TiMem (`10.48550/arXiv.2601.02845`) implement: a **typed profile record**
+written at consolidation time and always composed, so a preference is retrieved because it is *about the
+user* rather than because it lexically matches the question. Measure it against PERMA, whose copy is
+already converted and indexed (M19 §9, 38 pages).
+
+Two things M19 leaves in place for it. The time machinery now lives in `myelin-core::time`, so a profile
+record can carry *when* a preference held and `resolve_relative` will date the turn that stated it. And the
+write-path date bug is fixed and the corpus re-ingested, so a preference-evolution measurement on
+LongMemEval_S or PERMA is not being asked of a corpus with no time in it — which, had M19 §6 gone
+unnoticed, is exactly what M20 would have done.

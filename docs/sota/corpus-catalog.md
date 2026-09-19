@@ -126,15 +126,27 @@ Acquired via MCP `paper_download` during the sweep (see `docs/sota/concept-catal
 funnel arithmetic). `indexed` = converted + searchable; `pdf-only` = PDF in the store, not yet
 converted — the abstract is still usable from the sweep records (`tmp/lit-sweep/downloads.jsonl`).
 
+**Set B's count is an upper bound on relevant papers.** The sweep's topic filter matched on the
+bare words "memory" and "retrieval", which admitted a long tail of bioinformatics and
+astronomy hits that have nothing to do with agent memory — `10.1038/nmeth.3317` (HISAT, "low
+memory requirements"), `10.1186/1471-2105-10-421` (BLAST+), `10.1093/bioinformatics/btt086`
+(QUAST), `10.1073/pnas.0506580102` (GSEA) and `10.3847/1538-3881/aabc4f` (the Astropy Project)
+are all still in the tables below. They really are in the corpus, so they are listed rather than
+quietly dropped; treat a high-citation row whose title is about genomes or telescopes as filter
+noise, not as a paper the brief needs.
+
+Chunk counts are `embedding.chunks_indexed` read back from the live home-still catalog, one
+`catalog_read` per stem.
+
 ### RQ1 — 129 papers (3 indexed, 126 pdf-only)
 
 **Indexed (searchable):**
 
 | DOI | Title | Cites | Chunks |
 |---|---|---|---|
-| `10.48550/arxiv.2301.05339` | A Comprehensive Review of Data-Driven Co-Speech Gesture Generation | 9 | — |
-| `10.64823/ijcsa.2601002` | Beyond Price and Benchmark: A Cost–Methodology–Fit Framework for Selecting AI Developer Tools, with a Proposed Evaluation Protocol | 0 | — |
-| `10.32604/cmc.2026.081260` | HalluBench: A Multi-LLM Benchmark for Hallucination Evaluation and Reliability Analysis | 0 | — |
+| `10.48550/arxiv.2301.05339` | A Comprehensive Review of Data-Driven Co-Speech Gesture Generation | 9 | 58 |
+| `10.64823/ijcsa.2601002` | Beyond Price and Benchmark: A Cost–Methodology–Fit Framework for Selecting AI Developer Tools, with a Proposed Evaluation Protocol | 0 | 9 |
+| `10.32604/cmc.2026.081260` | HalluBench: A Multi-LLM Benchmark for Hallucination Evaluation and Reliability Analysis | 0 | 1 |
 
 **PDF-only (not yet converted):**
 
@@ -277,45 +289,45 @@ converted — the abstract is still usable from the sweep records (`tmp/lit-swee
 
 | DOI | Title | Cites | Chunks |
 |---|---|---|---|
-| `10.1038/nmeth.3317` | HISAT: a fast spliced aligner with low memory requirements | 22389 | — |
-| `10.1186/1471-2105-10-421` | BLAST+: architecture and applications | 21004 | — |
-| `10.1038/nmeth.3337` | Robust enumeration of cell subsets from tissue expression profiles | 11763 | — |
-| `10.1093/bioinformatics/btt086` | QUAST: quality assessment tool for genome assemblies | 10819 | — |
-| `10.1109/tnnls.2021.3070843` | A Survey on Knowledge Graphs: Representation, Acquisition, and Applications | 2892 | — |
-| `10.21437/interspeech.2012-65` | LSTM neural networks for language modeling | 1995 | — |
-| `10.18653/v1/d18-1259` | HotpotQA: A Dataset for Diverse, Explainable Multi-hop Question Answering | 1763 | — |
-| `10.1007/s11704-026-60308-3` | A Survey of Large Language Models | 1543 | — |
-| `10.1609/aaai.v32i1.11325` | Emotional Chatting Machine: Emotional Conversation Generation with Internal and External Memory | 765 | — |
-| `10.48550/arxiv.2312.10997` | Retrieval-Augmented Generation for Large Language Models: A Survey | 744 | — |
-| `10.48550/arxiv.2201.08239` | LaMDA: Language Models for Dialog Applications | 709 | — |
-| `10.1007/s10462-023-10465-9` | Knowledge Graphs: Opportunities and Challenges | 681 | — |
-| `10.1186/s41687-018-0061-6` | How do patient reported outcome measures (PROMs) support clinician-patient communication and patient care? A realist synthesis | 631 | — |
-| `10.18653/v1/2020.acl-main.412` | Improving Multi-hop Question Answering over Knowledge Graphs using Knowledge Base Embeddings | 514 | — |
-| `10.1021/acs.chemrev.3c00189` | Machine Learning Methods for Small Data Challenges in Molecular Science | 497 | — |
-| `10.18653/v1/n18-1193` | Conversational Memory Network for Emotion Recognition in Dyadic Dialogue Videos | 473 | — |
-| `10.18653/v1/2023.emnlp-main.495` | Active Retrieval Augmented Generation | 443 | — |
-| `10.18653/v1/d19-1242` | PullNet: Open Domain Question Answering with Iterative Retrieval on Knowledge Bases and Text | 333 | — |
-| `10.18653/v1/2022.naacl-main.272` | ColBERTv2: Effective and Efficient Retrieval via Lightweight Late Interaction | 332 | — |
-| `10.18653/v1/2023.acl-long.99` | Precise Zero-Shot Dense Retrieval without Relevance Labels | 307 | — |
-| `10.18653/v1/2023.acl-long.557` | Interleaving Retrieval with Chain-of-Thought Reasoning for Knowledge-Intensive Multi-Step Questions | 290 | — |
-| `10.48550/arxiv.1901.08149` | TransferTransfo: A Transfer Learning Approach for Neural Network Based Conversational Agents | 281 | — |
-| `10.18653/v1/2024.naacl-long.389` | Adaptive-RAG: Learning to Adapt Retrieval-Augmented Large Language Models through Question Complexity | 214 | — |
-| `10.1016/j.inffus.2025.103599` | AI Agents vs. Agentic AI: A Conceptual taxonomy, applications and challenges | 202 | — |
-| `10.18653/v1/2020.findings-emnlp.91` | HybridQA: A Dataset of Multi-Hop Question Answering over Tabular and Textual Data | 202 | — |
-| `10.1109/access.2023.3295776` | Information Retrieval: Recent Advances and Beyond | 139 | — |
-| `10.18653/v1/2022.acl-long.356` | Beyond Goldfish Memory: Long-Term Open-Domain Conversation | 113 | — |
-| `10.18653/v1/2022.acl-long.396` | Subgraph Retrieval Enhanced Model for Multi-hop Knowledge Base Question Answering | 106 | — |
-| `10.1038/s41746-025-01475-8` | Large language model agents can use tools to perform clinical calculations | 41 | — |
-| `10.48550/arxiv.2401.15391` | MultiHop-RAG: Benchmarking Retrieval-Augmented Generation for Multi-Hop Queries | 15 | — |
-| `10.21437/interspeech.2010-97` | Recognition of spontaneous conversational speech using long short-term memory phoneme predictions | 14 | — |
-| `10.1109/icassp.2011.5947543` | Syllabification of conversational speech using Bidirectional Long-Short-Term Memory Neural Networks | 6 | — |
-| `10.5220/0014473600004052` | Agent-as-a-Graph: Knowledge Graph-Based Tool and Agent Retrieval for LLM Multi-Agent Systems | 1 | — |
-| `10.5220/0009892303100317` | Sentiment Polarity Classification of Corporate Review Data with a Bidirectional Long-Short Term Memory (biLSTM) Neural Network Architecture | 1 | — |
-| `10.1145/3078971.3079028` | Utilising High-Level Features in Summarisation of Academic Presentations | 1 | — |
-| `10.5220/0013691900003985` | A Long Short-Term Memory (LSTM) Neural Architecture for Presaging Stock Prices | 0 | — |
-| `10.5220/0013836900004000` | RFG Framework: Retrieval-Feedback-Grounded Multi-Query Expansion | 0 | — |
-| `10.31274/cc-20251215-154` | CoralX.AI: Multi-Hop, Redundancy-Aware Scientific QA via Hybrid Semantic-Graph Retrieval and RAG | 0 | — |
-| `10.5220/0013591900004664` | Optimized Medical Data Storage and Query Retrieval Using Cloud Based Multi Indexing | 0 | — |
+| `10.1038/nmeth.3317` | HISAT: a fast spliced aligner with low memory requirements | 22389 | 14 |
+| `10.1186/1471-2105-10-421` | BLAST+: architecture and applications | 21004 | 13 |
+| `10.1038/nmeth.3337` | Robust enumeration of cell subsets from tissue expression profiles | 11763 | 20 |
+| `10.1093/bioinformatics/btt086` | QUAST: quality assessment tool for genome assemblies | 10819 | 9 |
+| `10.1109/tnnls.2021.3070843` | A Survey on Knowledge Graphs: Representation, Acquisition, and Applications | 2892 | 55 |
+| `10.21437/interspeech.2012-65` | LSTM neural networks for language modeling | 1995 | 7 |
+| `10.18653/v1/d18-1259` | HotpotQA: A Dataset for Diverse, Explainable Multi-hop Question Answering | 1763 | 17 |
+| `10.1007/s11704-026-60308-3` | A Survey of Large Language Models | 1543 | 73 |
+| `10.1609/aaai.v32i1.11325` | Emotional Chatting Machine: Emotional Conversation Generation with Internal and External Memory | 765 | 16 |
+| `10.48550/arxiv.2312.10997` | Retrieval-Augmented Generation for Large Language Models: A Survey | 744 | 57 |
+| `10.48550/arxiv.2201.08239` | LaMDA: Language Models for Dialog Applications | 709 | 53 |
+| `10.1007/s10462-023-10465-9` | Knowledge Graphs: Opportunities and Challenges | 681 | 34 |
+| `10.1186/s41687-018-0061-6` | How do patient reported outcome measures (PROMs) support clinician-patient communication and patient care? A realist synthesis | 631 | 1 |
+| `10.18653/v1/2020.acl-main.412` | Improving Multi-hop Question Answering over Knowledge Graphs using Knowledge Base Embeddings | 514 | 14 |
+| `10.1021/acs.chemrev.3c00189` | Machine Learning Methods for Small Data Challenges in Molecular Science | 497 | 89 |
+| `10.18653/v1/n18-1193` | Conversational Memory Network for Emotion Recognition in Dyadic Dialogue Videos | 473 | 17 |
+| `10.18653/v1/2023.emnlp-main.495` | Active Retrieval Augmented Generation | 443 | 39 |
+| `10.18653/v1/d19-1242` | PullNet: Open Domain Question Answering with Iterative Retrieval on Knowledge Bases and Text | 333 | 16 |
+| `10.18653/v1/2022.naacl-main.272` | ColBERTv2: Effective and Efficient Retrieval via Lightweight Late Interaction | 332 | 31 |
+| `10.18653/v1/2023.acl-long.99` | Precise Zero-Shot Dense Retrieval without Relevance Labels | 307 | 21 |
+| `10.18653/v1/2023.acl-long.557` | Interleaving Retrieval with Chain-of-Thought Reasoning for Knowledge-Intensive Multi-Step Questions | 290 | 27 |
+| `10.48550/arxiv.1901.08149` | TransferTransfo: A Transfer Learning Approach for Neural Network Based Conversational Agents | 281 | 8 |
+| `10.18653/v1/2024.naacl-long.389` | Adaptive-RAG: Learning to Adapt Retrieval-Augmented Large Language Models through Question Complexity | 214 | 30 |
+| `10.1016/j.inffus.2025.103599` | AI Agents vs. Agentic AI: A Conceptual taxonomy, applications and challenges | 202 | 102 |
+| `10.18653/v1/2020.findings-emnlp.91` | HybridQA: A Dataset of Multi-Hop Question Answering over Tabular and Textual Data | 202 | 16 |
+| `10.1109/access.2023.3295776` | Information Retrieval: Recent Advances and Beyond | 139 | 66 |
+| `10.18653/v1/2022.acl-long.356` | Beyond Goldfish Memory: Long-Term Open-Domain Conversation | 113 | 24 |
+| `10.18653/v1/2022.acl-long.396` | Subgraph Retrieval Enhanced Model for Multi-hop Knowledge Base Question Answering | 106 | 17 |
+| `10.1038/s41746-025-01475-8` | Large language model agents can use tools to perform clinical calculations | 41 | 22 |
+| `10.48550/arxiv.2401.15391` | MultiHop-RAG: Benchmarking Retrieval-Augmented Generation for Multi-Hop Queries | 15 | 27 |
+| `10.21437/interspeech.2010-97` | Recognition of spontaneous conversational speech using long short-term memory phoneme predictions | 14 | 1 |
+| `10.1109/icassp.2011.5947543` | Syllabification of conversational speech using Bidirectional Long-Short-Term Memory Neural Networks | 6 | 1 |
+| `10.5220/0014473600004052` | Agent-as-a-Graph: Knowledge Graph-Based Tool and Agent Retrieval for LLM Multi-Agent Systems | 1 | 1 |
+| `10.5220/0009892303100317` | Sentiment Polarity Classification of Corporate Review Data with a Bidirectional Long-Short Term Memory (biLSTM) Neural Network Architecture | 1 | 1 |
+| `10.1145/3078971.3079028` | Utilising High-Level Features in Summarisation of Academic Presentations | 1 | 1 |
+| `10.5220/0013691900003985` | A Long Short-Term Memory (LSTM) Neural Architecture for Presaging Stock Prices | 0 | 1 |
+| `10.5220/0013836900004000` | RFG Framework: Retrieval-Feedback-Grounded Multi-Query Expansion | 0 | 1 |
+| `10.31274/cc-20251215-154` | CoralX.AI: Multi-Hop, Redundancy-Aware Scientific QA via Hybrid Semantic-Graph Retrieval and RAG | 0 | 1 |
+| `10.5220/0013591900004664` | Optimized Medical Data Storage and Query Retrieval Using Cloud Based Multi Indexing | 0 | 1 |
 
 **PDF-only (not yet converted):**
 
@@ -335,7 +347,7 @@ converted — the abstract is still usable from the sweep records (`tmp/lit-swee
 | `10.1561/1500000066` | Explainable Recommendation: A Survey and New Perspectives | 714 |
 | `10.1109/jbhi.2020.2991043` | AI in Medical Imaging Informatics: Current Challenges and Future Directions | 706 |
 | `10.1371/journal.pone.0220116` | Helping patients help themselves: A systematic review of self-management support strategies in primary health care practice | 598 |
-| `10.48550/arxiv.1909.09586` | Understanding LSTM -- a tutorial into Long Short-Term Memory Recurrent\n Neural Networks | 503 |
+| `10.48550/arxiv.1909.09586` | Understanding LSTM -- a tutorial into Long Short-Term Memory Recurrent Neural Networks | 503 |
 | `10.48550/arxiv.2307.06435` | A Comprehensive Overview of Large Language Models | 369 |
 | `10.1038/lsa.2014.3` | Handheld high-throughput plasmonic biosensor using computational on-chip imaging | 356 |
 | `10.1109/icassp.2015.7178826` | Constructing long short-term memory based deep recurrent neural networks for large vocabulary speech recognition | 334 |
@@ -392,13 +404,13 @@ converted — the abstract is still usable from the sweep records (`tmp/lit-swee
 
 | DOI | Title | Cites | Chunks |
 |---|---|---|---|
-| `10.18653/v1/2021.findings-emnlp.320` | Retrieval Augmentation Reduces Hallucination in Conversation | 533 | — |
-| `10.1609/aaai.v38i16.29728` | Benchmarking Large Language Models in Retrieval-Augmented Generation | 374 | — |
-| `10.18653/v1/2023.emnlp-main.322` | Query Rewriting in Retrieval-Augmented Large Language Models | 257 | — |
-| `10.18653/v1/w16-0104` | Open-domain Factoid Question Answering via Knowledge Graph Search | 15 | — |
-| `10.48550/arxiv.2410.10813` | LongMemEval: Benchmarking Chat Assistants on Long-Term Interactive Memory | 3 | — |
-| `10.48550/arxiv.2402.17753` | A controlled embedder swap on LoCoMo, and three arms that could not carry a comparison | 3 | — |
-| `10.18653/v1/2026.eacl-long.15` | H-MEM: Hierarchical Memory for High-Efficiency Long-Term Reasoning in LLM Agents | 2 | — |
+| `10.18653/v1/2021.findings-emnlp.320` | Retrieval Augmentation Reduces Hallucination in Conversation | 533 | 37 |
+| `10.1609/aaai.v38i16.29728` | Benchmarking Large Language Models in Retrieval-Augmented Generation | 374 | 18 |
+| `10.18653/v1/2023.emnlp-main.322` | Query Rewriting in Retrieval-Augmented Large Language Models | 257 | 27 |
+| `10.18653/v1/w16-0104` | Open-domain Factoid Question Answering via Knowledge Graph Search | 15 | 3 |
+| `10.48550/arxiv.2410.10813` | LongMemEval: Benchmarking Chat Assistants on Long-Term Interactive Memory | 3 | 36 |
+| `10.48550/arxiv.2402.17753` | A controlled embedder swap on LoCoMo, and three arms that could not carry a comparison | 3 | 29 |
+| `10.18653/v1/2026.eacl-long.15` | H-MEM: Hierarchical Memory for High-Efficiency Long-Term Reasoning in LLM Agents | 2 | 15 |
 
 **PDF-only (not yet converted):**
 
@@ -407,9 +419,8 @@ converted — the abstract is still usable from the sweep records (`tmp/lit-swee
 | DOI | Title | Cites |
 |---|---|---|
 | `10.1158/2159-8290.cd-12-0095` | The cBio Cancer Genomics Portal: An Open Platform for Exploring Multidimensional Cancer Genomics Data | 15341 |
-| `10.48550/arxiv.1910.10683` | Exploring the Limits of Transfer Learning with a Unified Text-to-Text\n Transformer | 8346 |
-| `10.3847/1538-3881/aabc4f` | The Astropy Project: Building an Open-science Project and Status of the v2.0 Core Package
-                    <sup>*</sup> | 7369 |
+| `10.48550/arxiv.1910.10683` | Exploring the Limits of Transfer Learning with a Unified Text-to-Text Transformer | 8346 |
+| `10.3847/1538-3881/aabc4f` | The Astropy Project: Building an Open-science Project and Status of the v2.0 Core Package | 7369 |
 | `10.1007/s12525-021-00475-2` | Machine learning and deep learning | 2622 |
 | `10.1186/s40537-021-00492-0` | Text Data Augmentation for Deep Learning | 1706 |
 | `10.1109/icassp49357.2023.10095969` | Large-Scale Contrastive Language-Audio Pretraining with Feature Fusion and Keyword-to-Caption Augmentation | 423 |
@@ -444,18 +455,18 @@ converted — the abstract is still usable from the sweep records (`tmp/lit-swee
 
 | DOI | Title | Cites | Chunks |
 |---|---|---|---|
-| `10.1073/pnas.0506580102` | Gene set enrichment analysis: A knowledge-based approach for interpreting genome-wide expression profiles | 49495 | — |
-| `10.1613/jair.301` | Reinforcement Learning: A Survey | 8950 | — |
-| `10.1371/journal.pmed.1001349` | The Long-Term Health Consequences of Child Physical Abuse, Emotional Abuse, and Neglect: A Systematic Review and Meta-Analysis | 3403 | — |
-| `10.15485/1464240` | Inventory of U.S. Greenhouse Gas Emissions and Sinks | 2872 | — |
-| `10.1109/event.2001.938869` | Content-based video retrieval by integrating spatio-temporal and stochastic recognition of events | 64 | — |
-| `10.1007/s11518-023-5561-0` | Narrative Graph: Telling Evolving Stories Based on Event-centric Temporal Knowledge Graph | 15 | — |
-| `10.26599/tst.2024.9010119` | Enhancing Temporal Knowledge Graph for Future Event Prediction with Long-Term Dense Graph | 6 | — |
-| `10.5220/0005178802770284` | A Probabilistic Doxastic Temporal Logic for Reasoning about Beliefs in Multi-agent Systems | 3 | — |
-| `10.5220/0012178200003598` | Mechanical Fault Prediction Based on Event Knowledge Graph | 1 | — |
-| `10.5220/0010652300003064` | Conversation Extraction from Event Logs | 1 | — |
-| `10.3758/bf03197517` | Single-trial free recall from temporal search sets in long-term memory | 1 | — |
-| `10.59350/waswj-nma51` | Harnessing Temporal Dynamics: Advanced Reasoning using Temporal Knowledge Graphs | 0 | — |
+| `10.1073/pnas.0506580102` | Gene set enrichment analysis: A knowledge-based approach for interpreting genome-wide expression profiles | 49495 | 19 |
+| `10.1613/jair.301` | Reinforcement Learning: A Survey | 8950 | 1 |
+| `10.1371/journal.pmed.1001349` | The Long-Term Health Consequences of Child Physical Abuse, Emotional Abuse, and Neglect: A Systematic Review and Meta-Analysis | 3403 | 82 |
+| `10.15485/1464240` | Inventory of U.S. Greenhouse Gas Emissions and Sinks | 2872 | 1 |
+| `10.1109/event.2001.938869` | Content-based video retrieval by integrating spatio-temporal and stochastic recognition of events | 64 | 3 |
+| `10.1007/s11518-023-5561-0` | Narrative Graph: Telling Evolving Stories Based on Event-centric Temporal Knowledge Graph | 15 | 6 |
+| `10.26599/tst.2024.9010119` | Enhancing Temporal Knowledge Graph for Future Event Prediction with Long-Term Dense Graph | 6 | 3 |
+| `10.5220/0005178802770284` | A Probabilistic Doxastic Temporal Logic for Reasoning about Beliefs in Multi-agent Systems | 3 | 1 |
+| `10.5220/0012178200003598` | Mechanical Fault Prediction Based on Event Knowledge Graph | 1 | 1 |
+| `10.5220/0010652300003064` | Conversation Extraction from Event Logs | 1 | 1 |
+| `10.3758/bf03197517` | Single-trial free recall from temporal search sets in long-term memory | 1 | 3 |
+| `10.59350/waswj-nma51` | Harnessing Temporal Dynamics: Advanced Reasoning using Temporal Knowledge Graphs | 0 | 6 |
 
 **PDF-only (not yet converted):**
 
@@ -528,12 +539,12 @@ converted — the abstract is still usable from the sweep records (`tmp/lit-swee
 
 | DOI | Title | Cites | Chunks |
 |---|---|---|---|
-| `10.1177/0269881116636545` | Evidence-based guidelines for treating bipolar disorder: Revised third edition recommendations from the British Association for Psychopharmacology | 1317 | — |
-| `10.4103/0253-7176.155605` | Recovery Model of Mental Illness: A Complementary Approach to Psychiatric Care | 302 | — |
-| `10.1177/1460458215593329` | Designing a spoken dialogue interface to an intelligent cognitive assistant for people with dementia | 85 | — |
-| `10.18653/v1/2024.findings-emnlp.969` | Two Tales of Persona in LLMs: A Survey of Role-Playing and Personalization | 78 | — |
-| `10.18280/ria.380417` | PRMNBR: Personalized Recommendation Model for Next Basket Recommendation Using User’s Long-Term Preference, Short-Term Preference, and Repetition Behaviour | 0 | — |
-| `10.15581/011.91.016` | Laicidad: en diálogo con Francesco D’Agostino | 0 | — |
+| `10.1177/0269881116636545` | Evidence-based guidelines for treating bipolar disorder: Revised third edition recommendations from the British Association for Psychopharmacology | 1317 | 118 |
+| `10.4103/0253-7176.155605` | Recovery Model of Mental Illness: A Complementary Approach to Psychiatric Care | 302 | 6 |
+| `10.1177/1460458215593329` | Designing a spoken dialogue interface to an intelligent cognitive assistant for people with dementia | 85 | 4 |
+| `10.18653/v1/2024.findings-emnlp.969` | Two Tales of Persona in LLMs: A Survey of Role-Playing and Personalization | 78 | 27 |
+| `10.18280/ria.380417` | PRMNBR: Personalized Recommendation Model for Next Basket Recommendation Using User’s Long-Term Preference, Short-Term Preference, and Repetition Behaviour | 0 | 14 |
+| `10.15581/011.91.016` | Laicidad: en diálogo con Francesco D’Agostino | 0 | 1 |
 
 **PDF-only (not yet converted):**
 
@@ -581,12 +592,12 @@ converted — the abstract is still usable from the sweep records (`tmp/lit-swee
 
 | DOI | Title | Cites | Chunks |
 |---|---|---|---|
-| `10.5194/hess-22-6005-2018` | Rainfall–runoff modelling using Long Short-Term Memory (LSTM) networks | 1975 | — |
-| `10.1613/jair.1129` | PDDL2.1: An Extension to PDDL for Expressing Temporal Planning Domains | 1739 | — |
-| `10.1038/npp.2009.126` | The Episodic Memory System: Neurocircuitry and Disorders | 676 | — |
-| `10.1038/npp.2010.169` | Update on Memory Systems and Processes | 217 | — |
-| `10.1016/s0169-023x(02)00207-0` | A formal model for temporal schema versioning in object-oriented databases | 21 | — |
-| `10.5220/0008068101150126` | Memory Nets: Knowledge Representation for Intelligent Agent Operations in Real World | 3 | — |
+| `10.5194/hess-22-6005-2018` | Rainfall–runoff modelling using Long Short-Term Memory (LSTM) networks | 1975 | 34 |
+| `10.1613/jair.1129` | PDDL2.1: An Extension to PDDL for Expressing Temporal Planning Domains | 1739 | 68 |
+| `10.1038/npp.2009.126` | The Episodic Memory System: Neurocircuitry and Disorders | 676 | 13 |
+| `10.1038/npp.2010.169` | Update on Memory Systems and Processes | 217 | 17 |
+| `10.1016/s0169-023x(02)00207-0` | A formal model for temporal schema versioning in object-oriented databases | 21 | 1 |
+| `10.5220/0008068101150126` | Memory Nets: Knowledge Representation for Intelligent Agent Operations in Real World | 3 | 1 |
 
 **PDF-only (not yet converted):**
 
@@ -643,12 +654,12 @@ converted — the abstract is still usable from the sweep records (`tmp/lit-swee
 
 | DOI | Title | Cites | Chunks |
 |---|---|---|---|
-| `10.1145/3578938` | Efficient Deep Learning: A Survey on Making Deep Learning Models Smaller, Faster, and Better | 566 | — |
-| `10.1561/1500000055` | A Survey of Query Auto Completion in Information Retrieval | 140 | — |
-| `10.1371/journal.pone.0224934` | An analytical model to minimize the latency in healthcare internet-of-things in fog computing environment | 116 | — |
-| `10.32920/25536193` | Method and apparatus for accelerating retrieval of data from a memory system with cache by reducing latency | 0 | — |
-| `10.32920/25536193.v1` | Method and apparatus for accelerating retrieval of data from a memory system with cache by reducing latency | 0 | — |
-| `10.63345/jqst.v1i1.27` | Energy-Aware Caching Strategies for Faster Data Retrieval in Low-Latency Pipelines | 0 | — |
+| `10.1145/3578938` | Efficient Deep Learning: A Survey on Making Deep Learning Models Smaller, Faster, and Better | 566 | 49 |
+| `10.1561/1500000055` | A Survey of Query Auto Completion in Information Retrieval | 140 | 1 |
+| `10.1371/journal.pone.0224934` | An analytical model to minimize the latency in healthcare internet-of-things in fog computing environment | 116 | 25 |
+| `10.32920/25536193` | Method and apparatus for accelerating retrieval of data from a memory system with cache by reducing latency | 0 | 1 |
+| `10.32920/25536193.v1` | Method and apparatus for accelerating retrieval of data from a memory system with cache by reducing latency | 0 | 1 |
+| `10.63345/jqst.v1i1.27` | Energy-Aware Caching Strategies for Faster Data Retrieval in Low-Latency Pipelines | 0 | 9 |
 
 **PDF-only (not yet converted):**
 
@@ -668,7 +679,7 @@ converted — the abstract is still usable from the sweep records (`tmp/lit-swee
 | `10.1561/1500000071` | Efficient and Effective Tree-based and Neural Learning to Rank | 19 |
 | `10.48550/arxiv.2504.09984` | On Precomputation and Caching in Information Retrieval Experiments with Pipeline Architectures | 1 |
 | `10.48550/arxiv.2502.01960` | MPIC: Position-Independent Multimodal Context Caching System for Efficient MLLM Serving | 1 |
-| `10.48550/arxiv.2012.11685` | Neural Methods for Effective, Efficient, and Exposure-Aware Information\n Retrieval | 1 |
+| `10.48550/arxiv.2012.11685` | Neural Methods for Effective, Efficient, and Exposure-Aware Information Retrieval | 1 |
 | `10.70382/ajsitr.v12i9.088` | Contamination-Free LLM Routing on LiveBench Reasoning Tasks: Accuracy-Cost-Latency Tradeoff Learning | 0 |
 | `10.56726/irjmets80949` | OPTIMIZING LATENCY AND ACCURACY TRADE-OFFS IN LARGE-SCALE RETRIEVAL-AUGMENTED GENERATION PIPELINES | 0 |
 
@@ -680,11 +691,11 @@ converted — the abstract is still usable from the sweep records (`tmp/lit-swee
 
 | DOI | Title | Cites | Chunks |
 |---|---|---|---|
-| `10.1609/icwsm.v8i1.14550` | VADER: A Parsimonious Rule-Based Model for Sentiment Analysis of Social Media Text | 5984 | — |
-| `10.48550/arxiv.2107.03374` | Evaluating Large Language Models Trained on Code | 1465 | — |
-| `10.18653/v1/2024.eacl-demo.16` | RAGAs: Automated Evaluation of Retrieval Augmented Generation | 456 | — |
-| `10.5220/0009889302250237` | Prov-Trust: Towards a Trustworthy SGX-based Data Provenance System | 7 | — |
-| `10.1145/1600193.1600224` | Geometric consistency checking for local-descriptor based document retrieval | 2 | — |
+| `10.1609/icwsm.v8i1.14550` | VADER: A Parsimonious Rule-Based Model for Sentiment Analysis of Social Media Text | 5984 | 35 |
+| `10.48550/arxiv.2107.03374` | Evaluating Large Language Models Trained on Code | 1465 | 67 |
+| `10.18653/v1/2024.eacl-demo.16` | RAGAs: Automated Evaluation of Retrieval Augmented Generation | 456 | 25 |
+| `10.5220/0009889302250237` | Prov-Trust: Towards a Trustworthy SGX-based Data Provenance System | 7 | 1 |
+| `10.1145/1600193.1600224` | Geometric consistency checking for local-descriptor based document retrieval | 2 | 1 |
 
 **PDF-only (not yet converted):**
 
@@ -729,39 +740,39 @@ converted — the abstract is still usable from the sweep records (`tmp/lit-swee
 
 ## Set C — Anna's Archive paywalled acquisitions (27)
 
-Fetched manually because paywalled (MCP `paper_download` cannot reach them). The
-detailed pipeline story lives in `docs/sota/annas-archive-catalog.md`; this table is the
-canonical roll-up.
+Fetched manually because paywalled (MCP `paper_download` cannot reach them). The pipeline that
+produced them is `tmp/annas/fetch_annas.py` and its log `tmp/annas/results.jsonl`; this table is
+the canonical roll-up.
 
-| DOI | Title | Status | Pages | Chunks |
-|---|---|---|---|---|
-| `10.1016/j.artint.2012.06.001` | (untitled) | indexed | 34 | 47 |
-| `10.1016/j.jbi.2013.08.010` | (untitled) | indexed | 7 | 16 |
-| `10.1016/j.jbi.2013.09.007` | (untitled) | indexed | 9 | 17 |
-| `10.1016/j.jbusres.2016.08.001` | (untitled) | indexed | 24 | 46 |
-| `10.1016/j.jksuci.2016.10.003` | (untitled) | indexed | 31 | 41 |
-| `10.1016/j.patter.2024.100943` | (untitled) | indexed | 12 | 19 |
-| `10.1109/t-affc.2012.16` | (untitled) | indexed | 19 | 40 |
-| `10.1111/jcpp.12721` | (untitled) | indexed | 13 | 21 |
-| `10.1111/joa.12446` | (untitled) | indexed | 26 | 42 |
-| `10.1145/3394486.3403305` | (untitled) | indexed | 9 | 17 |
-| `10.1145/3447772` | (untitled) | indexed | 37 | 46 |
-| `10.1145/3450287` | (untitled) | indexed | 37 | 49 |
-| `10.1145/3569576` | (untitled) | indexed | 37 | 43 |
-| `10.1145/3916.3988` | (untitled) | indexed | 22 | 21 |
-| `10.1152/jn.00005.2017` | (untitled) | indexed | 37 | 24 |
-| `10.1177/0269216318784474` | (untitled) | indexed | 17 | 26 |
-| `10.3390/electronics9050750` | (untitled) | indexed | 29 | 34 |
-| `10.3390/g9030062` | (untitled) | indexed | 19 | 20 |
-| `10.3390/s120811113` | (untitled) | indexed | 41 | 39 |
-| `10.3390/s19030448` | (untitled) | indexed | 25 | 29 |
-| `10.1002/14651858.cd000425.pub4` | (untitled) | pdf-only | 404 | — |
-| `10.1002/hipo.22488` | (untitled) | pdf-only | 116 | — |
-| `10.1016/j.sysarc.2019.02.009` | (untitled) | pdf-only | 50 | — |
-| `10.1080/10447318.2019.1619259` | (untitled) | pdf-only | 42 | — |
-| `10.1080/15622975.2016.1190867` | (untitled) | pdf-only | 54 | — |
-| `10.1152/physrev.00046.2019` | (untitled) | pdf-only | 143 | — |
-| `10.3390/electronics15061263` | (untitled) | pdf-only | 1048 | — |
+| DOI | Title | Cites | Status | Pages | Chunks |
+|---|---|---|---|---|---|
+| `10.1016/j.artint.2012.06.001` | YAGO2: A spatially and temporally enhanced knowledge base from Wikipedia | 1,257 | indexed | 34 | 47 |
+| `10.1016/j.jbi.2013.08.010` | Extraction of events and temporal expressions from clinical narratives | 51 | indexed | 7 | 16 |
+| `10.1016/j.jbi.2013.09.007` | TEMPTING system: A hybrid method of rule and machine learning for temporal relation extraction in patient discharge summaries | 45 | indexed | 9 | 17 |
+| `10.1016/j.jbusres.2016.08.001` | Critical analysis of Big Data challenges and analytical methods | 2,056 | indexed | 24 | 46 |
+| `10.1016/j.jksuci.2016.10.003` | A survey on Internet of Things architectures | 1,172 | indexed | 31 | 41 |
+| `10.1016/j.patter.2024.100943` | Can large language models reason about medical questions? | 294 | indexed | 12 | 19 |
+| `10.1109/t-affc.2012.16` | Affective Body Expression Perception and Recognition: A Survey | 607 | indexed | 19 | 40 |
+| `10.1111/jcpp.12721` | Phase 2 of CATALISE: a multinational and multidisciplinary Delphi consensus study of problems with language development: Terminology | 1,624 | indexed | 13 | 21 |
+| `10.1111/joa.12446` | A review of trabecular bone functional adaptation: what have we learned from trabecular analyses in extant hominoids and what can we apply to fossils? | 243 | indexed | 26 | 42 |
+| `10.1145/3394486.3403305` | Embedding-based Retrieval in Facebook Search | 273 | indexed | 9 | 17 |
+| `10.1145/3447772` | Knowledge Graphs | 1,803 | indexed | 37 | 46 |
+| `10.1145/3450287` | Event Prediction in the Big Data Era | 107 | indexed | 37 | 49 |
+| `10.1145/3569576` | Knowledge Tracing: A Survey | 459 | indexed | 37 | 43 |
+| `10.1145/3916.3988` | Virtual time | 2,419 | indexed | 22 | 21 |
+| `10.1152/jn.00005.2017` | The role of the hippocampus in navigation is memory | 442 | indexed | 37 | 24 |
+| `10.1177/0269216318784474` | Advance care planning: A systematic review about experiences of patients with a life-threatening or life-limiting illness | 261 | indexed | 17 | 26 |
+| `10.3390/electronics9050750` | A Survey on Knowledge Graph Embedding: Approaches, Applications and Benchmarks | 266 | indexed | 29 | 34 |
+| `10.3390/g9030062` | Matrix Games with Interval-Valued 2-Tuple Linguistic Information | 11 | indexed | 19 | 20 |
+| `10.3390/s120811113` | A Survey on Clustering Routing Protocols in Wireless Sensor Networks | 665 | indexed | 41 | 39 |
+| `10.3390/s19030448` | Indexing Multivariate Mobile Data through Spatio-Temporal Event Detection and Clustering | 24 | indexed | 25 | 29 |
+| `10.1002/14651858.cd000425.pub4` | Speech and language therapy for aphasia following stroke | 1,152 | pdf-only | 404 | — |
+| `10.1002/hipo.22488` | Hippocampal sharp wave‐ripple: A cognitive biomarker for episodic memory and planning | 1,921 | pdf-only | 116 | — |
+| `10.1016/j.sysarc.2019.02.009` | All one needs to know about fog computing and related edge computing paradigms: A complete survey | 1,367 | pdf-only | 50 | — |
+| `10.1080/10447318.2019.1619259` | Seven HCI Grand Challenges | 516 | pdf-only | 42 | — |
+| `10.1080/15622975.2016.1190867` | Biological markers for anxiety disorders, OCD and PTSD: A consensus statement. Part II: Neurochemistry, neurophysiology and neurocognition | 343 | pdf-only | 54 | — |
+| `10.1152/physrev.00046.2019` | Brain mechanisms of insomnia: new perspectives on causes and consequences | 552 | pdf-only | 143 | — |
+| `10.3390/electronics15061263` | A Query-Driven Graph Retrieval Framework with Adaptive Pruning for Multi-Hop Question Answering | 2 | pdf-only | 1048 | — |
 
 ---
 
@@ -784,8 +795,8 @@ canonical roll-up.
 
 - Sweep queries and funnel: `tmp/lit-sweep/` (`queries.json`, `downloads.jsonl`,
   `classified.json`, `filter.py`).
-- Anna's Archive fetch log: `tmp/annas/results.jsonl`; browser-driven flow described in
-  `docs/sota/annas-archive-catalog.md`.
+- Anna's Archive fetch: driver `tmp/annas/fetch_annas.py`, log `tmp/annas/results.jsonl`
+  (plus `fetched.jsonl` and `scihub-fetched.jsonl` for the two fallback routes).
 - Semantic-search harvest that produced Set A: 15 queries (3–4 per RQ theme) × top-30, log in
   `tmp/annas/semantic_hits.json`. Titles in Set A rows come from the search index; where a
   title is missing the stem is the identifier of record.

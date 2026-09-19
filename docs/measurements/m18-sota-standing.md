@@ -15,15 +15,16 @@ verbatim quote with line numbers), judged columns on both G2 runs, a serialised 
 
 ## Verdict
 
-**All five gates fail, every one of them on quality rather than on a missing artifact, and only one of the 25
+**All five gates fail, every one of them on quality rather than on a missing artifact, and only one of the 30
 published claims is beaten.** `myelin-eval standing --gate` exits 1. That is the headline, and the useful
 detail is in the shape of the failures:
 
-- **Two rows of 25 are `comparable` with no caveat at all.** GAM's LoCoMo token F1 (40.00 macro-mean, Qwen2.5-7B
+- **Two rows of 30 are `comparable` with no caveat at all.** GAM's LoCoMo token F1 (40.00 macro-mean, Qwen2.5-7B
   backbone, deterministic scorer) against our 53.15 — `+13.15`, the only row in the table where
   `claim: yes` — and the G3 gate row, where neither side has a judge. Everything else carries a caveat or
-  refuses comparison.
-- **Seventeen rows are `caveat-judge`, and that single fact is the largest structural obstacle to a SOTA
+  refuses comparison. The full verdict census of `runs/standing/standing.json`: 20 `caveat-judge`,
+  4 `caveat-backbone`, 2 `comparable`, 2 `not-comparable(source)`, 2 `missing-artifact`.
+- **Twenty rows are `caveat-judge`, and that single fact is the largest structural obstacle to a SOTA
   claim.** Every judged accuracy comparison on LoCoMo, LongMemEval_S and LME-V2 has `qwen3.5-9b` on our side
   and `gpt-4o-mini`, `gpt-4.1-mini` or `gpt-5.2` on theirs. M18 removed the *metric* mismatch (token F1 vs
   judge); it could not remove the *grader* mismatch, because no frontier API key exists in this project.
