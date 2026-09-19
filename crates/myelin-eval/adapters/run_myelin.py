@@ -100,6 +100,21 @@ def parse_args() -> argparse.Namespace:
         help="Withhold the evidence set when the best cross-encoder score is below "
         "this, so the reader abstains instead of answering from a bad pool.",
     )
+    parser.add_argument(
+        "--select",
+        action="store_true",
+        help="Ask the model which retrieved candidates jointly answer the question and "
+        "put those first. One extra model call per query, so it is an operating point "
+        "(R4) and never a `recall` default.",
+    )
+    parser.add_argument(
+        "--undated",
+        action="store_true",
+        help="The corpus carries no event timestamps; suppress the date mechanisms "
+        "(stamp_valid_time, resolve_relative, timeline). Required for LME-V2: all "
+        "85,589 of its records carry the ingest timestamp as t_valid because its "
+        "trajectories are agent task logs with no dates.",
+    )
 
     # Reader. Defaults are this project's tunnelled llama-server, not the
     # harness's `localhost:8023`, because a default that points at nothing is
@@ -188,6 +203,13 @@ def main() -> None:
             "tau_abstain": args.tau_abstain,
             "mode": args.mode,
             "max_steps": args.max_steps,
+            # Written unconditionally as booleans, never omitted: these two
+            # are in `standing.rs::PAIR_KEYS`, and a key that appears only
+            # when the flag is set would give one arm a `null` and the other
+            # a `false` for the same configuration, splitting a pair over a
+            # schema difference rather than an operating-point difference.
+            "select": args.select,
+            "dated": not args.undated,
         },
     }
     memory_config_path = runtime_dir / "memory_config.json"

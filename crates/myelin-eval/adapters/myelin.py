@@ -263,6 +263,12 @@ class MyelinMemory(Memory):
         # Abstention gate. None keeps the server's default (off).
         tau = params.get("tau_abstain")
         self.tau_abstain = None if tau is None else float(tau)
+        # Operating-point switches (M22). `select` defaults off; `dated` is
+        # kept as None when absent so a config written before M22 still means
+        # "whatever the server is configured for" rather than asserting a
+        # corpus property the run never decided.
+        self.select = bool(params.get("select", False))
+        self.dated = params.get("dated")
         # R4: the mode is a query-time parameter against one identical
         # store, which is the whole reason a leaderboard submission can
         # present two operating points from one built memory.
@@ -342,6 +348,11 @@ class MyelinMemory(Memory):
             arguments["namespace"] = self.namespace
         if self.tau_abstain is not None:
             arguments["tau_abstain"] = self.tau_abstain
+        # Both tools take both keys, so no branch on `self.mode` is needed.
+        if self.select:
+            arguments["select"] = True
+        if self.dated is not None:
+            arguments["dated"] = bool(self.dated)
         # `query_image` is accepted and ignored for now: the dense channel is
         # text-only (bge-m3), so forwarding a path the server cannot embed
         # would be a lie in the trace. 29 of 451 questions carry one; they are

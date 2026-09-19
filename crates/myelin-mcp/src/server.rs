@@ -123,6 +123,21 @@ pub struct RecallParams {
     /// which is the dominant term in LongMemEval-V2's score.
     #[serde(default)]
     pub tau_abstain: Option<f32>,
+    /// Ask the model which retrieved candidates jointly answer the question and
+    /// put those first. Costs one model call per query, so it is an operating
+    /// point (R4) and never a `recall` default: `PLAN.md` §7.1 pins the fast
+    /// path at "no LLM in the loop".
+    #[serde(default)]
+    pub select: Option<bool>,
+    /// Whether this memory's records carry real event timestamps.
+    ///
+    /// `false` suppresses all three date mechanisms — `stamp_valid_time`,
+    /// `resolve_relative`, `timeline`. LME-V2 needs it: its 85,589 records all
+    /// carry the ingest timestamp as `t_valid` because its trajectories are
+    /// agent task logs with no dates, so the annotations those mechanisms emit
+    /// resolve against a meaningless anchor.
+    #[serde(default)]
+    pub dated: Option<bool>,
 }
 
 /// The `recall` response.
@@ -225,6 +240,7 @@ impl MyelinServer {
         if params.tau_abstain.is_some() {
             retriever.config.tau_abstain = params.tau_abstain;
         }
+        apply_operating_point(&mut retriever.config, params.select, params.dated);
         let (evidence, trace) = retriever.recall(&query).await.map_err(mcp_err)?;
 
         Ok(Json(to_result(evidence, trace)))
@@ -260,8 +276,19 @@ impl MyelinServer {
             kinds: None,
         };
 
-        let retriever = self.retriever();
+        // `select` reaches `InvestigateConfig`, never `RetrieveConfig`: this
+        // loop selects once over its accumulated pool, and a per-probe
+        // selection underneath it is the arrangement M21 measured at +0.0.
+        let mut retriever = self.retriever();
+        apply_operating_point(&mut retriever.config, None, params.dated);
+        let cfg = InvestigateConfig {
+            select_sufficient: params
+                .select
+                .unwrap_or(InvestigateConfig::default().select_sufficient),
+            ..InvestigateConfig::default()
+        };
         let (evidence, trace) = Investigator::new(&self.backend.llm, &retriever)
+            .with_config(cfg)
             .investigate(&query)
             .await
             .map_err(mcp_err)?;
@@ -622,7 +649,34 @@ impl MyelinServer {
         if let Some(reranker) = &self.backend.reranker {
             r = r.with_reranker(reranker);
         }
+        // Unconditional, like `with_reranker`: `RetrieveConfig::select_sufficient`
+        // defaults false, so a wired client is inert until an operating point asks
+        // for it — and wiring it only under the switch is the exact class of failure
+        // M12, M14 and M20 each lost a run to.
+        r = r.with_llm(&self.backend.llm);
         r
+    }
+}
+
+/// Apply the query-time operating-point overrides to a retrieval config.
+///
+/// One function, called from both tools, so `recall` and `investigate` cannot
+/// drift on what an operating point means. `None` is always "keep the
+/// server's configured default" — the same contract `tau_abstain` has.
+///
+/// Takes the config rather than the `Retriever` that owns it so the decision
+/// is testable without an embedder, a live Qdrant and a ledger; the same
+/// reason `investigate.rs::gate_insufficient` is a free function.
+fn apply_operating_point(cfg: &mut RetrieveConfig, select: Option<bool>, dated: Option<bool>) {
+    if let Some(on) = select {
+        cfg.select_sufficient = on;
+    }
+    // Only an explicit `false` suppresses. `None` means the caller said
+    // nothing, and a corpus is dated until someone says it is not.
+    if dated == Some(false) {
+        cfg.compose.stamp_valid_time = false;
+        cfg.compose.resolve_relative = false;
+        cfg.compose.timeline = false;
     }
 }
 
@@ -640,6 +694,17 @@ pub struct InvestigateParams {
     /// possible from one built memory (R4).
     #[serde(default)]
     pub max_steps: Option<usize>,
+    /// Ask the model which of the accumulated pool's records jointly answer
+    /// the question and put those first, once, before `compose` truncates to
+    /// `k`. One extra model call per query on a path that already pays for
+    /// `max_steps` of them.
+    #[serde(default)]
+    pub select: Option<bool>,
+    /// Whether this memory's records carry real event timestamps. `false`
+    /// suppresses `stamp_valid_time`, `resolve_relative` and `timeline`; see
+    /// [`RecallParams::dated`].
+    #[serde(default)]
+    pub dated: Option<bool>,
 }
 
 #[derive(Debug, Serialize, schemars::JsonSchema)]
@@ -971,4 +1036,70 @@ pub struct NeighborsResult {
 #[derive(Debug, Serialize, schemars::JsonSchema)]
 pub struct QuarantineResult {
     pub staged: Vec<QuarantineStub>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// `dated: false` is the whole of the undated-corpus gate, and it has to
+    /// suppress all three date mechanisms rather than the one that is easiest
+    /// to find: LME-V2's 85,589 records all carry the ingest timestamp as
+    /// `t_valid`, so a stamp, a resolved relative expression and a `[timeline]`
+    /// block are each an annotation against a meaningless anchor.
+    #[test]
+    fn undated_suppresses_every_date_mechanism_and_nothing_else() {
+        let mut cfg = RetrieveConfig::default();
+        assert!(cfg.compose.stamp_valid_time, "precondition");
+        assert!(cfg.compose.resolve_relative, "precondition");
+        assert!(cfg.compose.timeline, "precondition");
+
+        apply_operating_point(&mut cfg, None, Some(false));
+
+        assert!(!cfg.compose.stamp_valid_time);
+        assert!(!cfg.compose.resolve_relative);
+        assert!(!cfg.compose.timeline);
+        // Untouched: the gate is about dates, not about width or abstention.
+        assert_eq!(cfg.compose.k, RetrieveConfig::default().compose.k);
+        assert_eq!(cfg.tau_abstain, RetrieveConfig::default().tau_abstain);
+        assert!(!cfg.select_sufficient);
+    }
+
+    /// `None` means "keep the server's configured default", the same contract
+    /// `tau_abstain` has. A parameter that silently changed behaviour when the
+    /// caller omitted it would make every prior run's manifest a lie.
+    #[test]
+    fn an_absent_operating_point_changes_nothing() {
+        let mut cfg = RetrieveConfig::default();
+        apply_operating_point(&mut cfg, None, None);
+        assert_eq!(cfg, RetrieveConfig::default());
+    }
+
+    /// `dated: true` is not a way to turn the date mechanisms *on* over a
+    /// server that has them off — it is the absence of suppression. Otherwise
+    /// an operating point could resurrect a mechanism an ablation arm disabled.
+    #[test]
+    fn dated_true_does_not_re_enable_a_disabled_mechanism() {
+        let mut cfg = RetrieveConfig::default();
+        cfg.compose.timeline = false;
+        apply_operating_point(&mut cfg, None, Some(true));
+        assert!(!cfg.compose.timeline);
+        assert!(cfg.compose.stamp_valid_time);
+    }
+
+    /// Both directions, because an operating point that can only be switched
+    /// on cannot produce the paired base arm it has to be measured against.
+    #[test]
+    fn select_is_switchable_in_both_directions() {
+        let mut on = RetrieveConfig::default();
+        apply_operating_point(&mut on, Some(true), None);
+        assert!(on.select_sufficient);
+
+        let mut off = RetrieveConfig {
+            select_sufficient: true,
+            ..RetrieveConfig::default()
+        };
+        apply_operating_point(&mut off, Some(false), None);
+        assert!(!off.select_sufficient);
+    }
 }

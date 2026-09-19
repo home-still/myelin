@@ -600,13 +600,22 @@ struct HarnessRun {
 /// `tau_abstain` is not in the list on purpose: it is `null` in every run and
 /// present in some artifacts only because a later harness version wrote the
 /// key. Comparing it would split a pair over a schema change.
-const PAIR_KEYS: [&str; 6] = [
+///
+/// `select` and `dated` (M22) ARE in the list, for the opposite reason: they
+/// change what the server does per query, so a selection-enabled web run that
+/// paired with a plain enterprise run would publish a combined accuracy for
+/// an operating point that never ran. Every run written before M22 lacks both
+/// keys and therefore reads `null` for each, so their existing pairings are
+/// unchanged.
+const PAIR_KEYS: [&str; 8] = [
     "mode",
     "k",
     "budget_tokens",
     "max_steps",
     "prefetch_limit",
     "rerank_depth",
+    "select",
+    "dated",
 ];
 
 /// Walk `runs`, extract every metric any artifact supports, and keep the best
@@ -2185,5 +2194,111 @@ mod tests {
         // what the population rule then rejects as not-comparable rather
         // than letting 321 rows displace the 1,540-row baseline.
         assert_eq!(ours["locomo.temporal.n1540"].n, 321);
+    }
+
+
+    /// An operating point is the set of `memory_params` that change what the
+    /// server does per query, and a pair must share all of them. `select` and
+    /// `dated` are query-time switches (M22), so without them in `PAIR_KEYS` a
+    /// selection-enabled web run cross-pairs with a plain enterprise run and
+    /// `standing` publishes a combined accuracy for a point that never ran:
+    /// two arms would yield four pairings instead of two.
+    #[test]
+    fn a_selection_run_does_not_pair_with_a_plain_one() {
+        let tmp = tempfile::tempdir().unwrap();
+        let runs = tmp.path().join("runs");
+        let arm = |name: &str, domain: &str, count: usize, acc: f64, select: bool| {
+            let dir = runs.join(name);
+            std::fs::create_dir_all(dir.join("runtime_inputs")).unwrap();
+            std::fs::write(
+                dir.join("aggregated_metrics.json"),
+                serde_json::json!({
+                    "overall": {"overall_full_set": acc, "count_all_questions": count},
+                    "memory_query": {"avg_seconds": 11.0}
+                })
+                .to_string(),
+            )
+            .unwrap();
+            std::fs::write(
+                dir.join("run_args.json"),
+                serde_json::json!({"domain": domain, "evaluator_model": "Qwen/Qwen3.5-9B"})
+                    .to_string(),
+            )
+            .unwrap();
+            std::fs::write(
+                dir.join("runtime_inputs/memory_config.json"),
+                serde_json::json!({"memory_params": {
+                    "mode": "investigate", "k": 25, "select": select, "dated": false
+                }})
+                .to_string(),
+            )
+            .unwrap();
+        };
+        arm("m22_base_web", "web", 240, 0.40, false);
+        arm("m22_base_ent", "enterprise", 211, 0.40, false);
+        arm("m22_sel_web", "web", 240, 0.55, true);
+        arm("m22_sel_ent", "enterprise", 211, 0.55, true);
+
+        let ours = collect(&runs, "/nonexistent/python").unwrap();
+        let combined = &ours["lme_v2_small.overall_full_set.combined"];
+        assert_eq!(
+            combined.candidates.len(),
+            2,
+            "two arms are two pairs; four means the switch does not split \
+             operating points: {:?}",
+            combined
+                .candidates
+                .iter()
+                .map(|c| (c.run.display().to_string(), c.value))
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(combined.n, 451, "a pair is the tier's full population");
+        // The winner is the selection arm, and its detail names only its own
+        // two directories — never a plain run.
+        assert!(
+            combined.detail.contains("m22_sel_web") && combined.detail.contains("m22_sel_ent"),
+            "{}",
+            combined.detail
+        );
+        assert!((combined.value - 55.0).abs() < 1e-9, "{combined:?}");
+    }
+
+    /// Every artifact written before M22 lacks both keys, so both read `null`
+    /// and the pairings those runs already have must not move.
+    #[test]
+    fn runs_predating_the_new_keys_still_pair_with_each_other() {
+        let tmp = tempfile::tempdir().unwrap();
+        let runs = tmp.path().join("runs");
+        for (name, domain, count) in [
+            ("myelin_inv2_web_small", "web", 240usize),
+            ("myelin_inv2_enterprise_small", "enterprise", 211usize),
+        ] {
+            let dir = runs.join(name);
+            std::fs::create_dir_all(dir.join("runtime_inputs")).unwrap();
+            std::fs::write(
+                dir.join("aggregated_metrics.json"),
+                serde_json::json!({
+                    "overall": {"overall_full_set": 0.3991, "count_all_questions": count},
+                    "memory_query": {"avg_seconds": 11.5}
+                })
+                .to_string(),
+            )
+            .unwrap();
+            std::fs::write(
+                dir.join("run_args.json"),
+                serde_json::json!({"domain": domain, "evaluator_model": "Qwen/Qwen3.5-9B"})
+                    .to_string(),
+            )
+            .unwrap();
+            std::fs::write(
+                dir.join("runtime_inputs/memory_config.json"),
+                serde_json::json!({"memory_params": {"mode": "investigate", "k": 25}}).to_string(),
+            )
+            .unwrap();
+        }
+        let ours = collect(&runs, "/nonexistent/python").unwrap();
+        let combined = &ours["lme_v2_small.overall_full_set.combined"];
+        assert_eq!(combined.n, 451);
+        assert!((combined.value - 39.91).abs() < 1e-9, "{combined:?}");
     }
 }

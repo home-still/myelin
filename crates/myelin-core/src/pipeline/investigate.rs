@@ -36,7 +36,8 @@ use crate::model::query::{Mode, Recall};
 use crate::model::record::{RecordKind, SourceRef, TrustTier};
 
 use super::compose::{compose, ComposeConfig, Ranked, PROFILE_MAX_RECORDS};
-use super::retrieve::{RetrieveConfig, Retriever};
+use super::retrieve::Retriever;
+use super::select::Selector;
 
 /// `Copy`: every field is a `usize` or a `bool`, and a per-question bench
 /// loop should not clone a config to read it.
@@ -95,33 +96,36 @@ pub struct InvestigateConfig {
     /// signal was too weak to notice; it was noticed, acknowledged, and
     /// overridden.
     pub abstain_on_insufficient: bool,
-    /// Ask the model which retrieved candidates jointly answer the question,
-    /// on every probe ([`crate::pipeline::select::Selector`]).
+    /// Ask the model which of the accumulated pool's records jointly answer
+    /// the question, once, after the last step and before `compose`
+    /// truncates to `k` ([`crate::pipeline::select::Selector`]).
     ///
-    /// **Default off, because it was measured *here* and it does nothing
-    /// here.** M21 planned this as the switch's home: the mechanism is a
-    /// large win in the `recall` path — gold-turn recall of the composed set
-    /// 0.658 → **0.838** (multi-session) and 0.658 → **0.809**
-    /// (temporal-reasoning) against a 0.852 ceiling `k = 25` needs four times
-    /// the items to reach, judged **+6.0 ([+1.5, +10.5], p = 0.0081)** on
-    /// temporal-reasoning and **+3.8 ([+1.0, +6.6], p = 0.0087)** over all
-    /// 500 — and `PLAN.md` §7.1 pins `recall` at "no LLM in the loop", so
-    /// this loop, which already pays for a model call per step, was the only
-    /// path it could default on.
-    ///
-    /// Measured in this loop on the same store and the same stratum, it is
-    /// **exactly +0.0 (95% CI [−3.8, +3.8], p = 1.0000)** at **+1.87 s per
-    /// query** (p50 2.60 s → 4.47 s), and gold-turn recall moves 0.653 →
-    /// 0.660.
-    ///
-    /// The cause is this loop's own shape: [`InvestigateConfig::step_k`] is
+    /// **Over the pool, not per probe.** M21 built this switch as a per-probe
+    /// selection inside each step's `recall` and measured it on LongMemEval_S
+    /// at **exactly +0.0 (95% CI [−3.8, +3.8], p = 1.0000)** for **+1.87 s
+    /// per query** (p50 2.60 s → 4.47 s), gold-turn recall 0.653 → 0.660.
+    /// The cause was this loop's own shape: [`InvestigateConfig::step_k`] is
     /// 10 and [`InvestigateConfig::max_pool`] is 60, so the probes' results
-    /// are *unioned* across steps and re-composed here. Reordering one
-    /// probe's admissible list barely changes that union — the selector is
-    /// choosing which items enter a pool that was going to hold them anyway.
+    /// are *unioned* across steps and re-composed at the end — reordering one
+    /// probe's admissible list only changes which items enter a pool that was
+    /// going to hold them anyway. That arrangement is gone; the selection now
+    /// happens once, over the union, where it is the only ranking decision
+    /// that sees the whole candidate set.
     ///
-    /// Kept as a switch, off, with the number that killed it. Verdict:
-    /// `docs/measurements/m21-evidence-selection.md`.
+    /// The mechanism itself is a large win where it has been given the whole
+    /// pool: in the `recall` path, gold-turn recall of the composed set
+    /// 0.658 → **0.838** (multi-session) and 0.658 → **0.809**
+    /// (temporal-reasoning) against a 0.852 ceiling, judged **+6.0
+    /// ([+1.5, +10.5], p = 0.0081)** on temporal-reasoning and **+3.8
+    /// ([+1.0, +6.6], p = 0.0087)** over all 500. `PLAN.md` §7.1 pins
+    /// `recall` at "no LLM in the loop", so this loop — which already spends
+    /// a model call per step on the reflect gate — is the only path it can
+    /// default on.
+    ///
+    /// **Default off until the pool-level arrangement is measured.** This
+    /// project ships a default on a number, never on a mechanism's
+    /// plausibility. Verdicts: `docs/measurements/m21-evidence-selection.md`
+    /// (per-probe), `docs/measurements/m22-g1-selection.md` (pool-level).
     pub select_sufficient: bool,
 }
 
@@ -218,6 +222,51 @@ fn gate_insufficient(set: &mut EvidenceSet, stopped_because: &str, enabled: bool
     true
 }
 
+/// Select over the WHOLE accumulated pool, once, and stable-partition the
+/// chosen records to its front. Returns how many the model kept.
+///
+/// **Why once over the pool and not once per probe.** M21 put the selector
+/// inside each probe's `recall` and measured **exactly +0.0 (95% CI
+/// [−3.8, +3.8], p = 1.0000)** for **+1.87 s per query**. The cause was this
+/// pool: [`InvestigateConfig::step_k`] is 10 and
+/// [`InvestigateConfig::max_pool`] is 60, so the probes' results are *unioned*
+/// and re-composed here — reordering one probe's list only changes which
+/// items enter a set that was going to hold them anyway.
+///
+/// **It also repairs a scale error.** The caller sorts the pool by `score`,
+/// and those scores are cross-encoder logits produced by *different probe
+/// queries*, which are not mutually comparable — the same category error
+/// [`crate::pipeline::retrieve::RetrieveConfig::tau_abstain`] documents for
+/// RRF scores. One question-conditioned judgement over the whole pool is the
+/// only ranking that is coherent across probes.
+///
+/// Stable partition, nothing dropped: a bad selection costs rank positions,
+/// never evidence. A free function for the reason `gate_insufficient` is one
+/// — it needs a fake `Llm` and a `Vec`, not an embedder and a live store.
+async fn select_pool(
+    llm: &dyn Llm,
+    question: &str,
+    ranked: &mut Vec<Ranked>,
+    k: usize,
+) -> Result<usize> {
+    if ranked.is_empty() {
+        return Ok(0);
+    }
+    let docs: Vec<String> = ranked.iter().map(|r| r.record.text.clone()).collect();
+    let keep = Selector::new(llm).select(question, &docs, k).await?;
+
+    let mut slots: Vec<Option<Ranked>> = std::mem::take(ranked).into_iter().map(Some).collect();
+    let mut front = Vec::with_capacity(slots.len());
+    for &i in &keep {
+        if let Some(slot) = slots[i].take() {
+            front.push(slot);
+        }
+    }
+    front.extend(slots.into_iter().flatten());
+    *ranked = front;
+    Ok(keep.len())
+}
+
 /// What the loop did, for the agentic metrics of `EVALUATION.md` §9.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct InvestigateTrace {
@@ -238,6 +287,15 @@ pub struct InvestigateTrace {
     /// tell those apart is to count them.
     #[serde(default)]
     pub abstained: bool,
+    /// How many pool records the sufficiency selector kept, and what the
+    /// model call cost. Zero when [`InvestigateConfig::select_sufficient`] is
+    /// off — which is the check that catches an inert switch before a whole
+    /// arm is measured against nothing, the same job the identically named
+    /// [`crate::pipeline::retrieve::RecallTrace`] fields do.
+    #[serde(default)]
+    pub selected: usize,
+    #[serde(default)]
+    pub select_ms: u128,
 }
 
 pub struct Investigator<'a> {
@@ -268,36 +326,6 @@ impl<'a> Investigator<'a> {
         // only the fallback for callers that do not set one.
         let max_steps = query.budget.max_steps.max(1).min(self.config.max_steps);
 
-        // The sufficiency selector is ON here and OFF in `recall`: `PLAN.md`
-        // §7.1 pins the fast path at "no LLM in the loop", and this loop
-        // already spends a model call per step on the reflect gate.
-        //
-        // A local view rather than a mutation: `Investigator` borrows the
-        // retriever immutably, and every field of `Retriever` is either a
-        // shared reference or a `Copy`-shaped config, so this is a stack
-        // copy and not an allocation.
-        let probe_retriever;
-        let retriever = if self.config.select_sufficient
-            && !self.retriever.config.select_sufficient
-        {
-            probe_retriever = Retriever {
-                embedder: self.retriever.embedder,
-                store: self.retriever.store,
-                ledger: self.retriever.ledger,
-                reranker: self.retriever.reranker,
-                graph: self.retriever.graph,
-                // The gate's own model, so the switch can never be inert here.
-                llm: Some(self.llm),
-                config: RetrieveConfig {
-                    select_sufficient: true,
-                    ..self.retriever.config.clone()
-                },
-            };
-            &probe_retriever
-        } else {
-            self.retriever
-        };
-
         let mut pool: HashMap<Uuid, Ranked> = HashMap::new();
         let mut asked: Vec<String> = Vec::new();
         let mut search = query.text.clone();
@@ -309,7 +337,7 @@ impl<'a> Investigator<'a> {
             probe.budget.k = self.config.step_k;
 
             let t0 = std::time::Instant::now();
-            let (found, step_trace) = retriever.recall(&probe).await?;
+            let (found, step_trace) = self.retriever.recall(&probe).await?;
             trace.search_ms += t0.elapsed().as_millis();
             let _ = step_trace;
 
@@ -318,7 +346,7 @@ impl<'a> Investigator<'a> {
                 if pool.len() >= self.config.max_pool {
                     break;
                 }
-                if let Some(record) = retriever.ledger.get(item.record_id).await? {
+                if let Some(record) = self.retriever.ledger.get(item.record_id).await? {
                     pool.entry(item.record_id).or_insert(Ranked {
                         record,
                         score: item.score,
@@ -388,6 +416,13 @@ impl<'a> Investigator<'a> {
                 .unwrap_or(std::cmp::Ordering::Equal)
                 .then_with(|| a.record.id.cmp(&b.record.id))
         });
+
+        if self.config.select_sufficient {
+            let t = std::time::Instant::now();
+            let keep = select_pool(self.llm, &query.text, &mut ranked, query.budget.k).await?;
+            trace.selected = keep;
+            trace.select_ms = t.elapsed().as_millis();
+        }
 
         let compose_cfg = ComposeConfig {
             k: query.budget.k,
@@ -594,5 +629,157 @@ mod tests {
             tokens: 2,
             trace: Vec::new(),
         }
+    }
+
+    // ---- pool-level selection (M22) ----
+
+    struct Canned(std::sync::Mutex<Vec<crate::error::Result<crate::llm::Completion>>>);
+
+    impl Canned {
+        fn text(body: &str) -> Self {
+            Self(std::sync::Mutex::new(vec![Ok(crate::llm::Completion {
+                text: body.into(),
+                tool_calls: vec![],
+                finish_reason: None,
+                usage: crate::llm::Usage::default(),
+            })]))
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl Llm for Canned {
+        fn id(&self) -> &str {
+            "canned"
+        }
+        async fn raw_complete(
+            &self,
+            _req: &CompletionRequest,
+        ) -> crate::error::Result<crate::llm::Completion> {
+            self.0
+                .lock()
+                .unwrap()
+                .pop()
+                .unwrap_or(Err(MyelinError::Store("exhausted".into())))
+        }
+    }
+
+    /// A pool in the deterministic order `investigate` hands to `compose`.
+    fn pool(texts: &[&str]) -> Vec<Ranked> {
+        use crate::model::record::*;
+        texts
+            .iter()
+            .enumerate()
+            .map(|(i, t)| Ranked {
+                record: MemoryRecord {
+                    id: Uuid::new_v4(),
+                    kind: RecordKind::Semantic,
+                    scope: Scope::new("t", "a", "ns"),
+                    text: (*t).into(),
+                    entities: vec![],
+                    validity: Validity {
+                        t_valid: chrono::Utc::now(),
+                        t_invalid: None,
+                        t_ingested: chrono::Utc::now(),
+                        t_expired: None,
+                    },
+                    provenance: Provenance {
+                        source: SourceRef::doc("d"),
+                        contributed_by: ActorId::new("u"),
+                        written_by: ActorId::new("w"),
+                        derived_from: vec![],
+                    },
+                    trust: Trust::asserted(),
+                    salience: Salience::default(),
+                    links: vec![],
+                },
+                score: 1.0 - i as f32 * 0.1,
+                vector: None,
+            })
+            .collect()
+    }
+
+    /// The composed evidence the loop produces from a pool, with the date
+    /// annotations off so this is a test about ordering and not about today.
+    fn composed(ranked: Vec<Ranked>, k: usize) -> Vec<String> {
+        let cfg = ComposeConfig {
+            k,
+            stamp_valid_time: false,
+            resolve_relative: false,
+            timeline: false,
+            ..ComposeConfig::default()
+        };
+        compose(ranked, &[], &cfg)
+            .items
+            .into_iter()
+            .map(|i| i.value)
+            .collect()
+    }
+
+    /// The regression guard for the deleted per-probe block: with the switch
+    /// off, the loop's composed evidence over a fixed pool must be exactly
+    /// what it was before pool-level selection existed. `select_pool` is
+    /// never called in that arm, so the guard is that `compose` over the
+    /// sorted pool is unchanged — the ONLY thing M22 removed from the
+    /// switch-off path.
+    #[tokio::test]
+    async fn selection_off_leaves_the_pool_untouched() {
+        let texts = ["alpha", "bravo", "charlie", "delta"];
+        let before = composed(pool(&texts), 3);
+        assert_eq!(before, vec!["alpha", "charlie", "bravo"]);
+
+        // And the function itself, if it were called with a model that
+        // picked nothing usable, must not move anything either.
+        let llm = Canned::text("not json at all");
+        let mut ranked = pool(&texts);
+        let kept = select_pool(&llm, "q", &mut ranked, 3).await.unwrap();
+        assert_eq!(kept, 3, "a malformed body degrades to rank order 0..k");
+        assert_eq!(composed(ranked, 3), before);
+    }
+
+    /// Selection reorders the WHOLE pool, not one probe's slice: a pick of
+    /// `[2, 0]` must put the pool's third and first records at the head, so
+    /// `compose`'s `k = 2` window emits exactly those two.
+    #[tokio::test]
+    async fn selection_promotes_the_models_choice_across_the_whole_pool() {
+        let llm = Canned::text(r#"{"keep":[2,0]}"#);
+        let mut ranked = pool(&["alpha", "bravo", "charlie", "delta"]);
+        let kept = select_pool(&llm, "who shipped it", &mut ranked, 2)
+            .await
+            .unwrap();
+
+        assert_eq!(kept, 2);
+        let order: Vec<&str> = ranked.iter().map(|r| r.record.text.as_str()).collect();
+        assert_eq!(
+            order,
+            vec!["charlie", "alpha", "bravo", "delta"],
+            "kept records lead in the model's order; the rest keep theirs"
+        );
+        // `compose` bookends, so at k=2 it emits best-first then second-best.
+        assert_eq!(composed(ranked, 2), vec!["charlie", "alpha"]);
+    }
+
+    /// Nothing is dropped, ever. A selector that picked one record out of a
+    /// pool of four must not cost the other three their place in the budget:
+    /// a bad selection is allowed to cost rank positions and never evidence.
+    #[tokio::test]
+    async fn a_narrow_selection_keeps_every_record_behind_it() {
+        let llm = Canned::text(r#"{"keep":[3]}"#);
+        let mut ranked = pool(&["alpha", "bravo", "charlie", "delta"]);
+        let kept = select_pool(&llm, "q", &mut ranked, 4).await.unwrap();
+
+        assert_eq!(kept, 1);
+        assert_eq!(ranked.len(), 4, "the pool must not shrink");
+        let order: Vec<&str> = ranked.iter().map(|r| r.record.text.as_str()).collect();
+        assert_eq!(order, vec!["delta", "alpha", "bravo", "charlie"]);
+    }
+
+    /// An empty pool is reachable — every probe can return nothing — and must
+    /// not spend a model call to discover it.
+    #[tokio::test]
+    async fn an_empty_pool_costs_no_model_call() {
+        // `Canned` yields an error once exhausted, so a call here would fail.
+        let llm = Canned(std::sync::Mutex::new(Vec::new()));
+        let mut ranked: Vec<Ranked> = Vec::new();
+        assert_eq!(select_pool(&llm, "q", &mut ranked, 6).await.unwrap(), 0);
     }
 }
