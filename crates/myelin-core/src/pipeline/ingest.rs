@@ -98,6 +98,20 @@ impl EpisodeDraft {
             .join("\n")
     }
 
+    /// The episode as only one speaker said it. A disposition is a property of
+    /// the person who stated it, and on LongMemEval_S the user is 12.6% of the
+    /// corpus — so a profile pass that reads whole episodes costs 8x what it
+    /// needs to and reads 53.5M tokens of assistant prose that states nobody's
+    /// preferences.
+    pub fn render_speaker(&self, speaker: &str) -> String {
+        self.turns
+            .iter()
+            .filter(|t| t.speaker == speaker)
+            .map(|t| format!("{}: {}", t.speaker, t.text))
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+
     pub fn t_valid(&self) -> DateTime<Utc> {
         self.turns
             .iter()
@@ -109,14 +123,27 @@ impl EpisodeDraft {
     /// Natural key for the v5 id, so replaying a corpus is idempotent
     /// (`PLAN.md` §4: same logical episode → same point, update not duplicate).
     pub fn natural_key(&self) -> String {
-        let first = self.turns.first().map(|t| t.source.doc.as_str()).unwrap_or("");
-        let last = self.turns.last().map(|t| t.source.doc.as_str()).unwrap_or("");
+        let first = self
+            .turns
+            .first()
+            .map(|t| t.source.doc.as_str())
+            .unwrap_or("");
+        let last = self
+            .turns
+            .last()
+            .map(|t| t.source.doc.as_str())
+            .unwrap_or("");
         format!("episode\u{1f}{}\u{1f}{first}\u{1f}{last}", self.unit)
     }
 
     /// Build the `Episodic` record. Provenance spans the turn range, which is
     /// what makes "show me the turns behind this" answerable (I2, C6b).
-    pub fn to_record(&self, scope: &Scope, contributed_by: &ActorId, written_by: &ActorId) -> MemoryRecord {
+    pub fn to_record(
+        &self,
+        scope: &Scope,
+        contributed_by: &ActorId,
+        written_by: &ActorId,
+    ) -> MemoryRecord {
         let now = Utc::now();
         let t_valid = self.t_valid();
         let first = self
@@ -186,18 +213,19 @@ pub fn segment(turns: &[Turn], cfg: &SegmentConfig) -> Vec<EpisodeDraft> {
     let mut current: Vec<Turn> = Vec::new();
     let mut tokens = 0usize;
 
-    let flush = |current: &mut Vec<Turn>, tokens: &mut usize, reason, out: &mut Vec<EpisodeDraft>| {
-        if current.is_empty() {
-            return;
-        }
-        out.push(EpisodeDraft {
-            unit: current[0].unit.clone(),
-            turns: std::mem::take(current),
-            ended_by: reason,
-            approx_tokens: *tokens,
-        });
-        *tokens = 0;
-    };
+    let flush =
+        |current: &mut Vec<Turn>, tokens: &mut usize, reason, out: &mut Vec<EpisodeDraft>| {
+            if current.is_empty() {
+                return;
+            }
+            out.push(EpisodeDraft {
+                unit: current[0].unit.clone(),
+                turns: std::mem::take(current),
+                ended_by: reason,
+                approx_tokens: *tokens,
+            });
+            *tokens = 0;
+        };
 
     for turn in turns {
         let turn_tokens = approx_tokens(&turn.text);
@@ -361,7 +389,10 @@ mod tests {
 
         // A different tenant must not collide onto the same point (C12).
         let other = Scope::new("other-tenant", "a", "ns");
-        assert_ne!(first.id, segment(&turns, &cfg())[0].to_record(&other, &u, &w).id);
+        assert_ne!(
+            first.id,
+            segment(&turns, &cfg())[0].to_record(&other, &u, &w).id
+        );
     }
 
     /// The episode is the raw material, not a summary of it.

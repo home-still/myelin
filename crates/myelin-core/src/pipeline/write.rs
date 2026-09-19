@@ -44,9 +44,18 @@ use crate::store::qdrant::QdrantStore;
 
 use super::adjudicate::{Adjudicator, InjectionVerdict};
 use super::consolidate::{Consolidator, Outcome, SourceTier};
-use super::extract::{Candidate, ExtractOutcome, Extractor};
+use super::extract::{Candidate, CandidateKind, ExtractOutcome, Extractor};
 use super::index::Indexer;
 use super::ingest::{segment, EpisodeDraft, SegmentConfig, Turn};
+
+/// Below this many characters of speaker text, the profile pass skips the
+/// model call outright.
+///
+/// "user: ok" and "user: thanks!" state no disposition, and on a corpus where
+/// the pass runs over every episode the calls they would cost are the whole
+/// budget. The prefix `"<speaker>: "` is counted, so this is ~25 characters
+/// of actual content.
+const PROFILE_MIN_CHARS: usize = 32;
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct WriteStats {
@@ -70,12 +79,22 @@ pub struct WriteStats {
     /// An unparseable verdict counts too — it is staged, not admitted — and
     /// the quarantine reason tells the two apart.
     pub adjudicated_out: usize,
+    /// `RecordKind::Profile` records the profile pass wrote
+    /// ([`WritePath::extract_profiles`]). A subset of `added + updated`,
+    /// reported separately because it is the only number that says whether
+    /// the pass did anything at all.
+    pub profiles: usize,
     pub approx_tokens: usize,
     pub wall_ms: u128,
     /// Wall time in the injection adjudicator. Reported so the defence's
     /// cost is measured rather than asserted.
     pub adjudicate_ms: u128,
     pub extract_ms: u128,
+    /// Wall time in the profile extractor's model calls. Disjoint from
+    /// `extract_ms`: the two passes never run over the same episode text.
+    /// Consolidating and indexing what it produced lands in
+    /// `consolidate_ms` / `index_ms`, exactly as the fact pass's does.
+    pub profile_ms: u128,
     pub consolidate_ms: u128,
     pub index_ms: u128,
 }
@@ -101,10 +120,12 @@ impl WriteStats {
         self.quarantined += other.quarantined;
         self.rejected += other.rejected;
         self.adjudicated_out += other.adjudicated_out;
+        self.profiles += other.profiles;
         self.approx_tokens += other.approx_tokens;
         self.wall_ms += other.wall_ms;
         self.adjudicate_ms += other.adjudicate_ms;
         self.extract_ms += other.extract_ms;
+        self.profile_ms += other.profile_ms;
         self.consolidate_ms += other.consolidate_ms;
         self.index_ms += other.index_ms;
     }
@@ -168,6 +189,21 @@ pub struct WritePath<'a> {
     /// measured; shipping it on would claim a protection G3 does not have.
     /// `docs/measurements/m15-injection-adjudication.md`.
     pub adjudicate: bool,
+    /// Mint [`RecordKind::Profile`] records from what one speaker said.
+    ///
+    /// **Default off.** It is a second model call per episode, and it is only
+    /// worth paying where the questions ask what the user would prefer.
+    /// LongMemEval_S turns it on with `extract_facts` still off: user turns
+    /// are 12.6% of that corpus (7.69M of 61.2M tokens), so the pass costs
+    /// ~1/8 of the fact extraction `extract_facts` documents as ~250
+    /// GPU-hours.
+    pub extract_profiles: bool,
+    /// Whose turns state the profile. `None` reads the whole episode.
+    ///
+    /// Not hardcoded to `"user"`: [`Turn::speaker`] carries the corpus's own
+    /// label, which is `user`/`assistant` on LongMemEval_S but a person's
+    /// name on LoCoMo.
+    pub profile_speaker: Option<String>,
 }
 
 impl<'a> WritePath<'a> {
@@ -189,6 +225,8 @@ impl<'a> WritePath<'a> {
             concurrency: 4,
             extract_facts: true,
             adjudicate: false,
+            extract_profiles: false,
+            profile_speaker: None,
         }
     }
 
@@ -212,6 +250,14 @@ impl<'a> WritePath<'a> {
         let t_index = Instant::now();
         self.indexer().index(&episodes).await?;
         stats.index_ms += t_index.elapsed().as_millis();
+
+        // 1b. Dispositions, before the early return below — an episodic-only
+        // corpus is exactly where the profile pass earns its keep. Same
+        // placement, and the same reason, as the adjudicator gate.
+        if self.extract_profiles {
+            self.extract_profile_records(scope, &drafts, &episodes, &mut stats)
+                .await?;
+        }
 
         // Episodic-only corpora stop here. See `WritePath::extract_facts`.
         if !self.extract_facts {
@@ -266,102 +312,264 @@ impl<'a> WritePath<'a> {
             let candidates = match &outcome {
                 ExtractOutcome::Extracted(e) => e.candidates.clone(),
                 ExtractOutcome::Quarantined { reason } => {
-                    self.ledger
-                        .log(
-                            "extract_quarantine",
-                            Some(episode.id),
-                            &self.actor,
-                            reason,
-                            serde_json::json!({}),
-                        )
+                    self.quarantine_extraction(episode, reason, &mut stats)
                         .await?;
-                    stats.quarantined += 1;
                     continue;
                 }
             };
-            if candidates.is_empty() {
-                continue;
-            }
-            stats.candidates += candidates.len();
+            self.consolidate_candidates(scope, episode, &candidates, &consolidator, &mut stats)
+                .await?;
+        }
 
-            // One embedding round trip for the whole episode.
-            let texts: Vec<String> = candidates.iter().map(|c| c.text.clone()).collect();
-            let t_embed = Instant::now();
-            let vectors = self.embedder.embed(&texts).await?;
-            stats.index_ms += t_embed.elapsed().as_millis();
+        stats.wall_ms = started.elapsed().as_millis();
+        Ok(stats)
+    }
 
-            let mut derived: Vec<MemoryRecord> = Vec::new();
-            // Judge candidates concurrently, then apply sequentially.
-            //
-            // This is semantically identical to doing it one at a time:
-            // neighbours come from Qdrant, which is not updated until the end
-            // of the episode, so no candidate can observe a sibling either
-            // way. It is worth doing because consolidation was 526 s of a
-            // 768 s conversation — 68% — all of it waiting on one model slot.
-            // Writes stay serialized so SQLite never contends with itself.
-            let t1 = Instant::now();
-            let pairs: Vec<(Candidate, Vec<f32>)> =
-                candidates.iter().cloned().zip(vectors).collect();
-            let judged: Vec<Result<(MemoryRecord, Outcome)>> = stream::iter(pairs)
-                .map(|(candidate, vector)| {
-                    let consolidator = &consolidator;
-                    async move {
-                        self.judge_one(scope, episode, &candidate, vector, consolidator)
-                            .await
-                    }
-                })
-                .buffered(self.concurrency.max(1))
-                .collect()
-                .await;
-            stats.consolidate_ms += t1.elapsed().as_millis();
+    /// Write one statement the caller already knows, as a candidate of the
+    /// given kind, skipping extraction.
+    ///
+    /// The companion surface's assertion path — `remember` with
+    /// `as_profile: true`. The caller has already written the disposition in
+    /// its final form, so paying a model call to rediscover it in its own
+    /// words buys nothing. Everything downstream is the ordinary path: the
+    /// same [`Consolidator`], so an asserted preference dedups against,
+    /// supersedes and is superseded by one the profile pass minted. That
+    /// shared path is the reason this is not a second write tool.
+    ///
+    /// The episode is still written and indexed first. I4 requires a
+    /// `Profile` record to name what it was abstracted from, and `explain`
+    /// walks exactly that lineage to answer "why do you think I prefer
+    /// that?".
+    pub async fn assert_one(
+        &self,
+        scope: &Scope,
+        turn: Turn,
+        kind: CandidateKind,
+    ) -> Result<WriteStats> {
+        let started = Instant::now();
+        let mut stats = WriteStats {
+            turns: 1,
+            ..Default::default()
+        };
+        let candidate = Candidate {
+            text: turn.text.clone(),
+            kind,
+            t_valid: turn.at,
+            entities: Vec::new(),
+        };
 
-            // Index whatever reached the ledger, even when a later
-            // judgement in the same episode fails.
-            //
-            // The first full LoCoMo run died mid-episode on an unparseable
-            // judgement and left **two** records in the ledger that were
-            // never indexed (`Pixie is a small white dog.` and one sibling,
-            // found by diffing the ledger against Qdrant afterwards). A
-            // ledger row with no vector is the worse of the two drifts: it
-            // is exported, counted and reported, and it is invisible to
-            // every read path. The reverse — a point with no row — is
-            // harmless, because `recall` re-checks the ledger and drops it.
-            //
-            // So the error is held, the index runs, and only then does it
-            // propagate.
-            let mut failure = None;
-            for judgement in judged {
-                match judgement {
-                    Ok((record, outcome)) => {
-                        match self.apply_outcome(&record, outcome, &mut stats).await {
-                            Ok(Some(written)) => derived.push(written),
-                            Ok(None) => {}
-                            Err(e) => {
-                                failure = Some(e);
-                                break;
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        failure = Some(e);
-                        break;
-                    }
-                }
-            }
+        let drafts = segment(std::slice::from_ref(&turn), &self.segment);
+        stats.episodes = drafts.len();
+        stats.approx_tokens = drafts.iter().map(|d| d.approx_tokens).sum();
+        let episodes = self.write_episodes(scope, &drafts).await?;
+        let t_index = Instant::now();
+        self.indexer().index(&episodes).await?;
+        stats.index_ms += t_index.elapsed().as_millis();
 
-            if !derived.is_empty() {
-                let t2 = Instant::now();
-                self.indexer().index(&derived).await?;
-                stats.index_ms += t2.elapsed().as_millis();
-            }
-
-            if let Some(e) = failure {
-                return Err(e);
+        // An empty turn segments to no episode, and a candidate with no
+        // lineage would be refused by I4 at the SQLite boundary anyway.
+        if let Some(episode) = episodes.first() {
+            let consolidator = Consolidator::new(self.llm);
+            let written = self
+                .consolidate_candidates(
+                    scope,
+                    episode,
+                    std::slice::from_ref(&candidate),
+                    &consolidator,
+                    &mut stats,
+                )
+                .await?;
+            if kind == CandidateKind::Profile {
+                stats.profiles += written.len();
             }
         }
 
         stats.wall_ms = started.elapsed().as_millis();
         Ok(stats)
+    }
+
+    /// The profile pass: mint dispositions from what one speaker said.
+    ///
+    /// Runs before the `extract_facts` early return, so an episodic-only
+    /// corpus gets it too — that is the configuration LongMemEval_S uses.
+    ///
+    /// `drafts` and `episodes` are index-aligned: `write_episodes` preserves
+    /// order and never drops a draft.
+    async fn extract_profile_records(
+        &self,
+        scope: &Scope,
+        drafts: &[EpisodeDraft],
+        episodes: &[MemoryRecord],
+        stats: &mut WriteStats,
+    ) -> Result<()> {
+        let extractor = Extractor::new(self.llm);
+        let consolidator = Consolidator::new(self.llm);
+
+        // Rendered up front: the future borrows its `&str`, so a temporary
+        // created inside the closure would not outlive the call.
+        let rendered: Vec<String> = drafts
+            .iter()
+            .map(|d| match self.profile_speaker.as_deref() {
+                Some(speaker) => d.render_speaker(speaker),
+                None => d.render(),
+            })
+            .collect();
+
+        // The cost control, and it is deliberately explicit rather than left
+        // to the model: an episode whose speaker said nothing substantive
+        // costs zero calls. On LongMemEval_S that is most of the corpus —
+        // 87.4% of the bytes are the assistant's, and this pass never reads
+        // them.
+        let todo: Vec<usize> = (0..rendered.len())
+            .filter(|&i| rendered[i].trim().len() >= PROFILE_MIN_CHARS)
+            .collect();
+        if todo.is_empty() {
+            return Ok(());
+        }
+
+        let t0 = Instant::now();
+        // `Iterator::map` then `stream::iter(...).buffered(...)`, not
+        // `StreamExt::map` — see the extraction block in `insert` for why the
+        // other shape breaks rmcp's `Send` bound.
+        let pending: Vec<_> = todo
+            .iter()
+            .map(|&i| extractor.extract_profile(&rendered[i]))
+            .collect();
+        let extracted: Vec<Result<ExtractOutcome>> = stream::iter(pending)
+            .buffered(self.concurrency.max(1))
+            .collect()
+            .await;
+        stats.profile_ms += t0.elapsed().as_millis();
+
+        // In order, so session N+1's "I switched to Canon" can supersede
+        // session N's "The user prefers Sony" through the ordinary
+        // `Delta::Update` path.
+        for (&i, outcome) in todo.iter().zip(extracted) {
+            let episode = &episodes[i];
+            let candidates = match &outcome? {
+                ExtractOutcome::Extracted(e) => e.candidates.clone(),
+                ExtractOutcome::Quarantined { reason } => {
+                    self.quarantine_extraction(episode, reason, stats).await?;
+                    continue;
+                }
+            };
+            let written = self
+                .consolidate_candidates(scope, episode, &candidates, &consolidator, stats)
+                .await?;
+            stats.profiles += written.len();
+        }
+        Ok(())
+    }
+
+    async fn quarantine_extraction(
+        &self,
+        episode: &MemoryRecord,
+        reason: &str,
+        stats: &mut WriteStats,
+    ) -> Result<()> {
+        self.ledger
+            .log(
+                "extract_quarantine",
+                Some(episode.id),
+                &self.actor,
+                reason,
+                serde_json::json!({}),
+            )
+            .await?;
+        stats.quarantined += 1;
+        Ok(())
+    }
+
+    /// Embed, judge concurrently, apply in order, index what reached the
+    /// ledger. Returns the records that were actually written.
+    ///
+    /// Shared by the fact pass and the profile pass: both turn one episode's
+    /// candidates into records, and both need the same ordering guarantees.
+    async fn consolidate_candidates(
+        &self,
+        scope: &Scope,
+        episode: &MemoryRecord,
+        candidates: &[Candidate],
+        consolidator: &Consolidator<'_>,
+        stats: &mut WriteStats,
+    ) -> Result<Vec<MemoryRecord>> {
+        if candidates.is_empty() {
+            return Ok(Vec::new());
+        }
+        stats.candidates += candidates.len();
+
+        // One embedding round trip for the whole episode.
+        let texts: Vec<String> = candidates.iter().map(|c| c.text.clone()).collect();
+        let t_embed = Instant::now();
+        let vectors = self.embedder.embed(&texts).await?;
+        stats.index_ms += t_embed.elapsed().as_millis();
+
+        let mut derived: Vec<MemoryRecord> = Vec::new();
+        // Judge candidates concurrently, then apply sequentially.
+        //
+        // This is semantically identical to doing it one at a time:
+        // neighbours come from Qdrant, which is not updated until the end
+        // of the episode, so no candidate can observe a sibling either
+        // way. It is worth doing because consolidation was 526 s of a
+        // 768 s conversation — 68% — all of it waiting on one model slot.
+        // Writes stay serialized so SQLite never contends with itself.
+        let t1 = Instant::now();
+        let pairs: Vec<(Candidate, Vec<f32>)> = candidates.iter().cloned().zip(vectors).collect();
+        let judged: Vec<Result<(MemoryRecord, Outcome)>> = stream::iter(pairs)
+            .map(|(candidate, vector)| {
+                let consolidator = &consolidator;
+                async move {
+                    self.judge_one(scope, episode, &candidate, vector, consolidator)
+                        .await
+                }
+            })
+            .buffered(self.concurrency.max(1))
+            .collect()
+            .await;
+        stats.consolidate_ms += t1.elapsed().as_millis();
+
+        // Index whatever reached the ledger, even when a later
+        // judgement in the same episode fails.
+        //
+        // The first full LoCoMo run died mid-episode on an unparseable
+        // judgement and left **two** records in the ledger that were
+        // never indexed (`Pixie is a small white dog.` and one sibling,
+        // found by diffing the ledger against Qdrant afterwards). A
+        // ledger row with no vector is the worse of the two drifts: it
+        // is exported, counted and reported, and it is invisible to
+        // every read path. The reverse — a point with no row — is
+        // harmless, because `recall` re-checks the ledger and drops it.
+        //
+        // So the error is held, the index runs, and only then does it
+        // propagate.
+        let mut failure = None;
+        for judgement in judged {
+            match judgement {
+                Ok((record, outcome)) => match self.apply_outcome(&record, outcome, stats).await {
+                    Ok(Some(written)) => derived.push(written),
+                    Ok(None) => {}
+                    Err(e) => {
+                        failure = Some(e);
+                        break;
+                    }
+                },
+                Err(e) => {
+                    failure = Some(e);
+                    break;
+                }
+            }
+        }
+
+        if !derived.is_empty() {
+            let t2 = Instant::now();
+            self.indexer().index(&derived).await?;
+            stats.index_ms += t2.elapsed().as_millis();
+        }
+
+        if let Some(e) = failure {
+            return Err(e);
+        }
+        Ok(derived)
     }
 
     /// Drop episodes an injection verdict rejects, staging each in quarantine.
@@ -595,7 +803,10 @@ impl<'a> WritePath<'a> {
     ) -> MemoryRecord {
         let now = Utc::now();
         MemoryRecord {
-            id: record_id(scope, &format!("fact\u{1f}{}", candidate.text)),
+            id: record_id(
+                scope,
+                &format!("{}\u{1f}{}", candidate.kind.key_prefix(), candidate.text),
+            ),
             kind: candidate.kind.record_kind(),
             scope: scope.clone(),
             text: candidate.text.clone(),
@@ -932,5 +1143,121 @@ mod tests {
             .unwrap();
         assert_eq!(kept, drafts);
         assert_eq!(stats.adjudicate_ms, 0, "off must not even be timed");
+    }
+
+    // ── The profile pass ────────────────────────────────────────
+
+    /// Counts calls and always says "no preferences here", so a test can
+    /// assert on *whether* the model was consulted rather than on what it
+    /// said.
+    #[derive(Default)]
+    struct Counting(std::sync::atomic::AtomicUsize);
+
+    impl Counting {
+        fn calls(&self) -> usize {
+            self.0.load(std::sync::atomic::Ordering::SeqCst)
+        }
+    }
+
+    #[async_trait]
+    impl Llm for Counting {
+        fn id(&self) -> &str {
+            "counting"
+        }
+        async fn raw_complete(&self, _r: &CompletionRequest) -> Result<Completion> {
+            self.0.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            Ok(Completion {
+                text: r#"{"candidates":[]}"#.into(),
+                tool_calls: vec![],
+                finish_reason: None,
+                usage: Usage::default(),
+            })
+        }
+    }
+
+    fn turn_by(speaker: &str, text: &str) -> Turn {
+        Turn {
+            speaker: speaker.into(),
+            text: text.into(),
+            at: None,
+            source: SourceRef::doc("d1"),
+            unit: "u1".into(),
+        }
+    }
+
+    /// The cost control, and the only thing standing between the profile
+    /// pass and the 87.4% of LongMemEval_S it was designed never to read.
+    ///
+    /// An episode the chosen speaker did not speak in renders to nothing, so
+    /// it must cost zero model calls — not one call that returns an empty
+    /// list.
+    #[tokio::test]
+    async fn the_profile_pass_never_calls_the_model_for_a_speaker_who_said_nothing() {
+        let (ledger, _dir) = ledger().await;
+        let llm = Counting::default();
+        let embedder = NoEmbed;
+        let store = unreachable_store();
+        let mut write = WritePath::new(&llm, &embedder, &store, &ledger);
+        write.extract_profiles = true;
+        write.profile_speaker = Some("user".into());
+        let scope = Scope::new("t", "myelin", "ns");
+
+        let silent = [turn_by(
+            "assistant",
+            "Here are several long paragraphs of helpful prose that state nobody's preferences.",
+        )];
+        let drafts = segment(&silent, &write.segment);
+        let episodes: Vec<MemoryRecord> = drafts
+            .iter()
+            .map(|d| d.to_record(&scope, &write.actor, &write.actor))
+            .collect();
+        let mut stats = WriteStats::default();
+        write
+            .extract_profile_records(&scope, &drafts, &episodes, &mut stats)
+            .await
+            .unwrap();
+        assert_eq!(llm.calls(), 0, "assistant prose must cost nothing");
+        assert_eq!(stats.profile_ms, 0, "a skipped pass is not even timed");
+        assert_eq!(stats.profiles, 0);
+
+        // Positive control: the same pass over an episode the user did speak
+        // in consults the model exactly once. Without this the assertion
+        // above would also pass if the pass were unreachable.
+        let spoke = [
+            turn_by("assistant", "What camera are you using these days?"),
+            turn_by(
+                "user",
+                "I shoot on a Sony A7R IV and I only buy Sony-compatible glass.",
+            ),
+        ];
+        let drafts = segment(&spoke, &write.segment);
+        let episodes: Vec<MemoryRecord> = drafts
+            .iter()
+            .map(|d| d.to_record(&scope, &write.actor, &write.actor))
+            .collect();
+        write
+            .extract_profile_records(&scope, &drafts, &episodes, &mut stats)
+            .await
+            .unwrap();
+        assert_eq!(llm.calls(), 1, "one call per episode with speaker text");
+    }
+
+    /// The pass reads one speaker's turns, not the episode. A profile prompt
+    /// carrying the assistant's prose costs 8x on LongMemEval_S and asks the
+    /// model to find the user's dispositions in someone else's words.
+    #[test]
+    fn the_profile_prompt_carries_only_the_chosen_speakers_turns() {
+        let turns = [
+            turn_by("assistant", "ASSISTANT-ONLY-MARKER, at some length."),
+            turn_by("user", "USER-ONLY-MARKER: I only drink dark roast coffee."),
+        ];
+        let drafts = segment(&turns, &SegmentConfig::default());
+        let rendered = drafts[0].render_speaker("user");
+        assert!(rendered.contains("USER-ONLY-MARKER"));
+        assert!(
+            !rendered.contains("ASSISTANT-ONLY-MARKER"),
+            "the profile pass must not read the other speaker: {rendered}"
+        );
+        assert!(drafts[0].render().contains("ASSISTANT-ONLY-MARKER"));
     }
 }

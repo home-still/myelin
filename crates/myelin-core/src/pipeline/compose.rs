@@ -32,11 +32,12 @@ pub struct ComposeConfig {
     /// Maximum **records** returned. Small by evidence and by threat model.
     ///
     /// It bounds records, not `items`: [`ComposeConfig::timeline`] appends one
-    /// synthetic view *on top* of the k records, so an interval question at
-    /// `k = 6` emits seven items. That is deliberate and it does not widen
-    /// the threat surface — the index is derived from records already in the
-    /// set and carries no text that was not already admitted — but a consumer
-    /// that sizes a buffer off `k` needs to know.
+    /// synthetic view *on top* of the k records and
+    /// [`ComposeConfig::profile`] prepends another, so at `k = 6` with both
+    /// on the set is eight items. That is deliberate and it does not widen
+    /// the threat surface — both views are derived from records the scope
+    /// already admits and carry no text that was not already admissible —
+    /// but a consumer that sizes a buffer off `k` needs to know.
     pub k: usize,
     /// Total token ceiling for the composed set.
     pub max_tokens: usize,
@@ -153,6 +154,20 @@ pub struct ComposeConfig {
     /// [`crate::pipeline::retrieve::Retriever::recall`], because `compose`
     /// never sees the question.
     pub timeline: bool,
+    /// Prepend one synthetic `[profile]` item stating what the user is known
+    /// to prefer, fetched by scope rather than by relevance.
+    ///
+    /// Default off pending M20's measurement; the rule that sets it is in
+    /// `docs/measurements/m20-preference-profile.md`.
+    ///
+    /// The diagnosis it answers: on LongMemEval_S's 30
+    /// `single-session-preference` questions we score 26.67 judged against
+    /// MemPro's 80.00, and 11 of the 22 failures are outright declines even
+    /// though the preference material is in the composed evidence
+    /// (gold-content coverage 0.38-0.89). A preference has to be retrieved
+    /// because it is *about the user*; it does not lexically match "suggest
+    /// some accessories".
+    pub profile: bool,
 }
 
 impl Default for ComposeConfig {
@@ -166,6 +181,7 @@ impl Default for ComposeConfig {
             chronological: false,
             resolve_relative: true,
             timeline: true,
+            profile: false,
         }
     }
 }
@@ -209,17 +225,14 @@ fn label(record: &MemoryRecord, cfg: &ComposeConfig) -> String {
             if r.range.lo == r.range.hi {
                 out.push_str(&format!(" ({} = {})", r.phrase, r.range.lo));
             } else {
-                out.push_str(&format!(
-                    " ({} = {}..{})",
-                    r.phrase, r.range.lo, r.range.hi
-                ));
+                out.push_str(&format!(" ({} = {}..{})", r.phrase, r.range.lo, r.range.hi));
             }
         }
     }
     out
 }
 
-pub fn compose(ranked: Vec<Ranked>, cfg: &ComposeConfig) -> EvidenceSet {
+pub fn compose(ranked: Vec<Ranked>, profile: &[MemoryRecord], cfg: &ComposeConfig) -> EvidenceSet {
     // 1. Dedup, keeping the higher-ranked copy.
     let mut kept: Vec<Ranked> = Vec::new();
     for candidate in ranked {
@@ -289,6 +302,17 @@ pub fn compose(ranked: Vec<Ranked>, cfg: &ComposeConfig) -> EvidenceSet {
         items.push(item);
     }
 
+    // 5. The dispositions, first. This displaces the strongest memory to
+    //    position 2, which `bookend`'s own justification says is a real
+    //    cost — and it is paid deliberately. The tail already belongs to the
+    //    dated index, and the profile is the frame the rest of the answer is
+    //    read through rather than a fact competing with the others.
+    if cfg.profile && !profile.is_empty() {
+        let item = profile_item(profile);
+        tokens += approx_tokens(&item.value);
+        items.insert(0, item);
+    }
+
     EvidenceSet {
         items,
         tokens,
@@ -335,7 +359,7 @@ fn timeline_item(selected: &[Ranked]) -> EvidenceItem {
         record_id: Uuid::nil(),
         source: SourceRef::doc("timeline"),
         score: 0.0,
-        trust: weakest_trust(selected),
+        trust: weakest_trust(selected.iter().map(|r| r.record.trust.tier)),
     }
 }
 
@@ -344,18 +368,40 @@ fn timeline_item(selected: &[Ranked]) -> EvidenceItem {
 /// Spelled out rather than `Ord` on [`TrustTier`]: the enum's declaration
 /// order runs most-trusted first, so a derived `min` would return `Verified`
 /// for a set containing poison — the exact inversion this guards against.
-fn weakest_trust(records: &[Ranked]) -> TrustTier {
+fn weakest_trust(tiers: impl Iterator<Item = TrustTier>) -> TrustTier {
     let rank = |t: TrustTier| match t {
         TrustTier::Verified => 0u8,
         TrustTier::Asserted => 1,
         TrustTier::Untrusted => 2,
         TrustTier::Quarantined => 3,
     };
-    records
-        .iter()
-        .map(|r| r.record.trust.tier)
+    tiers
         .max_by_key(|t| rank(*t))
         .unwrap_or(TrustTier::Untrusted)
+}
+
+/// At most this many dispositions. The block is a frame for the answer, not
+/// a second evidence set; an unbounded one would spend the whole budget on
+/// a tenant with a long history.
+pub const PROFILE_MAX_RECORDS: usize = 8;
+
+/// One synthetic statement of what the user is known to prefer.
+///
+/// `record_id` is nil and the source is the literal doc `profile`, for the
+/// same reason as [`timeline_item`]: this is a *view*, and a consumer that
+/// follows `record_id` into the ledger must not find a record that was never
+/// written. Trust is the weakest tier among the records it summarises.
+fn profile_item(profile: &[MemoryRecord]) -> EvidenceItem {
+    let taken = &profile[..profile.len().min(PROFILE_MAX_RECORDS)];
+    let texts: Vec<&str> = taken.iter().map(|r| r.text.trim()).collect();
+    EvidenceItem {
+        kind: EvidenceKind::Text,
+        value: format!("[profile] {}", texts.join("; ")),
+        record_id: Uuid::nil(),
+        source: SourceRef::doc("profile"),
+        score: 0.0,
+        trust: weakest_trust(taken.iter().map(|r| r.trust.tier)),
+    }
 }
 
 /// `[1st, 3rd, 5th, …, 6th, 4th, 2nd]` — best at the head, second-best at the
@@ -442,6 +488,7 @@ mod tests {
     fn the_two_strongest_items_bookend_the_set() {
         let set = compose(
             ranked(&["best", "second", "third", "fourth", "fifth"]),
+            &[],
             &unstamped(),
         );
         let values: Vec<&str> = set.items.iter().map(|i| i.value.as_str()).collect();
@@ -471,6 +518,7 @@ mod tests {
 
         let by_time = compose(
             input(),
+            &[],
             &ComposeConfig {
                 chronological: true,
                 ..unstamped()
@@ -481,7 +529,7 @@ mod tests {
 
         // The two bench arms are comparable only if the switch changes the
         // order and nothing else: same items, same token count.
-        let bookended = compose(input(), &unstamped());
+        let bookended = compose(input(), &[], &unstamped());
         assert_eq!(
             bookended
                 .items
@@ -496,7 +544,7 @@ mod tests {
 
     #[test]
     fn a_single_item_is_not_reordered() {
-        let set = compose(ranked(&["only"]), &unstamped());
+        let set = compose(ranked(&["only"]), &[], &unstamped());
         assert_eq!(set.items.len(), 1);
         assert_eq!(set.items[0].value, "only");
     }
@@ -508,7 +556,7 @@ mod tests {
             k: 3,
             ..Default::default()
         };
-        let set = compose(ranked(&["a", "b", "c", "d", "e", "f"]), &cfg);
+        let set = compose(ranked(&["a", "b", "c", "d", "e", "f"]), &[], &cfg);
         // k bounds records; the synthetic index is not one. Seven items at
         // k = 6 is what the M19 arm-D measurement actually emitted, so the
         // contract is pinned here rather than left to a reader's assumption.
@@ -524,10 +572,7 @@ mod tests {
 
     #[test]
     fn exact_duplicates_are_dropped_keeping_the_higher_rank() {
-        let set = compose(
-            ranked(&["same", "other", "same"]),
-            &unstamped(),
-        );
+        let set = compose(ranked(&["same", "other", "same"]), &[], &unstamped());
         assert_eq!(set.items.len(), 2);
         assert_eq!(set.items[0].value, "same");
     }
@@ -553,7 +598,7 @@ mod tests {
                 vector: Some(vec![0.0, 1.0, 0.0]),
             },
         ];
-        let set = compose(items, &unstamped());
+        let set = compose(items, &[], &unstamped());
         assert_eq!(set.items.len(), 2, "{:?}", set.items);
         assert_eq!(set.items[0].value, "the user moved to Berlin");
     }
@@ -575,8 +620,12 @@ mod tests {
                 vector: None,
             })
             .collect();
-        let set = compose(items, &cfg);
-        assert!(set.items.len() < 5, "budget did not bind: {}", set.items.len());
+        let set = compose(items, &[], &cfg);
+        assert!(
+            set.items.len() < 5,
+            "budget did not bind: {}",
+            set.items.len()
+        );
         assert!(set.tokens > 0);
     }
 
@@ -597,15 +646,20 @@ mod tests {
                 score: 1.0,
                 vector: None,
             }],
+            &[],
             &cfg,
         );
-        assert_eq!(set.items.len(), 1, "an oversized best item must still be returned");
+        assert_eq!(
+            set.items.len(),
+            1,
+            "an oversized best item must still be returned"
+        );
     }
 
     /// R1: the wire form is exactly `[{"type","value"}]`, nothing else.
     #[test]
     fn the_wire_form_carries_only_type_and_value() {
-        let set = compose(ranked(&["a", "b"]), &unstamped());
+        let set = compose(ranked(&["a", "b"]), &[], &unstamped());
         let json = serde_json::to_value(set.to_wire()).unwrap();
         let first = &json[0];
         assert_eq!(first["type"], "text");
@@ -631,6 +685,7 @@ mod tests {
                 score: 1.0,
                 vector: None,
             }],
+            &[],
             &ComposeConfig::default(),
         );
         assert_eq!(
@@ -669,6 +724,7 @@ mod tests {
                 score: 1.0,
                 vector: None,
             }],
+            &[],
             &cfg,
         );
         assert_eq!(
@@ -679,7 +735,7 @@ mod tests {
 
     #[test]
     fn an_empty_input_composes_to_an_empty_set() {
-        let set = compose(Vec::new(), &ComposeConfig::default());
+        let set = compose(Vec::new(), &[], &ComposeConfig::default());
         assert!(set.is_empty());
         assert!(set.to_wire().is_empty());
     }
@@ -702,7 +758,7 @@ mod tests {
         };
 
         // On by default since M19, so the default config is the annotated one.
-        let on = compose(fixture(), &ComposeConfig::default());
+        let on = compose(fixture(), &[], &ComposeConfig::default());
         assert_eq!(
             on.items[0].value,
             "[2023-07-20] I just joined a new LGBTQ activist group last Tuesday \
@@ -711,6 +767,7 @@ mod tests {
 
         let off = compose(
             fixture(),
+            &[],
             &ComposeConfig {
                 resolve_relative: false,
                 ..Default::default()
@@ -728,6 +785,7 @@ mod tests {
         // beside no date is an assertion the reader cannot check.
         let unanchored = compose(
             fixture(),
+            &[],
             &ComposeConfig {
                 resolve_relative: true,
                 stamp_valid_time: false,
@@ -772,7 +830,7 @@ mod tests {
         };
 
         // On by default since M19.
-        let set = compose(input(), &ComposeConfig::default());
+        let set = compose(input(), &[], &ComposeConfig::default());
         assert_eq!(set.items.len(), 4, "three records plus one index");
         let index = set.items.last().unwrap();
         assert_eq!(
@@ -792,6 +850,7 @@ mod tests {
         // It costs tokens, and the count says so.
         let off = compose(
             input(),
+            &[],
             &ComposeConfig {
                 timeline: false,
                 ..Default::default()
@@ -807,6 +866,7 @@ mod tests {
     fn a_single_record_gets_no_timeline() {
         let set = compose(
             ranked(&["only"]),
+            &[],
             &ComposeConfig {
                 timeline: true,
                 ..unstamped()
@@ -814,5 +874,86 @@ mod tests {
         );
         assert_eq!(set.items.len(), 1);
         assert_eq!(set.items[0].value, "only");
+    }
+
+    /// M20 arm A: the disposition block leads the set, is not a memory, and
+    /// does not launder trust.
+    ///
+    /// Three things a refactor silently breaks, pinned together because they
+    /// are one mechanism: placement (the frame has to reach the head or the
+    /// reader reads the facts first), the nil id that stops a consumer
+    /// chasing a record that was never written, and the trust floor that
+    /// stops a synthetic view moving untrusted material upward.
+    #[test]
+    fn the_profile_block_leads_the_set_and_never_launders_trust() {
+        let mut untrusted = record("The user avoids dairy");
+        untrusted.kind = RecordKind::Profile;
+        untrusted.trust = Trust {
+            tier: TrustTier::Untrusted,
+            score: 0.30,
+            checks: Vec::new(),
+        };
+        let mut trusted = record("The user shoots on a Sony A7R IV");
+        trusted.kind = RecordKind::Profile;
+        let profile = vec![trusted, untrusted];
+
+        let cfg = ComposeConfig {
+            profile: true,
+            ..unstamped()
+        };
+        let set = compose(ranked(&["a", "b", "c"]), &profile, &cfg);
+
+        assert_eq!(set.items.len(), 4, "three records plus one profile block");
+        let head = &set.items[0];
+        assert_eq!(
+            head.value,
+            "[profile] The user shoots on a Sony A7R IV; The user avoids dairy"
+        );
+        assert_eq!(head.record_id, Uuid::nil(), "the block is not a memory");
+        assert_eq!(head.source, SourceRef::doc("profile"));
+        assert_eq!(
+            head.trust,
+            TrustTier::Untrusted,
+            "a synthetic view of untrusted material must not launder it"
+        );
+        // The strongest actual memory is displaced to position 2, not lost.
+        assert_eq!(set.items[1].value, "a");
+
+        let off = compose(ranked(&["a", "b", "c"]), &profile, &unstamped());
+        assert_eq!(off.items.len(), 3, "the switch is what emits it");
+        assert!(set.tokens > off.tokens, "{} vs {}", set.tokens, off.tokens);
+    }
+
+    /// `k` bounds records, not items, and an absent profile emits nothing.
+    #[test]
+    fn the_profile_block_is_bounded_and_skipped_when_empty() {
+        let cfg = ComposeConfig {
+            k: 2,
+            profile: true,
+            ..unstamped()
+        };
+        let empty = compose(ranked(&["a", "b", "c"]), &[], &cfg);
+        assert_eq!(
+            empty.items.len(),
+            2,
+            "no dispositions means no block, not an empty one"
+        );
+
+        // More dispositions than the cap: the block is a frame, not a second
+        // evidence set.
+        let many: Vec<MemoryRecord> = (0..PROFILE_MAX_RECORDS + 3)
+            .map(|i| {
+                let mut r = record(&format!("pref{i}"));
+                r.kind = RecordKind::Profile;
+                r
+            })
+            .collect();
+        let set = compose(ranked(&["a", "b", "c"]), &many, &cfg);
+        assert_eq!(set.items.len(), 3, "k still bounds the records at 2");
+        assert_eq!(
+            set.items[0].value.matches("pref").count(),
+            PROFILE_MAX_RECORDS
+        );
+        assert!(!set.items[0].value.contains("pref8"));
     }
 }

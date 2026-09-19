@@ -3,7 +3,7 @@
 **Uses the official `mcp` Python SDK on purpose.** A hand-rolled client
 exercises the messages *we* thought to send; the SDK validates every
 response against the published schema. That distinction is not theoretical:
-the first run of this file rejected three of our nine tools with
+the first run of this file rejected three of our ten tools with
 
     ListToolsResult: tools.3.outputSchema.type
     Input should be 'object' [input_value='array']
@@ -39,13 +39,14 @@ URL = os.getenv("MYELIN_MCP_URL", "http://127.0.0.1:7446/mcp")
 TENANT = os.getenv("MYELIN_MCP_TENANT", "locomo/conv-30")
 NAMESPACE = os.getenv("MYELIN_MCP_NAMESPACE", "locomo")
 
-# `PLAN.md` §8: two write tools, four read tools, three admin tools.
+# `PLAN.md` §8: two write tools, five read tools, three admin tools.
 EXPECTED_TOOLS = {
     "remember",
     "observe",
     "recall",
     "investigate",
     "search",
+    "profile",
     "neighbors",
     "forget",
     "review_quarantine",

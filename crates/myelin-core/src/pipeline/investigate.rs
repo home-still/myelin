@@ -32,10 +32,10 @@ use uuid::Uuid;
 use crate::error::{MyelinError, Result};
 use crate::llm::{complete_json, CompletionRequest, Llm, Message};
 use crate::model::evidence::{EvidenceItem, EvidenceKind, EvidenceSet, TraceStep};
-use crate::model::record::{SourceRef, TrustTier};
 use crate::model::query::{Mode, Recall};
+use crate::model::record::{RecordKind, SourceRef, TrustTier};
 
-use super::compose::{compose, ComposeConfig, Ranked};
+use super::compose::{compose, ComposeConfig, Ranked, PROFILE_MAX_RECORDS};
 use super::retrieve::Retriever;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -333,7 +333,23 @@ impl<'a> Investigator<'a> {
             max_tokens: query.budget.tokens,
             ..self.retriever.config.compose.clone()
         };
-        let mut set = compose(ranked, &compose_cfg);
+        // Dispositions, by scope — the same block `recall` composes, so an
+        // agentic investigation frames its answer the same way a single-shot
+        // recall does.
+        let profile = if compose_cfg.profile {
+            self.retriever
+                .ledger
+                .visible_of_kind(
+                    &query.scope,
+                    RecordKind::Profile,
+                    chrono::Utc::now(),
+                    PROFILE_MAX_RECORDS as i64,
+                )
+                .await?
+        } else {
+            Vec::new()
+        };
+        let mut set = compose(ranked, &profile, &compose_cfg);
 
         // The gate, applied where sufficiency was actually judged.
         //

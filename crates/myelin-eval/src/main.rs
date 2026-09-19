@@ -4,7 +4,6 @@
 //! argument surfaces.  Only `fetch` is implemented (M3); the remaining six
 //! arms stay as `not implemented (milestone M5+)` placeholders.
 
-
 use std::path::Path;
 
 use anyhow::Context;
@@ -105,11 +104,21 @@ fn bench_out_dir(
         format!("_cat{}", codes.join(""))
     };
     format!(
-        "runs/{slug}_{}{}{}{}{cats}{}",
+        "runs/{slug}_{}{}{}{}{}{}{cats}{}",
         mode_slug(mode),
         if switches.graph { "_graph" } else { "" },
-        if switches.chronological { "_chrono" } else { "" },
+        if switches.chronological {
+            "_chrono"
+        } else {
+            ""
+        },
         if switches.question_date { "_qdate" } else { "" },
+        if switches.profile { "_prof" } else { "" },
+        if switches.profile_clause {
+            "_pclause"
+        } else {
+            ""
+        },
         match scorer {
             myelin_eval::bench::Scorer::TokenF1 => "",
             myelin_eval::bench::Scorer::Temporal => "_temporal",
@@ -174,6 +183,30 @@ mod tests {
         );
     }
 
+    /// M20's two arms are independent, so all four combinations must name
+    /// four different directories — an arm that silently wrote over the
+    /// baseline's rows would make the paired difference unmeasurable.
+    #[test]
+    fn the_two_profile_arms_never_share_a_directory() {
+        let arm = |profile: bool, profile_clause: bool| {
+            bench_out_dir(
+                "lme_s",
+                Mode::Recall,
+                &BenchSwitches {
+                    profile,
+                    profile_clause,
+                    categories: vec![3],
+                    ..Default::default()
+                },
+                Scorer::Judge,
+            )
+        };
+        assert_eq!(arm(false, false), "runs/lme_s_recall_cat3_judge");
+        assert_eq!(arm(true, false), "runs/lme_s_recall_prof_cat3_judge");
+        assert_eq!(arm(false, true), "runs/lme_s_recall_pclause_cat3_judge");
+        assert_eq!(arm(true, true), "runs/lme_s_recall_prof_pclause_cat3_judge");
+    }
+
     /// A stratum arm never names the full-set path it is measured against.
     #[test]
     fn a_stratum_arm_cannot_clobber_the_full_set_path() {
@@ -200,10 +233,7 @@ mod tests {
         // grammar reaches 26 of LongMemEval_S's 470 answerable golds, so the
         // flip is LoCoMo-only.
         assert_eq!(BenchCorpus::Locomo.defaults().scorer, Scorer::Temporal);
-        assert_eq!(
-            BenchCorpus::LongmemevalS.defaults().scorer,
-            Scorer::TokenF1
-        );
+        assert_eq!(BenchCorpus::LongmemevalS.defaults().scorer, Scorer::TokenF1);
     }
 }
 
@@ -258,6 +288,23 @@ enum Command {
         /// throughput probe before committing to a long GPU window.
         #[arg(long)]
         limit: Option<usize>,
+        /// LongMemEval_S only: ingest only these `question_type` strata,
+        /// e.g. `single-session-preference`.
+        ///
+        /// Sound rather than a shortcut — that corpus writes one tenant per
+        /// `question_id` and a question may only be answered from its own,
+        /// so a stratum build is byte-identical to those tenants inside the
+        /// full one. Applied before `--limit`.
+        #[arg(long, value_delimiter = ',')]
+        question_types: Option<Vec<String>>,
+        /// How many model calls the write path keeps in flight.
+        ///
+        /// Must not exceed the reader's slot count (`llama-server -np N`, set
+        /// by `MYELIN_READER_SLOTS` in `ops/big/serve-models.sh`): beyond that
+        /// requests queue and the extra concurrency only adds latency. The
+        /// default matches the shipped `WritePath::concurrency`.
+        #[arg(long, default_value_t = 4)]
+        concurrency: usize,
         /// Directory holding the LME-V2 release files.
         #[arg(long, default_value = "/tmp/lmev2")]
         lmev2_dir: String,
@@ -329,6 +376,14 @@ enum Command {
         /// carries one; this adds LoCoMo's last session date.
         #[arg(long)]
         question_date: bool,
+        /// Compose a `[profile]` block of the tenant's stored dispositions,
+        /// fetched by scope rather than by relevance (M20 arm A).
+        #[arg(long)]
+        profile: bool,
+        /// Tell the reader to answer recommendation questions from the
+        /// user's stated preferences (M20 arm B).
+        #[arg(long)]
+        profile_clause: bool,
         /// Score only these category codes, for a stratum arm. LoCoMo: 1
         /// multi-hop, 2 temporal, 3 open-domain, 4 single-hop, 5 adversarial.
         /// LongMemEval_S: 1 ss-user, 2 ss-assistant, 3 ss-preference,
@@ -478,6 +533,8 @@ async fn main() -> anyhow::Result<()> {
             ref collection,
             ref ledger,
             limit,
+            ref question_types,
+            concurrency,
             ref lmev2_dir,
             repair,
             allow_undated,
@@ -487,6 +544,8 @@ async fn main() -> anyhow::Result<()> {
                 collection.as_deref(),
                 ledger.as_deref(),
                 limit,
+                question_types.as_deref(),
+                concurrency,
                 lmev2_dir,
                 repair,
                 allow_undated,
@@ -543,8 +602,7 @@ async fn main() -> anyhow::Result<()> {
                  no per-condition artifact. Pass --live."
             );
             if live {
-                let run =
-                    myelin_eval::attack_live::run(Path::new(ledger_dir), &[3, 6, 10]).await?;
+                let run = myelin_eval::attack_live::run(Path::new(ledger_dir), &[3, 6, 10]).await?;
                 myelin_eval::attack_live::print(&run);
                 if let Some(dir) = out {
                     let dir = Path::new(dir);
@@ -598,6 +656,8 @@ async fn main() -> anyhow::Result<()> {
             graph,
             chronological,
             question_date,
+            profile,
+            profile_clause,
             ref categories,
             scorer,
         } => {
@@ -615,6 +675,8 @@ async fn main() -> anyhow::Result<()> {
                     graph,
                     chronological,
                     question_date,
+                    profile,
+                    profile_clause,
                     categories: categories.clone().unwrap_or_default(),
                 },
                 scorer,
@@ -690,7 +752,10 @@ async fn fetch() -> anyhow::Result<()> {
         println!("  category {}: {}", cat, n);
     }
     println!("  total:        {}", counts.total);
-    println!("  comparable:   {}  (category 5 dropped)", counts.comparable_1540);
+    println!(
+        "  comparable:   {}  (category 5 dropped)",
+        counts.comparable_1540
+    );
     println!("  adversarial:  {}  (category 5)", counts.adversarial);
 
     Ok(())
@@ -703,6 +768,8 @@ async fn build_cmd(
     collection: Option<&str>,
     ledger: Option<&str>,
     limit: Option<usize>,
+    question_types: Option<&[String]>,
+    concurrency: usize,
     lmev2_dir: &str,
     repair: bool,
     allow_undated: bool,
@@ -713,6 +780,10 @@ async fn build_cmd(
         collection.starts_with("myelin_"),
         "refusing to build into {collection:?}: collections must be myelin_*-prefixed \
          so a typo cannot touch the production collections on big"
+    );
+    anyhow::ensure!(
+        question_types.is_none() || corpus == Corpus::LongmemevalS,
+        "--question-types is LongMemEval_S-only; no other corpus has question_type strata"
     );
 
     let report = match corpus {
@@ -739,6 +810,8 @@ async fn build_cmd(
                 &collection,
                 Path::new(&ledger),
                 limit,
+                question_types,
+                concurrency,
                 repair,
             )
             .await?
@@ -747,7 +820,9 @@ async fn build_cmd(
             let dir = Path::new(lmev2_dir);
             let trajectories = dir.join("trajectories.jsonl");
             let questions = dir.join("questions.jsonl");
-            let haystack = dir.join("haystacks").join(format!("{}.json", corpus.slug()));
+            let haystack = dir
+                .join("haystacks")
+                .join(format!("{}.json", corpus.slug()));
             for p in [&trajectories, &questions, &haystack] {
                 anyhow::ensure!(p.exists(), "missing {}", p.display());
             }
@@ -775,7 +850,10 @@ async fn build_cmd(
     // A LongMemEval session is supposed to carry a date; LoCoMo's too, but
     // its `date_time` is optional in the release, so only the corpora whose
     // temporal strata depend on it are gated.
-    let dated_corpus = matches!(corpus, Corpus::LongmemevalS | Corpus::LmeV2Small | Corpus::LmeV2Medium);
+    let dated_corpus = matches!(
+        corpus,
+        Corpus::LongmemevalS | Corpus::LmeV2Small | Corpus::LmeV2Medium
+    );
     if report.sessions_without_date > 0 && dated_corpus && !allow_undated {
         anyhow::bail!(
             "{} of {} {} sessions carried no parseable date; those episodes are stamped with \
@@ -941,10 +1019,7 @@ async fn bench_cmd(
     println!();
     println!("    {:<10}{:>7}{:>12}", "category", "n", "mean");
     for c in &run.by_category {
-        println!(
-            "    {:<10}{:>7}{:>12.4}",
-            c.category, c.count, c.mean_score
-        );
+        println!("    {:<10}{:>7}{:>12.4}", c.category, c.count, c.mean_score);
     }
     println!();
     println!("  wrote {out}/per_question.jsonl and {out}/aggregated_metrics.json");

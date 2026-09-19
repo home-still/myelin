@@ -19,14 +19,15 @@ use serde::{Deserialize, Serialize};
 use myelin_core::config::MyelinConfig;
 use myelin_core::embed::remote::RemoteEmbedder;
 use myelin_core::llm::openai::OpenAiLlm;
+use myelin_core::model::delta::Delta;
 use myelin_core::model::evidence::{EvidenceSet, WireItem};
 use myelin_core::model::query::{Budget, Mode, Recall, ScopeFilter};
-use myelin_core::model::delta::Delta;
 use myelin_core::model::record::{ActorId, LinkKind, RecordKind, Scope, SourceRef};
+use myelin_core::pipeline::extract::CandidateKind;
 use myelin_core::pipeline::ingest::Turn;
-use myelin_core::pipeline::write::WritePath;
 use myelin_core::pipeline::investigate::{InvestigateConfig, InvestigateTrace, Investigator};
 use myelin_core::pipeline::retrieve::{RecallTrace, RetrieveConfig, Retriever};
+use myelin_core::pipeline::write::WritePath;
 use myelin_core::rerank::cross::CrossEncoder;
 use myelin_core::store::ledger::Ledger;
 use myelin_core::store::qdrant::QdrantStore;
@@ -224,10 +225,7 @@ impl MyelinServer {
         if params.tau_abstain.is_some() {
             retriever.config.tau_abstain = params.tau_abstain;
         }
-        let (evidence, trace) = retriever
-            .recall(&query)
-            .await
-            .map_err(mcp_err)?;
+        let (evidence, trace) = retriever.recall(&query).await.map_err(mcp_err)?;
 
         Ok(Json(to_result(evidence, trace)))
     }
@@ -270,7 +268,11 @@ impl MyelinServer {
 
         Ok(Json(InvestigateResult {
             items: evidence.to_wire(),
-            record_ids: evidence.items.iter().map(|i| i.record_id.to_string()).collect(),
+            record_ids: evidence
+                .items
+                .iter()
+                .map(|i| i.record_id.to_string())
+                .collect(),
             tokens: evidence.tokens,
             queries: evidence.trace.iter().map(|t| t.query.clone()).collect(),
             trace,
@@ -280,14 +282,20 @@ impl MyelinServer {
     #[tool(
         name = "remember",
         description = "Write one statement through the full write path: extract, consolidate against \
-                       neighbours, apply a four-op delta, index. Idempotent by content."
+                       neighbours, apply a four-op delta, index. Idempotent by content. \
+                       Set as_profile to assert it verbatim as a durable preference of the user \
+                       instead of extracting facts from it; re-asserting a changed preference \
+                       supersedes the old one."
     )]
     async fn remember(
         &self,
         Parameters(params): Parameters<RememberParams>,
     ) -> Result<Json<WriteResult>, ErrorData> {
-        let scope = Scope::new(&params.tenant, params.agent.as_deref().unwrap_or("myelin"),
-                               params.namespace.as_deref().unwrap_or("default"));
+        let scope = Scope::new(
+            &params.tenant,
+            params.agent.as_deref().unwrap_or("myelin"),
+            params.namespace.as_deref().unwrap_or("default"),
+        );
         let turn = Turn {
             speaker: params.speaker.unwrap_or_else(|| "user".into()),
             text: params.text,
@@ -295,6 +303,9 @@ impl MyelinServer {
             source: SourceRef::doc(params.source.unwrap_or_else(|| "remember".into())),
             unit: params.unit.unwrap_or_else(|| "remember".into()),
         };
+        if params.as_profile {
+            return self.assert_profile(&scope, turn).await;
+        }
         self.write(&scope, &[turn]).await
     }
 
@@ -307,8 +318,11 @@ impl MyelinServer {
         &self,
         Parameters(params): Parameters<ObserveParams>,
     ) -> Result<Json<WriteResult>, ErrorData> {
-        let scope = Scope::new(&params.tenant, params.agent.as_deref().unwrap_or("myelin"),
-                               params.namespace.as_deref().unwrap_or("default"));
+        let scope = Scope::new(
+            &params.tenant,
+            params.agent.as_deref().unwrap_or("myelin"),
+            params.namespace.as_deref().unwrap_or("default"),
+        );
         let unit = params.unit.unwrap_or_else(|| "observe".into());
         let turns: Vec<Turn> = params
             .turns
@@ -350,6 +364,31 @@ impl MyelinServer {
     }
 
     #[tool(
+        name = "profile",
+        description = "What this user is known to prefer: their durable dispositions, newest first. \
+                       Retrieved by scope, not by relevance — a preference is about the user, not \
+                       about the question."
+    )]
+    async fn profile(
+        &self,
+        Parameters(params): Parameters<ProfileParams>,
+    ) -> Result<Json<ProfileResult>, ErrorData> {
+        let mut scope = ScopeFilter::tenant(&params.tenant);
+        scope.namespace = params.namespace.clone();
+        scope.agent = params.agent.clone();
+        let limit = params.limit.unwrap_or(20).min(200) as i64;
+        let records = self
+            .backend
+            .ledger
+            .visible_of_kind(&scope, RecordKind::Profile, chrono::Utc::now(), limit)
+            .await
+            .map_err(mcp_err)?;
+        Ok(Json(ProfileResult {
+            records: records.iter().map(RecordStub::from_record).collect(),
+        }))
+    }
+
+    #[tool(
         name = "neighbors",
         description = "Records linked to this one by a typed edge. One hop; call again to walk."
     )]
@@ -359,7 +398,9 @@ impl MyelinServer {
     ) -> Result<Json<NeighborsResult>, ErrorData> {
         let id = parse_uuid(&params.record_id)?;
         let relation = match &params.relation {
-            Some(r) => Some(LinkKind::parse(r).map_err(|e| ErrorData::invalid_params(e.to_string(), None))?),
+            Some(r) => Some(
+                LinkKind::parse(r).map_err(|e| ErrorData::invalid_params(e.to_string(), None))?,
+            ),
             None => None,
         };
         // One SQL query for the edges that actually touch this record,
@@ -384,13 +425,7 @@ impl MyelinServer {
             if relation.is_some_and(|r| r != link.relation) {
                 continue;
             }
-            if let Some(record) = self
-                .backend
-                .ledger
-                .get(other)
-                .await
-                .map_err(mcp_err)?
-            {
+            if let Some(record) = self.backend.ledger.get(other).await.map_err(mcp_err)? {
                 out.push(NeighborStub {
                     relation: link.relation.as_str().to_string(),
                     inbound: link.dst == id,
@@ -419,7 +454,13 @@ impl MyelinServer {
                 let applied = self
                     .backend
                     .ledger
-                    .apply(&Delta::Delete { target: id, reason: reason.clone() }, &actor)
+                    .apply(
+                        &Delta::Delete {
+                            target: id,
+                            reason: reason.clone(),
+                        },
+                        &actor,
+                    )
                     .await
                     .map_err(mcp_err)?;
                 // Report what the ledger actually invalidated, not the id
@@ -439,7 +480,8 @@ impl MyelinServer {
                 if !params.confirm.unwrap_or(false) {
                     return Err(ErrorData::invalid_params(
                         "hard deletion erases this record AND every record derived from it; \
-                         pass confirm=true".to_string(),
+                         pass confirm=true"
+                            .to_string(),
                         None,
                     ));
                 }
@@ -532,33 +574,41 @@ impl MyelinServer {
     }
 }
 
-
 impl MyelinServer {
     /// One write path for `remember` and `observe`: the difference between
     /// them is how many turns the caller has, not what happens to them.
     async fn write(&self, scope: &Scope, turns: &[Turn]) -> Result<Json<WriteResult>, ErrorData> {
-        let stats = WritePath::new(
+        let stats = self
+            .write_path()
+            .insert(scope, turns)
+            .await
+            .map_err(mcp_err)?;
+        Ok(Json(WriteResult::from_stats(&stats)))
+    }
+
+    /// `remember` with `as_profile: true`. Same consolidation, same
+    /// supersession, same audit event — only extraction is skipped, because
+    /// the caller already wrote the disposition in its final form.
+    async fn assert_profile(
+        &self,
+        scope: &Scope,
+        turn: Turn,
+    ) -> Result<Json<WriteResult>, ErrorData> {
+        let stats = self
+            .write_path()
+            .assert_one(scope, turn, CandidateKind::Profile)
+            .await
+            .map_err(mcp_err)?;
+        Ok(Json(WriteResult::from_stats(&stats)))
+    }
+
+    fn write_path(&self) -> WritePath<'_> {
+        WritePath::new(
             &self.backend.llm,
             &self.backend.embedder,
             &self.backend.store,
             &self.backend.ledger,
         )
-        .insert(scope, turns)
-        .await
-        .map_err(mcp_err)?;
-        Ok(Json(WriteResult {
-            episodes: stats.episodes,
-            candidates: stats.candidates,
-            added: stats.added,
-            updated: stats.updated,
-            deleted: stats.deleted,
-            noop: stats.noop,
-            duplicates: stats.duplicates,
-            quarantined: stats.quarantined,
-            rejected: stats.rejected,
-            adjudicated_out: stats.adjudicated_out,
-            wall_ms: stats.wall_ms,
-        }))
     }
 
     /// Both modes drive the same retriever over the same store (R4).
@@ -709,6 +759,13 @@ pub struct RememberParams {
     pub unit: Option<String>,
     #[serde(default)]
     pub t_valid: Option<chrono::DateTime<chrono::Utc>>,
+    /// Assert `text` verbatim as a durable preference of the user, instead
+    /// of extracting facts from it.
+    ///
+    /// Deleting a disposition is the existing `forget` tool; there is
+    /// deliberately nothing new for it.
+    #[serde(default)]
+    pub as_profile: bool,
 }
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
@@ -750,11 +807,44 @@ pub struct WriteResult {
     /// Staged in quarantine like `quarantined`, but earlier: these never
     /// reached extraction at all.
     pub adjudicated_out: usize,
+    /// `RecordKind::Profile` records written. The only signal that
+    /// `as_profile` did anything, so it is always reported.
+    pub profiles: usize,
     pub wall_ms: u128,
+}
+
+impl WriteResult {
+    fn from_stats(stats: &myelin_core::pipeline::write::WriteStats) -> Self {
+        Self {
+            episodes: stats.episodes,
+            candidates: stats.candidates,
+            added: stats.added,
+            updated: stats.updated,
+            deleted: stats.deleted,
+            noop: stats.noop,
+            duplicates: stats.duplicates,
+            quarantined: stats.quarantined,
+            rejected: stats.rejected,
+            adjudicated_out: stats.adjudicated_out,
+            profiles: stats.profiles,
+            wall_ms: stats.wall_ms,
+        }
+    }
 }
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 pub struct SearchParams {
+    pub tenant: String,
+    #[serde(default)]
+    pub namespace: Option<String>,
+    #[serde(default)]
+    pub agent: Option<String>,
+    #[serde(default)]
+    pub limit: Option<usize>,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub struct ProfileParams {
     pub tenant: String,
     #[serde(default)]
     pub namespace: Option<String>,
@@ -865,6 +955,11 @@ pub struct Explanation {
 
 #[derive(Debug, Serialize, schemars::JsonSchema)]
 pub struct SearchResult {
+    pub records: Vec<RecordStub>,
+}
+
+#[derive(Debug, Serialize, schemars::JsonSchema)]
+pub struct ProfileResult {
     pub records: Vec<RecordStub>,
 }
 

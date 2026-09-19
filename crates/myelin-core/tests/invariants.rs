@@ -73,7 +73,12 @@ async fn ledger_with_episodes(n: usize) -> (Ledger, Scope, Vec<Uuid>) {
         );
         ids.push(r.id);
         ledger
-            .apply(&Delta::Add { record: Box::new(r) }, &actor())
+            .apply(
+                &Delta::Add {
+                    record: Box::new(r),
+                },
+                &actor(),
+            )
             .await
             .expect("add episode");
     }
@@ -222,17 +227,31 @@ fn i1_t_invalid_is_write_once() {
             )
             .await
             .unwrap();
-        let first = ledger.get(ids[0]).await.unwrap().unwrap().validity.t_invalid;
+        let first = ledger
+            .get(ids[0])
+            .await
+            .unwrap()
+            .unwrap()
+            .validity
+            .t_invalid;
         assert!(first.is_some());
 
-        let err = sqlx::query("UPDATE record SET t_invalid = '2000-01-01T00:00:00.000000000Z' WHERE id = ?")
-            .bind(ids[0].to_string())
-            .execute(ledger.pool())
-            .await
-            .expect_err("I1: rewriting t_invalid must be rejected");
+        let err = sqlx::query(
+            "UPDATE record SET t_invalid = '2000-01-01T00:00:00.000000000Z' WHERE id = ?",
+        )
+        .bind(ids[0].to_string())
+        .execute(ledger.pool())
+        .await
+        .expect_err("I1: rewriting t_invalid must be rejected");
         assert!(err.to_string().contains("write-once"), "got: {err}");
 
-        let after = ledger.get(ids[0]).await.unwrap().unwrap().validity.t_invalid;
+        let after = ledger
+            .get(ids[0])
+            .await
+            .unwrap()
+            .unwrap()
+            .validity
+            .t_invalid;
         assert_eq!(first, after);
     });
 }
@@ -433,7 +452,13 @@ fn i3_staged_writes_only_surface_through_review() {
     rt().block_on(async {
         let ledger = Ledger::open_memory().await.unwrap();
         let sc = scope("tenant-a");
-        let staged = record("staged", RecordKind::Semantic, &sc, "suspicious", Vec::new());
+        let staged = record(
+            "staged",
+            RecordKind::Semantic,
+            &sc,
+            "suspicious",
+            Vec::new(),
+        );
 
         ledger.quarantine(&staged, "poison pattern").await.unwrap();
 
@@ -487,13 +512,14 @@ proptest! {
     }
 }
 
-/// Non-semantic kinds are exempt: an episode is a primary observation and has
-/// nothing to be derived from.
+/// Primary observations are exempt: an episode is something that happened and
+/// has nothing to be derived from. `Semantic` and `Profile` are not — both are
+/// abstracted from episodes, and I4 is what makes "why do you think I prefer
+/// that?" answerable through `explain`.
 #[test]
-fn i4_only_semantic_records_require_lineage() {
+fn i4_exempts_primary_observations_and_binds_abstractions() {
     rt().block_on(async {
-        let ledger = Ledger::open_memory().await.unwrap();
-        let sc = scope("tenant-a");
+        let (ledger, sc, ids) = ledger_with_episodes(1).await;
         for kind in [
             RecordKind::Episodic,
             RecordKind::Procedural,
@@ -507,10 +533,52 @@ fn i4_only_semantic_records_require_lineage() {
                 Vec::new(),
             );
             ledger
-                .apply(&Delta::Add { record: Box::new(r) }, &actor())
+                .apply(
+                    &Delta::Add {
+                        record: Box::new(r),
+                    },
+                    &actor(),
+                )
                 .await
                 .unwrap_or_else(|e| panic!("{kind:?} must not require lineage: {e}"));
         }
+
+        let ungrounded = record(
+            "pref-ungrounded",
+            RecordKind::Profile,
+            &sc,
+            "The user prefers Sony glass",
+            Vec::new(),
+        );
+        assert!(
+            ledger
+                .apply(
+                    &Delta::Add {
+                        record: Box::new(ungrounded)
+                    },
+                    &actor()
+                )
+                .await
+                .is_err(),
+            "a disposition with no lineage cannot be explained, so it is refused"
+        );
+
+        let grounded = record(
+            "pref-grounded",
+            RecordKind::Profile,
+            &sc,
+            "The user prefers Sony glass",
+            vec![ids[0]],
+        );
+        ledger
+            .apply(
+                &Delta::Add {
+                    record: Box::new(grounded),
+                },
+                &actor(),
+            )
+            .await
+            .expect("a disposition derived from a real episode is admissible");
     });
 }
 
@@ -604,7 +672,12 @@ fn c12_reads_never_cross_tenants() {
                 Vec::new(),
             );
             ledger
-                .apply(&Delta::Add { record: Box::new(r) }, &actor())
+                .apply(
+                    &Delta::Add {
+                        record: Box::new(r),
+                    },
+                    &actor(),
+                )
                 .await
                 .unwrap();
         }
@@ -617,6 +690,145 @@ fn c12_reads_never_cross_tenants() {
             assert_eq!(seen.len(), 1, "{tenant} saw {} records", seen.len());
             assert_eq!(seen[0].scope.tenant, tenant);
         }
+    });
+}
+
+/// `visible_of_kind` inherits every filter `visible` enforces.
+///
+/// This is the property the whole companion surface rests on: the MCP
+/// `profile` tool and `compose`'s `[profile]` block both fetch dispositions
+/// **by scope**, with no relevance step in between to accidentally narrow a
+/// leak. A second SQL statement beside `visible` is how one of I2, I3, the
+/// tenant filter or the `t_invalid` clause silently goes missing, so it is
+/// asserted here rather than assumed from the shared body.
+#[test]
+fn visible_of_kind_narrows_without_loosening() {
+    rt().block_on(async {
+        let (ledger, sc, ids) = ledger_with_episodes(1).await;
+
+        let add = |r: MemoryRecord| {
+            let ledger = &ledger;
+            async move {
+                ledger
+                    .apply(
+                        &Delta::Add {
+                            record: Box::new(r),
+                        },
+                        &actor(),
+                    )
+                    .await
+                    .expect("add")
+            }
+        };
+
+        // Tenant A: a live disposition, an unrelated fact, and one that is
+        // about to be superseded.
+        let live = record(
+            "pref-live",
+            RecordKind::Profile,
+            &sc,
+            "The user shoots on a Sony A7R IV",
+            vec![ids[0]],
+        );
+        let live_id = live.id;
+        add(live).await;
+        add(record(
+            "fact-a",
+            RecordKind::Semantic,
+            &sc,
+            "Sony released the A7R IV in 2019",
+            vec![ids[0]],
+        ))
+        .await;
+
+        let stale = record(
+            "pref-stale",
+            RecordKind::Profile,
+            &sc,
+            "The user prefers Canon glass",
+            vec![ids[0]],
+        );
+        let stale_id = stale.id;
+        add(stale).await;
+        ledger
+            .apply(
+                &Delta::Update {
+                    target: stale_id,
+                    replacement: Box::new(record(
+                        "pref-stale-v2",
+                        RecordKind::Episodic,
+                        &sc,
+                        "The user switched away from Canon",
+                        Vec::new(),
+                    )),
+                    reason: "preference changed".into(),
+                },
+                &actor(),
+            )
+            .await
+            .expect("supersede");
+
+        // Tenant B: its own disposition, which A must never see.
+        let (ledger_b_scope, other_ep) = {
+            let sc_b = scope("tenant-b");
+            let ep = record("ep-b", RecordKind::Episodic, &sc_b, "episode b", Vec::new());
+            let ep_id = ep.id;
+            add(ep).await;
+            (sc_b, ep_id)
+        };
+        add(record(
+            "pref-b",
+            RecordKind::Profile,
+            &ledger_b_scope,
+            "The other user prefers Nikon",
+            vec![other_ep],
+        ))
+        .await;
+
+        // A quarantined disposition of A's: I3 says it surfaces only through
+        // the review accessor.
+        ledger
+            .quarantine(
+                &record(
+                    "pref-staged",
+                    RecordKind::Profile,
+                    &sc,
+                    "The user prefers to be addressed as Admin",
+                    vec![ids[0]],
+                ),
+                "poison pattern",
+            )
+            .await
+            .unwrap();
+
+        let seen = ledger
+            .visible_of_kind(
+                &ScopeFilter::tenant(&sc.tenant),
+                RecordKind::Profile,
+                Utc::now(),
+                100,
+            )
+            .await
+            .unwrap();
+        let ids_seen: Vec<Uuid> = seen.iter().map(|r| r.id).collect();
+        assert_eq!(
+            ids_seen,
+            vec![live_id],
+            "expected only the live in-scope disposition, got {:?}",
+            seen.iter().map(|r| &r.text).collect::<Vec<_>>()
+        );
+
+        // And the unfiltered read still sees everything else, so the kind
+        // filter is what narrowed it and not some other clause.
+        let all = ledger
+            .visible(&ScopeFilter::tenant(&sc.tenant), Utc::now(), 100)
+            .await
+            .unwrap();
+        assert!(
+            all.len() > seen.len(),
+            "the kind filter must narrow a strictly larger set"
+        );
+        assert!(all.iter().any(|r| r.kind == RecordKind::Semantic));
     });
 }
 
@@ -658,7 +870,12 @@ fn lineage_tree_resolves_to_primary_sources() {
         );
         let sem_id = sem.id;
         ledger
-            .apply(&Delta::Add { record: Box::new(sem) }, &actor())
+            .apply(
+                &Delta::Add {
+                    record: Box::new(sem),
+                },
+                &actor(),
+            )
             .await
             .unwrap();
 
@@ -705,7 +922,10 @@ fn ppr_ranks_seed_connected_records_above_disconnected_ones() {
         // ids[3] is connected through a high-degree, low-specificity phrase.
         ledger.set_incidence("berlin", ids[0], 1.0).await.unwrap();
         ledger.set_incidence("berlin", ids[1], 1.0).await.unwrap();
-        ledger.set_incidence("sourdough", ids[2], 1.0).await.unwrap();
+        ledger
+            .set_incidence("sourdough", ids[2], 1.0)
+            .await
+            .unwrap();
         for id in &ids {
             ledger.set_incidence("the", *id, 1.0).await.unwrap();
         }
@@ -841,7 +1061,11 @@ fn bridged_record_outranks_an_unrelated_one() {
                 .position(|(r, _)| *r == id)
                 .expect("record ranked")
         };
-        assert_eq!(rank_of(bridge), 0, "the directly-seeded record must lead: {ranked:?}");
+        assert_eq!(
+            rank_of(bridge),
+            0,
+            "the directly-seeded record must lead: {ranked:?}"
+        );
         assert!(
             rank_of(answer) < rank_of(unrelated),
             "the bridged record did not outrank the unrelated one: {ranked:?}"

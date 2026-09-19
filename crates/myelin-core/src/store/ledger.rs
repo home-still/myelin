@@ -330,16 +330,14 @@ impl Ledger {
         relation: LinkKind,
         at: DateTime<Utc>,
     ) -> Result<()> {
-        sqlx::query(
-            "INSERT OR IGNORE INTO link (src, dst, relation, at) VALUES (?, ?, ?, ?)",
-        )
-        .bind(src.to_string())
-        .bind(dst.to_string())
-        .bind(relation.as_str())
-        .bind(fmt_time(at))
-        .execute(&mut **tx)
-        .await
-        .map_err(sql)?;
+        sqlx::query("INSERT OR IGNORE INTO link (src, dst, relation, at) VALUES (?, ?, ?, ?)")
+            .bind(src.to_string())
+            .bind(dst.to_string())
+            .bind(relation.as_str())
+            .bind(fmt_time(at))
+            .execute(&mut **tx)
+            .await
+            .map_err(sql)?;
         Ok(())
     }
 
@@ -362,21 +360,51 @@ impl Ledger {
 
     // ── Read path ───────────────────────────────────────────────
 
-    /// **The only scope-filtered read accessor.** I2 and I3 are enforced here,
-    /// so any new read path that goes through this function inherits them.
+    /// **The only scope-filtered read accessor.** I2 and I3 are enforced in
+    /// [`Ledger::visible_inner`], so any new read path that goes through this
+    /// function or its kind-filtered sibling inherits them.
     pub async fn visible(
         &self,
         filter: &ScopeFilter,
         now: DateTime<Utc>,
         limit: i64,
     ) -> Result<Vec<MemoryRecord>> {
+        self.visible_inner(filter, None, now, limit).await
+    }
+
+    /// The same read, narrowed to one kind.
+    ///
+    /// Exists for `RecordKind::Profile`: a disposition is fetched by scope
+    /// rather than by relevance, so it cannot come off the vector path. The
+    /// ordering is `visible`'s — for profiles the newest-ingested is the
+    /// current disposition, and a superseded one is already excluded by the
+    /// `t_invalid` clause the shared body carries.
+    pub async fn visible_of_kind(
+        &self,
+        filter: &ScopeFilter,
+        kind: RecordKind,
+        now: DateTime<Utc>,
+        limit: i64,
+    ) -> Result<Vec<MemoryRecord>> {
+        self.visible_inner(filter, Some(kind), now, limit).await
+    }
+
+    async fn visible_inner(
+        &self,
+        filter: &ScopeFilter,
+        kind: Option<RecordKind>,
+        now: DateTime<Utc>,
+        limit: i64,
+    ) -> Result<Vec<MemoryRecord>> {
         let now_s = fmt_time(now);
+        let kind_s = kind.map(|k| k.as_str());
         let rows = sqlx::query(
             "SELECT * FROM record
              WHERE tenant = ?
                AND (? IS NULL OR namespace = ?)
                AND (? IS NULL OR agent = ?)
                AND (? IS NULL OR session = ?)
+               AND (? IS NULL OR kind = ?)
                AND prov_source IS NOT NULL
                AND trust_tier <> 'quarantined'
                AND t_valid <= ?
@@ -392,6 +420,8 @@ impl Ledger {
         .bind(filter.agent.as_deref())
         .bind(filter.session.as_deref())
         .bind(filter.session.as_deref())
+        .bind(kind_s)
+        .bind(kind_s)
         .bind(&now_s)
         .bind(&now_s)
         .bind(&now_s)
@@ -515,9 +545,9 @@ impl Ledger {
              WHERE prov_source IS NULL AND trust_tier <> 'quarantined'
              ORDER BY id",
         )
-            .fetch_all(&self.pool)
-            .await
-            .map_err(sql)?;
+        .fetch_all(&self.pool)
+        .await
+        .map_err(sql)?;
         rows.iter()
             .map(|r| parse_uuid(r.get::<String, _>("id").as_str()))
             .collect()
@@ -537,8 +567,14 @@ impl Ledger {
         .execute(&self.pool)
         .await
         .map_err(sql)?;
-        self.log("quarantine", Some(record.id), &ActorId::new("system"), reason, serde_json::json!({}))
-            .await
+        self.log(
+            "quarantine",
+            Some(record.id),
+            &ActorId::new("system"),
+            reason,
+            serde_json::json!({}),
+        )
+        .await
     }
 
     /// Mark a record already in the projection as quarantined, making it
@@ -671,16 +707,20 @@ impl Ledger {
 
     pub async fn links(&self, namespace: Option<&str>) -> Result<Vec<LinkRow>> {
         let rows = match namespace {
-            Some(ns) => sqlx::query(
-                "SELECT l.* FROM link l JOIN record r ON r.id = l.src
+            Some(ns) => {
+                sqlx::query(
+                    "SELECT l.* FROM link l JOIN record r ON r.id = l.src
                  WHERE r.namespace = ? ORDER BY l.src, l.dst, l.relation",
-            )
-            .bind(ns)
-            .fetch_all(&self.pool)
-            .await,
-            None => sqlx::query("SELECT * FROM link ORDER BY src, dst, relation")
+                )
+                .bind(ns)
                 .fetch_all(&self.pool)
-                .await,
+                .await
+            }
+            None => {
+                sqlx::query("SELECT * FROM link ORDER BY src, dst, relation")
+                    .fetch_all(&self.pool)
+                    .await
+            }
         }
         .map_err(sql)?;
         rows.iter()
@@ -704,14 +744,13 @@ impl Ledger {
     /// pair, not a possession of the source's namespace.
     pub async fn links_incident(&self, id: Uuid) -> Result<Vec<LinkRow>> {
         let v = id.to_string();
-        let rows = sqlx::query(
-            "SELECT * FROM link WHERE src = ? OR dst = ? ORDER BY src, dst, relation",
-        )
-        .bind(&v)
-        .bind(&v)
-        .fetch_all(&self.pool)
-        .await
-        .map_err(sql)?;
+        let rows =
+            sqlx::query("SELECT * FROM link WHERE src = ? OR dst = ? ORDER BY src, dst, relation")
+                .bind(&v)
+                .bind(&v)
+                .fetch_all(&self.pool)
+                .await
+                .map_err(sql)?;
         rows.iter()
             .map(|r| {
                 Ok(LinkRow {
@@ -774,16 +813,20 @@ impl Ledger {
 
     pub async fn incidence(&self, namespace: Option<&str>) -> Result<Vec<IncidenceRow>> {
         let rows = match namespace {
-            Some(ns) => sqlx::query(
-                "SELECT i.* FROM incidence i JOIN record r ON r.id = i.record_id
+            Some(ns) => {
+                sqlx::query(
+                    "SELECT i.* FROM incidence i JOIN record r ON r.id = i.record_id
                  WHERE r.namespace = ? ORDER BY i.phrase, i.record_id",
-            )
-            .bind(ns)
-            .fetch_all(&self.pool)
-            .await,
-            None => sqlx::query("SELECT * FROM incidence ORDER BY phrase, record_id")
+                )
+                .bind(ns)
                 .fetch_all(&self.pool)
-                .await,
+                .await
+            }
+            None => {
+                sqlx::query("SELECT * FROM incidence ORDER BY phrase, record_id")
+                    .fetch_all(&self.pool)
+                    .await
+            }
         }
         .map_err(sql)?;
         rows.iter()
@@ -919,13 +962,15 @@ impl Ledger {
 
     /// C2: bipartite ACL `G_AR(t)`.
     pub async fn grant_agent_namespace(&self, agent: &str, namespace: &str) -> Result<()> {
-        sqlx::query("INSERT OR REPLACE INTO acl_ar (agent_id, namespace, granted_at) VALUES (?,?,?)")
-            .bind(agent)
-            .bind(namespace)
-            .bind(fmt_time(Utc::now()))
-            .execute(&self.pool)
-            .await
-            .map_err(sql)?;
+        sqlx::query(
+            "INSERT OR REPLACE INTO acl_ar (agent_id, namespace, granted_at) VALUES (?,?,?)",
+        )
+        .bind(agent)
+        .bind(namespace)
+        .bind(fmt_time(Utc::now()))
+        .execute(&self.pool)
+        .await
+        .map_err(sql)?;
         Ok(())
     }
 
@@ -1024,13 +1069,17 @@ impl Ledger {
 
     pub async fn events(&self, record_id: Option<Uuid>) -> Result<Vec<Event>> {
         let rows = match record_id {
-            Some(id) => sqlx::query("SELECT * FROM event WHERE record_id = ? ORDER BY seq")
-                .bind(id.to_string())
-                .fetch_all(&self.pool)
-                .await,
-            None => sqlx::query("SELECT * FROM event ORDER BY seq")
-                .fetch_all(&self.pool)
-                .await,
+            Some(id) => {
+                sqlx::query("SELECT * FROM event WHERE record_id = ? ORDER BY seq")
+                    .bind(id.to_string())
+                    .fetch_all(&self.pool)
+                    .await
+            }
+            None => {
+                sqlx::query("SELECT * FROM event ORDER BY seq")
+                    .fetch_all(&self.pool)
+                    .await
+            }
         }
         .map_err(sql)?;
         rows.iter()
@@ -1131,41 +1180,49 @@ impl Ledger {
                 .map_err(sql)?;
         }
         for row in &bundle.incidence {
-            sqlx::query("INSERT OR REPLACE INTO incidence (phrase, record_id, weight) VALUES (?,?,?)")
-                .bind(&row.phrase)
-                .bind(row.record_id.to_string())
-                .bind(row.weight)
-                .execute(&mut *tx)
-                .await
-                .map_err(sql)?;
+            sqlx::query(
+                "INSERT OR REPLACE INTO incidence (phrase, record_id, weight) VALUES (?,?,?)",
+            )
+            .bind(&row.phrase)
+            .bind(row.record_id.to_string())
+            .bind(row.weight)
+            .execute(&mut *tx)
+            .await
+            .map_err(sql)?;
         }
         for row in &bundle.quarantine {
-            sqlx::query("INSERT OR REPLACE INTO quarantine (id, record, reason, at) VALUES (?,?,?,?)")
-                .bind(row.id.to_string())
-                .bind(serde_json::to_string(&row.record)?)
-                .bind(&row.reason)
-                .bind(fmt_time(row.at))
-                .execute(&mut *tx)
-                .await
-                .map_err(sql)?;
+            sqlx::query(
+                "INSERT OR REPLACE INTO quarantine (id, record, reason, at) VALUES (?,?,?,?)",
+            )
+            .bind(row.id.to_string())
+            .bind(serde_json::to_string(&row.record)?)
+            .bind(&row.reason)
+            .bind(fmt_time(row.at))
+            .execute(&mut *tx)
+            .await
+            .map_err(sql)?;
         }
         for edge in &bundle.acl_ua {
-            sqlx::query("INSERT OR REPLACE INTO acl_ua (user_id, agent_id, granted_at) VALUES (?,?,?)")
-                .bind(&edge.from)
-                .bind(&edge.to)
-                .bind(fmt_time(edge.granted_at))
-                .execute(&mut *tx)
-                .await
-                .map_err(sql)?;
+            sqlx::query(
+                "INSERT OR REPLACE INTO acl_ua (user_id, agent_id, granted_at) VALUES (?,?,?)",
+            )
+            .bind(&edge.from)
+            .bind(&edge.to)
+            .bind(fmt_time(edge.granted_at))
+            .execute(&mut *tx)
+            .await
+            .map_err(sql)?;
         }
         for edge in &bundle.acl_ar {
-            sqlx::query("INSERT OR REPLACE INTO acl_ar (agent_id, namespace, granted_at) VALUES (?,?,?)")
-                .bind(&edge.from)
-                .bind(&edge.to)
-                .bind(fmt_time(edge.granted_at))
-                .execute(&mut *tx)
-                .await
-                .map_err(sql)?;
+            sqlx::query(
+                "INSERT OR REPLACE INTO acl_ar (agent_id, namespace, granted_at) VALUES (?,?,?)",
+            )
+            .bind(&edge.from)
+            .bind(&edge.to)
+            .bind(fmt_time(edge.granted_at))
+            .execute(&mut *tx)
+            .await
+            .map_err(sql)?;
         }
         for event in &bundle.events {
             sqlx::query(

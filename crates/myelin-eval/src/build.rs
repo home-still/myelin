@@ -23,8 +23,8 @@ use myelin_core::store::qdrant::QdrantStore;
 use myelin_core::store::reconcile::reconcile;
 
 use crate::datasets::lmev2;
-use crate::datasets::longmemeval;
 use crate::datasets::locomo::{self, LocomoConversation};
+use crate::datasets::longmemeval;
 
 /// Parse a corpus session timestamp.
 ///
@@ -107,7 +107,6 @@ pub fn turns_for(conv: &LocomoConversation) -> Vec<Turn> {
     }
     turns
 }
-
 
 /// Check the ledger against the vector store, and optionally repair.
 ///
@@ -261,7 +260,12 @@ pub async fn build_locomo(
         report.sessions_without_date += conv
             .sessions
             .iter()
-            .filter(|s| s.date_time.as_deref().and_then(parse_session_time).is_none())
+            .filter(|s| {
+                s.date_time
+                    .as_deref()
+                    .and_then(parse_session_time)
+                    .is_none()
+            })
             .count();
         let turns = turns_for(conv);
 
@@ -451,20 +455,46 @@ pub async fn build_lmev2(
 /// haystack through a fact-extraction pass is hundreds of GPU-hours, and the
 /// episodic path is what the throughput measurement in
 /// `docs/measurements/m3-write-path.md` is calibrated on.
+///
+/// The **profile** pass is on, and it is affordable for the reason extraction
+/// is not: it reads user turns only, which are 7.69M of those 61.2M tokens
+/// (12.6%), and skips the model call entirely for an episode whose user said
+/// nothing substantive. See [`WritePath::extract_profiles`].
+///
+/// `question_types` restricts the build to one stratum. It is sound rather
+/// than a shortcut *because* of the per-`question_id` tenant isolation above:
+/// a question may only ever be answered from its own memory, and episode ids
+/// are v5 over `(namespace, natural key)`, so the 30 tenants of a stratum
+/// build are byte-identical to the same 30 inside the full one.
 #[allow(clippy::too_many_arguments)]
 pub async fn build_longmemeval_s(
     dataset: &Path,
     collection: &str,
     ledger_path: &Path,
     limit: Option<usize>,
+    question_types: Option<&[String]>,
+    concurrency: usize,
     repair: bool,
 ) -> Result<BuildReport> {
     let cfg = MyelinConfig::load().context("load myelin config")?;
     let mut items = longmemeval::load(dataset).context("load longmemeval_s")?;
+    // Stratum before `--limit`: truncating the 500 to N and *then* filtering
+    // would leave a handful of rows for a 30-tenant stratum.
+    if let Some(want) = question_types {
+        items.retain(|it| want.iter().any(|w| w == &it.question_type));
+        anyhow::ensure!(
+            !items.is_empty(),
+            "--question-types {want:?} matched no question in {}",
+            dataset.display()
+        );
+    }
     if let Some(n) = limit {
         items.truncate(n);
     }
-    eprintln!("  longmemeval_s: {} questions, one memory each", items.len());
+    eprintln!(
+        "  longmemeval_s: {} questions, one memory each",
+        items.len()
+    );
 
     let llm = OpenAiLlm::new(&cfg.llm.url, &cfg.llm.model).context("reader client")?;
     let embedder = RemoteEmbedder::new(&cfg.embed.url, &cfg.embed.model, cfg.embed.dim)
@@ -544,6 +574,12 @@ pub async fn build_longmemeval_s(
 
         let mut write = WritePath::new(&llm, &embedder, &store, &ledger);
         write.extract_facts = false;
+        write.extract_profiles = true;
+        // `build.rs` sets `speaker: turn.role.clone()` below, and this
+        // corpus's roles are `user`/`assistant`. A corpus that uses person
+        // names (LoCoMo does) must leave the pass off rather than guess.
+        write.profile_speaker = Some("user".to_string());
+        write.concurrency = concurrency.max(1);
         let stats = write
             .insert(&scope, &turns)
             .await
@@ -578,7 +614,10 @@ pub async fn build_longmemeval_s(
         report.per_unit.push((item.question_id.clone(), stats));
     }
     if resumed > 0 {
-        eprintln!("  resumed: {resumed} of {} units already ingested", items.len());
+        eprintln!(
+            "  resumed: {resumed} of {} units already ingested",
+            items.len()
+        );
     }
 
     report.wall_secs = started.elapsed().as_secs_f64();
@@ -608,6 +647,10 @@ impl BuildReport {
         println!("  duplicate       {}", t.duplicates);
         println!("  quarantined     {}", t.quarantined);
         println!("  rejected        {}", t.rejected);
+        // The profile pass's own yield. Zero here with a non-zero
+        // `profile` wall below means the prompt found nothing, which is a
+        // different failure from the pass never running (M20).
+        println!("profile records    {}", t.profiles);
         println!("approx tokens in   {}", t.approx_tokens);
         // Printed unconditionally, including the zero: "0 of 1,500" is the
         // evidence that the dates landed. A silent counter proves nothing.
@@ -620,10 +663,12 @@ impl BuildReport {
         println!(
             "  adjudicate       {:.1}s
   extract          {:.1}s
+  profile          {:.1}s
   consolidate      {:.1}s
   index            {:.1}s",
             t.adjudicate_ms as f64 / 1000.0,
             t.extract_ms as f64 / 1000.0,
+            t.profile_ms as f64 / 1000.0,
             t.consolidate_ms as f64 / 1000.0,
             t.index_ms as f64 / 1000.0,
         );
@@ -646,7 +691,10 @@ mod tests {
     #[test]
     fn locomo_session_timestamps_parse() {
         let parsed = parse_session_time("1:56 pm on 8 May, 2023").expect("should parse");
-        assert_eq!(parsed.format("%Y-%m-%d %H:%M").to_string(), "2023-05-08 13:56");
+        assert_eq!(
+            parsed.format("%Y-%m-%d %H:%M").to_string(),
+            "2023-05-08 13:56"
+        );
 
         let midnight = parse_session_time("7 May, 2023").expect("date-only should parse");
         assert_eq!(midnight.format("%Y-%m-%d").to_string(), "2023-05-07");
@@ -659,10 +707,16 @@ mod tests {
     #[test]
     fn longmemeval_session_timestamps_parse() {
         let parsed = parse_session_time("2023/05/20 (Sat) 02:21").expect("should parse");
-        assert_eq!(parsed.format("%Y-%m-%d %H:%M").to_string(), "2023-05-20 02:21");
+        assert_eq!(
+            parsed.format("%Y-%m-%d %H:%M").to_string(),
+            "2023-05-20 02:21"
+        );
         // The weekday is redundant with the date and is allowed to be absent.
         let no_day = parse_session_time("2023/05/30 23:40").expect("should parse");
-        assert_eq!(no_day.format("%Y-%m-%d %H:%M").to_string(), "2023-05-30 23:40");
+        assert_eq!(
+            no_day.format("%Y-%m-%d %H:%M").to_string(),
+            "2023-05-30 23:40"
+        );
     }
 
     /// An unparseable timestamp must yield `None`, not a fabricated date: a

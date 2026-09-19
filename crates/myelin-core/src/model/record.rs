@@ -1,4 +1,4 @@
-//! `MemoryRecord` and its parts (`PLAN.md` §4). One record type, four kinds,
+//! `MemoryRecord` and its parts (`PLAN.md` §4). One record type, five kinds,
 //! explicit time and explicit trust.
 
 use chrono::{DateTime, Utc};
@@ -7,22 +7,26 @@ use uuid::Uuid;
 
 use crate::error::{MyelinError, Result};
 
-/// Four kinds, one table. `Working` is scratch state; `Episodic` is never
-/// evicted from the ledger (§8), only from the hot index.
+/// Five kinds, one table. `Working` is scratch state; `Episodic` is never
+/// evicted from the ledger (§8), only from the hot index. `Profile` is a
+/// durable disposition *of the user* — retrieved by scope rather than by
+/// relevance, because a preference is about the person, not the question.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum RecordKind {
     Episodic,
     Semantic,
     Procedural,
+    Profile,
     Working,
 }
 
 impl RecordKind {
-    pub const ALL: [RecordKind; 4] = [
+    pub const ALL: [RecordKind; 5] = [
         RecordKind::Episodic,
         RecordKind::Semantic,
         RecordKind::Procedural,
+        RecordKind::Profile,
         RecordKind::Working,
     ];
 
@@ -31,6 +35,7 @@ impl RecordKind {
             RecordKind::Episodic => "episodic",
             RecordKind::Semantic => "semantic",
             RecordKind::Procedural => "procedural",
+            RecordKind::Profile => "profile",
             RecordKind::Working => "working",
         }
     }
@@ -40,6 +45,7 @@ impl RecordKind {
             "episodic" => Ok(RecordKind::Episodic),
             "semantic" => Ok(RecordKind::Semantic),
             "procedural" => Ok(RecordKind::Procedural),
+            "profile" => Ok(RecordKind::Profile),
             "working" => Ok(RecordKind::Working),
             other => Err(MyelinError::Store(format!("unknown record kind {other:?}"))),
         }
@@ -328,9 +334,10 @@ impl MemoryRecord {
         self.trust.tier.is_readable() && self.validity.is_live_at(now)
     }
 
-    /// I4 applies to `Semantic` records only: an abstracted fact must say what
-    /// it was abstracted from.
+    /// I4 applies to abstracted records: a `Semantic` fact or a `Profile`
+    /// disposition must say what it was abstracted from. That lineage is what
+    /// makes "why do you think I prefer that?" answerable through `explain`.
     pub fn requires_lineage(&self) -> bool {
-        matches!(self.kind, RecordKind::Semantic)
+        matches!(self.kind, RecordKind::Semantic | RecordKind::Profile)
     }
 }

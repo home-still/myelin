@@ -60,8 +60,8 @@ use std::path::Path;
 use anyhow::{Context, Result};
 use myelin_core::config::MyelinConfig;
 use myelin_core::embed::remote::RemoteEmbedder;
-use myelin_core::llm::{CompletionRequest, Llm, Message};
 use myelin_core::llm::openai::OpenAiLlm;
+use myelin_core::llm::{CompletionRequest, Llm, Message};
 use myelin_core::model::query::{Budget, Mode, Recall, ScopeFilter};
 use myelin_core::pipeline::investigate::Investigator;
 use myelin_core::pipeline::retrieve::{RetrieveConfig, Retriever};
@@ -101,6 +101,27 @@ If the memories do not contain the answer, reply exactly: I don't know. \
 Each memory is prefixed in brackets with the date it was recorded. \
 When the question asks when something happened, resolve relative expressions such as \"last Tuesday\" or \
 \"two weeks ago\" against that bracketed date and answer with an absolute date.";
+
+/// M20 arm B, the control for `ComposeConfig::profile`.
+///
+/// Appended to [`READER_SYSTEM`] rather than folded into it, because M19's
+/// precedent is that a reader clause is measured as its own arm before it
+/// ships: the compose-side annotation was +37.6 and the reader-side clause
+/// +14.3 on the same stratum, with both marginals significant, so neither
+/// arm may be assumed to subsume the other.
+///
+/// It contradicts two lines of `READER_SYSTEM` on purpose. "Answer in as few
+/// words as possible" and "If the memories do not contain the answer, reply
+/// exactly: I don't know" are exactly what a preference question triggers —
+/// there is no literal answer to *"suggest some accessories"* in any memory,
+/// only dispositions from which one is stated.
+const READER_PREFERENCE_CLAUSE: &str = " \
+When the question asks for a recommendation or a suggestion, or asks what the user \
+would like, answer with the preferences the user themselves stated in the memories — \
+name the brands, topics and constraints they stated — rather than generic options. \
+A memory beginning [profile] states what the user is known to prefer; treat it as \
+established about the user. Do not reply I don't know when the memories state a \
+relevant preference.";
 
 /// One scored question, written to `per_question.jsonl`.
 ///
@@ -176,6 +197,14 @@ pub struct BenchRun {
     pub resolve_dates: bool,
     #[serde(default)]
     pub timeline: bool,
+    /// M20's two arms, mirroring `ComposeConfig::profile` and
+    /// `READER_PREFERENCE_CLAUSE`. Both are recorded per run, because unlike
+    /// M19's date clause neither has shipped into the prompt: an arm that
+    /// did not write down which of the two it carried is unreadable.
+    #[serde(default)]
+    pub profile: bool,
+    #[serde(default)]
+    pub profile_clause: bool,
     /// Which category codes were scored. Empty means every one of them,
     /// which is what every run before M19 did.
     #[serde(default)]
@@ -221,6 +250,13 @@ pub struct BenchSwitches {
     pub chronological: bool,
     /// Give LoCoMo's reader a `<today>` reference date (M13).
     pub question_date: bool,
+    /// Compose the `[profile]` block — M20 arm A, `ComposeConfig::profile`.
+    pub profile: bool,
+    /// Append [`READER_PREFERENCE_CLAUSE`] to the reader prompt — M20 arm B.
+    ///
+    /// Two independent switches because M20 measures A and B alone and
+    /// together; one combined flag cannot produce the marginals.
+    pub profile_clause: bool,
     /// Score only these category codes. Empty means all of them.
     ///
     /// A stratum arm has to be runnable over 321 or 127 questions rather than
@@ -461,8 +497,8 @@ impl RowSink {
         std::fs::create_dir_all(out_dir)
             .with_context(|| format!("create {}", out_dir.display()))?;
         let path = out_dir.join("per_question.jsonl");
-        let file = std::fs::File::create(&path)
-            .with_context(|| format!("create {}", path.display()))?;
+        let file =
+            std::fs::File::create(&path).with_context(|| format!("create {}", path.display()))?;
         Ok(Self {
             file: std::io::BufWriter::new(file),
             rows: Vec::new(),
@@ -535,6 +571,7 @@ pub async fn bench_locomo(
         // treatment `stamp_valid_time` has had since M13.
         compose: myelin_core::pipeline::compose::ComposeConfig {
             chronological: switches.chronological,
+            profile: switches.profile,
             ..Default::default()
         },
         ..Default::default()
@@ -550,7 +587,15 @@ pub async fn bench_locomo(
     // question it finished (see `RowSink`).
     let mut scored = RowSink::create(out_dir)?;
     let mut latencies: Vec<f64> = Vec::new();
-    let system = READER_SYSTEM;
+    // Arm B rides on `READER_SYSTEM` rather than replacing it: the arm is the
+    // clause, and swapping the whole prompt would confound it with the
+    // abstention and date instructions every prior run carried.
+    let system = if switches.profile_clause {
+        format!("{READER_SYSTEM}{READER_PREFERENCE_CLAUSE}")
+    } else {
+        READER_SYSTEM.to_string()
+    };
+    let system = system.as_str();
 
     'outer: for conv in &conversations {
         let tenant = format!("locomo/{}", conv.sample_id);
@@ -645,11 +690,8 @@ pub async fn bench_locomo(
             };
             let response = llm
                 .complete(
-                    &CompletionRequest::new(vec![
-                        Message::system(system),
-                        Message::user(user),
-                    ])
-                    .with_max_tokens(160),
+                    &CompletionRequest::new(vec![Message::system(system), Message::user(user)])
+                        .with_max_tokens(160),
                 )
                 .await
                 .with_context(|| format!("reader {tenant}#{i}"))?
@@ -745,6 +787,7 @@ pub async fn bench_longmemeval_s(
         graph: switches.graph,
         compose: myelin_core::pipeline::compose::ComposeConfig {
             chronological: switches.chronological,
+            profile: switches.profile,
             ..Default::default()
         },
         ..Default::default()
@@ -760,7 +803,13 @@ pub async fn bench_longmemeval_s(
     // question it finished (see `RowSink`).
     let mut scored = RowSink::create(out_dir)?;
     let mut latencies: Vec<f64> = Vec::new();
-    let system = READER_SYSTEM;
+    // See `bench_locomo`: the clause is appended, not substituted.
+    let system = if switches.profile_clause {
+        format!("{READER_SYSTEM}{READER_PREFERENCE_CLAUSE}")
+    } else {
+        READER_SYSTEM.to_string()
+    };
+    let system = system.as_str();
 
     for item in &items {
         let adversarial = item.is_abstention();
@@ -951,6 +1000,11 @@ fn finish_run(
         // longer overrides either, so this is what the run actually used.
         resolve_dates: myelin_core::pipeline::compose::ComposeConfig::default().resolve_relative,
         timeline: myelin_core::pipeline::compose::ComposeConfig::default().timeline,
+        // Read off the switches, not the defaults: neither M20 arm has
+        // shipped into a default, so the run artifact is the only record of
+        // which one produced it.
+        profile: spec.switches.profile,
+        profile_clause: spec.switches.profile_clause,
         categories: spec.switches.categories.clone(),
         scorer: spec.scorer.slug().to_string(),
         rescored_from: spec.rescored_from.clone(),
@@ -966,8 +1020,7 @@ fn finish_run(
     // `per_question.jsonl` is already on disk: `RowSink` wrote and flushed
     // each row as it was scored. Only the aggregate is written here, so an
     // error anywhere above still leaves every finished question.
-    std::fs::create_dir_all(out_dir)
-        .with_context(|| format!("create {}", out_dir.display()))?;
+    std::fs::create_dir_all(out_dir).with_context(|| format!("create {}", out_dir.display()))?;
     std::fs::write(
         out_dir.join("aggregated_metrics.json"),
         serde_json::to_string_pretty(&run)?,
@@ -1092,6 +1145,8 @@ pub fn rescore_run(source: &Path, out_dir: &Path, scorer: Scorer) -> Result<Benc
             graph: flag("graph"),
             chronological: flag("chronological"),
             question_date: flag("question_date"),
+            profile: flag("profile"),
+            profile_clause: flag("profile_clause"),
             categories: metrics
                 .get("categories")
                 .and_then(serde_json::Value::as_array)
@@ -1156,7 +1211,10 @@ mod tests {
 
     #[test]
     fn normalize_drops_articles_and_punctuation() {
-        assert_eq!(normalize("The Quick, brown fox!"), vec!["quick", "brown", "fox"]);
+        assert_eq!(
+            normalize("The Quick, brown fox!"),
+            vec!["quick", "brown", "fox"]
+        );
         // "a" as an article disappears; "a" inside a word does not.
         assert_eq!(normalize("a cat"), vec!["cat"]);
         assert_eq!(normalize("apple"), vec!["apple"]);
