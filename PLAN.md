@@ -700,34 +700,42 @@ commit SHA, hardware, GPU tenancy state. `myelin-eval report` renders the Pareto
 
 ### 11.5 Acceptance thresholds
 
-Published numbers to beat, with provenance flags. `paper` = from a preprint; `vendor` = vendor blog, not
-reproducible from any paper.
+Published numbers to beat live in **[`docs/sota/registry.json`](docs/sota/registry.json)**, one row per claim,
+each carrying its provenance flag (`paper` | `leaderboard` | `vendor` | `abstract_only` | `paywalled` |
+`project_gate`), the population `n` it is over, the answer-model and judge classes behind it, and a verbatim
+quote with line numbers from the locally converted source. There is no table here any more: two copies of the
+published numbers is the failure M18 existed to remove.
 
-| benchmark | metric | best published | system | source | flag |
-|---|---|---|---|---|---|
-| LoCoMo (n=1540) | avg judge score | **84.93** | MemPro-15 @ gpt-4o-mini | arXiv 2606.00619 | paper |
-| LoCoMo | LLM-judge 0–100 | 93.05 | EverMemOS @ gpt-4.1-mini | `10.48550/arxiv.2601.02163` | paper |
-| LoCoMo | overall string-F1 | 40.00 | GAM @ gpt-4o-mini | `10.48550/arxiv.2604.12285` | paper |
-| LoCoMo | adversarial F1 | 0.78 | HiGMem | `10.48550/arxiv.2604.18349` | paper |
-| LoCoMo | vendor claim | 92.5% | Mem0 | mem0.ai blog, 2026 | **vendor** |
-| LongMemEval_S | accuracy | **79.00** | MemPro-15 @ gpt-4o-mini | arXiv 2606.00619 | paper |
-| LongMemEval_S | accuracy | 74.6 | NEMORI @ gpt-4o | `10.48550/arxiv.2508.03341` | paper |
-| LongMemEval_S | accuracy | 71.2% | Zep @ gpt-4o | `10.48550/arxiv.2501.13956` | paper |
-| LongMemEval | vendor claim | 94.4% | Mem0 | mem0.ai blog, 2026 | **vendor** |
-| LongMemEval-V2 S/M | accuracy | 74.9 / 70.1 | AgentRunbook-C | arXiv 2605.12493 | paper |
-| LongMemEval-V2 S/M | accuracy (RAG class) | 58.6 / 57.0 | AgentRunbook-R | arXiv 2605.12493 | paper |
-| LongMemEval-V2 | overall | 69.3, ≈182 s/query | vanilla Codex agent | arXiv 2605.12493 | paper |
-| LongMemEval-V2 | **LAFS, tier small** | reference frontier = **55.765** | RAG 51.0@0.2s · AR-R 58.6@26.9s · AR-C 74.9@108.3s (Codex dominated) | computed from `leaderboard/compute_lafs.py` | source + probed |
-| LongMemEval-V2 | **LAFS, tier medium** | reference frontier = **51.074** | RAG 45.9@0.3s · AR-R 57.0@25.8s · AR-C 70.1@139.9s (Codex dominated) | computed from `leaderboard/compute_lafs.py` | source + probed |
-| DMR | accuracy | 98.2% @ gpt-4o-mini / 94.8% @ gpt-4-turbo | Zep | `10.48550/arxiv.2501.13956` | paper — saturated |
+```
+myelin-eval standing            # join the registry against runs/, print a verdict per row
+myelin-eval standing --gate     # exit 1 while any gate row is unsupported or unbeaten
+```
+
+`standing` classifies every row `comparable` | `caveat-judge` | `caveat-backbone` |
+`not-comparable(subset|source)` | `incomplete-artifact` | `missing-artifact`, computes the gap only where a
+gap is a quantity, and refuses to let an unciteable number satisfy a gate. The gate rows are the five below;
+the verdict as of M18 is in [`docs/measurements/m18-sota-standing.md`](docs/measurements/m18-sota-standing.md).
+
+| gate row | bar |
+|---|---|
+| `locomo.judge.mempro15.qwen3_30b` | LoCoMo(n=1540) judge score ≥ **77.85** |
+| `longmemeval_s.judge.mempro15.qwen3_30b` | LongMemEval_S judge score ≥ **80.80** |
+| `lme_v2_small.agentrunbook_c` | LME-V2-Small (n=451) ≥ **74.9** |
+| `lme_v2_small.lafs_gain.frontier` | LAFS gain, tier small, **> 0** (strict: a tie is what a dominated point scores) |
+| `minja.asr.g3_gate` | MINJA-style ASR at k=6, pre-populated, defended ≤ **10%** |
 
 Note the internal inconsistency in the earlier evidence table (`04-benchmarks.md` §SOTA marks Zep 71.2% as best
-LongMemEval_S while listing NEMORI at 74.6 as "2nd"): NEMORI is higher, and MemPro's 79.00 supersedes both.
+LongMemEval_S while listing NEMORI at 74.6 as "2nd"): NEMORI is higher, and MemPro's 79.00 supersedes both —
+and EverMemOS's 83.00, which this plan never carried, supersedes all three at a frontier backbone.
 
-Every number in this table was re-checked against its primary source by three independent adversarial
-verification passes; the verdict tables, including the defects they found in an earlier draft of this plan,
-are in [`docs/research/audit/`](docs/research/audit/). Claims that survived unchanged are marked CONFIRMED
-there; three were corrected and one was dropped as unverifiable.
+Every number was re-checked against its primary source by three independent adversarial verification passes;
+the verdict tables, including the defects they found in an earlier draft of this plan, are in
+[`docs/research/audit/`](docs/research/audit/). M18's re-verification pass found four more, all now corrected
+in the registry's `caveat` fields: GAM's 40.00 is the **Qwen2.5-7B** row and a macro mean of four category F1s
+(its gpt-4o-mini row is 43.14), NEMORI's 74.6 is **gpt-4.1-mini** (its gpt-4o-mini LongMemEval average is
+64.2), vanilla Codex is 69.9 at 177.2 s on tier small (69.3 ≈182 s is the abstract's tier-unspecific figure),
+and the "62% → 6.7% when memory is pre-populated" attributed to MINJA is actually the EHR-poisoning paper's
+Table 1 at k=3 — MINJA contains no such pair.
 
 **The comparability problem, and its solution.** Those numbers use gpt-4o-mini-class answer models; we serve
 `qwen3.8-27b`. Comparing our local model against their frontier model — in either direction — proves nothing.
@@ -776,6 +784,8 @@ Each milestone ends with a runnable command and a number, not a description.
 | M14 | temporal scorer | Date-aware deterministic scoring (`myelin_eval::temporal`) beside token F1, both columns on every row; an offline `myelin-eval rescore` that re-read all eleven runs on disk at zero GPU cost; a reader-only `myelin-eval judge` as arbiter; default set by an agreement rule fixed in advance. **Measured: the date-aware scorer agrees with the judge 96.7% vs token F1's 84.9% on LoCoMo cat 2 (+11.8 pts, CI [+7.7, +15.8], κ 0.60 → 0.91), and −0.02 pts off-stratum ⇒ default flips to `temporal` for LoCoMo; `token-f1` kept for LongMemEval_S, where only 26/470 golds resolve.** Token F1 had inflated LoCoMo cat 2 by 8.03 pts (0.2825 → 0.2022) with partial credit for anchor-instead-of-offset answers; M12's and M13's verdicts all survive the re-read (`docs/measurements/m14-temporal-scorer.md`) |
 | M15 | injection adjudication (G3) | A content-level injection adjudicator (`pipeline::adjudicate`) on every episode **before** it is written, independent of the declared `SourceTier`; E1 widened from 5 to 40 attacks (8 surface forms × 5 domains) plus a 10-item ungated adaptive probe; measured off and on at both `Untrusted` and `Asserted` with Wilson intervals, and a false-positive pass over all 550 real LoCoMo episodes; default set by a rule fixed in advance. **Measured: ASR 77.5% [62.5, 87.7] → 15.0% [7.1, 29.1] at k=6 pre-populated — 62.5 points, and identical at `Asserted` (75.0% → 15.0%), with 0/550 LoCoMo and 0/12 benign false positives — but the gate is ≤10%, so `adjudicate` ships off and G3 stays open with a measured bound.** Every surviving attack is one of two surface forms (forged audit provenance, negating redirect) whose only defect is being false; the ungated adaptive probe (no mechanic at all) is admitted 10/10 by design, which is the ceiling of any content classifier (`docs/measurements/m15-injection-adjudication.md`) |
 | M16 | evidence sufficiency audit (G1) | A reader-only `myelin-eval evidence-audit` over the vendored LME-V2 harness rows: for every answerable question the harness scored wrong, a constrained-decoding judge over the **evidence the reader was actually shown** splits the loss into retrieval's and the reader's, with Wilson intervals, per-category cells, a deterministic gold-token proxy, both counterfactual ceilings and five verbatim labels per diagnostic cell; run at **two** operating points (646 judgements, 4 runs, 902 questions); branch set by a rule fixed in advance. **Measured: S = P(sufficient \| wrong) = 7.4% [4.4, 12.0] at `recall` k=25 and 12.2% [8.1, 17.9] at `investigate max_steps=2` ⇒ retrieval-limited at both. A perfect reader over today's evidence reaches 38.8% / 44.6% against the 51.0 bar (50.8% for web alone at the better point, 0.2 short); retrieval repair reaches 66–68% at the measured P(correct \| sufficient) ≈ 78–82% ⇒ M17 runs the pre-registered width arm, and no reader- or prompt-side change can reach G1.** *insufficient + wrong* is the largest cell everywhere (52.4% / 56.8% of answerable at k=25). The diagnosis was tested out of sample: the agentic point shrank that cell 88→68 (web) and 88→83 (enterprise) and answerable accuracy rose **+14 against +16.5 predicted** and **+4 against +4.0**. The pre-registered instrument clause fired (*insufficient + correct* 20.2–23.9% > 20%) and the verdict survives it: the judge's label moves P(correct) 28.5% → 81.8% (+53.4 pts) without ever seeing the answer, ~40% of that cell is multiple-choice guessing above chance, and the maximally adversarial worst case (S = 56.1%) selects the same width arm. Side result: **`investigate max_steps=2` at full set is +8.3 pts on web (CI [+2.9, +13.8], p = 0.0026) but −0.5 on enterprise with a significant −8.9-pt abstention loss**, so M7's levels are domain-specific, not a global default (`docs/measurements/m16-evidence-sufficiency.md`) |
+| M18 | SOTA standing, verified programmatically | `docs/sota/registry.json` (25 published claims, 10 locally converted sources, verbatim quotes with line numbers, per-row `n`/judge-class/backbone-class/provenance) joined against the run artifacts by a new `myelin-eval standing` that replaces the unimplemented `report`: it classifies every comparison `comparable` / `caveat-judge` / `caveat-backbone` / `not-comparable(subset\|source)` / `incomplete-artifact` / `missing-artifact`, computes the gap only where a gap is a quantity, calls the leaderboard's own `compute_lafs.py` through `adapters/lafs_point.py` rather than reimplementing it, and exits 1 under `--gate`. Our side became artifacts in the same pass: judged columns on both G2 runs (1,477 verdicts) and the first serialised G3 sweep (`runs/attack_live_m18/attack_live.json`, 48 min, six conditions × 8 cohorts). **Measured: all five gates unsupported, every one on quality rather than a missing artifact — LoCoMo judged 62.66 vs the 77.85 bar (−15.19), LongMemEval_S 52.00 vs 80.80 (−28.80), LME-V2-Small 39.91 vs 74.9 (−34.99), LAFS gain exactly 0.0 (both operating points dominated), MINJA ASR defended 12.5% vs the ≤10% bar. Exactly one published claim is beaten (GAM's LoCoMo token F1, +13.15) and 17 of 25 rows carry a judge-class caveat. Four defects found in §11.5's own table (GAM's backbone and metric, NEMORI's backbone, Codex's tier figure, and a "62% → 6.7%" pre-population pair attributed to MINJA that is in the EHR-poisoning paper).** Branch: M19 takes the one apples-to-apples headroom in the table — AgentRunbook-R's 58.60 at the same `Qwen3.5-9B` reader against our 39.91 — as write-time runbook synthesis (`docs/measurements/m18-sota-standing.md`) |
+| M19 | **temporal resolution (G2)** | Time made computable rather than textual: the M14 temporal grammar moved into `myelin_core::time` so the read path can call it, plus an anchored `resolve_relative` over exactly the unanchored forms the gold grammar refuses, an `is_interval_question` classifier, a `[timeline]` dated index gated per query, persisted composed evidence on every bench row, a `--categories` stratum filter and a judge-backed `rescore --scorer judge`; three mechanisms measured alone and in combination on their own strata against rules fixed in advance, with paired CIs quoted from the CLI. **Measured: the resolved annotation is +37.6 pts on LoCoMo cat 2 (n=321, CI [+32.2, +43.2]), the reader-side date clause +14.3 ([+10.2, +18.7]), both together +42.8 ([+37.3, +48.5]) — and the marginals say both are needed (+5.2 and +28.4) ⇒ both ship on. The dated index is +6.8 on LongMemEval temporal-reasoning (CI [+3.0, +11.3]) and +6.8 again at k=25, while breadth alone is +3.8 with a CI spanning zero and `investigate` is exactly 0.0 at 6.5× the latency ⇒ the index ships on, `k`/`mode` stay per-call (R4).** Full-set judged: LoCoMo 62.66 → **69.87** (+7.2, CI [+5.5, +9.0]) and LongMemEval_S 52.00 → **56.40** (+4.4, CI [+1.6, +7.2]), halving the LoCoMo G2 gap from −15.19 to **−7.98**, with no off-target category moving on an interval that excludes zero. The diagnosis is per question rather than inferred: 103 of the 321 answers were bare relative expressions against absolute golds, the gold evidence turn was in the composed evidence for **101 of them** (so retrieval had found it), and 94 now carry an absolute date. Found and fixed on the way: **LongMemEval_S's session timestamps had never parsed**, so all 162,181 records carried the build date as `t_valid` and every one of its 500 memories had been showing the reader `[2026-09-15]` since M13 — an in-place repair is correctly refused by I1's trigger, so the corpus was re-ingested, worth 45 → 19 declines on its 61 duration questions on its own (`docs/measurements/m19-temporal-resolution.md`) |
 
 M0 and M5 are not ceremony. M0 pins the four probe findings in §5 — exactly the kind of thing a Qdrant point
 release changes underneath us. M5 pins the benchmark's own privacy test against our adapter, which is the
