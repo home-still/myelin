@@ -19,16 +19,24 @@
 //! *which* items and *in what order*.
 
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 use crate::model::evidence::{EvidenceItem, EvidenceKind, EvidenceSet};
-use crate::model::record::MemoryRecord;
+use crate::model::record::{MemoryRecord, SourceRef, TrustTier};
 
 use super::consolidate::cosine;
 use super::ingest::approx_tokens;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ComposeConfig {
-    /// Maximum items returned. Small by evidence and by threat model.
+    /// Maximum **records** returned. Small by evidence and by threat model.
+    ///
+    /// It bounds records, not `items`: [`ComposeConfig::timeline`] appends one
+    /// synthetic view *on top* of the k records, so an interval question at
+    /// `k = 6` emits seven items. That is deliberate and it does not widen
+    /// the threat surface — the index is derived from records already in the
+    /// set and carries no text that was not already admitted — but a consumer
+    /// that sizes a buffer off `k` needs to know.
     pub k: usize,
     /// Total token ceiling for the composed set.
     pub max_tokens: usize,
@@ -92,6 +100,59 @@ pub struct ComposeConfig {
     /// this per call. Verdict and intervals:
     /// `docs/measurements/m13-temporal-axis.md`.
     pub chronological: bool,
+    /// Annotate every relative time reference in the emitted text with the
+    /// absolute date it resolves to against that record's own `t_valid`.
+    ///
+    /// **Default ON since M19: it is the largest single measured win in this
+    /// project's history.** On LoCoMo's 321-question temporal stratum, scored
+    /// by the date-aware scorer, it moved 20.22 → 57.84, a paired
+    /// **+37.6 points (95% CI [+32.2, +43.2], p < 0.0001)**. Verdict and
+    /// intervals: `docs/measurements/m19-temporal-resolution.md`.
+    ///
+    /// The diagnosis it answers: on those 321 questions our answer was a
+    /// *bare relative expression* in **103** of them while the gold named an
+    /// absolute date (gold `The Tuesday before 20 July 2023`, ours
+    /// `"Last Tuesday."`), and **90 of those 103** had a resolvable relative
+    /// expression in their own gold evidence turn — the gold is exactly that
+    /// expression resolved against the session date. Retrieval had found the
+    /// record: the gold evidence turn was in the composed evidence for
+    /// **101 of the 103**. Nobody resolved the reference. 431 of LoCoMo's
+    /// 5,882 turns carry such an expression.
+    ///
+    /// The published form of the mechanism is Chronos
+    /// (`10.48550/arXiv.2603.16862`), which "decomposes raw dialogue into
+    /// subject-verb-object event tuples with resolved datetime ranges" at
+    /// write time. This is the read-path half of the same idea, and needs no
+    /// store rebuild: the anchor is already on the record.
+    ///
+    /// Requires [`ComposeConfig::stamp_valid_time`] — an annotation whose
+    /// anchor the reader cannot see is an unexplained assertion.
+    pub resolve_relative: bool,
+    /// Append one synthetic `[timeline]` item listing the selected records by
+    /// date with their offsets, for questions that ask for an elapsed time or
+    /// for the order of two events.
+    ///
+    /// **Default ON since M19.** On LongMemEval_S's 133-question
+    /// temporal-reasoning stratum, judged, it moved 27.07 → 33.83: a paired
+    /// **+6.8 points (95% CI [+3.0, +11.3], p = 0.0005)**, and the same
+    /// **+6.8 ([+1.5, +12.8])** when the evidence set is widened to `k = 25`,
+    /// so the win is the dated index and not retrieval breadth — breadth
+    /// alone is +3.8 with a CI spanning zero. On LoCoMo's temporal stratum it
+    /// is +0.3 ([+0.0, +0.9]), a null, which is expected: only 20 of those
+    /// 321 questions ask for a duration.
+    ///
+    /// The diagnosis it answers: of LongMemEval_S's 127 temporal-reasoning
+    /// questions **61 are duration questions** ("How long had I been using
+    /// the new area rug when I rearranged my living room furniture?", gold
+    /// "One week"), and **45 of the 61 are declined outright** with only 2
+    /// correct. They need two dated endpoints and a subtraction, and at
+    /// `k = 6` with no dated index the reader declines instead.
+    ///
+    /// The caller decides *per query* whether the question is of that shape
+    /// — [`crate::time::is_interval_question`], applied in
+    /// [`crate::pipeline::retrieve::Retriever::recall`], because `compose`
+    /// never sees the question.
+    pub timeline: bool,
 }
 
 impl Default for ComposeConfig {
@@ -103,6 +164,8 @@ impl Default for ComposeConfig {
             label_untrusted: false,
             stamp_valid_time: true,
             chronological: false,
+            resolve_relative: true,
+            timeline: true,
         }
     }
 }
@@ -125,8 +188,7 @@ pub struct Ranked {
 /// would make the label meaningless, which is the same failure as a poison
 /// filter that flags all text. Only material that crossed a trust boundary
 /// is marked.
-fn label(record: &crate::model::record::MemoryRecord, cfg: &ComposeConfig) -> String {
-    use crate::model::record::TrustTier;
+fn label(record: &MemoryRecord, cfg: &ComposeConfig) -> String {
     let mut out = String::new();
     if cfg.stamp_valid_time {
         out.push_str(&format!(
@@ -138,6 +200,22 @@ fn label(record: &crate::model::record::MemoryRecord, cfg: &ComposeConfig) -> St
         out.push_str("[untrusted source] ");
     }
     out.push_str(&record.text);
+    // The annotation rides *after* the text, not inside it: rewriting the
+    // record's own words would make the evidence item no longer quote the
+    // memory it came from, and the audit trail depends on that.
+    if cfg.resolve_relative && cfg.stamp_valid_time {
+        let anchor = record.validity.t_valid.date_naive();
+        for r in crate::time::resolve_relative(&record.text, anchor) {
+            if r.range.lo == r.range.hi {
+                out.push_str(&format!(" ({} = {})", r.phrase, r.range.lo));
+            } else {
+                out.push_str(&format!(
+                    " ({} = {}..{})",
+                    r.phrase, r.range.lo, r.range.hi
+                ));
+            }
+        }
+    }
     out
 }
 
@@ -189,8 +267,8 @@ pub fn compose(ranked: Vec<Ranked>, cfg: &ComposeConfig) -> EvidenceSet {
         bookend(selected)
     };
 
-    let items: Vec<EvidenceItem> = ordered
-        .into_iter()
+    let mut items: Vec<EvidenceItem> = ordered
+        .iter()
         .map(|r| EvidenceItem {
             kind: EvidenceKind::Text,
             value: label(&r.record, cfg),
@@ -201,11 +279,83 @@ pub fn compose(ranked: Vec<Ranked>, cfg: &ComposeConfig) -> EvidenceSet {
         })
         .collect();
 
+    // 4. The dated index, last. `bookend`'s own rationale says the tail is
+    //    the second-best position for attention, and the head belongs to the
+    //    strongest actual memory. Fewer than two dated records is not a
+    //    timeline, it is a restatement of the one item above it.
+    if cfg.timeline && items.len() >= 2 {
+        let item = timeline_item(&ordered);
+        tokens += approx_tokens(&item.value);
+        items.push(item);
+    }
+
     EvidenceSet {
         items,
         tokens,
         trace: Vec::new(),
     }
+}
+
+/// How much of a record's text the dated index quotes.
+///
+/// Enough to identify which event a date belongs to, not enough to restate
+/// the record: the record itself is already in the set, and a timeline that
+/// duplicates six full texts spends the budget twice.
+const TIMELINE_GIST_CHARS: usize = 60;
+
+/// One synthetic dated index over the selected records, ascending by
+/// `t_valid`, with each entry's offset from the earliest.
+///
+/// `record_id` is nil and the source is the literal doc `timeline`: this is a
+/// *view* of the other items, not a memory, and a consumer that follows
+/// `record_id` into the ledger must not find a record that was never written.
+/// Its trust is the **weakest** tier among the records it summarises — a
+/// synthetic view of untrusted material must not launder it upward.
+fn timeline_item(selected: &[Ranked]) -> EvidenceItem {
+    let mut by_time: Vec<&Ranked> = selected.iter().collect();
+    by_time.sort_by_key(|r| r.record.validity.t_valid);
+    let day = |r: &Ranked| r.record.validity.t_valid.date_naive();
+    let first = by_time.first().map(|r| day(r)).unwrap_or_default();
+    let last = by_time.last().map(|r| day(r)).unwrap_or_default();
+    let entries: Vec<String> = by_time
+        .iter()
+        .map(|r| {
+            let d = day(r);
+            let gist: String = r.record.text.chars().take(TIMELINE_GIST_CHARS).collect();
+            format!("{d} +{}d · {}", (d - first).num_days(), gist.trim_end())
+        })
+        .collect();
+    EvidenceItem {
+        kind: EvidenceKind::Text,
+        value: format!(
+            "[timeline] {}  (span {} days)",
+            entries.join("; "),
+            (last - first).num_days()
+        ),
+        record_id: Uuid::nil(),
+        source: SourceRef::doc("timeline"),
+        score: 0.0,
+        trust: weakest_trust(selected),
+    }
+}
+
+/// The least-trusted tier among these records.
+///
+/// Spelled out rather than `Ord` on [`TrustTier`]: the enum's declaration
+/// order runs most-trusted first, so a derived `min` would return `Verified`
+/// for a set containing poison — the exact inversion this guards against.
+fn weakest_trust(records: &[Ranked]) -> TrustTier {
+    let rank = |t: TrustTier| match t {
+        TrustTier::Verified => 0u8,
+        TrustTier::Asserted => 1,
+        TrustTier::Untrusted => 2,
+        TrustTier::Quarantined => 3,
+    };
+    records
+        .iter()
+        .map(|r| r.record.trust.tier)
+        .max_by_key(|t| rank(*t))
+        .unwrap_or(TrustTier::Untrusted)
 }
 
 /// `[1st, 3rd, 5th, …, 6th, 4th, 2nd]` — best at the head, second-best at the
@@ -267,6 +417,9 @@ mod tests {
     fn unstamped() -> ComposeConfig {
         ComposeConfig {
             stamp_valid_time: false,
+            // The dated index is a view of the selection, so it is noise in a
+            // test about what the selection *is*. It has its own test.
+            timeline: false,
             ..Default::default()
         }
     }
@@ -350,13 +503,23 @@ mod tests {
 
     /// k is a security parameter, not just a cost one.
     #[test]
-    fn k_caps_the_set() {
+    fn k_caps_the_records_and_the_dated_index_rides_on_top() {
         let cfg = ComposeConfig {
             k: 3,
             ..Default::default()
         };
         let set = compose(ranked(&["a", "b", "c", "d", "e", "f"]), &cfg);
-        assert_eq!(set.items.len(), 3);
+        // k bounds records; the synthetic index is not one. Seven items at
+        // k = 6 is what the M19 arm-D measurement actually emitted, so the
+        // contract is pinned here rather than left to a reader's assumption.
+        let records = set
+            .items
+            .iter()
+            .filter(|i| i.record_id != Uuid::nil())
+            .count();
+        assert_eq!(records, 3);
+        assert_eq!(set.items.len(), 4, "{:?}", set.items);
+        assert_eq!(set.items.last().unwrap().source, SourceRef::doc("timeline"));
     }
 
     #[test]
@@ -519,5 +682,137 @@ mod tests {
         let set = compose(Vec::new(), &ComposeConfig::default());
         assert!(set.is_empty());
         assert!(set.to_wire().is_empty());
+    }
+
+    /// Arm A of M19. The annotation is text-only: the two bench arms must
+    /// differ in what the reader is *shown* and not in what was selected, or
+    /// the comparison measures two different retrievals.
+    #[test]
+    fn resolved_dates_annotate_the_text_without_changing_the_selection() {
+        use chrono::TimeZone;
+        // The real LoCoMo turn behind gold "The Tuesday before 20 July 2023".
+        let fixture = || {
+            let mut r = record("I just joined a new LGBTQ activist group last Tuesday");
+            r.validity.t_valid = Utc.with_ymd_and_hms(2023, 7, 20, 9, 0, 0).unwrap();
+            vec![Ranked {
+                record: r,
+                score: 1.0,
+                vector: None,
+            }]
+        };
+
+        // On by default since M19, so the default config is the annotated one.
+        let on = compose(fixture(), &ComposeConfig::default());
+        assert_eq!(
+            on.items[0].value,
+            "[2023-07-20] I just joined a new LGBTQ activist group last Tuesday \
+             (last tuesday = 2023-07-18)"
+        );
+
+        let off = compose(
+            fixture(),
+            &ComposeConfig {
+                resolve_relative: false,
+                ..Default::default()
+            },
+        );
+        assert_eq!(
+            off.items[0].value,
+            "[2023-07-20] I just joined a new LGBTQ activist group last Tuesday"
+        );
+        // The budget is charged on the raw record text, so the annotation is
+        // free and both arms are the same selection.
+        assert_eq!(on.tokens, off.tokens);
+
+        // No visible anchor, no annotation: `(last tuesday = 2023-07-18)`
+        // beside no date is an assertion the reader cannot check.
+        let unanchored = compose(
+            fixture(),
+            &ComposeConfig {
+                resolve_relative: true,
+                stamp_valid_time: false,
+                ..Default::default()
+            },
+        );
+        assert_eq!(
+            unanchored.items[0].value,
+            "I just joined a new LGBTQ activist group last Tuesday"
+        );
+    }
+
+    /// Arm D of M19: one synthetic dated index, at the tail, carrying the
+    /// weakest trust of the records it summarises.
+    #[test]
+    fn the_timeline_item_is_appended_last_and_never_launders_trust() {
+        use chrono::TimeZone;
+        let input = || {
+            let spec = [
+                (2023, 5, 6, "rug delivered from the store"),
+                (2023, 5, 13, "rearranged the living room"),
+                (2023, 6, 3, "sold the old couch"),
+            ];
+            let mut out = Vec::new();
+            for (i, (y, m, d, text)) in spec.into_iter().enumerate() {
+                let mut r = record(text);
+                r.validity.t_valid = Utc.with_ymd_and_hms(y, m, d, 0, 0, 0).unwrap();
+                if i == 2 {
+                    r.trust = Trust {
+                        tier: TrustTier::Untrusted,
+                        score: 0.30,
+                        checks: Vec::new(),
+                    };
+                }
+                out.push(Ranked {
+                    record: r,
+                    score: 1.0 - i as f32 * 0.1,
+                    vector: None,
+                });
+            }
+            out
+        };
+
+        // On by default since M19.
+        let set = compose(input(), &ComposeConfig::default());
+        assert_eq!(set.items.len(), 4, "three records plus one index");
+        let index = set.items.last().unwrap();
+        assert_eq!(
+            index.value,
+            "[timeline] 2023-05-06 +0d · rug delivered from the store; \
+             2023-05-13 +7d · rearranged the living room; \
+             2023-06-03 +28d · sold the old couch  (span 28 days)"
+        );
+        assert_eq!(index.record_id, Uuid::nil(), "the index is not a memory");
+        assert_eq!(index.source, SourceRef::doc("timeline"));
+        assert_eq!(
+            index.trust,
+            TrustTier::Untrusted,
+            "a synthetic view of untrusted material must not launder it"
+        );
+
+        // It costs tokens, and the count says so.
+        let off = compose(
+            input(),
+            &ComposeConfig {
+                timeline: false,
+                ..Default::default()
+            },
+        );
+        assert_eq!(off.items.len(), 3);
+        assert!(set.tokens > off.tokens, "{} vs {}", set.tokens, off.tokens);
+    }
+
+    /// One record is not a timeline: it would restate the item above it and
+    /// buy no interval.
+    #[test]
+    fn a_single_record_gets_no_timeline() {
+        let set = compose(
+            ranked(&["only"]),
+            &ComposeConfig {
+                timeline: true,
+                ..unstamped()
+            },
+        );
+        assert_eq!(set.items.len(), 1);
+        assert_eq!(set.items[0].value, "only");
     }
 }

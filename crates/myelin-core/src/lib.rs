@@ -11,6 +11,7 @@ pub mod model;
 pub mod pipeline;
 pub mod rerank;
 pub mod store;
+pub mod time;
 
 pub use error::{MyelinError, Result};
 pub use model::{

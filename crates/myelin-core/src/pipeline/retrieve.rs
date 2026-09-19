@@ -412,9 +412,17 @@ impl<'a> Retriever<'a> {
         // name (near-duplicate threshold, bookending). Without this the MCP
         // `recall` tool silently returned 6 items for `k: 3`, which is how
         // this was found.
+        //
+        // `timeline` is decided here for the same reason and cannot be decided
+        // anywhere else: `compose` never sees the question, and the dated
+        // index is only wanted for a question that asks for an elapsed time
+        // or for the order of two events. Configured off means off; the
+        // question shape only ever narrows it.
         let compose_cfg = ComposeConfig {
             k: query.budget.k,
             max_tokens: query.budget.tokens,
+            timeline: self.config.compose.timeline
+                && crate::time::is_interval_question(&query.text),
             ..self.config.compose.clone()
         };
 
