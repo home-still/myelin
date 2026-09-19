@@ -1,0 +1,31 @@
+{
+  "corpus": "locomo",
+  "collection": "myelin_locomo",
+  "mode": "recall",
+  "k": 6,
+  "max_steps": 2,
+  "graph": false,
+  "chronological": false,
+  "question_date": false,
+  "resolve_dates": true,
+  "timeline": false,
+  "date_prompt": true,
+  "categories": [
+    2
+  ],
+  "scorer": "temporal",
+  "rescored_from": null,
+  "questions": 321,
+  "f1_answerable": 0.6301290609701826,
+  "em_answerable": 0.6105919003115264,
+  "abstention_accuracy": 0.0,
+  "by_category": [
+    {
+      "category": 2,
+      "count": 321,
+      "mean_score": 0.6301290609701826
+    }
+  ],
+  "query_p50_seconds": 0.207234,
+  "query_avg_seconds": 0.21051907834579447
+}

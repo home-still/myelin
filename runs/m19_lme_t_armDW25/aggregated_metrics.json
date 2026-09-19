@@ -1,0 +1,30 @@
+{
+  "corpus": "longmemeval_s",
+  "collection": "myelin_longmemeval_s",
+  "mode": "recall",
+  "k": 25,
+  "max_steps": 2,
+  "graph": false,
+  "chronological": false,
+  "question_date": false,
+  "resolve_dates": true,
+  "timeline": true,
+  "categories": [
+    5
+  ],
+  "scorer": "token_f1",
+  "rescored_from": null,
+  "questions": 133,
+  "f1_answerable": 0.2840138692276637,
+  "em_answerable": 0.15748031496062992,
+  "abstention_accuracy": 0.8333333333333334,
+  "by_category": [
+    {
+      "category": 5,
+      "count": 133,
+      "mean_score": 0.3087951984354383
+    }
+  ],
+  "query_p50_seconds": 0.570424917,
+  "query_avg_seconds": 0.8224437387293236
+}
