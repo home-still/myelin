@@ -36,6 +36,7 @@ use crate::store::qdrant::QdrantStore;
 use super::compose::{compose, ComposeConfig, Ranked, PROFILE_MAX_RECORDS};
 use super::fuse::{rrf, RankedList, DEFAULT_RRF_K};
 use super::phrases::phrases;
+use super::decompose::Decomposer;
 use super::select::Selector;
 
 /// Which retrieval channels participate. The ablation axis of M4.
@@ -151,6 +152,26 @@ pub struct RetrieveConfig {
     /// the same contract [`RetrieveConfig::graph`] has with
     /// [`Retriever::with_graph`].
     pub select_sufficient: bool,
+    /// Split the question into sub-queries and retrieve for each, fusing
+    /// them into the same RRF call as the original (M24). `None` — the
+    /// default, and every run before M24 — is the single-query path.
+    ///
+    /// The value is the cap on sub-queries, bounded by
+    /// [`crate::pipeline::decompose::MAX_SUBQUERIES`]. Cost is one model
+    /// call plus one embedding and one `hybrid_search` per sub-query; the
+    /// embeddings go in a single batched call, the searches do not.
+    ///
+    /// **The original question is always retrieved too**, so a sub-query set
+    /// that misses the point can only add candidates and never lose them.
+    /// Nothing is de-duplicated across sub-query results: M21 measured that
+    /// co-evidence for one question resembles *itself* 1.60× more than the
+    /// rest of the set, so a redundancy penalty here would be aimed exactly
+    /// at the records multi-hop needs.
+    ///
+    /// Cannot ship on for `recall` whatever it measures — `PLAN.md` §7.1
+    /// forbids an LLM in that loop — so its home if it wins is
+    /// `investigate`. Inert without [`Retriever::with_llm`].
+    pub decompose: Option<usize>,
     pub compose: ComposeConfig,
 }
 
@@ -167,6 +188,7 @@ impl Default for RetrieveConfig {
             graph_damping: DEFAULT_DAMPING,
             graph_iterations: DEFAULT_ITERATIONS,
             select_sufficient: false,
+            decompose: None,
             compose: ComposeConfig::default(),
         }
     }
@@ -215,6 +237,15 @@ pub struct RecallTrace {
     pub selected: usize,
     #[serde(default)]
     pub select_ms: u128,
+    /// Sub-queries the decomposer produced and what the call cost. Zero
+    /// when [`RetrieveConfig::decompose`] is off, when no [`Llm`] was
+    /// wired, or when the model judged the question to need only itself —
+    /// which is a real answer and not a failure, so `decompose_ms` is the
+    /// field that distinguishes "did not run" from "ran and said one".
+    #[serde(default)]
+    pub subqueries: usize,
+    #[serde(default)]
+    pub decompose_ms: u128,
 }
 
 pub struct Retriever<'a> {
@@ -267,18 +298,39 @@ impl<'a> Retriever<'a> {
         let started = std::time::Instant::now();
         let mut trace = RecallTrace::default();
 
+        // Decomposition (M24) runs first: its sub-queries need embedding
+        // alongside the original, and one batched `embed` call is the
+        // difference between N round trips and one.
+        //
+        // Inert without an `Llm`, exactly as `select_sufficient` and
+        // `graph` are inert without their collaborators — and, like them,
+        // a switch that is on with nothing wired is reported in the trace
+        // (`subqueries` stays 0 with `decompose_ms` > 0 only when the call
+        // actually ran) rather than failing silently.
+        let mut subqueries: Vec<String> = Vec::new();
+        if let (Some(max), Some(llm)) = (self.config.decompose, self.llm) {
+            let td = std::time::Instant::now();
+            subqueries = Decomposer::new(llm).decompose(&query.text, max).await?;
+            trace.decompose_ms = td.elapsed().as_millis();
+            trace.subqueries = subqueries.len();
+        }
+
         // Dense is needed for the dense channel and for compose's
         // near-duplicate suppression; skip it entirely for the lex-only arm
         // so that arm's latency is honest.
+        //
+        // The original question is always index 0, so the single-query path
+        // is byte-identical when `subqueries` is empty.
         let t0 = std::time::Instant::now();
-        let dense = if self.config.channels == Channels::Lex {
-            Vec::new()
+        let texts: Vec<String> = std::iter::once(query.text.clone())
+            .chain(subqueries.iter().cloned())
+            .collect();
+        let dense_vectors: Vec<Vec<f32>> = if self.config.channels == Channels::Lex {
+            vec![Vec::new(); texts.len()]
         } else {
-            self.embedder
-                .embed(std::slice::from_ref(&query.text))
-                .await?
-                .pop()
-                .unwrap_or_default()
+            let mut got = self.embedder.embed(&texts).await?;
+            got.resize(texts.len(), Vec::new());
+            got
         };
         trace.embed_ms = t0.elapsed().as_millis();
 
@@ -294,41 +346,56 @@ impl<'a> Retriever<'a> {
         // zero `compose` is exact-text-only and `Ranked::vector` stays `None`.
         let want_vectors = self.config.compose.tau_near_dup > 0.0;
 
+        let scope = crate::store::qdrant::SearchScope {
+            tenant: &query.scope.tenant,
+            namespace: query.scope.namespace.as_deref(),
+            agent: query.scope.agent.as_deref(),
+            session: query.scope.session.as_deref(),
+        };
+
         let t1 = std::time::Instant::now();
-        let lists = self
-            .store
-            .hybrid_search(
-                dense.clone(),
-                &query.text,
-                crate::store::qdrant::SearchScope {
-                    tenant: &query.scope.tenant,
-                    namespace: query.scope.namespace.as_deref(),
-                    agent: query.scope.agent.as_deref(),
-                    session: query.scope.session.as_deref(),
-                },
-                &kinds,
-                self.config.prefetch_limit,
-                want_vectors,
-            )
-            .await?;
+        let mut all_lists = Vec::with_capacity(texts.len());
+        for (i, text) in texts.iter().enumerate() {
+            all_lists.push(
+                self.store
+                    .hybrid_search(
+                        dense_vectors[i].clone(),
+                        text,
+                        scope,
+                        &kinds,
+                        self.config.prefetch_limit,
+                        want_vectors,
+                    )
+                    .await?,
+            );
+        }
         trace.search_ms = t1.elapsed().as_millis();
+        // The original question's own hit counts, so the trace stays
+        // comparable across the switch rather than reporting a total that
+        // silently grew with the sub-query count.
+        let lists = &all_lists[0];
         trace.dense_hits = lists.dense.len();
         trace.lex_hits = lists.lex.len();
 
         // Fuse the selected channels. A single-channel arm still goes through
         // `rrf` so the ablation compares ranking, not plumbing.
+        //
+        // Each sub-query contributes its own pair of lists to the *same*
+        // fusion (M24), so a record that answers two sub-questions
+        // accumulates reciprocal rank from both and rises — which is the
+        // multi-hop shape — while every stage below this sees one ordinary
+        // fused list and is untouched.
         let mut ranked_lists = Vec::new();
-        if matches!(self.config.channels, Channels::Dense | Channels::Hybrid) {
-            ranked_lists.push(RankedList::new(
-                "dense",
-                lists.dense.iter().map(|h| h.id).collect(),
-            ));
-        }
-        if matches!(self.config.channels, Channels::Lex | Channels::Hybrid) {
-            ranked_lists.push(RankedList::new(
-                "lex",
-                lists.lex.iter().map(|h| h.id).collect(),
-            ));
+        for l in &all_lists {
+            if matches!(self.config.channels, Channels::Dense | Channels::Hybrid) {
+                ranked_lists.push(RankedList::new(
+                    "dense",
+                    l.dense.iter().map(|h| h.id).collect(),
+                ));
+            }
+            if matches!(self.config.channels, Channels::Lex | Channels::Hybrid) {
+                ranked_lists.push(RankedList::new("lex", l.lex.iter().map(|h| h.id).collect()));
+            }
         }
 
         // The graph channel (`PLAN.md` §7.1 `route?`, §5.4). It joins
@@ -380,10 +447,15 @@ impl<'a> Retriever<'a> {
         // Text comes from the payload, so the head of the list costs no
         // SQLite round trip. Vectors ride along the same way when
         // `want_vectors` asked for them; only the dense channel carries one.
+        //
+        // Across *every* sub-query's hits: a record surfaced only by a
+        // sub-query still has to be materialisable, and falling back to the
+        // ledger's `record.text` for it would silently cost a round trip
+        // per decomposed candidate.
         let mut text_by_id = std::collections::HashMap::new();
         let mut vector_by_id: std::collections::HashMap<uuid::Uuid, Vec<f32>> =
             std::collections::HashMap::new();
-        for hit in lists.dense.iter().chain(lists.lex.iter()) {
+        for hit in all_lists.iter().flat_map(|l| l.dense.iter().chain(l.lex.iter())) {
             text_by_id.entry(hit.id).or_insert_with(|| hit.text.clone());
             if let Some(v) = hit.vector.as_ref() {
                 vector_by_id.entry(hit.id).or_insert_with(|| v.clone());

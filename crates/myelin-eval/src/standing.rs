@@ -690,7 +690,11 @@ struct HarnessRun {
 /// and read `null`, and the M23 arms write both as explicit booleans, so the
 /// M23 arms pair only with each other and the M22 bases pair only with each
 /// other.
-const PAIR_KEYS: [&str; 11] = [
+///
+/// `decompose` (M24) joins them for the same reason: it changes the
+/// candidate pool per query, so a decomposed web run must not cross-pair
+/// with a plain enterprise one.
+const PAIR_KEYS: [&str; 12] = [
     "mode",
     "k",
     "budget_tokens",
@@ -702,6 +706,7 @@ const PAIR_KEYS: [&str; 11] = [
     "pool_rerank",
     "premise",
     "typed_probes",
+    "decompose",
 ];
 
 /// Walk `runs`, extract every metric any artifact supports, and keep the best
@@ -883,7 +888,9 @@ fn bench_metrics(dir: &Path, agg_text: &str) -> Result<Vec<Ours>> {
         || run.rerank_pool
         || run.premise
         || run.typed_probes
-        || run.untrusted_max.is_some();
+        || run.untrusted_max.is_some()
+        // M24's sub-query decomposition.
+        || run.decompose.is_some();
 
     // Does this run record its own operating point? Every key below defines
     // part of what the system does per query today. An artifact that does
@@ -2819,7 +2826,8 @@ mod tests {
             "mode": "investigate", "k": 25, "budget_tokens": 10000, "max_steps": 2,
             "prefetch_limit": null, "rerank_depth": null,
             "select": false, "dated": true,
-            "pool_rerank": false, "premise": false, "typed_probes": false
+            "pool_rerank": false, "premise": false, "typed_probes": false,
+            "decompose": null
         })
     }
 
@@ -2883,7 +2891,7 @@ mod tests {
         );
         assert_eq!(
             combined.unrecorded,
-            vec!["pool_rerank", "premise", "typed_probes"]
+            vec!["pool_rerank", "premise", "typed_probes", "decompose"]
         );
     }
 
@@ -2899,7 +2907,8 @@ mod tests {
         let undated = serde_json::json!({
             "mode": "investigate", "k": 25, "budget_tokens": 10000, "max_steps": 2,
             "prefetch_limit": null, "rerank_depth": null, "select": false, "dated": false,
-            "pool_rerank": false, "premise": false, "typed_probes": false
+            "pool_rerank": false, "premise": false, "typed_probes": false,
+            "decompose": null
         });
         harness_run(&runs, "nodate_web", "web", 240, 0.39, undated.clone());
         harness_run(&runs, "nodate_ent", "enterprise", 211, 0.39, undated);

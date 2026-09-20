@@ -1,4 +1,4 @@
-# `myelin-eval standing` — commit `5ab868594c6129317b947ed268d459baa84fa474-dirty`, generated 2026-09-20T17:55:10Z
+# `myelin-eval standing` — commit `7900b408b01292dd27c7a73ecbc4930e34c3030e-dirty`, generated 2026-09-20T18:13:35Z
 
 | metric | system | theirs | ours | gap | verdict | claim | run |
 |---|---|---|---|---|---|---|---|
@@ -16,11 +16,11 @@
 | longmemeval_s.judge_score.n500 | Zep | 71.20 | 56.60 | -14.60 | caveat-judge(open_weights_local vs frontier_api) | no | `runs/m21_full_base` |
 | dmr.accuracy.n500 | Zep | 98.20 | — | — | missing-artifact | no | — |
 | dmr.accuracy.n500 | Zep (gpt-4-turbo) | 94.80 | — | — | missing-artifact | no | — |
-| lme_v2_small.overall_full_set.combined | AgentRunbook-C **(gate)** | 74.90 | 36.59 | — | stale-config(artifact does not record pool_rerank, premise, typed_probes; re-measure on this code before quoting it) | no | `runs/m22_base_web` |
-| lme_v2_small.overall_full_set.combined | AgentRunbook-R | 58.60 | 36.59 | — | stale-config(artifact does not record pool_rerank, premise, typed_probes; re-measure on this code before quoting it) | no | `runs/m22_base_web` |
-| lme_v2_small.overall_full_set.combined | Codex (vanilla) | 69.90 | 36.59 | — | stale-config(artifact does not record pool_rerank, premise, typed_probes; re-measure on this code before quoting it) | no | `runs/m22_base_web` |
-| lme_v2_small.overall_full_set.combined | RAG slice+notes | 51.00 | 36.59 | — | stale-config(artifact does not record pool_rerank, premise, typed_probes; re-measure on this code before quoting it) | no | `runs/m22_base_web` |
-| lme_v2_small.lafs_gain.small | LME-V2 reference frontier **(gate)** | 0.00 | 0.00 | — | stale-config(artifact does not record mode, max_steps, prefetch_limit, rerank_depth, select, dated, pool_rerank, premise, typed_probes; re-measure on this code before quoting it) | no | `runs/m22_base_web` |
+| lme_v2_small.overall_full_set.combined | AgentRunbook-C **(gate)** | 74.90 | 36.59 | — | stale-config(artifact does not record pool_rerank, premise, typed_probes, decompose; re-measure on this code before quoting it) | no | `runs/m22_base_web` |
+| lme_v2_small.overall_full_set.combined | AgentRunbook-R | 58.60 | 36.59 | — | stale-config(artifact does not record pool_rerank, premise, typed_probes, decompose; re-measure on this code before quoting it) | no | `runs/m22_base_web` |
+| lme_v2_small.overall_full_set.combined | Codex (vanilla) | 69.90 | 36.59 | — | stale-config(artifact does not record pool_rerank, premise, typed_probes, decompose; re-measure on this code before quoting it) | no | `runs/m22_base_web` |
+| lme_v2_small.overall_full_set.combined | RAG slice+notes | 51.00 | 36.59 | — | stale-config(artifact does not record pool_rerank, premise, typed_probes, decompose; re-measure on this code before quoting it) | no | `runs/m22_base_web` |
+| lme_v2_small.lafs_gain.small | LME-V2 reference frontier **(gate)** | 0.00 | 0.00 | — | stale-config(artifact does not record mode, max_steps, prefetch_limit, rerank_depth, select, dated, pool_rerank, premise, typed_probes, decompose; re-measure on this code before quoting it) | no | `runs/m22_base_web` |
 | longmemeval_s.judge_score.n500 | NEMORI | 74.60 | 56.60 | -18.00 | caveat-judge(open_weights_local vs frontier_api) | no | `runs/m21_full_base` |
 | locomo.judge_score.n1540 | NEMORI | 80.80 | 69.87 | -10.93 | caveat-judge(open_weights_local vs frontier_api) | no | `runs/m19_locomo_full` |
 | minja.asr.k6_prepopulated | MINJA | 76.80 | 77.50 | -0.70 | caveat-backbone(open_weights vs frontier_api) | no | `runs/attack_live_m18` |
@@ -37,8 +37,8 @@
 
 - locomo.judge.mempro15.qwen3_30b [locomo.judge_score.n1540] behind by 7.98 (ours 69.87, gate needs >= 77.85)
 - longmemeval_s.judge.mempro15.qwen3_30b [longmemeval_s.judge_score.n500] behind by 24.20 (ours 56.60, gate needs >= 80.80)
-- lme_v2_small.agentrunbook_c [lme_v2_small.overall_full_set.combined] artifact predates today's operating point (artifact does not record pool_rerank, premise, typed_probes; re-measure on this code before quoting it)
-- lme_v2_small.lafs_gain.frontier [lme_v2_small.lafs_gain.small] artifact predates today's operating point (artifact does not record mode, max_steps, prefetch_limit, rerank_depth, select, dated, pool_rerank, premise, typed_probes; re-measure on this code before quoting it)
+- lme_v2_small.agentrunbook_c [lme_v2_small.overall_full_set.combined] artifact predates today's operating point (artifact does not record pool_rerank, premise, typed_probes, decompose; re-measure on this code before quoting it)
+- lme_v2_small.lafs_gain.frontier [lme_v2_small.lafs_gain.small] artifact predates today's operating point (artifact does not record mode, max_steps, prefetch_limit, rerank_depth, select, dated, pool_rerank, premise, typed_probes, decompose; re-measure on this code before quoting it)
 - minja.asr.g3_gate [minja.asr.k6_prepopulated_defended] behind by 2.50 (ours 12.50, gate needs >= 10.00)
 
 ## Protocol caveats
@@ -83,7 +83,7 @@ Values are in the extractor's own unit, which is the one the run artifact carrie
 | lme_v2_small.lafs_gain.small | 0.00 | 451 | 1 | adapters/lafs_point.py over 5 submission point(s): m22_base_web+m22_base_ent 36.59@18.31s, m22_nodate_web+m22_nodate_ent 39.02@10.95s, m22_sel_web+m22_sel_ent 37.92@14.45s, myelin_inv2_web_small+myelin_inv2_enterprise_small 39.91@12.76s, myelin_k25_web_small+myelin_k25_enterprise_small 35.70@1.97s | `m22_base_web` 0.00 |
 | lme_v2_small.memory_query_avg_seconds.enterprise | 23.061 s | 211 | none | memory_query.avg_seconds over 211 questions | `m22_base_ent` 23.06, `m22_nodate_ent` 10.90, `m22_sel_ent` 14.67, `myelin_inv2_enterprise_small` 14.69, `myelin_k25_enterprise_small` 2.12 |
 | lme_v2_small.memory_query_avg_seconds.web | 14.139 s | 240 | none | memory_query.avg_seconds over 240 questions | `m22_base_web` 14.14, `m22_pilot_base` 13.57, `m22_nodate_web` 11.00, `m22_sel_web` 14.26, `m22_pilot_nodate` 18.64, `m22_pilot_sel` 26.81, `myelin_inv2_web_small` 11.06, `myelin_k25_web_small` 1.83, `myelin_fast_web_small` 2.10 |
-| lme_v2_small.overall_full_set.combined | 36.59 | 451 | 4 | question-weighted mean of m22_base_web (40.42 over 240) and m22_base_ent (32.23 over 211); mode="investigate" k=25 budget_tokens=10000 max_steps=2 prefetch_limit=null rerank_depth=null select=false dated=true pool_rerank=null premise=null typed_probes=null | `m22_base_web` 36.59, `m22_nodate_web` 39.02, `m22_sel_web` 37.92, `myelin_inv2_web_small` 39.91, `myelin_k25_web_small` 35.70 |
+| lme_v2_small.overall_full_set.combined | 36.59 | 451 | 4 | question-weighted mean of m22_base_web (40.42 over 240) and m22_base_ent (32.23 over 211); mode="investigate" k=25 budget_tokens=10000 max_steps=2 prefetch_limit=null rerank_depth=null select=false dated=true pool_rerank=null premise=null typed_probes=null decompose=null | `m22_base_web` 36.59, `m22_nodate_web` 39.02, `m22_sel_web` 37.92, `myelin_inv2_web_small` 39.91, `myelin_k25_web_small` 35.70 |
 | lme_v2_small.overall_full_set.enterprise | 32.23 | 211 | none | overall.overall_full_set x 100 over 211 questions, evaluator Qwen/Qwen3.5-9B | `m22_base_ent` 32.23, `m22_sel_ent` 36.02, `m22_nodate_ent` 34.12, `myelin_inv2_enterprise_small` 34.12, `myelin_k25_enterprise_small` 34.60 |
 | lme_v2_small.overall_full_set.web | 40.42 | 240 | none | overall.overall_full_set x 100 over 240 questions, evaluator Qwen/Qwen3.5-9B | `m22_base_web` 40.42, `m22_pilot_base` 40.00, `m22_nodate_web` 43.33, `m22_sel_web` 39.58, `m22_pilot_sel` 47.50, `m22_pilot_nodate` 45.00, `myelin_inv2_web_small` 45.00, `myelin_k25_web_small` 36.67, `myelin_fast_web_small` 30.83 |
 | locomo.abstention_accuracy.n446 | 69.96 | 446 | 1 | aggregated_metrics.json abstention_accuracy over category 5 | `m19_locomo_full` 69.96, `locomo_recall_judge` 69.96, `m19_locomo_full_judge` 69.96, `locomo_recall` 69.96, `locomo_recall_temporal` 69.96, `locomo_investigate` 69.73, `locomo_investigate_temporal` 69.73, `locomo_recall_probe` 65.96, `locomo_recall_probe_temporal` 65.96, `locomo_recall_qdate` 73.09, `locomo_recall_qdate_temporal` 73.09, `locomo_recall_chrono_qdate` 72.42, `locomo_recall_chrono_qdate_temporal` 72.42, `locomo_recall_graph` 71.75, `locomo_recall_graph_temporal` 71.75, `locomo_recall_chrono` 70.63, `locomo_recall_chrono_temporal` 70.63 |

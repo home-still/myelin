@@ -129,6 +129,14 @@ def parse_args() -> argparse.Namespace:
         "untagged means every measured arm is byte-identical (M23 D2).",
     )
     parser.add_argument(
+        "--decompose",
+        type=int,
+        default=None,
+        help="Split each question into at most N sub-queries and retrieve for each, "
+        "fusing them into the same RRF call as the original (M24). One model call "
+        "per query; on investigate, one per probe.",
+    )
+    parser.add_argument(
         "--undated",
         action="store_true",
         help="The corpus carries no event timestamps; suppress the date mechanisms "
@@ -248,6 +256,10 @@ def main() -> None:
             "pool_rerank": args.pool_rerank,
             "premise": args.premise,
             "typed_probes": args.typed_probes,
+            # M24. An integer or null, written unconditionally for the same
+            # reason: it is in `PAIR_KEYS`, and an artifact that omits it is
+            # `stale-config` and unpublishable.
+            "decompose": args.decompose,
         },
     }
     memory_config_path = runtime_dir / "memory_config.json"

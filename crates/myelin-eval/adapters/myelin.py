@@ -342,6 +342,10 @@ class MyelinMemory(Memory):
         # `investigate` lets the reflect gate aim each probe at the event
         # (`RecordKind::Semantic`) or note (`RecordKind::Procedural`) pool.
         self.typed_probes = params.get("typed_probes")
+        # M24. An integer cap or None; passed on both tools, because unlike
+        # the M23 switches this one changes the candidate pool rather than
+        # the loop, and `recall` has a pool too.
+        self.decompose = params.get("decompose")
         self.mode = str(params.get("mode", "recall"))
         require(
             self.mode in {"recall", "investigate"},
@@ -423,6 +427,9 @@ class MyelinMemory(Memory):
             arguments["select"] = True
         if self.dated is not None:
             arguments["dated"] = bool(self.dated)
+        # M24 is declared on both schemas, so it needs no mode branch.
+        if self.decompose is not None:
+            arguments["decompose"] = int(self.decompose)
         # `pool_rerank`, `premise`, and `typed_probes` exist on `investigate`
         # alone; forwarding a parameter the `recall` schema does not declare is
         # an invalid-params error, not a silent no-op.

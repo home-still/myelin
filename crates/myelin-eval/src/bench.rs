@@ -245,6 +245,11 @@ pub struct BenchRun {
     pub typed_probes: bool,
     #[serde(default)]
     pub untrusted_max: Option<usize>,
+    /// M24's sub-query decomposition cap, mirroring
+    /// `RetrieveConfig::decompose`. Ships off; absent on every run before
+    /// M24.
+    #[serde(default)]
+    pub decompose: Option<usize>,
     /// Which category codes were scored. Empty means every one of them,
     /// which is what every run before M19 did.
     #[serde(default)]
@@ -317,6 +322,15 @@ pub struct BenchSwitches {
     /// alone is inert and an inert switch is the failure mode M12, M14 and
     /// M20 each lost a run to.
     pub premise: bool,
+    /// Split the question into sub-queries and retrieve for each — M24,
+    /// `RetrieveConfig::decompose`. The value is the cap on sub-queries.
+    ///
+    /// On `investigate` this decomposes *every* probe, so the cost is one
+    /// model call per step rather than one per query. That is the honest
+    /// composition of the two mechanisms and it is left alone: special-
+    /// casing the first step would make the arm measure something the MCP
+    /// path does not do.
+    pub decompose: Option<usize>,
     /// Let the reflect gate aim its next probe at a record kind — M23 D2,
     /// `InvestigateConfig::typed_probes`. Meaningless until a store carries
     /// the typed pools `build --pools` mints.
@@ -642,6 +656,7 @@ pub async fn bench_locomo(
     let mut retriever = Retriever::new(&embedder, &store, &ledger).with_config(RetrieveConfig {
         graph: switches.graph,
         select_sufficient: switches.select_sufficient,
+        decompose: switches.decompose,
         // `None` means the measured default — the same contract every other
         // override on this config uses, and what the width arms (M23) pass
         // values for.
@@ -900,6 +915,7 @@ pub async fn bench_longmemeval_s(
     let mut retriever = Retriever::new(&embedder, &store, &ledger).with_config(RetrieveConfig {
         graph: switches.graph,
         select_sufficient: switches.select_sufficient,
+        decompose: switches.decompose,
         prefetch_limit: prefetch_limit.unwrap_or(RetrieveConfig::default().prefetch_limit),
         rerank_depth: rerank_depth.unwrap_or(RetrieveConfig::default().rerank_depth),
         compose: myelin_core::pipeline::compose::ComposeConfig {
@@ -1162,6 +1178,7 @@ fn finish_run(
         premise: spec.switches.premise,
         typed_probes: spec.switches.typed_probes,
         untrusted_max: spec.switches.untrusted_max,
+        decompose: spec.switches.decompose,
         categories: spec.switches.categories.clone(),
         scorer: spec.scorer.slug().to_string(),
         rescored_from: spec.rescored_from.clone(),
@@ -1328,6 +1345,10 @@ pub fn rescore_run(source: &Path, out_dir: &Path, scorer: Scorer) -> Result<Benc
             typed_probes: flag("typed_probes"),
             untrusted_max: metrics
                 .get("untrusted_max")
+                .and_then(serde_json::Value::as_u64)
+                .and_then(|n| usize::try_from(n).ok()),
+            decompose: metrics
+                .get("decompose")
                 .and_then(serde_json::Value::as_u64)
                 .and_then(|n| usize::try_from(n).ok()),
             categories: metrics
