@@ -791,6 +791,7 @@ Each milestone ends with a runnable command and a number, not a description.
 | M21 | **evidence selection, and the instrument for it** | `myelin-eval coverage`: gold-turn recall of the *composed* evidence computed offline and deterministically from each corpus's own annotation (LongMemEval_S `has_answer`, LoCoMo `dia_id`), written to `<run>/coverage.json`, pinned against the three M19 runs (0.662 / 0.653 / 0.852, `all = 106`) and hard-erroring on the twelve pre-M19 artifacts that record no evidence rather than reporting their 0.000 as a measurement. Two selectors then measured against a rule fixed in advance: `ComposeConfig::mmr_lambda` (maximal marginal relevance, rank-based relevance so no cross-encoder logit is ever mixed with a cosine) and `pipeline::select::Selector` + `Retriever::with_llm` + `RetrieveConfig::select_sufficient` (ask the model which candidates jointly answer, stable-partitioned so nothing is dropped). **Measured: MMR is a regression — recall 0.658 → 0.550 / 0.471, judged −5.3 ([−11.3, +0.0]) and −9.8 ([−15.8, −3.8], p = 0.0018) — because the memories that jointly answer one question resemble *each other* 1.60× more than they resemble the rest of the set, so a redundancy penalty is aimed at co-evidence. The sufficiency selector clears the bar — recall 0.658 → 0.838 / 0.809 against a 0.852 pool ceiling, judged +7.5 ([−0.8, +15.8]) and +6.0 ([+1.5, +10.5], p = 0.0081), +3.8 over all 500 ([+1.0, +6.6], p = 0.0087) with no stratum regressing — and ships off anyway: §7.1 forbids an LLM in `recall`, and in `investigate`, the one path it was allowed to default on, it is exactly +0.0 ([−3.8, +3.8]) at +1.87 s/query because that loop unions its probes into a 60-record pool and re-composes. Does not transfer to LoCoMo multi-hop (−3.2, CI [−7.8, +1.1]; recall 0.478 → 0.367). All three switches off.** Also fixed `standing`, which was publishing the 60.40 arm instead of the 56.60 shipped configuration: selection is now complete → shipped-default → population → value. `docs/measurements/m21-evidence-selection.md` |
 | M22 | **G1 at its own operating point** | Pool-level selection (`investigate.rs::select_pool` replacing M21's per-probe view, one question-conditioned judgement over the accumulated pool because its cross-probe `score`s are logits from different queries and not mutually comparable), an undated-corpus gate (`dated`, suppressing `stamp_valid_time`/`resolve_relative`/`timeline`), both reachable as query-time operating points on **both** MCP tools — plus the missing `.with_llm` that had made the selector inert on the MCP path, `select`/`dated` in `standing::PAIR_KEYS`, and a population guard that stops a `--limit` pilot pairing into a 451-question submission. Three arms over the full tier-small pair (web 240 + enterprise 211), CIs from the CLI over the pooled 451, `evidence-audit` beside every accuracy, against a rule fixed in advance. **Measured: both switches are nulls — `dated=false` 39.02 vs a fresh same-code base of 36.59 (+2.4, CI [−1.1, +6.0]) and `select` 37.92, *negative* against `nodate` (−1.1, CI [−4.7, +2.4]) ⇒ both ship off and G1's 51.0 break-even is not claimed.** Three findings outrank the nulls: all **85,589** LME-V2 records carry the build date as `t_valid` (one calendar day, `t_valid == t_ingested` to the nanosecond) so M19's two shipped compose defaults have been annotating against a meaningless anchor — a `[timeline]` block on 240/240 web questions, and suppressing them is worth **−7.4 s/query**; the fresh base is **3.3 points below** the 39.91 `standing` still publishes, which pre-M19 code produced; and M16's S = P(sufficient \| wrong) reproduces at **12.1% [8.1, 17.6]** against its 12.2%, so the reader-fix ceiling (41.5) is still below break-even and retrieval is still the binding constraint (`docs/measurements/m22-g1-selection.md`) |
 | M23 | **the progression ratchet** | The instrument that compares us to *ourselves*: `Ours::unrecorded` + `Verdict::StaleConfig` refuse to publish an artifact that does not record the operating point it ran at, drift-size ordering prefers the artifact closest to today's code, `harness_arm` computes `arm` on the LME-V2 path for the first time, and `myelin-eval ratchet` pins a floor per metric in `docs/sota/progression.json` and exits non-zero below it — quotable rows only, direction read from the metric so `minja.asr.*` is not graded upside down, `--update` raising only. Plus the measurement legs M23's mechanism arms were missing: `bench --rerank-pool/--premise/--typed-probes/--untrusted-max`, recorded in `BenchRun`, read back by `rescore`, and all four counted as arms. **Found: `standing` had been publishing 39.91 on `lme_v2_small.overall_full_set.combined` from a pre-M19 artifact; the shipped configuration is 36.59. Three separate defects — no era signal, value-ordering among stale artifacts, and `arm` hardcoded `false` on the LME-V2 path since it was written, which was publishing M22's measured-null `dated=false` arm at 39.02.** No mechanism ships on; the reader-dependent arms were deferred rather than taken by evicting a live household tenant off the GPU (`docs/measurements/m23-progression-ratchet.md`) |
+| M24 | **parallel query decomposition** | `pipeline::decompose::Decomposer` + `RetrieveConfig::decompose`: one model call splits the question into at most six sub-queries, each is retrieved separately, and every sub-query's dense and lexical list joins the **same** `rrf` call — so `n` sub-queries add `2n` lists and every stage below fusion is untouched. The original question's lists are always retained (a bad split can only add candidates) and nothing is de-duplicated across results, because M21 measured co-evidence for one question as resembling *itself* 1.60× more than the rest of the set. Reachable from `bench --decompose`, both MCP tools, and `run_myelin.py`; in `PAIR_KEYS` and in arm detection, so it cannot publish itself. **Verified functionally against live Qdrant** (63 records, `prefetch_limit` binding): with the switch off the second hop is absent from the evidence set, with it on both hops are present, the pool goes 61 → 62 while `admitted` stays 25 → 25 — so the mechanism changes *which* 25 candidates reach the cross-encoder, which is the "changes what is drawn" property all six prior retrieval nulls lacked. **No accuracy number**: the reader was held all milestone by a household tenant, so the switch ships off and the pre-registered rule (≥ +5.0 judged on LoCoMo multi-hop n=282 or LongMemEval multi-session n=133, paired CI excluding zero, no stratum worse by 2.0) is still open (`docs/measurements/m24-query-decomposition.md`) |
 
 M0 and M5 are not ceremony. M0 pins the four probe findings in §5 — exactly the kind of thing a Qdrant point
 release changes underneath us. M5 pins the benchmark's own privacy test against our adapter, which is the
@@ -827,77 +828,47 @@ web UI — the MCP surface and the eval report are the interfaces.
 
 ## 15. Immediate next step
 
-M0–M23 are done and committed. `docs/measurements/` carries one file per milestone; the standing table
-against the published literature is `docs/sota/registry.json` + `runs/standing/`, and the floor under
-our own numbers is `docs/sota/progression.json` + `myelin-eval ratchet`.
+M0–M24 are done and committed. `docs/measurements/` carries one file per milestone; the standing
+table against the published literature is `docs/sota/registry.json` + `runs/standing/`, and the
+floor under our own numbers is `docs/sota/progression.json` + `myelin-eval ratchet`.
 
-**M24 — parallel query decomposition: retrieve for the sub-questions, not the question.**
+**M25 — run the two arms that are built, blocked, and pre-registered.**
 
-Every retrieval mechanism this project has measured since M12 has been a way of *reordering or
-trimming* one candidate pool drawn from one query. Graph fusion (M12), evidence order (M13),
-width at k=25 (M19), MMR and sufficiency selection (M21), pool-level selection (M22): six
-mechanisms, and the only one that moved a stratum was M19's, which changed **what the records
-said** rather than which records were drawn. The pattern is not an accident and the literature
-names the alternative.
+This is not a design step. Two mechanisms are implemented, wired end to end, unit- and
+integration-tested, and shipping off for exactly one reason: the reader on `big` was held by a
+household tenant for the whole of M23 and M24. Both have rules fixed in advance and neither needs
+another line of code.
 
-**AgentRunbook-R is the case to answer.** It scores **58.60** on LME-V2-Small with the same
-Qwen3.5-9B reader we serve, against our 36.59 — the only apples-to-apples comparison in the
-registry, and now a 22.0-point gap rather than the 18.7 the stale artifact implied. The
-vendored implementation is in-repo at
-`crates/myelin-eval/vendor/longmemeval-v2/memory_modules/agentrunbook_r.py`, so the mechanism
-can be read rather than inferred, and it is not the three pools:
+1. **M24's decomposition arm.** `bench --decompose 4 --categories 1` on LoCoMo (n=282) and
+   `--categories 4` on LongMemEval_S (n=133), against a fresh same-code base on each. Ships on for
+   `investigate` at ≥ +5.0 judged with a paired CI excluding zero and no stratum worse by 2.0.
+   Read-path only: minutes per arm, no re-ingest. Measure it against `rerank_pool` (M23 A2)
+   separately before combining them — both change what the cross-encoder sees, and an arm that
+   moves two things measures neither.
+2. **M23's G3 sweep.** `attack --live` now carries three quota conditions beside the six base ones
+   and the adaptive probe. G3 is the one gate with a *quantified* miss — ASR 12.50% [5.5, 26.1]
+   against a ≤10% bar, two attacks wide — and M23 shipped two mechanisms aimed at it
+   (`adjudicate` revision 3, closing the two surviving surface forms; `ComposeConfig::untrusted_max`,
+   the bounded occupancy constraint the Utility-Under-Attack authors specify and say they did not
+   build). Both are unmeasured. `bench --untrusted-max` exists so the quota's **utility** cost is
+   measured beside its ASR, which is the half M15 paid for with a 550-episode false-positive pass.
 
-- **One** model call emits a *structured bundle* of sub-queries —
-  `{"raw_state_queries": [≤5], "event_query": str, "note_query": str}` (`QUERY_GENERATION_SYSTEM_PROMPT`,
-  L126–162). Each sub-query names a distinct surface, and the prompt explicitly forbids splitting
-  one surface into attribute-level queries.
-- Each sub-query is retrieved **separately and in parallel**, then each block is reranked against
-  the **original question** and selected independently (`_query_with_rerank`, L1245–1324).
-- The blocks are composed in a fixed order, so every question gets evidence from every pool that
-  answered.
+Order matters in one respect: **re-measure the base on the same store, every time.** M23 makes
+that mechanical rather than remembered — every artifact predating `decompose` is `stale-config`,
+unpublishable by `standing`, and fatal to `ratchet --strict` — so the first thing M25 owes is a
+fresh base, not an arm.
 
-Our `investigate` is the sequential dual of this: `step_k = 10`, `max_steps = 2`, one query per
-step, each conditioned on what the last step returned. M19 measured two steps at **exactly 0.0**
-on LongMemEval temporal and M22 measured pool selection at **−1.1** on LME-V2 — both are
-*sequential* mechanisms, and both are null. Parallel decomposition has never been tried here.
+What to do about the GPU is a scheduling problem, not a research one. The card is 24 GB shared
+with a live household voice assistant holding ~10 GB on a rolling keep-alive that refreshes on
+use, plus an intermittent 10.5 GB llama-swap tenant; the reader needs ~7 GB.
+`ops/big/serve-models.sh` at `MYELIN_READER_SLOTS=2 MYELIN_READER_CTX=65536` is 8.1 GB and fits
+only when the llama-swap model has aged out. Take the window when it exists; do not take it from
+someone else's work.
 
-Why it is the largest remaining item, by the research brief's own ranking
-(`docs/sota/research-brief.md` §2, answers-at-gate ÷ cost-of-one-arm):
-
-- It is RQ2's option (b) literally — "query decomposition into sub-questions with separate
-  retrievals" — and RQ2 is **+99 answers at the gate profile** (49 LoCoMo multi-hop + 50
-  LongMemEval multi-session), 201 of headroom, the largest pool on the board.
-- M16 and M22 both measure us **retrieval-limited**: S = P(sufficient | wrong) = 12.1%
-  [8.1, 17.6], so a perfect reader over today's evidence reaches 41.5 and a perfect retrieval
-  reaches 76.9. Only a mechanism that changes *which records are drawn* can move that, and
-  decomposition draws from N queries where every prior arm drew from one.
-- It is a **read-path** arm: minutes per stratum, no re-ingest. D1's typed pools cost a build;
-  decomposition does not, and the two are independent — the pools make decomposition *better*,
-  they are not a prerequisite for measuring it.
-- Latency is affordable. The measured points are 10.95–18.31 s against a 40 s budget, and LAFS
-  gain is 0.00 at every point because the frontier dominates on **accuracy**, not time.
-
-Constraints to carry in, all measured:
-
-- **Re-measure the base on the same store, every time.** M23 makes this mechanical: any artifact
-  that does not record its operating point is `stale-config` and unpublishable, and `ratchet
-  --strict` fails on it. The first thing M24 owes is a fresh base pair at the shipped defaults.
-- **Decomposition must not become selection wearing a hat.** M21's verdict is that the memories
-  which jointly answer one question resemble *each other* 1.60× more than the rest of the set. A
-  decomposition that de-duplicates across sub-queries will re-inflict that. Union, then rank; do
-  not diversify.
-- **The sub-query generator is an LLM in the loop, so it cannot default on in `recall`** (§7.1).
-  `investigate` is where it may default, which is the same constraint the sufficiency selector
-  had — and the reason to measure it on `bench --categories` strata first, where `recall` and
-  `investigate` are both available and the population is 282 or 133 rather than 451.
-- **Rerank each block against the original question, not the sub-query.** This is AgentRunbook-R's
-  own choice and it is the same finding M22 reached independently: cross-probe scores are logits
-  from different queries and are not mutually comparable. `InvestigateConfig::rerank_pool` (M23 A2)
-  already implements the pool-level half and is unmeasured; decomposition and it should be
-  measured as separate arms before either is combined.
-
-Pre-registered rule, fixed before any arm runs: decomposition ships on for `investigate` if it
-beats the fresh same-code base by **≥ +5.0 judged points** on LoCoMo multi-hop (n=282) *or*
-LongMemEval multi-session (n=133) with a paired CI excluding zero, and regresses no other
-stratum by more than 2.0. Anything else is a measured null and the switch stays off.
-
+**After M25 the next mechanism question is granularity, and it is already half-built.** M23's
+`build --pools` (`build_lmev2_pools`) mints AgentRunbook-R's event and note pools as
+`RecordKind::Semantic` and `::Procedural` beside the episodes, and `--typed-probes` lets the
+reflect gate aim a probe at one. Neither has ever run against a store that has the pools, because
+minting them is a write-path pass. That is the one remaining item from §2's ranking that costs a
+build rather than a read — it is RQ4 — and M24 is what makes it worth paying for: three pools are
+only useful to a retriever that can ask three questions at once.

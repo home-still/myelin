@@ -489,6 +489,12 @@ enum Command {
         /// same switch for ASR.
         #[arg(long)]
         untrusted_max: Option<usize>,
+        /// Split the question into at most N sub-queries and retrieve for
+        /// each, fusing them into the same RRF call as the original (M24).
+        /// One model call per query, so it can never ship on for `recall`
+        /// (§7.1); `investigate` decomposes every probe.
+        #[arg(long)]
+        decompose: Option<usize>,
         /// Score only these category codes, for a stratum arm. LoCoMo: 1
         /// multi-hop, 2 temporal, 3 open-domain, 4 single-hop, 5 adversarial.
         /// LongMemEval_S: 1 ss-user, 2 ss-assistant, 3 ss-preference,
@@ -813,6 +819,7 @@ async fn main() -> anyhow::Result<()> {
             premise,
             typed_probes,
             untrusted_max,
+            decompose,
             ref categories,
             scorer,
         } => {
@@ -841,6 +848,7 @@ async fn main() -> anyhow::Result<()> {
                     premise,
                     typed_probes,
                     untrusted_max,
+                    decompose,
                     categories: categories.clone().unwrap_or_default(),
                 },
                 scorer,

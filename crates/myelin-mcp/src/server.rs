@@ -138,6 +138,14 @@ pub struct RecallParams {
     /// resolve against a meaningless anchor.
     #[serde(default)]
     pub dated: Option<bool>,
+    /// Split the question into at most N sub-queries and retrieve for each,
+    /// fusing them into the same RRF call as the original (M24).
+    ///
+    /// One model call per query, so — like `select` — it is an operating
+    /// point (R4) and never a `recall` default. `investigate` decomposes
+    /// every probe, which is one call per step.
+    #[serde(default)]
+    pub decompose: Option<usize>,
 }
 
 /// The `recall` response.
@@ -241,6 +249,7 @@ impl MyelinServer {
             retriever.config.tau_abstain = params.tau_abstain;
         }
         apply_operating_point(&mut retriever.config, params.select, params.dated);
+        retriever.config.decompose = params.decompose;
         let (evidence, trace) = retriever.recall(&query).await.map_err(mcp_err)?;
 
         Ok(Json(to_result(evidence, trace)))
@@ -281,6 +290,7 @@ impl MyelinServer {
         // selection underneath it is the arrangement M21 measured at +0.0.
         let mut retriever = self.retriever();
         apply_operating_point(&mut retriever.config, None, params.dated);
+        retriever.config.decompose = params.decompose;
         // `--premise` implies the gate: the analysis rewrites the statement
         // the gate emits, so one without the other is a silently inert
         // switch — the exact class of failure M12, M14 and M20 each lost a
@@ -730,6 +740,10 @@ pub struct InvestigateParams {
     /// store; off by default.
     #[serde(default)]
     pub typed_probes: Option<bool>,
+    /// Split each probe into at most N sub-queries and retrieve for each
+    /// (M24). One model call per step, on top of the reflect gate's.
+    #[serde(default)]
+    pub decompose: Option<usize>,
 }
 
 #[derive(Debug, Serialize, schemars::JsonSchema)]
