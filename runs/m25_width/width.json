@@ -1,0 +1,85 @@
+{
+  "schema": 1,
+  "corpus": "locomo",
+  "collection": "myelin_locomo",
+  "split": "dev (first 5 conversations)",
+  "questions": 997,
+  "note": "captured from the run's own stdout (/tmp/m25_width.log); `write_width` was added in the same commit, after this 72-minute sweep had already run. `any` and `p90_ms` are not recoverable from the progress line and are null.",
+  "grid": [
+    {
+      "prefetch_limit": 50,
+      "rerank_depth": 25,
+      "k": 6,
+      "recall": 0.9092,
+      "pool_recall": 0.959,
+      "any": null,
+      "pool": 25.0,
+      "p50_ms": 419,
+      "p90_ms": null
+    },
+    {
+      "prefetch_limit": 50,
+      "rerank_depth": 50,
+      "k": 6,
+      "recall": 0.9071,
+      "pool_recall": 0.9801,
+      "any": null,
+      "pool": 50.0,
+      "p50_ms": 850,
+      "p90_ms": null
+    },
+    {
+      "prefetch_limit": 100,
+      "rerank_depth": 25,
+      "k": 6,
+      "recall": 0.9085,
+      "pool_recall": 0.9575,
+      "any": null,
+      "pool": 25.0,
+      "p50_ms": 414,
+      "p90_ms": null
+    },
+    {
+      "prefetch_limit": 100,
+      "rerank_depth": 50,
+      "k": 6,
+      "recall": 0.9046,
+      "pool_recall": 0.9789,
+      "any": null,
+      "pool": 50.0,
+      "p50_ms": 803,
+      "p90_ms": null
+    },
+    {
+      "prefetch_limit": 200,
+      "rerank_depth": 50,
+      "k": 6,
+      "recall": 0.9033,
+      "pool_recall": 0.9786,
+      "any": null,
+      "pool": 50.0,
+      "p50_ms": 702,
+      "p90_ms": null
+    },
+    {
+      "prefetch_limit": 200,
+      "rerank_depth": 100,
+      "k": 6,
+      "recall": 0.9113,
+      "pool_recall": 0.9947,
+      "any": null,
+      "pool": 100.0,
+      "p50_ms": 954,
+      "p90_ms": null
+    }
+  ],
+  "verdict": {
+    "verdict": "keep",
+    "base": 0.9092,
+    "best": 0.9113
+  },
+  "rule": {
+    "recall_margin": 0.02,
+    "latency_factor": 2.0
+  }
+}

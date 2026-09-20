@@ -246,6 +246,14 @@ pub struct RecallTrace {
     pub subqueries: usize,
     #[serde(default)]
     pub decompose_ms: u128,
+    /// The reranked pool in rank order, before `compose` truncates to `k`.
+    ///
+    /// In-process only (`serde(skip)`): it is the input to the offline
+    /// instruments that need retrieval's *ceiling* rather than its
+    /// emission, and persisting 25 uuids per question would add megabytes
+    /// to every artifact for a diagnostic no artifact reader consumes.
+    #[serde(skip)]
+    pub pool_ids: Vec<uuid::Uuid>,
 }
 
 pub struct Retriever<'a> {
@@ -576,6 +584,23 @@ impl<'a> Retriever<'a> {
                 trace.select_ms = t3.elapsed().as_millis();
             }
         }
+
+        // The reranked pool's ids, in rank order, for the offline
+        // instruments that need the *ceiling* and not just the emission.
+        //
+        // Every "is this loss retrieval's or truncation's" argument since M9
+        // has been settled by running two `k` values and differencing them.
+        // M21 measured 0.662 emitted against 0.852 pool on LongMemEval
+        // temporal that way — one finding, two runs. With the pool in hand
+        // both numbers come from one pass, and a null result stays
+        // interpretable: gold absent from the pool is retrieval's problem,
+        // gold present but unemitted is `compose`'s.
+        //
+        // `skip`, not `skip_serializing_if`: 25 uuids per question is ~1.4 MB
+        // on a LoCoMo run, for a diagnostic every consumer computes in
+        // process. Persisting it would grow every artifact on disk to carry
+        // something no artifact reader uses.
+        trace.pool_ids = admissible.iter().map(|(id, _, _)| *id).collect();
 
         // R4: `k` and the token budget are QUERY-time parameters against one
         // identical store, so the request wins over the configured default.

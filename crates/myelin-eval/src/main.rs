@@ -559,6 +559,12 @@ enum Command {
         /// budget and report the marginal value of each extra step (M7).
         #[arg(long, value_delimiter = ',')]
         steps: Option<Vec<usize>>,
+        /// Instead of the channel ablation, sweep `prefetch_limit` ×
+        /// `rerank_depth` and report emitted recall beside the reranked
+        /// pool's recall — the ceiling truncation is measured against
+        /// (M25). Needs an embedder, a reranker and Qdrant; never a reader.
+        #[arg(long)]
+        width: bool,
     },
     /// Re-score a finished bench run under a different scorer. Pure CPU:
     /// `response_raw` and `answer_gold` are on disk, so no reader call and no
@@ -781,6 +787,7 @@ async fn main() -> anyhow::Result<()> {
             k,
             limit,
             ref steps,
+            width,
             holdout,
         } => {
             ablate_cmd(
@@ -791,6 +798,7 @@ async fn main() -> anyhow::Result<()> {
                 k,
                 limit,
                 steps.as_deref(),
+                width,
                 holdout,
             )
             .await
@@ -1099,6 +1107,7 @@ async fn ablate_cmd(
     k: usize,
     limit: Option<usize>,
     steps: Option<&[usize]>,
+    width: bool,
     holdout: bool,
 ) -> anyhow::Result<()> {
     if let Some(steps) = steps {
@@ -1114,6 +1123,22 @@ async fn ablate_cmd(
         )
         .await?;
         myelin_eval::ablate::print_step_curve(&points, k);
+        return Ok(());
+    }
+    if width {
+        let points = myelin_eval::ablate::width_sweep(
+            Path::new(dataset),
+            collection,
+            Path::new(ledger),
+            units,
+            k,
+            &myelin_eval::ablate::WIDTH_GRID,
+            limit,
+            holdout,
+        )
+        .await?;
+        myelin_eval::ablate::print_width(&points, k);
+        myelin_eval::ablate::write_width(&points, Path::new("runs/m25_width"))?;
         return Ok(());
     }
     let run = myelin_eval::ablate::ablate_locomo(
