@@ -1,0 +1,30 @@
+{
+  "schema": 1,
+  "method": "approx_tokens mirrors myelin_core::pipeline::ingest::approx_tokens exactly (max(chars/4, words)); rows are live records (t_invalid IS NULL) read from the local SQLite ledger, so this needs no GPU, no Qdrant and no network.",
+  "k": 6,
+  "shipped_budget_tokens": 2048,
+  "corpora": {
+    "longmemeval_s": {
+      "live_records": 162181,
+      "mean_tokens": 380.3,
+      "p50": 421,
+      "p90": 693,
+      "p99": 914,
+      "max": 19141,
+      "six_mean_records_cost": 2282,
+      "binds_at_2048": "tokens",
+      "budget_for_six_mean": 2282
+    },
+    "locomo": {
+      "live_records": 4871,
+      "mean_tokens": 55.8,
+      "p50": 13,
+      "p90": 126,
+      "p99": 540,
+      "max": 572,
+      "six_mean_records_cost": 335,
+      "binds_at_2048": "k",
+      "budget_for_six_mean": 335
+    }
+  }
+}

@@ -59,6 +59,29 @@ pub struct EvidenceSet {
     /// `investigate` only: the search/read/reflect trace (§7.2).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub trace: Vec<TraceStep>,
+    /// Candidates `compose` had in hand, had room for under `k`, and
+    /// skipped because they did not fit `max_tokens` (M28).
+    ///
+    /// **Which of the two truncation limits actually bit.** `compose`
+    /// stops on `k` *or* on the token budget, and every width measurement
+    /// M25–M27 made ran at `Budget::default()` — `k = 6`, `tokens = 2048`
+    /// — without recording which one bound. Measured offline over the
+    /// 162,181 live LongMemEval_S records, mean cost is **380 tokens**, so
+    /// six of them is 2,282 and the *budget* binds before `k` does; on
+    /// LoCoMo's 56-token mean it does not. A "truncation loss" that is
+    /// really a token-budget loss has a different fix, so the two are
+    /// counted apart.
+    ///
+    /// Non-zero also flags a confound: the selection loop `continue`s
+    /// rather than breaking, so a bound budget silently prefers *shorter*
+    /// records, and a mechanism that promotes short ones can win for a
+    /// reason that is not relevance.
+    #[serde(default)]
+    pub dropped_for_tokens: usize,
+    /// `compose` filled every one of `k` slots and still had candidates
+    /// left. With `dropped_for_tokens == 0` this is a clean `k` bind.
+    #[serde(default)]
+    pub k_bound: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

@@ -897,6 +897,8 @@ mod tests {
             items: vec![item("alpha"), item("beta")],
             tokens: 2,
             trace: Vec::new(),
+            dropped_for_tokens: 0,
+            k_bound: false,
         }
     }
 

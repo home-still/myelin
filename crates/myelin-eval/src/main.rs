@@ -577,6 +577,13 @@ enum Command {
         /// recovers. Costs one model call per query.
         #[arg(long)]
         select: bool,
+        /// Run the budget grid instead (M28): the shipped width swept over
+        /// `max_tokens`. `compose` truncates on `k` OR on the token
+        /// budget, and no milestone has ever varied the second — on
+        /// LongMemEval_S the mean record is 380 tokens, so six of them
+        /// exceed the shipped 2,048 and the budget binds before `k` does.
+        #[arg(long)]
+        budget: bool,
     },
     /// Re-score a finished bench run under a different scorer. Pure CPU:
     /// `response_raw` and `answer_gold` are on disk, so no reader call and no
@@ -802,6 +809,7 @@ async fn main() -> anyhow::Result<()> {
             width,
             ref corpus,
             select,
+            budget,
             holdout,
         } => {
             ablate_cmd(
@@ -815,6 +823,7 @@ async fn main() -> anyhow::Result<()> {
                 width,
                 corpus,
                 select,
+                budget,
                 holdout,
             )
             .await
@@ -1126,6 +1135,7 @@ async fn ablate_cmd(
     width: bool,
     corpus: &str,
     select: bool,
+    budget: bool,
     holdout: bool,
 ) -> anyhow::Result<()> {
     // clap's value is the user's spelling; the rest of the crate keys on
@@ -1168,17 +1178,21 @@ async fn ablate_cmd(
             Path::new(&ledger),
             units,
             k,
-            if select {
-                &myelin_eval::ablate::SELECT_GRID[..]
-            } else {
-                &myelin_eval::ablate::WIDTH_GRID[..]
+            match (select, budget) {
+                (_, true) => &myelin_eval::ablate::BUDGET_GRID[..],
+                (true, false) => &myelin_eval::ablate::SELECT_GRID[..],
+                (false, false) => &myelin_eval::ablate::WIDTH_GRID[..],
             },
             limit,
             holdout,
         )
         .await?;
         myelin_eval::ablate::print_width(&points, k, corpus);
-        let slug = if select { "select" } else { "width" };
+        let slug = match (select, budget) {
+            (_, true) => "budget",
+            (true, false) => "select",
+            (false, false) => "width",
+        };
         myelin_eval::ablate::write_width(&points, Path::new(&format!("runs/{slug}_{corpus}")))?;
         return Ok(());
     }
