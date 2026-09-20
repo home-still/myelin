@@ -108,6 +108,27 @@ def parse_args() -> argparse.Namespace:
         "(R4) and never a `recall` default.",
     )
     parser.add_argument(
+        "--pool-rerank",
+        action="store_true",
+        help="Rerank the investigate loop's whole accumulated pool against the original "
+        "question before composing (M23 A2). One reranker call per query; investigate-only.",
+    )
+    parser.add_argument(
+        "--premise",
+        action="store_true",
+        help="When the investigate loop stops unsatisfied, replace the bare insufficiency "
+        "statement with an explicit premise analysis in the evidence channel (M23 A3). "
+        "Implies the insufficiency gate. investigate-only.",
+    )
+    parser.add_argument(
+        "--typed-probes",
+        action="store_true",
+        help="Let the reflect gate aim each investigate probe at a pool: "
+        '"event" for the state-transition pool, "note" for the procedure/hint '
+        "pool; untagged probes search the whole store. Off by default, and "
+        "untagged means every measured arm is byte-identical (M23 D2).",
+    )
+    parser.add_argument(
         "--undated",
         action="store_true",
         help="The corpus carries no event timestamps; suppress the date mechanisms "
@@ -215,13 +236,18 @@ def main() -> None:
             "tau_abstain": args.tau_abstain,
             "mode": args.mode,
             "max_steps": args.max_steps,
-            # Written unconditionally as booleans, never omitted: these two
-            # are in `standing.rs::PAIR_KEYS`, and a key that appears only
-            # when the flag is set would give one arm a `null` and the other
-            # a `false` for the same configuration, splitting a pair over a
+            # Written unconditionally as booleans, never omitted: these are
+            # in `standing.rs::PAIR_KEYS`, and a key that appears only when
+            # the flag is set would give one arm a `null` and the other a
+            # `false` for the same configuration, splitting a pair over a
             # schema difference rather than an operating-point difference.
             "select": args.select,
             "dated": not args.undated,
+            # M23 Phase A. Same rule: unconditional booleans, query-time
+            # switches the server applies per call.
+            "pool_rerank": args.pool_rerank,
+            "premise": args.premise,
+            "typed_probes": args.typed_probes,
         },
     }
     memory_config_path = runtime_dir / "memory_config.json"

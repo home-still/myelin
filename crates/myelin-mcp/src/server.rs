@@ -281,10 +281,19 @@ impl MyelinServer {
         // selection underneath it is the arrangement M21 measured at +0.0.
         let mut retriever = self.retriever();
         apply_operating_point(&mut retriever.config, None, params.dated);
+        // `--premise` implies the gate: the analysis rewrites the statement
+        // the gate emits, so one without the other is a silently inert
+        // switch — the exact class of failure M12, M14 and M20 each lost a
+        // run to.
+        let premise = params.premise.unwrap_or(false);
         let cfg = InvestigateConfig {
             select_sufficient: params
                 .select
                 .unwrap_or(InvestigateConfig::default().select_sufficient),
+            rerank_pool: params.pool_rerank.unwrap_or(false),
+            premise_analysis: premise,
+            abstain_on_insufficient: premise,
+            typed_probes: params.typed_probes.unwrap_or(false),
             ..InvestigateConfig::default()
         };
         let (evidence, trace) = Investigator::new(&self.backend.llm, &retriever)
@@ -705,6 +714,22 @@ pub struct InvestigateParams {
     /// [`RecallParams::dated`].
     #[serde(default)]
     pub dated: Option<bool>,
+    /// Rerank the loop's accumulated pool against the original question
+    /// before composing (M23 A2). Off by default; inert without a reranker
+    /// wired on the server.
+    #[serde(default)]
+    pub pool_rerank: Option<bool>,
+    /// When the loop stops unsatisfied, emit an explicit premise analysis in
+    /// place of the bare insufficiency statement (M23 A3). Implies the
+    /// insufficiency gate: without the gate firing there is nothing to
+    /// analyse.
+    #[serde(default)]
+    pub premise: Option<bool>,
+    /// Let the reflect gate aim each probe at a pool: `raw` | `event` |
+    /// `note` (M23 D2). Meaningless until the typed pools exist in the
+    /// store; off by default.
+    #[serde(default)]
+    pub typed_probes: Option<bool>,
 }
 
 #[derive(Debug, Serialize, schemars::JsonSchema)]

@@ -180,6 +180,30 @@ pub struct ComposeConfig {
     /// occupy a median of 2 of those 25 items, so the evidence is discarded
     /// by the truncation, not missed by retrieval.
     pub mmr_lambda: Option<f32>,
+    /// Cap how many `Untrusted` records the emitted set may contain (M23
+    /// B1). `None` — the default, and everything before M23 — is uncapped.
+    ///
+    /// **A ceiling, not a slope.** The literature verdict on the two
+    /// alternatives is unambiguous: a write-path content screen refused 0 of
+    /// 360 poisoned memories (Utility-Under-Attack `10.48550/arXiv.2608.21230`
+    /// §8 — falsity is not detectable from the text), and an additive
+    /// provenance weight is either inert (p = 0.80) or, at a stronger
+    /// weight, a hard exclusion that zeroes untrusted evidence recall. The
+    /// authors specify the alternative this implements — provenance as a
+    /// **bounded occupancy constraint**, "a floor and a ceiling rather than
+    /// a slope" — and state they did not build one.
+    ///
+    /// Semantics, fixed before the arm ran: enforced after dedup and before
+    /// budget selection, on the composed set's population. Untrusted records
+    /// beyond the first `n` in rank order are dropped and the trusted
+    /// candidates below shift up — a pure filter over the best-first list,
+    /// so no re-ranking and no tie-break is invented. Untrusted records are
+    /// never dropped to zero: the quota caps, it does not exclude. Trusted
+    /// records are never dropped at all. The floor is load-bearing — a
+    /// defence that zeroes untrusted evidence is the denial-of-service the
+    /// additive weight measured as, and MINJA's own moderation defenses
+    /// (which do exactly that) are reported ineffective.
+    pub untrusted_max: Option<usize>,
 }
 
 impl Default for ComposeConfig {
@@ -195,6 +219,7 @@ impl Default for ComposeConfig {
             timeline: true,
             profile: false,
             mmr_lambda: None,
+            untrusted_max: None,
         }
     }
 }
@@ -262,10 +287,7 @@ fn mmr_select(kept: Vec<Ranked>, lambda: f32, cfg: &ComposeConfig) -> (Vec<Ranke
     }
     let lambda = lambda.clamp(0.0, 1.0);
     let n = kept.len();
-    let costs: Vec<usize> = kept
-        .iter()
-        .map(|r| approx_tokens(&r.record.text))
-        .collect();
+    let costs: Vec<usize> = kept.iter().map(|r| approx_tokens(&r.record.text)).collect();
 
     // The first pick is `kept[0]` unconditionally, preserving the rank-order
     // path's guarantee that the single best item is admitted even when it
@@ -333,6 +355,29 @@ pub fn compose(ranked: Vec<Ranked>, profile: &[MemoryRecord], cfg: &ComposeConfi
             kept.push(candidate);
         }
     }
+
+    // 1b. Untrusted occupancy quota (M23 B1). A ceiling, never a slope: the
+    // first `n` untrusted records in rank order stay, the rest are dropped
+    // and the trusted candidates below shift up into the freed ranks — a
+    // pure filter over the best-first list, so no re-ranking and no
+    // tie-break is invented. Trusted records are never dropped, and the
+    // quota never zeroes untrusted evidence (the floor is what keeps this
+    // from becoming the denial-of-service the additive weight measured as).
+    let kept = match cfg.untrusted_max {
+        None => kept,
+        Some(max) => {
+            let mut admitted = 0usize;
+            kept.into_iter()
+                .filter(|r| {
+                    if r.record.trust.tier != TrustTier::Untrusted {
+                        return true;
+                    }
+                    admitted += 1;
+                    admitted <= max
+                })
+                .collect()
+        }
+    };
 
     // 2. Budget. Rank order by default; joint coverage when asked.
     let (selected, tokens) = match cfg.mmr_lambda {
@@ -1120,5 +1165,138 @@ mod tests {
             PROFILE_MAX_RECORDS
         );
         assert!(!set.items[0].value.contains("pref8"));
+    }
+
+    // ---- untrusted occupancy quota (M23 B1) ----
+
+    /// 8 trusted + 4 untrusted interleaved at odd ranks, quota 2, k=8: the
+    /// two highest-ranked untrusted stay, the trusted below shift up, and the
+    /// emitted set is 6 trusted + 2 untrusted. A ceiling, not an exclusion.
+    #[test]
+    fn the_quota_caps_untrusted_occupancy_and_backfills_trusted() {
+        let texts = [
+            "t0", "u0", "t1", "u1", "t2", "u2", "t3", "u3", "t4", "t5", "t6", "t7",
+        ];
+        let input: Vec<Ranked> = texts
+            .iter()
+            .enumerate()
+            .map(|(i, t)| {
+                let mut r = Ranked {
+                    record: record(t),
+                    score: 1.0 - i as f32 * 0.01,
+                    vector: None,
+                };
+                if t.starts_with('u') {
+                    r.record.trust = Trust {
+                        tier: TrustTier::Untrusted,
+                        score: 0.30,
+                        checks: Vec::new(),
+                    };
+                }
+                r
+            })
+            .collect();
+
+        let set = compose(
+            input,
+            &[],
+            &ComposeConfig {
+                untrusted_max: Some(2),
+                k: 8,
+                ..unstamped()
+            },
+        );
+        let untrusted = set
+            .items
+            .iter()
+            .filter(|i| i.trust == TrustTier::Untrusted)
+            .count();
+        assert_eq!(untrusted, 2, "{:?}", set.items);
+        assert_eq!(
+            set.items
+                .iter()
+                .filter(|i| i.trust != TrustTier::Untrusted)
+                .count(),
+            6,
+            "the trusted records the dropped untrusted displaced are backfilled"
+        );
+        // The survivors are the two the rank order put first, not a sample.
+        assert!(set.items.iter().any(|i| i.value == "u0"));
+        assert!(set.items.iter().any(|i| i.value == "u1"));
+        assert!(!set.items.iter().any(|i| i.value == "u2" || i.value == "u3"));
+    }
+
+    /// `None` is every run written before M23: untrusted records are capped
+    /// by nothing, and the switch-off path is byte-identical to the
+    /// pre-M23 one.
+    #[test]
+    fn without_the_quota_nothing_is_capped() {
+        let texts = ["t0", "u0", "t1", "u1", "t2", "u2", "t3", "u3", "t4", "t5"];
+        let input: Vec<Ranked> = texts
+            .iter()
+            .enumerate()
+            .map(|(i, t)| {
+                let mut r = Ranked {
+                    record: record(t),
+                    score: 1.0 - i as f32 * 0.01,
+                    vector: None,
+                };
+                if t.starts_with('u') {
+                    r.record.trust = Trust {
+                        tier: TrustTier::Untrusted,
+                        score: 0.30,
+                        checks: Vec::new(),
+                    };
+                }
+                r
+            })
+            .collect();
+
+        let set = compose(
+            input,
+            &[],
+            &ComposeConfig {
+                k: 10,
+                ..unstamped()
+            },
+        );
+        assert_eq!(set.items.len(), 10);
+        assert_eq!(
+            set.items
+                .iter()
+                .filter(|i| i.trust == TrustTier::Untrusted)
+                .count(),
+            4
+        );
+    }
+
+    /// The quota caps, it never zeroes: all-untrusted input with a quota of
+    /// two still emits two. Zeroing untrusted evidence wholesale is the
+    /// denial-of-service the additive weight measured as, and the one thing
+    /// this mechanism exists to not be.
+    #[test]
+    fn the_quota_is_a_ceiling_and_not_an_exclusion() {
+        let input: Vec<Ranked> = ranked(&["u0", "u1", "u2", "u3"])
+            .into_iter()
+            .map(|mut r| {
+                r.record.trust = Trust {
+                    tier: TrustTier::Untrusted,
+                    score: 0.30,
+                    checks: Vec::new(),
+                };
+                r
+            })
+            .collect();
+        let set = compose(
+            input,
+            &[],
+            &ComposeConfig {
+                untrusted_max: Some(2),
+                k: 6,
+                ..unstamped()
+            },
+        );
+        assert_eq!(set.items.len(), 2);
+        assert!(set.items.iter().all(|i| i.trust == TrustTier::Untrusted));
     }
 }

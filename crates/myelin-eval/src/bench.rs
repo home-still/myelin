@@ -166,6 +166,12 @@ pub struct ScoredQuestion {
     pub memory_query_duration_seconds: f64,
 }
 
+/// Every run written before M23 composed to this budget; a run artifact
+/// without the key is declaring it was one of those.
+fn default_budget_tokens() -> usize {
+    4096
+}
+
 /// Aggregate over one bench run.
 ///
 /// `Deserialize` as well as `Serialize`: `myelin-eval standing` reads these
@@ -214,6 +220,31 @@ pub struct BenchRun {
     pub mmr: Option<f32>,
     #[serde(default)]
     pub select_sufficient: bool,
+    /// M23's width/budget triple, mirroring `Budget::tokens` and
+    /// `RetrieveConfig::{prefetch_limit, rerank_depth}`. Recorded for the
+    /// reason M21's pair is: `standing` fingerprints LME-V2 harness runs on
+    /// exactly these keys, and a bench run that does not name them is
+    /// unreadable next to one that does. `None`/4096 on every run written
+    /// before M23.
+    #[serde(default = "default_budget_tokens")]
+    pub budget_tokens: usize,
+    #[serde(default)]
+    pub prefetch_limit: Option<u64>,
+    #[serde(default)]
+    pub rerank_depth: Option<usize>,
+    /// M23's read-path arms, mirroring `InvestigateConfig::rerank_pool`,
+    /// `::premise_analysis`, `::typed_probes` and
+    /// `ComposeConfig::untrusted_max`. All four ship off, so — like M20's
+    /// and M21's pairs — the artifact is the only record of which one
+    /// produced these rows. Absent on every run written before M23.
+    #[serde(default)]
+    pub rerank_pool: bool,
+    #[serde(default)]
+    pub premise: bool,
+    #[serde(default)]
+    pub typed_probes: bool,
+    #[serde(default)]
+    pub untrusted_max: Option<usize>,
     /// Which category codes were scored. Empty means every one of them,
     /// which is what every run before M19 did.
     #[serde(default)]
@@ -274,6 +305,31 @@ pub struct BenchSwitches {
     /// §7.1 forbids an LLM in the `recall` loop, so this can never become a
     /// `recall` default whatever it measures.
     pub select_sufficient: bool,
+    /// Rerank the accumulated pool against the original question once,
+    /// after the last step — M23 A2, `InvestigateConfig::rerank_pool`.
+    /// `investigate`-only and inert without a reranker.
+    pub rerank_pool: bool,
+    /// Replace the bare insufficiency statement with a premise analysis —
+    /// M23 A3, `InvestigateConfig::premise_analysis`.
+    ///
+    /// Implies `abstain_on_insufficient`, exactly as the MCP server does:
+    /// the analysis rewrites the statement the gate emits, so the switch
+    /// alone is inert and an inert switch is the failure mode M12, M14 and
+    /// M20 each lost a run to.
+    pub premise: bool,
+    /// Let the reflect gate aim its next probe at a record kind — M23 D2,
+    /// `InvestigateConfig::typed_probes`. Meaningless until a store carries
+    /// the typed pools `build --pools` mints.
+    pub typed_probes: bool,
+    /// Cap untrusted occupancy in the composed set — M23 B1,
+    /// `ComposeConfig::untrusted_max`.
+    ///
+    /// Reachable from `bench` and not only from `attack --live` because a
+    /// defence measured for attack success and never for utility is half a
+    /// measurement: M15 paid for its adjudicator's false-positive column
+    /// over 550 real episodes, and a quota that quietly drops real evidence
+    /// on LoCoMo would be invisible from the attack harness alone.
+    pub untrusted_max: Option<usize>,
     /// Score only these category codes. Empty means all of them.
     ///
     /// A stratum arm has to be runnable over 321 or 127 questions rather than
@@ -551,6 +607,9 @@ pub async fn bench_locomo(
     collection: &str,
     ledger_path: &Path,
     k: usize,
+    budget_tokens: usize,
+    prefetch_limit: Option<u64>,
+    rerank_depth: Option<usize>,
     mode: Mode,
     max_steps: usize,
     limit: Option<usize>,
@@ -583,6 +642,11 @@ pub async fn bench_locomo(
     let mut retriever = Retriever::new(&embedder, &store, &ledger).with_config(RetrieveConfig {
         graph: switches.graph,
         select_sufficient: switches.select_sufficient,
+        // `None` means the measured default — the same contract every other
+        // override on this config uses, and what the width arms (M23) pass
+        // values for.
+        prefetch_limit: prefetch_limit.unwrap_or(RetrieveConfig::default().prefetch_limit),
+        rerank_depth: rerank_depth.unwrap_or(RetrieveConfig::default().rerank_depth),
         // `resolve_relative` is NOT overridden: it ships on, and a bench run
         // that silently disabled the shipped mechanism because a flag
         // defaulted false would measure a configuration nobody runs. Same
@@ -591,6 +655,7 @@ pub async fn bench_locomo(
             chronological: switches.chronological,
             profile: switches.profile,
             mmr_lambda: switches.mmr,
+            untrusted_max: switches.untrusted_max,
             ..Default::default()
         },
         ..Default::default()
@@ -614,6 +679,13 @@ pub async fn bench_locomo(
     // path's does, and `BenchSwitches::default()` stays the all-off arm.
     let investigate_cfg = myelin_core::pipeline::investigate::InvestigateConfig {
         select_sufficient: switches.select_sufficient,
+        rerank_pool: switches.rerank_pool,
+        premise_analysis: switches.premise,
+        // The same implication the MCP server applies: the analysis
+        // rewrites what the gate emits, so `--premise` without the gate
+        // measures nothing.
+        abstain_on_insufficient: switches.premise,
+        typed_probes: switches.typed_probes,
         ..Default::default()
     };
 
@@ -674,7 +746,7 @@ pub async fn bench_locomo(
                 text: qa.question.clone(),
                 budget: Budget {
                     k,
-                    tokens: 4096,
+                    tokens: budget_tokens,
                     max_steps,
                 },
                 mode,
@@ -761,6 +833,9 @@ pub async fn bench_locomo(
             mode,
             k,
             max_steps,
+            budget_tokens,
+            prefetch_limit,
+            rerank_depth,
             switches: switches.clone(),
             scorer,
             rescored_from: None,
@@ -790,6 +865,9 @@ pub async fn bench_longmemeval_s(
     collection: &str,
     ledger_path: &Path,
     k: usize,
+    budget_tokens: usize,
+    prefetch_limit: Option<u64>,
+    rerank_depth: Option<usize>,
     mode: Mode,
     max_steps: usize,
     limit: Option<usize>,
@@ -817,14 +895,18 @@ pub async fn bench_longmemeval_s(
 
     let graph_index = GraphIndex::new();
     // See `bench_locomo`: one config, always passed, so the all-off arm is
-    // `RetrieveConfig::default()` field for field.
+    // `RetrieveConfig::default()` field for field. The width pair follows
+    // `None`-means-default, the contract every other override here uses.
     let mut retriever = Retriever::new(&embedder, &store, &ledger).with_config(RetrieveConfig {
         graph: switches.graph,
         select_sufficient: switches.select_sufficient,
+        prefetch_limit: prefetch_limit.unwrap_or(RetrieveConfig::default().prefetch_limit),
+        rerank_depth: rerank_depth.unwrap_or(RetrieveConfig::default().rerank_depth),
         compose: myelin_core::pipeline::compose::ComposeConfig {
             chronological: switches.chronological,
             profile: switches.profile,
             mmr_lambda: switches.mmr,
+            untrusted_max: switches.untrusted_max,
             ..Default::default()
         },
         ..Default::default()
@@ -841,6 +923,10 @@ pub async fn bench_longmemeval_s(
     // See `bench_locomo`: switch-driven so both investigate arms exist.
     let investigate_cfg = myelin_core::pipeline::investigate::InvestigateConfig {
         select_sufficient: switches.select_sufficient,
+        rerank_pool: switches.rerank_pool,
+        premise_analysis: switches.premise,
+        abstain_on_insufficient: switches.premise,
+        typed_probes: switches.typed_probes,
         ..Default::default()
     };
 
@@ -865,7 +951,7 @@ pub async fn bench_longmemeval_s(
             text: item.question.clone(),
             budget: Budget {
                 k,
-                tokens: 4096,
+                tokens: budget_tokens,
                 max_steps,
             },
             mode,
@@ -943,6 +1029,9 @@ pub async fn bench_longmemeval_s(
             mode,
             k,
             max_steps,
+            budget_tokens,
+            prefetch_limit,
+            rerank_depth,
             switches: switches.clone(),
             scorer,
             rescored_from: None,
@@ -977,6 +1066,14 @@ pub struct RunSpec {
     pub mode: Mode,
     pub k: usize,
     pub max_steps: usize,
+    /// The composed-evidence budget the loop paid for: `Budget::tokens`.
+    /// 4096 unless a width arm widened it.
+    pub budget_tokens: usize,
+    /// Candidate-pool width the reranker was fed from. `None` means
+    /// `RetrieveConfig::default()`'s 50.
+    pub prefetch_limit: Option<u64>,
+    /// Reranked-pool depth. `None` means `RetrieveConfig::default()`'s 25.
+    pub rerank_depth: Option<usize>,
     /// Which mechanisms were on. Carried whole rather than field by field:
     /// this list has grown at every milestone since M12.
     pub switches: BenchSwitches,
@@ -1039,6 +1136,9 @@ fn finish_run(
         },
         k: spec.k,
         max_steps: spec.max_steps,
+        budget_tokens: spec.budget_tokens,
+        prefetch_limit: spec.prefetch_limit,
+        rerank_depth: spec.rerank_depth,
         graph: spec.switches.graph,
         chronological: spec.switches.chronological,
         question_date: spec.switches.question_date,
@@ -1055,6 +1155,13 @@ fn finish_run(
         // says which produced these rows.
         mmr: spec.switches.mmr,
         select_sufficient: spec.switches.select_sufficient,
+        // M23's four, same rule again: all ship off, so the artifact is the
+        // only record of which produced these rows — and `standing` reads
+        // them back to decide whether the run is an arm.
+        rerank_pool: spec.switches.rerank_pool,
+        premise: spec.switches.premise,
+        typed_probes: spec.switches.typed_probes,
+        untrusted_max: spec.switches.untrusted_max,
         categories: spec.switches.categories.clone(),
         scorer: spec.scorer.slug().to_string(),
         rescored_from: spec.rescored_from.clone(),
@@ -1188,6 +1295,20 @@ pub fn rescore_run(source: &Path, out_dir: &Path, scorer: Scorer) -> Result<Benc
         },
         k: count("k"),
         max_steps: count("max_steps"),
+        // 4096, not 0, on a pre-M23 artifact: `count` defaults missing keys
+        // to zero, and a zero budget is a configuration that never ran.
+        budget_tokens: metrics
+            .get("budget_tokens")
+            .and_then(serde_json::Value::as_u64)
+            .and_then(|n| usize::try_from(n).ok())
+            .unwrap_or(default_budget_tokens()),
+        prefetch_limit: metrics
+            .get("prefetch_limit")
+            .and_then(serde_json::Value::as_u64),
+        rerank_depth: metrics
+            .get("rerank_depth")
+            .and_then(serde_json::Value::as_u64)
+            .and_then(|n| usize::try_from(n).ok()),
         // Read back rather than defaulted: a rescored artifact that forgot
         // which mechanisms produced its rows would break every later
         // comparison against the run it came from.
@@ -1202,6 +1323,13 @@ pub fn rescore_run(source: &Path, out_dir: &Path, scorer: Scorer) -> Result<Benc
                 .and_then(serde_json::Value::as_f64)
                 .map(|v| v as f32),
             select_sufficient: flag("select_sufficient"),
+            rerank_pool: flag("rerank_pool"),
+            premise: flag("premise"),
+            typed_probes: flag("typed_probes"),
+            untrusted_max: metrics
+                .get("untrusted_max")
+                .and_then(serde_json::Value::as_u64)
+                .and_then(|n| usize::try_from(n).ok()),
             categories: metrics
                 .get("categories")
                 .and_then(serde_json::Value::as_array)

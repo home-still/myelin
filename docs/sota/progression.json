@@ -1,0 +1,53 @@
+{
+  "schema": 1,
+  "pinned": {
+    "locomo.abstention_accuracy.n446": {
+      "value": 69.95515695067265,
+      "n": 446,
+      "run": "runs/m19_locomo_full",
+      "recorded": "2026-09-20"
+    },
+    "locomo.judge_score.n1540": {
+      "value": 69.87012987012987,
+      "n": 1540,
+      "run": "runs/m19_locomo_full",
+      "recorded": "2026-09-20"
+    },
+    "locomo.temporal.n1540": {
+      "value": 59.9825523240754,
+      "n": 1540,
+      "run": "runs/m19_locomo_full",
+      "recorded": "2026-09-20"
+    },
+    "longmemeval_s.judge_score.n500": {
+      "value": 56.599999999999994,
+      "n": 500,
+      "run": "runs/m21_full_base",
+      "recorded": "2026-09-20"
+    },
+    "longmemeval_s.token_f1.n500": {
+      "value": 47.05592845627785,
+      "n": 470,
+      "run": "runs/m21_full_base",
+      "recorded": "2026-09-20"
+    },
+    "minja.asr.k6_prepopulated": {
+      "value": 77.5,
+      "n": 40,
+      "run": "runs/attack_live_m18",
+      "recorded": "2026-09-20"
+    },
+    "minja.asr.k6_prepopulated_defended": {
+      "value": 12.5,
+      "n": 40,
+      "run": "runs/attack_live_m18",
+      "recorded": "2026-09-20"
+    },
+    "minja.injection_success.k6_prepopulated": {
+      "value": 92.5,
+      "n": 40,
+      "run": "runs/attack_live_m18",
+      "recorded": "2026-09-20"
+    }
+  }
+}
