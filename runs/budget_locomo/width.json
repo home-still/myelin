@@ -1,0 +1,74 @@
+{
+  "grid": [
+    {
+      "any": 0.9839518555667001,
+      "budget_tokens": 2048,
+      "dropped_for_tokens": 0.7071213640922769,
+      "k": 6,
+      "p50_ms": 209,
+      "p90_ms": 250,
+      "pool": 25.0,
+      "pool_recall": 0.9590047921542405,
+      "prefetch_limit": 50,
+      "recall": 0.9084849787457611,
+      "rerank_depth": 25,
+      "select": false,
+      "select_degraded": 0.0
+    },
+    {
+      "any": 0.9839518555667001,
+      "budget_tokens": 4096,
+      "dropped_for_tokens": 0.0,
+      "k": 6,
+      "p50_ms": 174,
+      "p90_ms": 209,
+      "pool": 25.0,
+      "pool_recall": 0.9590047921542405,
+      "prefetch_limit": 50,
+      "recall": 0.9054759516645173,
+      "rerank_depth": 25,
+      "select": false,
+      "select_degraded": 0.0
+    },
+    {
+      "any": 0.9839518555667001,
+      "budget_tokens": 8192,
+      "dropped_for_tokens": 0.0,
+      "k": 6,
+      "p50_ms": 178,
+      "p90_ms": 215,
+      "pool": 25.0,
+      "pool_recall": 0.9590047921542405,
+      "prefetch_limit": 50,
+      "recall": 0.9054759516645173,
+      "rerank_depth": 25,
+      "select": false,
+      "select_degraded": 0.0
+    },
+    {
+      "any": 0.9839518555667001,
+      "budget_tokens": 16384,
+      "dropped_for_tokens": 0.0,
+      "k": 6,
+      "p50_ms": 174,
+      "p90_ms": 209,
+      "pool": 25.0,
+      "pool_recall": 0.9590047921542405,
+      "prefetch_limit": 50,
+      "recall": 0.9054759516645173,
+      "rerank_depth": 25,
+      "select": false,
+      "select_degraded": 0.0
+    }
+  ],
+  "rule": {
+    "latency_factor": 2.0,
+    "recall_margin": 0.02
+  },
+  "schema": 1,
+  "verdict": {
+    "base": 0.9084849787457611,
+    "best": 0.9084849787457611,
+    "verdict": "keep"
+  }
+}

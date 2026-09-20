@@ -796,6 +796,7 @@ Each milestone ends with a runnable command and a number, not a description.
 | M26 | **the same width split on LongMemEval_S** | `ablate --width --corpus longmemeval-s`: one code path, two gold annotations (`ablate::GoldSource` — LoCoMo by `dia_id` lineage, LongMemEval_S by the `has_answer` turn's 80-char prefix through `coverage::is_found` **verbatim**, so the numbers stay comparable with every coverage figure since M21), and `RecallTrace::pool` widened to carry text because an id-only pool is scorable on one corpus and not the other. 478 questions (22 dropped and reported: no `has_answer` turn over the matcher's 30-char floor), six cells, 48 min, no reader. **Measured: the shipped cell is the best cell on the grid at +0.0000 — every wider cell is *worse* on emitted recall, 0.8251 → 0.7791 monotonically in depth, while pool recall climbs to 0.9976. `trunc` 0.1414 against `miss` 0.0335 — truncation is 4.2× retrieval loss, where LoCoMo's ratio was 1.2×.** So M25 generalises and strengthens: retrieval is not the binding constraint on either corpus carrying per-turn gold, and widening is *worse than neutral* here because the cross-encoder's precision at the top 6 degrades as its candidate pool grows. Reconciles with M21's 0.662/0.852 — that was `temporal-reasoning` alone (n=133), the hardest stratum, and its shape (trunc > miss) already agreed (`docs/measurements/m26-width-cross-corpus.md`) |
 | M27 | **selection recovers 41% of the truncation loss** | The first mechanism aimed at what M25/M26 localised, measured on a full population with no answer generation and no judge. `ablate --width --select` adds the selector as a grid dimension (`WidthPoint::select`, `SELECT_GRID`), with the baseline guarded to require `select == RetrieveConfig::default().select_sufficient` so an arm can never be its own base. **Measured on LongMemEval_S, 478 questions: emitted `recall@6` 0.8251 → 0.8836 (+0.0585, ~3× the pre-registered 0.02 bar), truncation loss 0.1414 → 0.0829 — 41.4% recovered — at +975 ms/query, with `pool_recall` byte-identical at 0.9665 exactly as a stable partition must leave it.** The base cell reproduced M26 exactly across a different binary and a restarted embedder. Does **not** flip a default: M21 measured the same switch at +0.0 judged inside `investigate`, and §7.1 forbids an LLM in `recall`. Also fixes a defect that nearly shipped a null: a 100-candidate selector prompt over real records is **8,298 tokens** against an 8,192-token slot, every call 400s, and `Selector::select` degraded silently to rank order — so the `(200,100)` cell would have reported "selection does not help at depth 100" for a mechanism that never ran. Now `Selected { keep, degraded }`, `RecallTrace::select_degraded`, `WidthPoint::select_degraded` and `WidthVerdict::Degraded` refuse such a cell before any recall comparison (`docs/measurements/m27-selection-recovers-truncation.md`) |
 | M28 | **it was never `k` — on LongMemEval_S the token budget binds** | Measured **entirely offline** (host `big` was down all milestone): 162,181 live records read from the local SQLite ledger and costed with `approx_tokens` verbatim. **LongMemEval_S mean = 380.3 tokens/record (p50 421, p90 693), so six cost 2,282 against `Budget::default()`'s 2,048 — the budget binds before `k`. LoCoMo's mean is 55.8, six cost 335 — `k` binds.** Every width cell M25–M27 ran used that default and recorded *neither* limit, so all three attributed a token-budget loss to `k`; it is also the cleanest account of M26's unexplained cross-corpus asymmetry (trunc÷miss 1.2× vs 4.2× — two different mechanisms, not one at two strengths). Puts a named confound on M27: `compose`'s loop `continue`s rather than breaking, so a bound budget silently reshapes the set toward **shorter** records, and part of the selector's +0.0585 may be promoting short records rather than relevant ones. Ships the instrument that settles it: `EvidenceSet::{dropped_for_tokens, k_bound}` → `RecallTrace` → `WidthPoint`, a `tok-drops` column, `budget_tokens` as a grid dimension and `BUDGET_GRID` sweeping 2,048 → 16,384 — the one axis no milestone has ever varied. Three tests pin the attribution (short corpus binds on `k` with zero drops; long corpus binds on tokens with a non-zero count; the always-admit-the-best-item rule is unchanged). **No sweep ran**; the pre-registered rule for it is in the doc (`docs/measurements/m28-which-limit-binds.md`) |
+| M29 | **the budget binds, and relaxing it makes things worse** | `ablate --width --budget` sweeps `max_tokens` — the one axis no milestone had varied — plus `mean_emitted_rank` and `mean_emitted_tokens` to say *why*. **Measured on LongMemEval_S, 478 questions, no reader: the shipped 2,048 is the best cell and relaxing the budget costs −0.0608 emitted recall monotonically (0.8251 → 0.7702 → 0.7643 → 0.7643 at 2,048 → 16,384).** M28's pre-registered antecedent fired hard — **8.44 token-refusals per query** against a ≥1.0 rule — and the same run refutes its conclusion: compression frees budget, and freeing budget is exactly what costs the 0.06. **Mechanism, measured both ways:** mean emitted rank 4.7 at 2,048 vs **3.5 at 8,192 — exactly `mean(1..6)`, the literal top six** — and mean emitted record 357 vs 498 tokens, so the tight budget both reaches deeper past the ranking and packs smaller records. **Control:** LoCoMo, where the budget barely binds (0.71 drops), is flat at −0.0030 — a dose–response that makes this a mechanism rather than a coincidence. Unifies M26/M27/M29 as one fact: **the cross-encoder's top-6 ordering is the problem** — widening it hurts (−0.046), the selector escapes it (+0.0585), the tight budget skips past it (+0.0608), and the near-identical magnitudes predict the last two are not additive. Exposes two live defects: `bench`'s `default_budget_tokens()` is 4096 where the library's is 2048 (−0.055 here), and **every LME-V2 G1 run uses `budget_tokens = 10000`** — past where this grid flatlines, and binding anyway (85,589 records × 463.3 mean tokens ⇒ 25 cost 11,582 vs a 10,000 budget) (`docs/measurements/m29-the-tight-budget-wins.md`) |
 
 M0 and M5 are not ceremony. M0 pins the four probe findings in §5 — exactly the kind of thing a Qdrant point
 release changes underneath us. M5 pins the benchmark's own privacy test against our adapter, which is the
@@ -833,53 +834,58 @@ web UI — the MCP surface and the eval report are the interfaces.
 
 ## 15. Immediate next step
 
-M0–M28 are done and committed. `docs/measurements/` carries one file per milestone; the standing
+M0–M29 are done and committed. `docs/measurements/` carries one file per milestone; the standing
 table against the published literature is `docs/sota/registry.json` + `runs/standing/`, and the
 floor under our own numbers is `docs/sota/progression.json` + `myelin-eval ratchet`.
 
-**M29 — three runs, in this order, the moment `big` is back.**
+**M30 — the top-6 ordering is the bottleneck. Attack it directly, then close G3.**
 
-Everything below is built, wired, unit-tested and pre-registered. None of it needs another line
-of code. `big` has been offline since the end of M27 and needs a power cycle; that is the only
-blocker.
+M26, M27 and M29 measured three different mechanisms and found one fact underneath all of them:
 
-1. **`ablate --width --budget --corpus longmemeval-s`** — twenty minutes, reader-free, and it
-   decides the next mechanism. Rule fixed in M28: if `tok-drops` at the shipped
-   (50, 25, 2048) cell is **≥ 1.0 per query**, the token budget is the binding limit and
-   compression is what to build; if it is **≈ 0**, M28's store-wide arithmetic does not hold on
-   the retrieved subset, `k` binds after all, and selection stays the lever. Run this **first**:
-   it is the cheapest run on the board and it redirects everything after it.
-2. **G3 — the only gate within 2.5 points.** ASR 12.50% [5.5, 26.1] against ≤10%, with three
-   quota conditions plus `adjudicate` revision 3 all unmeasured. M27 ran its offline half — E3
-   **100.0% (15/15)**, 0/12 benign false positives; E5 **0 admitted** — and lost the live half
-   when the host went down. **Run it alone**, nothing else on the box (§13).
-3. **The judged arms**: M24's decomposition (≥ +5.0 on LoCoMo multi-hop n=282 or LongMemEval
-   multi-session n=133, paired CI excluding zero) and M27's selector. Both now have a measured
-   retrieval-side reason to exist and neither has an answer-side number, which is the only kind
-   that moves a gate.
+| milestone | mechanism | effect on emitted recall | what it does to the top-6 |
+|---|---|---|---|
+| M26 | widen the pool | **−0.046** | more candidates, same bad ordering |
+| M27 | sufficiency selector | **+0.0585** | reorders past it |
+| M29 | tight token budget | **+0.0608** | skips past it |
 
-**If (1) says tokens bind, the mechanism is question-aware compression**, and the literature is
-specific about it. `docs/research/08-context-engineering.md` §11: *"Evidence-set precision beats
-recall: 10 items ≈ P .19/R .72; 100 items → P .01. Cap k = 8-10, never grow to chase recall"* —
-M19's `k = 25` null and M26's monotonic decline, predicted in advance — and §11.5: question-aware
-compression is *"cheap and lossy-tolerant"*, LongLLMLingua **+21.4pp at ~4× fewer tokens**,
-explicitly mitigating lost-in-the-middle; Selective Context reports 50% reduction for −0.023
-BERTscore. Build the **extractive, lexical** form first: it needs no model call, so it is
-measurable on the reader-free width instrument, and it goes straight at `ComposeConfig::max_tokens`
-rather than past it.
+Anything that escapes the cross-encoder's top-6 is worth ~+0.06; anything that gives it more to
+order costs. That is now the most reproduced finding in the project, and nothing has attacked it
+head-on.
 
-Pre-registered now, before that arm exists: compression ships on if emitted `recall@6` at the
-shipped cell improves by **≥ 0.02 absolute** with `pool_recall` unchanged and `tok-drops`
-strictly reduced. A compressor that raises recall while *also* raising `tok-drops` has made
-records shorter without making them denser, and is measuring the same short-record confound M28
-identified in M27.
+1. **Are the selector and the tight budget the same effect?** Four cells, reader-light, and it is
+   the cheapest decisive question on the board: `{2048, 8192} × {select off, on}` on
+   LongMemEval_S. **Pre-registered:** if they are the same escape mechanism, selector-on at 8,192
+   recovers most of the 0.0608 while selector-on at 2,048 adds much less than its solo +0.0585 —
+   i.e. the interaction term is **negative and at least half the smaller main effect**. If
+   instead they are additive (interaction ≈ 0), they are independent levers and the combination
+   is the new operating point. Either answer redirects the roadmap; today both mechanisms are
+   credited with the same 0.06 and at most one of them can own it.
+2. **G3 — still the only gate within 2.5 points.** ASR 12.50% [5.5, 26.1] against ≤10%, three
+   quota conditions plus `adjudicate` revision 3, all unmeasured. M27 ran the offline half (E3
+   **100.0%**, 0/12 false positives; E5 **0 admitted**) and lost the live half when the host went
+   down. **Run it alone** (§13).
+3. **The judged arms.** M24's decomposition and M27's selector still have no answer-side number,
+   and only an answer-side number moves a gate. Rules unchanged.
 
-**Then granularity**, still the standing thesis and still half-built: `build --pools` mints
-AgentRunbook-R's event and note pools as `RecordKind::Semantic`/`::Procedural` and has never run.
-Rule unchanged from M26. Measure the pools *without* `--typed-probes` first — a denser record
-helps a plain retriever too, and an arm that mints pools and routes to them in one step measures
-neither. Note that pools and compression are the same thesis by two routes (fewer tokens per unit
-of answer), so whichever (1) favours should run first and the other should be measured against it.
+**Two default changes are now indicated but not yet earned.** `bench`'s `default_budget_tokens()`
+is 4096 against the library's 2048, and every LME-V2 G1 run carries `budget_tokens = 10000`,
+which this grid measures as the worst regime and M29's offline arithmetic shows is *still*
+binding (25 × 463.3 = 11,582 > 10,000). Neither moves on an inference from another corpus: LME-V2
+has no per-turn gold, so the arm that earns it is a **judged** G1 pair at 10,000 vs 2,048. That
+is the single highest-value judged run available, because it is a default change on the benchmark
+G1 is scored on, and it is cheap — two operating points, no re-ingest.
+
+**What this demotes.** Question-aware compression was M28's recommendation and M29 refutes the
+reasoning: a compressor that only shrinks records moves this corpus from the 2,048 column toward
+the 8,192 column, which is the wrong direction. It may still win — the literature's +21.4pp at 4×
+is question-*aware*, not merely shorter — but it must now be measured against the tight budget it
+would displace, and M28's "`tok-drops` strictly reduced" clause reads as a warning sign rather
+than a success criterion.
+
+**Unmeasured and worth one cheap addition:** item count per query. Mean rank and mean size say
+where the emitted records came from and how big they were, not how many there were. A tight
+budget that emits four dense records and beats six sparse ones is a materially stronger claim
+than the one M29 can make.
 
 **Still outside all of it: LME-V2**, where M16/M22 measured S = 7.4% / 12.1%. No per-turn gold,
 so `ablate --width` and `coverage` both refuse it, and "retrieval-limited" stands exactly where
