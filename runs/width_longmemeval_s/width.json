@@ -1,0 +1,80 @@
+{
+  "grid": [
+    {
+      "any": 0.9874476987447699,
+      "k": 6,
+      "p50_ms": 629,
+      "p90_ms": 745,
+      "pool": 25.0,
+      "pool_recall": 0.9665271966527196,
+      "prefetch_limit": 50,
+      "recall": 0.825139470013947,
+      "rerank_depth": 25
+    },
+    {
+      "any": 0.997907949790795,
+      "k": 6,
+      "p50_ms": 1006,
+      "p90_ms": 1151,
+      "pool": 50.0,
+      "pool_recall": 0.9901673640167366,
+      "prefetch_limit": 50,
+      "recall": 0.7993375174337518,
+      "rerank_depth": 50
+    },
+    {
+      "any": 0.9895397489539749,
+      "k": 6,
+      "p50_ms": 450,
+      "p90_ms": 536,
+      "pool": 25.0,
+      "pool_recall": 0.9698047419804741,
+      "prefetch_limit": 100,
+      "recall": 0.8246164574616458,
+      "rerank_depth": 25
+    },
+    {
+      "any": 0.997907949790795,
+      "k": 6,
+      "p50_ms": 922,
+      "p90_ms": 1100,
+      "pool": 50.0,
+      "pool_recall": 0.9906903765690378,
+      "prefetch_limit": 100,
+      "recall": 0.798186889818689,
+      "rerank_depth": 50
+    },
+    {
+      "any": 0.99581589958159,
+      "k": 6,
+      "p50_ms": 865,
+      "p90_ms": 1014,
+      "pool": 50.0,
+      "pool_recall": 0.9875523012552303,
+      "prefetch_limit": 200,
+      "recall": 0.8006276150627616,
+      "rerank_depth": 50
+    },
+    {
+      "any": 1.0,
+      "k": 6,
+      "p50_ms": 2070,
+      "p90_ms": 2280,
+      "pool": 100.0,
+      "pool_recall": 0.9975592747559275,
+      "prefetch_limit": 200,
+      "recall": 0.7791492329149233,
+      "rerank_depth": 100
+    }
+  ],
+  "rule": {
+    "latency_factor": 2.0,
+    "recall_margin": 0.02
+  },
+  "schema": 1,
+  "verdict": {
+    "base": 0.825139470013947,
+    "best": 0.825139470013947,
+    "verdict": "keep"
+  }
+}

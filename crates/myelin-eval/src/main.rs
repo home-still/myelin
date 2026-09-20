@@ -565,6 +565,12 @@ enum Command {
         /// (M25). Needs an embedder, a reranker and Qdrant; never a reader.
         #[arg(long)]
         width: bool,
+        /// Which corpus the width sweep scores. `locomo` resolves record
+        /// ids to `dia_id` turns through I4 lineage; `longmemeval-s`
+        /// matches the `has_answer` turn's text prefix. Ignored by the
+        /// channel ablation and the step curve, which are LoCoMo-only.
+        #[arg(long, default_value = "locomo")]
+        corpus: String,
     },
     /// Re-score a finished bench run under a different scorer. Pure CPU:
     /// `response_raw` and `answer_gold` are on disk, so no reader call and no
@@ -788,6 +794,7 @@ async fn main() -> anyhow::Result<()> {
             limit,
             ref steps,
             width,
+            ref corpus,
             holdout,
         } => {
             ablate_cmd(
@@ -799,6 +806,7 @@ async fn main() -> anyhow::Result<()> {
                 limit,
                 steps.as_deref(),
                 width,
+                corpus,
                 holdout,
             )
             .await
@@ -1108,8 +1116,13 @@ async fn ablate_cmd(
     limit: Option<usize>,
     steps: Option<&[usize]>,
     width: bool,
+    corpus: &str,
     holdout: bool,
 ) -> anyhow::Result<()> {
+    // clap's value is the user's spelling; the rest of the crate keys on
+    // the underscored slug `Corpus::slug` produces, so normalise once here
+    // rather than matching two spellings in three places.
+    let corpus: &str = &corpus.replace('-', "_");
     if let Some(steps) = steps {
         let points = myelin_eval::ablate::investigate_curve(
             Path::new(dataset),
@@ -1126,10 +1139,24 @@ async fn ablate_cmd(
         return Ok(());
     }
     if width {
+        // `--corpus` picks the gold annotation and, unless the caller
+        // overrode them, the dataset/collection/ledger triple that goes
+        // with it. A width sweep pointed at LoCoMo's ledger and
+        // LongMemEval's questions would retrieve nothing and report it as
+        // a retrieval failure.
+        let (dataset, collection, ledger) = match corpus {
+            "longmemeval_s" => (
+                defaulted(dataset, "data/locomo10.json", "data/longmemeval_s.json"),
+                defaulted(collection, "myelin_locomo", "myelin_longmemeval_s"),
+                defaulted(ledger, "data/locomo.ledger", "data/longmemeval_s.ledger"),
+            ),
+            _ => (dataset.to_string(), collection.to_string(), ledger.to_string()),
+        };
         let points = myelin_eval::ablate::width_sweep(
-            Path::new(dataset),
-            collection,
-            Path::new(ledger),
+            corpus,
+            Path::new(&dataset),
+            &collection,
+            Path::new(&ledger),
             units,
             k,
             &myelin_eval::ablate::WIDTH_GRID,
@@ -1137,8 +1164,8 @@ async fn ablate_cmd(
             holdout,
         )
         .await?;
-        myelin_eval::ablate::print_width(&points, k);
-        myelin_eval::ablate::write_width(&points, Path::new("runs/m25_width"))?;
+        myelin_eval::ablate::print_width(&points, k, corpus);
+        myelin_eval::ablate::write_width(&points, Path::new(&format!("runs/width_{corpus}")))?;
         return Ok(());
     }
     let run = myelin_eval::ablate::ablate_locomo(
@@ -1153,6 +1180,21 @@ async fn ablate_cmd(
     .await?;
     myelin_eval::ablate::print_table(&run, k);
     Ok(())
+}
+
+/// A per-corpus default: keep the caller's value unless it is still clap's
+/// default for the *other* corpus.
+///
+/// clap cannot express "this default depends on another flag", and silently
+/// pointing a LongMemEval sweep at LoCoMo's ledger would retrieve nothing
+/// and report it as a retrieval failure — a null that looks exactly like a
+/// finding.
+fn defaulted(current: &str, clap_default: &str, wanted: &str) -> String {
+    if current == clap_default {
+        wanted.to_string()
+    } else {
+        current.to_string()
+    }
 }
 
 /// Score LoCoMo end-to-end against a memory that `build` already wrote.

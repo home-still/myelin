@@ -586,8 +586,19 @@ impl WidthPoint {
 /// moved the loss from retrieval to truncation, which is a finding about
 /// where to aim next and not a reason to pay for a wider pool the emitter
 /// cannot use.
+///
+/// # Two corpora, two gold annotations
+///
+/// `corpus` selects both the questions and the [`GoldSource`]. LoCoMo
+/// resolves record ids to `dia_id` turns through I4 lineage; LongMemEval_S
+/// matches the `has_answer` turn's text prefix. The rest of the sweep —
+/// the grid, the two recalls, the rule — is identical, which is the point:
+/// M25 measured LoCoMo and found retrieval nearly solved there, and the
+/// only way to know whether that generalises is to run the same instrument
+/// on the corpus M21 says disagrees.
 #[allow(clippy::too_many_arguments)]
 pub async fn width_sweep(
+    corpus: &str,
     path: &Path,
     collection: &str,
     ledger_path: &Path,
@@ -598,11 +609,20 @@ pub async fn width_sweep(
     holdout: bool,
 ) -> Result<Vec<WidthPoint>> {
     let cfg = MyelinConfig::load().context("load myelin config")?;
-    let split = select_split(path, units, holdout)?;
-
     let ledger = Ledger::open(ledger_path).await.context("open ledger")?;
-    let coverage = Coverage::build(&split, &ledger).await?;
-    let mut questions = collect_questions(&split);
+
+    let (mut questions, source) = match corpus {
+        "locomo" => {
+            let split = select_split(path, units, holdout)?;
+            let coverage = Coverage::build(&split, &ledger).await?;
+            (collect_questions(&split), GoldSource::Lineage(coverage))
+        }
+        "longmemeval_s" => (longmemeval_questions(path)?, GoldSource::TextPrefix),
+        other => anyhow::bail!(
+            "width needs a per-turn gold annotation, which only `locomo` (dia_id) and \
+             `longmemeval_s` (has_answer) carry; {other:?} has none"
+        ),
+    };
     if let Some(n) = limit {
         questions.truncate(n);
     }
@@ -660,7 +680,7 @@ pub async fn width_sweep(
 
         for q in &questions {
             let query = Recall {
-                scope: ScopeFilter::tenant(&q.tenant).with_namespace("locomo"),
+                scope: ScopeFilter::tenant(&q.tenant).with_namespace(corpus),
                 text: q.text.clone(),
                 budget: Budget { k, ..Default::default() },
                 mode: Mode::Recall,
@@ -671,11 +691,19 @@ pub async fn width_sweep(
                 .await
                 .with_context(|| format!("({prefetch_limit},{rerank_depth}): recall {:?}", q.text))?;
 
-            recall_sum += gold_recall(&coverage, q, evidence.items.iter().map(|i| i.record_id));
-            let pool = gold_recall(&coverage, q, trace.pool_ids.iter().copied());
+            // Both recalls go through one function over the same shape, so
+            // their difference is a quantity and not a comparison of two
+            // implementations.
+            let emitted: Vec<(Uuid, String)> = evidence
+                .items
+                .iter()
+                .map(|i| (i.record_id, i.value.clone()))
+                .collect();
+            recall_sum += gold_recall(&source, q, &emitted);
+            let pool = gold_recall(&source, q, &trace.pool);
             pool_recall_sum += pool;
             any_sum += f64::from(u8::from(pool > 0.0));
-            pool_sum += trace.pool_ids.len() as f64;
+            pool_sum += trace.pool.len() as f64;
             lat.push(trace.total_ms);
         }
 
@@ -709,27 +737,96 @@ pub async fn width_sweep(
     Ok(out)
 }
 
-/// Fraction of a question's gold turns covered by these records.
+/// LongMemEval_S questions with their `has_answer` gold turns.
+///
+/// Scope mirrors `bench`'s exactly — tenant `lme_s/{question_id}`,
+/// namespace `longmemeval_s` — because a sweep that retrieved from a
+/// different scope than the benchmark would measure a different store.
+///
+/// Questions whose gold turns are all shorter than the matcher's floor are
+/// dropped rather than scored 0: `coverage::is_found` refuses a unit under
+/// 30 characters because short turns ("Thanks!") occur in almost any
+/// evidence set, and counting those questions as misses would report the
+/// corpus's filler as retrieval failure.
+fn longmemeval_questions(dataset: &Path) -> Result<Vec<Question>> {
+    let items = crate::datasets::longmemeval::load(dataset).context("load longmemeval_s")?;
+    let mut out = Vec::new();
+    let mut dropped = 0usize;
+    for item in &items {
+        let gold: HashSet<String> = item
+            .haystack_sessions
+            .iter()
+            .flatten()
+            .filter(|t| t.has_answer == Some(true))
+            .map(|t| t.content.clone())
+            .filter(|c| c.trim().chars().count() > 30)
+            .collect();
+        if gold.is_empty() {
+            dropped += 1;
+            continue;
+        }
+        out.push(Question {
+            tenant: format!("lme_s/{}", item.question_id),
+            text: item.question.clone(),
+            category: crate::bench::question_type_code(&item.question_type),
+            gold,
+        });
+    }
+    eprintln!(
+        "  longmemeval_s: {} questions with matchable gold turns, {dropped} dropped \
+         (no has_answer turn over the matcher's 30-character floor)",
+        out.len()
+    );
+    Ok(out)
+}
+
+/// How a corpus decides whether a record carries a question's gold.
+///
+/// The two benchmarks annotate differently and neither annotation converts
+/// into the other, so the sweep carries both rather than picking one and
+/// declaring the other out of scope.
+enum GoldSource {
+    /// LoCoMo cites evidence turns by `dia_id`, and I4 lineage resolves a
+    /// record to every turn it can testify to. Exact set arithmetic: a
+    /// record either covers the cited turn or it does not.
+    Lineage(Coverage),
+    /// LongMemEval_S flags the answer-bearing turn with `has_answer` and
+    /// there is no id to resolve, so a gold unit counts when its 80-char
+    /// prefix appears in a record. Reuses `coverage::is_found` verbatim —
+    /// a second matcher here would make this instrument's numbers
+    /// incomparable with every coverage number since M21.
+    TextPrefix,
+}
+
+/// Fraction of a question's gold units these records cover.
 ///
 /// Shared by the emitted set and the pool so the two recalls in a
 /// [`WidthPoint`] are the same arithmetic over different inputs — the only
 /// way their difference is a quantity rather than a comparison of two
 /// implementations.
-fn gold_recall(
-    coverage: &Coverage,
-    q: &Question,
-    records: impl Iterator<Item = Uuid>,
-) -> f64 {
+fn gold_recall(source: &GoldSource, q: &Question, records: &[(Uuid, String)]) -> f64 {
     if q.gold.is_empty() {
         return 0.0;
     }
-    let mut hit: HashSet<&String> = HashSet::new();
-    for id in records {
-        if let Some(c) = coverage.of(&id) {
-            hit.extend(q.gold.iter().filter(|g| c.contains(*g)));
+    let covered = match source {
+        GoldSource::Lineage(coverage) => {
+            let mut hit: HashSet<&String> = HashSet::new();
+            for (id, _) in records {
+                if let Some(c) = coverage.of(id) {
+                    hit.extend(q.gold.iter().filter(|g| c.contains(*g)));
+                }
+            }
+            hit.len()
         }
-    }
-    hit.len() as f64 / q.gold.len() as f64
+        GoldSource::TextPrefix => {
+            let texts: Vec<String> = records.iter().map(|(_, t)| t.clone()).collect();
+            q.gold
+                .iter()
+                .filter(|g| crate::coverage::is_found(g, &texts))
+                .count()
+        }
+    };
+    covered as f64 / q.gold.len() as f64
 }
 
 /// The default grid: the shipped cell first, then each axis alone, then
@@ -817,8 +914,8 @@ pub fn width_verdict(points: &[WidthPoint]) -> WidthVerdict {
 }
 
 /// Render the width grid and print the verdict [`width_verdict`] computed.
-pub fn print_width(points: &[WidthPoint], k: usize) {
-    println!("\n=== M25 width grid — prefetch x rerank_depth, k={k} ===");
+pub fn print_width(points: &[WidthPoint], k: usize, corpus: &str) {
+    println!("\n=== width grid — prefetch x rerank_depth, k={k}, corpus {corpus} ===");
     println!(
         "\n{:>8} {:>6} {:>10} {:>10} {:>10} {:>10} {:>8} {:>8}",
         "prefetch", "depth", "recall", "pool", "trunc", "miss", "|pool|", "p50ms"
@@ -841,7 +938,11 @@ pub fn print_width(points: &[WidthPoint], k: usize) {
          pool   = the same arithmetic over the reranked pool, before compose truncates to k.\n\
          trunc  = pool - recall: gold retrieval found and compose dropped. A selector's to win.\n\
          miss   = 1 - pool: gold that never entered the pool. Only retrieval can win it.\n\
-         No reader and no judge: LoCoMo's dia_id gold is decided by set arithmetic."
+         No reader and no judge: gold is decided by {}.",
+        match corpus {
+            "longmemeval_s" => "the has_answer turn's 80-char text prefix",
+            _ => "LoCoMo's dia_id turns through I4 lineage",
+        }
     );
 
     println!(
@@ -1263,6 +1364,49 @@ mod tests {
             "and it must run first, so a sweep cut short by a closing GPU window \
              still carries its own baseline"
         );
+    }
+
+    /// LongMemEval_S is scored by text prefix, and the two recalls in a
+    /// `WidthPoint` must be the same arithmetic over different inputs or
+    /// their difference is not a quantity.
+    #[test]
+    fn the_text_prefix_source_scores_both_inputs_identically() {
+        let gold = "Dana finally adopted the rescue dog she had been visiting for months now";
+        let q = Question {
+            tenant: "lme_s/q1".into(),
+            text: "which dog".into(),
+            category: 1,
+            gold: HashSet::from([gold.to_string()]),
+        };
+        let carrying = vec![(Uuid::nil(), format!("[2026-09-20] {gold} and named her Biscuit"))];
+        let not = vec![(Uuid::nil(), "Ravi relocated to Lisbon".to_string())];
+        assert_eq!(gold_recall(&GoldSource::TextPrefix, &q, &carrying), 1.0);
+        assert_eq!(gold_recall(&GoldSource::TextPrefix, &q, &not), 0.0);
+        // The date stamp `compose` prepends must not defeat the match:
+        // every emitted value carries one and the pool's values do not.
+        assert_eq!(
+            gold_recall(&GoldSource::TextPrefix, &q, &carrying),
+            gold_recall(
+                &GoldSource::TextPrefix,
+                &q,
+                &[(Uuid::nil(), format!("{gold} and named her Biscuit"))]
+            ),
+            "a stamped record and a bare one must score the same"
+        );
+    }
+
+    /// A question with no gold scores zero rather than dividing by zero.
+    #[test]
+    fn a_question_with_no_gold_is_zero_not_nan() {
+        let q = Question {
+            tenant: "t".into(),
+            text: "q".into(),
+            category: 1,
+            gold: HashSet::new(),
+        };
+        let r = gold_recall(&GoldSource::TextPrefix, &q, &[(Uuid::nil(), "anything".into())]);
+        assert_eq!(r, 0.0);
+        assert!(r.is_finite());
     }
 
     /// `rerank_depth` may never exceed `prefetch_limit`: the reranked pool

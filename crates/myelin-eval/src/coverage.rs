@@ -138,8 +138,13 @@ fn strip_stamp(value: &str) -> &str {
     value[12..].trim_start()
 }
 
-/// Does this gold unit appear in the composed evidence?
-fn is_found(gold: &str, evidence: &[String]) -> bool {
+/// Does this gold unit appear in these evidence values?
+///
+/// `pub(crate)` so `ablate`'s width sweep scores LongMemEval_S with the
+/// **same** matcher that produced every coverage number since M21, rather
+/// than a second one that would make the two instruments' numbers
+/// incomparable for reasons nobody could see.
+pub(crate) fn is_found(gold: &str, evidence: &[String]) -> bool {
     let c = gold.trim();
     if c.chars().count() <= MIN_GOLD_CHARS {
         return false;

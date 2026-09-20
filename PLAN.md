@@ -793,6 +793,7 @@ Each milestone ends with a runnable command and a number, not a description.
 | M23 | **the progression ratchet** | The instrument that compares us to *ourselves*: `Ours::unrecorded` + `Verdict::StaleConfig` refuse to publish an artifact that does not record the operating point it ran at, drift-size ordering prefers the artifact closest to today's code, `harness_arm` computes `arm` on the LME-V2 path for the first time, and `myelin-eval ratchet` pins a floor per metric in `docs/sota/progression.json` and exits non-zero below it — quotable rows only, direction read from the metric so `minja.asr.*` is not graded upside down, `--update` raising only. Plus the measurement legs M23's mechanism arms were missing: `bench --rerank-pool/--premise/--typed-probes/--untrusted-max`, recorded in `BenchRun`, read back by `rescore`, and all four counted as arms. **Found: `standing` had been publishing 39.91 on `lme_v2_small.overall_full_set.combined` from a pre-M19 artifact; the shipped configuration is 36.59. Three separate defects — no era signal, value-ordering among stale artifacts, and `arm` hardcoded `false` on the LME-V2 path since it was written, which was publishing M22's measured-null `dated=false` arm at 39.02.** No mechanism ships on; the reader-dependent arms were deferred rather than taken by evicting a live household tenant off the GPU (`docs/measurements/m23-progression-ratchet.md`) |
 | M24 | **parallel query decomposition** | `pipeline::decompose::Decomposer` + `RetrieveConfig::decompose`: one model call splits the question into at most six sub-queries, each is retrieved separately, and every sub-query's dense and lexical list joins the **same** `rrf` call — so `n` sub-queries add `2n` lists and every stage below fusion is untouched. The original question's lists are always retained (a bad split can only add candidates) and nothing is de-duplicated across results, because M21 measured co-evidence for one question as resembling *itself* 1.60× more than the rest of the set. Reachable from `bench --decompose`, both MCP tools, and `run_myelin.py`; in `PAIR_KEYS` and in arm detection, so it cannot publish itself. **Verified functionally against live Qdrant** (63 records, `prefetch_limit` binding): with the switch off the second hop is absent from the evidence set, with it on both hops are present, the pool goes 61 → 62 while `admitted` stays 25 → 25 — so the mechanism changes *which* 25 candidates reach the cross-encoder, which is the "changes what is drawn" property all six prior retrieval nulls lacked. **No accuracy number**: the reader was held all milestone by a household tenant, so the switch ships off and the pre-registered rule (≥ +5.0 judged on LoCoMo multi-hop n=282 or LongMemEval multi-session n=133, paired CI excluding zero, no stratum worse by 2.0) is still open (`docs/measurements/m24-query-decomposition.md`) |
 | M25 | **retrieval width, measured with no reader** | `ablate --width`: a `prefetch_limit` × `rerank_depth` grid scored against LoCoMo's own `dia_id` gold by set arithmetic through the production segmenter — plus `RecallTrace::pool_ids` (in-process only), so one pass yields **both** the emitted recall and the reranked pool's recall instead of M21's two-run difference. The rule was fixed in code before the first cell (`ablate::width_verdict`, unit-tested against a cell one ulp under the margin, one over the latency budget, and one that raises only pool recall): change the defaults only for ≥ +0.02 emitted recall at < 2× the shipped p50. **Measured over 997 dev questions, six cells, 72 min, no generation model: the defaults hold — best cell 0.9113 against the shipped 0.9092, +0.0021.** The null hides the finding: `miss` collapses 4.10% → **0.53%** (7.7×) while `trunc` rises 4.98% → 8.34%, so widening converts retrieval loss into truncation loss ~1:1. At the widest cell **94% of the remaining loss is `compose` discarding gold it was handed**, and retrieval on LoCoMo is effectively solved (pool recall 99.47%). Ran at all only because retrieval needs no reader: bge-m3 served from ollama's blob under llama.cpp on **CPU**, verified cosine 1.000000 against stored vectors (`docs/measurements/m25-retrieval-width.md`) |
+| M26 | **the same width split on LongMemEval_S** | `ablate --width --corpus longmemeval-s`: one code path, two gold annotations (`ablate::GoldSource` — LoCoMo by `dia_id` lineage, LongMemEval_S by the `has_answer` turn's 80-char prefix through `coverage::is_found` **verbatim**, so the numbers stay comparable with every coverage figure since M21), and `RecallTrace::pool` widened to carry text because an id-only pool is scorable on one corpus and not the other. 478 questions (22 dropped and reported: no `has_answer` turn over the matcher's 30-char floor), six cells, 48 min, no reader. **Measured: the shipped cell is the best cell on the grid at +0.0000 — every wider cell is *worse* on emitted recall, 0.8251 → 0.7791 monotonically in depth, while pool recall climbs to 0.9976. `trunc` 0.1414 against `miss` 0.0335 — truncation is 4.2× retrieval loss, where LoCoMo's ratio was 1.2×.** So M25 generalises and strengthens: retrieval is not the binding constraint on either corpus carrying per-turn gold, and widening is *worse than neutral* here because the cross-encoder's precision at the top 6 degrades as its candidate pool grows. Reconciles with M21's 0.662/0.852 — that was `temporal-reasoning` alone (n=133), the hardest stratum, and its shape (trunc > miss) already agreed (`docs/measurements/m26-width-cross-corpus.md`) |
 
 M0 and M5 are not ceremony. M0 pins the four probe findings in §5 — exactly the kind of thing a Qdrant point
 release changes underneath us. M5 pins the benchmark's own privacy test against our adapter, which is the
@@ -829,59 +830,71 @@ web UI — the MCP surface and the eval report are the interfaces.
 
 ## 15. Immediate next step
 
-M0–M25 are done and committed. `docs/measurements/` carries one file per milestone; the standing
+M0–M26 are done and committed. `docs/measurements/` carries one file per milestone; the standing
 table against the published literature is `docs/sota/registry.json` + `runs/standing/`, and the
 floor under our own numbers is `docs/sota/progression.json` + `myelin-eval ratchet`.
 
-**M26 — granularity: make the six slots carry more answer, not add a seventh.**
+**M27 — granularity: make the six slots carry more answer, not add a seventh.**
 
-M25 changed the target. The standing claim since M16 has been that we are *retrieval-limited* and
-that the next win is wider or better retrieval. On LoCoMo that is now false at the retrieval
-layer: the reranked pool holds **95.9%** of gold turns at the shipped cell and **99.47%** at
-`(200, 100)`, and widening buys **+0.0021** of emitted recall because it converts retrieval loss
-into truncation loss at nearly 1:1. At the widest cell **94% of what is left is `compose`
-discarding gold it was handed.**
+M25 and M26 together retired the roadmap's central assumption. The standing claim since M16 was
+that we are *retrieval-limited* and the next win is wider or better retrieval. On **both** corpora
+that carry a per-turn gold annotation, that is now false at the retrieval layer:
 
-The obvious cash-out is already closed. If truncation binds, raise `k` — and M19 measured `k = 25`
-at **+3.8 with a CI spanning zero**. More records in the evidence set is not more answer in it.
-Combine that with M25's own caveat — `Coverage` maps a record to the turns it can testify to
-through I4 lineage, so a consolidated record can cover the gold turn and still have summarised
-away the detail — and the remaining loss is not *which records* but **what a record says once it
-arrives**.
+| corpus | n | recall@6 | pool | trunc | miss | trunc ÷ miss |
+|---|---|---|---|---|---|---|
+| LoCoMo | 997 | 0.9092 | 0.9590 | 0.0498 | 0.0410 | 1.2× |
+| LongMemEval_S | 478 | 0.8251 | 0.9665 | 0.1414 | 0.0335 | **4.2×** |
+
+Widened to `(200, 100)`, `miss` falls to 0.53% and **0.24%**: retrieval puts essentially all of
+the gold in front of `compose`, which then discards 8–22% of it to fit `k = 6`. And on
+LongMemEval_S widening is **worse than neutral** — emitted recall falls monotonically with depth
+while pool recall rises, so the cross-encoder's precision at the top 6 degrades as its candidate
+pool grows. That is a fact about the reranker, not the corpus, and it explains M24's null shape
+in advance.
+
+The obvious cash-out is already closed: if truncation binds, raise `k` — and M19 measured
+`k = 25` at **+3.8 with a CI spanning zero**. More records in the evidence set is not more answer
+in it. Combine that with both milestones' shared caveat — gold-turn coverage is an upper bound on
+what the reader was *given*, because a consolidated record can cover the gold turn and have
+summarised the detail away — and the remaining loss is not *which records* but **what a record
+says once it arrives**.
 
 That is granularity, and M23 already half-built it:
 
 1. **Mint the pools.** `build --pools` (`build::build_lmev2_pools`) writes AgentRunbook-R's event
    and note pools as `RecordKind::Semantic` and `::Procedural` beside the episodes, one batched
    call per trajectory per pool. It has never run. This is the write-path cost — the only item on
-   the board that costs a build rather than a read.
+   the board that costs a build rather than a read, and the only one needing the reader.
 2. **Retrieve them by kind.** `--typed-probes` lets the reflect gate aim a probe at one pool, and
    M24's decomposition is what makes that worth paying for: three pools are only useful to a
-   retriever that can ask three questions at once. Measure the pools *without* typed probes first
-   — a denser record helps a plain retriever too, and an arm that mints pools and routes to them
-   in one step measures neither.
-3. **Score it on the instrument that does not need a reader.** `ablate --width` at the shipped
-   cell, before and after the pools exist, is a direct read on whether denser records raise
-   emitted recall at fixed `k`. That is the quantity granularity claims and it costs no GPU
-   beyond the rerank.
+   retriever that can ask three questions at once. Measure the pools *without* typed probes
+   first — a denser record helps a plain retriever too, and an arm that mints pools and routes to
+   them in one step measures neither.
+3. **Score it on the instrument that needs no reader.** `ablate --width` at the shipped cell,
+   before and after the pools exist, on **both** corpora now. That is a direct read on whether
+   denser records raise emitted recall at fixed `k`, and it costs no GPU beyond the rerank.
 
-Pre-registered rule, fixed now: the pools ship on if emitted `recall@6` at the shipped
-`(50, 25)` cell improves by **≥ 0.02 absolute** over the same cell without them, with no increase
-in `miss`. A pools build that only raises `pool_recall` changes nothing, for the reason M25's rule
-gave: loss moved is not loss removed.
+Pre-registered rule, fixed now: the pools ship on if emitted `recall@6` at the shipped `(50, 25)`
+cell improves by **≥ 0.02 absolute** over the same cell without them, on at least one corpus and
+with no increase in `miss` on either. A pools build that only raises `pool_recall` changes
+nothing, for the reason M25's and M26's rules both gave: loss moved is not loss removed.
+
+**A cheaper probe exists and should run first.** If truncation is the constraint, the question is
+what `compose` should put in six slots — and M21 already measured two answers on the *emitted*
+set: MMR (−5.3 / −9.8, a regression, because co-evidence resembles itself) and the sufficiency
+selector (recall 0.658 → 0.838 against a 0.852 pool ceiling). The sufficiency selector is a
+**selection** mechanism aimed at exactly the loss M25/M26 have now localised, and
+`ablate --width` can score it on both corpora with no reader beyond the selector's own call.
+Run `RetrieveConfig::select_sufficient` through the width instrument before paying for a build.
 
 **Still blocked, still pre-registered, still needing only a GPU window:** M24's decomposition arm
 (`bench --decompose 4 --categories 1` on LoCoMo n=282, `--categories 4` on LongMemEval_S n=133,
 ≥ +5.0 judged with a paired CI excluding zero) and M23's G3 sweep (`attack --live`, three quota
 conditions plus `adjudicate` revision 3, against the one gate with a quantified miss — ASR 12.50%
-[5.5, 26.1] versus ≤10%). Neither needs another line of code. The card is 24 GB shared with a
-household voice assistant holding ~10 GB on a rolling keep-alive; the reader needs ~7 GB. Take the
-window when it exists; do not take it from someone else's work.
+[5.5, 26.1] versus ≤10%). Neither needs another line of code.
 
-**And the corpus caveat that limits all of the above.** M25's result is LoCoMo's. M21's coverage
-on LongMemEval_S temporal-reasoning was 0.662 emitted against a 0.852 pool — `trunc` 0.190,
-`miss` 0.148, three to thirty times LoCoMo's. Retrieval is *not* solved there, and any claim that
-generalises M25 across corpora needs `coverage` re-run on LongMemEval_S first. That run needs a
-bench artifact, which needs the reader; `ablate --width` does not, and extending it to
-LongMemEval_S (whose gold is `has_answer` turns rather than `dia_id`) is the cheapest way to get
-the same split on the harder corpus.
+**The one corpus still outside all of this is LME-V2**, where M16 and M22 measured
+S = P(sufficient | wrong) at 7.4% and 12.1%. It has no per-turn gold, so `ablate --width` and
+`coverage` both refuse it, and the "retrieval-limited" finding stands exactly where it was
+measured and nowhere else. Giving LME-V2 a per-turn annotation — or accepting that its only
+instrument is a judged one — is an open question this plan does not yet answer.
