@@ -1,0 +1,49 @@
+{
+  "schema": 1,
+  "corpus": "longmemeval_s",
+  "collection": "myelin_longmemeval_s",
+  "questions": 478,
+  "k": 6,
+  "note": "Cells 3-4 of SELECT_GRID ((200,100) with and without the selector) did NOT run. A 100-candidate selector prompt over real records is 8,298 tokens against a reader serving 8,192 per slot, so every call would have 400'd and the cell would have reported the unmodified rank order as a null. Verified by pre-flight against the live reader before the cell ran; the sweep was stopped rather than allowed to produce that number. The interaction question is deferred to a resized reader.",
+  "grid": [
+    {
+      "prefetch_limit": 50,
+      "rerank_depth": 25,
+      "k": 6,
+      "select": false,
+      "recall": 0.8251,
+      "pool_recall": 0.9665,
+      "any": null,
+      "pool": 25.0,
+      "p50_ms": 410,
+      "p90_ms": null,
+      "select_degraded": 0.0
+    },
+    {
+      "prefetch_limit": 50,
+      "rerank_depth": 25,
+      "k": 6,
+      "select": true,
+      "recall": 0.8836,
+      "pool_recall": 0.9665,
+      "any": null,
+      "pool": 25.0,
+      "p50_ms": 1385,
+      "p90_ms": null,
+      "select_degraded": 0.0
+    }
+  ],
+  "finding": {
+    "emitted_recall_delta": 0.0585,
+    "truncation_loss_before": 0.1414,
+    "truncation_loss_after": 0.0829,
+    "truncation_recovered_fraction": 0.4137,
+    "pool_recall_unchanged": true,
+    "latency_delta_ms": 975
+  },
+  "rule": {
+    "recall_margin": 0.02,
+    "latency_factor": 2.0,
+    "max_degraded": 0.02
+  }
+}

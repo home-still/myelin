@@ -58,8 +58,18 @@ RERANK_PORT="${MYELIN_RERANK_PORT:-5813}"
 # consolidation judgement over 6 neighbours. Slots are the throughput lever --
 # consolidation was 68% of a measured 768 s conversation, all of it queued
 # behind a single slot.
-READER_SLOTS="${MYELIN_READER_SLOTS:-4}"
-READER_CTX="${MYELIN_READER_CTX:-16384}"
+# 2 slots at 32768 = 16,384 tokens per slot.
+#
+# Raised from 4x16384 (4,096/slot) in M27. The sufficiency selector sends
+# one candidate per reranked document at 400 chars each, so a
+# `rerank_depth = 100` cell is ~36 KB and MEASURED at 8,298 tokens over real
+# LongMemEval records -- llama.cpp answers 400 exceed_context_size_error on
+# every one, and `Selector::select` degrades silently to rank order, so the
+# arm reports "selection does not help" for a mechanism that never ran.
+# `WidthVerdict::Degraded` now catches that, but a server that cannot run
+# the measurement is not a defence.
+READER_SLOTS="${MYELIN_READER_SLOTS:-2}"
+READER_CTX="${MYELIN_READER_CTX:-32768}"
 EMBED_CTX="${MYELIN_EMBED_CTX:-4096}"
 
 # mmproj is ON by default. It costs ~920 MiB, and 29 of LongMemEval-V2's 451

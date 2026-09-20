@@ -1,4 +1,4 @@
-# `myelin-eval standing` — commit `7900b408b01292dd27c7a73ecbc4930e34c3030e-dirty`, generated 2026-09-20T18:13:35Z
+# `myelin-eval standing` — commit `2dcf00cc6dc9007ce5e3a6c6aa79a74b2eccd68a-dirty`, generated 2026-09-20T21:06:50Z
 
 | metric | system | theirs | ours | gap | verdict | claim | run |
 |---|---|---|---|---|---|---|---|

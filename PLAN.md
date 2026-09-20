@@ -794,6 +794,7 @@ Each milestone ends with a runnable command and a number, not a description.
 | M24 | **parallel query decomposition** | `pipeline::decompose::Decomposer` + `RetrieveConfig::decompose`: one model call splits the question into at most six sub-queries, each is retrieved separately, and every sub-query's dense and lexical list joins the **same** `rrf` call — so `n` sub-queries add `2n` lists and every stage below fusion is untouched. The original question's lists are always retained (a bad split can only add candidates) and nothing is de-duplicated across results, because M21 measured co-evidence for one question as resembling *itself* 1.60× more than the rest of the set. Reachable from `bench --decompose`, both MCP tools, and `run_myelin.py`; in `PAIR_KEYS` and in arm detection, so it cannot publish itself. **Verified functionally against live Qdrant** (63 records, `prefetch_limit` binding): with the switch off the second hop is absent from the evidence set, with it on both hops are present, the pool goes 61 → 62 while `admitted` stays 25 → 25 — so the mechanism changes *which* 25 candidates reach the cross-encoder, which is the "changes what is drawn" property all six prior retrieval nulls lacked. **No accuracy number**: the reader was held all milestone by a household tenant, so the switch ships off and the pre-registered rule (≥ +5.0 judged on LoCoMo multi-hop n=282 or LongMemEval multi-session n=133, paired CI excluding zero, no stratum worse by 2.0) is still open (`docs/measurements/m24-query-decomposition.md`) |
 | M25 | **retrieval width, measured with no reader** | `ablate --width`: a `prefetch_limit` × `rerank_depth` grid scored against LoCoMo's own `dia_id` gold by set arithmetic through the production segmenter — plus `RecallTrace::pool_ids` (in-process only), so one pass yields **both** the emitted recall and the reranked pool's recall instead of M21's two-run difference. The rule was fixed in code before the first cell (`ablate::width_verdict`, unit-tested against a cell one ulp under the margin, one over the latency budget, and one that raises only pool recall): change the defaults only for ≥ +0.02 emitted recall at < 2× the shipped p50. **Measured over 997 dev questions, six cells, 72 min, no generation model: the defaults hold — best cell 0.9113 against the shipped 0.9092, +0.0021.** The null hides the finding: `miss` collapses 4.10% → **0.53%** (7.7×) while `trunc` rises 4.98% → 8.34%, so widening converts retrieval loss into truncation loss ~1:1. At the widest cell **94% of the remaining loss is `compose` discarding gold it was handed**, and retrieval on LoCoMo is effectively solved (pool recall 99.47%). Ran at all only because retrieval needs no reader: bge-m3 served from ollama's blob under llama.cpp on **CPU**, verified cosine 1.000000 against stored vectors (`docs/measurements/m25-retrieval-width.md`) |
 | M26 | **the same width split on LongMemEval_S** | `ablate --width --corpus longmemeval-s`: one code path, two gold annotations (`ablate::GoldSource` — LoCoMo by `dia_id` lineage, LongMemEval_S by the `has_answer` turn's 80-char prefix through `coverage::is_found` **verbatim**, so the numbers stay comparable with every coverage figure since M21), and `RecallTrace::pool` widened to carry text because an id-only pool is scorable on one corpus and not the other. 478 questions (22 dropped and reported: no `has_answer` turn over the matcher's 30-char floor), six cells, 48 min, no reader. **Measured: the shipped cell is the best cell on the grid at +0.0000 — every wider cell is *worse* on emitted recall, 0.8251 → 0.7791 monotonically in depth, while pool recall climbs to 0.9976. `trunc` 0.1414 against `miss` 0.0335 — truncation is 4.2× retrieval loss, where LoCoMo's ratio was 1.2×.** So M25 generalises and strengthens: retrieval is not the binding constraint on either corpus carrying per-turn gold, and widening is *worse than neutral* here because the cross-encoder's precision at the top 6 degrades as its candidate pool grows. Reconciles with M21's 0.662/0.852 — that was `temporal-reasoning` alone (n=133), the hardest stratum, and its shape (trunc > miss) already agreed (`docs/measurements/m26-width-cross-corpus.md`) |
+| M27 | **selection recovers 41% of the truncation loss** | The first mechanism aimed at what M25/M26 localised, measured on a full population with no answer generation and no judge. `ablate --width --select` adds the selector as a grid dimension (`WidthPoint::select`, `SELECT_GRID`), with the baseline guarded to require `select == RetrieveConfig::default().select_sufficient` so an arm can never be its own base. **Measured on LongMemEval_S, 478 questions: emitted `recall@6` 0.8251 → 0.8836 (+0.0585, ~3× the pre-registered 0.02 bar), truncation loss 0.1414 → 0.0829 — 41.4% recovered — at +975 ms/query, with `pool_recall` byte-identical at 0.9665 exactly as a stable partition must leave it.** The base cell reproduced M26 exactly across a different binary and a restarted embedder. Does **not** flip a default: M21 measured the same switch at +0.0 judged inside `investigate`, and §7.1 forbids an LLM in `recall`. Also fixes a defect that nearly shipped a null: a 100-candidate selector prompt over real records is **8,298 tokens** against an 8,192-token slot, every call 400s, and `Selector::select` degraded silently to rank order — so the `(200,100)` cell would have reported "selection does not help at depth 100" for a mechanism that never ran. Now `Selected { keep, degraded }`, `RecallTrace::select_degraded`, `WidthPoint::select_degraded` and `WidthVerdict::Degraded` refuse such a cell before any recall comparison (`docs/measurements/m27-selection-recovers-truncation.md`) |
 
 M0 and M5 are not ceremony. M0 pins the four probe findings in §5 — exactly the kind of thing a Qdrant point
 release changes underneath us. M5 pins the benchmark's own privacy test against our adapter, which is the
@@ -812,6 +813,7 @@ only mechanical defence against accidentally optimising on metadata we are forbi
 | Extraction quality dominates end-to-end quality | HippoRAG's error analysis; `01-systems.md` finding 3 | M3 measures extraction directly, separately from retrieval |
 | Synonym-edge explosion in the graph | 1,125,951 synonym vs 140,830 extracted edges on MuSiQue | no synonym edges are created at all — exact-phrase incidence only, capped at 32 phrases/record; edge count is a tracked metric and `myelin-eval phrases` reports it (M12: 17,794 on LoCoMo, 2,762,496 on LongMemEval_S) |
 | GPU contention makes latency numbers invalid, not just slow | measured: distill's 4,893 MiB caused `cudaMalloc failed` for a 27B model; claiming freed the card to 343 MiB | harness takes a `gpu-tenant claim`, records tenancy + VRAM peak, and **fails fast** if another tenant holds it; `memory_query_avg_seconds` is half of LAFS |
+| Concurrency on `big` is bounded by host RAM, not GPU VRAM | M27: reader + reranker + a 12-thread CPU embedder holding bge-m3 + Qdrant + **two** sweeps took the host fully offline mid-run — no SSH, no ping — on a 31 GB box with no useful swap, losing the G3 live sweep at `write legit` with a Qdrant timeout | one GPU-consuming sweep at a time; a CPU embedder is a RAM tenant and counts against the same budget; check `free -g` before adding a second job, not `nvidia-smi` |
 | A leaderboard-valid LME-V2 run **requires** a `gpt-5.2` judge — an external, paid dependency | step-1 validator checks the judge model string | only 156 of 451 questions need a judge; the other 295 are deterministic, so the external spend is bounded and the judge-free column is always published; a local judge panel runs the dev loop and its delta against `gpt-5.2` is tracked |
 | Silent failure masquerading as success | llama-swap returns HTTP 200 with a zero-byte body when a model fails to load; this hid the stall for ~21 h | R7: the `Llm` trait rejects empty completions as errors; the harness treats them as run failures |
 | LAFS reference frontier is hard-coded from the paper | `compute_lafs.py` embeds the four reference points | we add operating points to the released frontier as the tool intends and never re-derive the baselines; disclosed in `EVALUATION.md` §11 |
@@ -830,71 +832,51 @@ web UI — the MCP surface and the eval report are the interfaces.
 
 ## 15. Immediate next step
 
-M0–M26 are done and committed. `docs/measurements/` carries one file per milestone; the standing
+M0–M27 are done and committed. `docs/measurements/` carries one file per milestone; the standing
 table against the published literature is `docs/sota/registry.json` + `runs/standing/`, and the
 floor under our own numbers is `docs/sota/progression.json` + `myelin-eval ratchet`.
 
-**M27 — granularity: make the six slots carry more answer, not add a seventh.**
+**M28 — finish the two arms that are one GPU window from a number, in this order.**
 
-M25 and M26 together retired the roadmap's central assumption. The standing claim since M16 was
-that we are *retrieval-limited* and the next win is wider or better retrieval. On **both** corpora
-that carry a per-turn gold annotation, that is now false at the retrieval layer:
+M25→M27 chained cleanly: retrieval is not the constraint on either annotated corpus, truncation
+is, and selection recovers 41% of it. What that chain has *not* produced is a single point on any
+published metric. Four milestones of diagnosis is the right amount; a fifth would not be.
 
-| corpus | n | recall@6 | pool | trunc | miss | trunc ÷ miss |
-|---|---|---|---|---|---|---|
-| LoCoMo | 997 | 0.9092 | 0.9590 | 0.0498 | 0.0410 | 1.2× |
-| LongMemEval_S | 478 | 0.8251 | 0.9665 | 0.1414 | 0.0335 | **4.2×** |
+1. **G3 — the only gate within 2.5 points, and the only one where a win is a gate closure.**
+   ASR 12.50% [5.5, 26.1] against ≤10%. `attack --live` carries three quota conditions plus
+   `adjudicate` revision 3, all unmeasured. M27 ran its offline half — E3 **100.0% (15/15)**, 0/12
+   benign false positives; E5 **0 admitted** at first-party trust — and lost the live half when
+   the host went down. **Run it alone**, nothing else on the box (§13's new row).
+2. **M24's decomposition arm**, then **M27's selector**, as judged bench arms. Both now have a
+   measured retrieval-side reason to exist and neither has an answer-side number. Rules already
+   fixed: decomposition ≥ +5.0 judged on LoCoMo multi-hop (n=282) or LongMemEval multi-session
+   (n=133) with a paired CI excluding zero; the selector inherits M21's rule and its warning that
+   the same switch measured +0.0 judged inside `investigate`.
 
-Widened to `(200, 100)`, `miss` falls to 0.53% and **0.24%**: retrieval puts essentially all of
-the gold in front of `compose`, which then discards 8–22% of it to fit `k = 6`. And on
-LongMemEval_S widening is **worse than neutral** — emitted recall falls monotonically with depth
-while pool recall rises, so the cross-encoder's precision at the top 6 degrades as its candidate
-pool grows. That is a fact about the reranker, not the corpus, and it explains M24's null shape
-in advance.
+**Before either, one cheap correctness item.** The reader must serve **≥ ~12k tokens per slot**
+or the depth-100 selector silently degrades; M27 measured the prompt at 8,298 tokens for 100
+candidates and the shipped `-np 2 -c 16384` gives 8,192. `ops/big/serve-models.sh` should default
+`MYELIN_READER_CTX` high enough that `rerank_depth = 100` is measurable, and the `Degraded`
+verdict now fails loudly if it is not. The `(200, 100)` interaction question — does selection
+recover *more* where M26 showed the cross-encoder degrading? — is deferred to that resized reader
+and is the one pre-registered question M27 left open.
 
-The obvious cash-out is already closed: if truncation binds, raise `k` — and M19 measured
-`k = 25` at **+3.8 with a CI spanning zero**. More records in the evidence set is not more answer
-in it. Combine that with both milestones' shared caveat — gold-turn coverage is an upper bound on
-what the reader was *given*, because a consolidated record can cover the gold turn and have
-summarised the detail away — and the remaining loss is not *which records* but **what a record
-says once it arrives**.
+**Then granularity, which is still the standing thesis and still half-built.** `build --pools`
+mints AgentRunbook-R's event and note pools as `RecordKind::Semantic`/`::Procedural`; it has
+never run. Rule fixed in M26 and unchanged: the pools ship on if emitted `recall@6` at the
+shipped cell improves by ≥ 0.02 on at least one corpus with no increase in `miss`. Measure the
+pools *without* `--typed-probes` first — a denser record helps a plain retriever too, and an arm
+that mints pools and routes to them in one step measures neither.
 
-That is granularity, and M23 already half-built it:
+**The literature agrees with the diagnosis and names the lever.** `docs/research/08-context-engineering.md`
+§11: *"Evidence-set precision beats recall: 10 items ≈ P .19/R .72; 100 items → P .01. Cap
+k = 8-10, never grow to chase recall"* — which is M19's `k = 25` null and M26's monotonic decline,
+predicted in advance. And §11.5: question-aware compression is *"cheap and lossy-tolerant"*,
+LongLLMLingua at **+21.4pp with ~4× fewer tokens**, explicitly mitigating lost-in-the-middle.
+That is "make the six slots carry more answer" as a concrete, measured mechanism, and it is the
+strongest candidate after the pools — note it targets `ComposeConfig::max_tokens`, the *other*
+truncation knob, which no milestone has ever varied.
 
-1. **Mint the pools.** `build --pools` (`build::build_lmev2_pools`) writes AgentRunbook-R's event
-   and note pools as `RecordKind::Semantic` and `::Procedural` beside the episodes, one batched
-   call per trajectory per pool. It has never run. This is the write-path cost — the only item on
-   the board that costs a build rather than a read, and the only one needing the reader.
-2. **Retrieve them by kind.** `--typed-probes` lets the reflect gate aim a probe at one pool, and
-   M24's decomposition is what makes that worth paying for: three pools are only useful to a
-   retriever that can ask three questions at once. Measure the pools *without* typed probes
-   first — a denser record helps a plain retriever too, and an arm that mints pools and routes to
-   them in one step measures neither.
-3. **Score it on the instrument that needs no reader.** `ablate --width` at the shipped cell,
-   before and after the pools exist, on **both** corpora now. That is a direct read on whether
-   denser records raise emitted recall at fixed `k`, and it costs no GPU beyond the rerank.
-
-Pre-registered rule, fixed now: the pools ship on if emitted `recall@6` at the shipped `(50, 25)`
-cell improves by **≥ 0.02 absolute** over the same cell without them, on at least one corpus and
-with no increase in `miss` on either. A pools build that only raises `pool_recall` changes
-nothing, for the reason M25's and M26's rules both gave: loss moved is not loss removed.
-
-**A cheaper probe exists and should run first.** If truncation is the constraint, the question is
-what `compose` should put in six slots — and M21 already measured two answers on the *emitted*
-set: MMR (−5.3 / −9.8, a regression, because co-evidence resembles itself) and the sufficiency
-selector (recall 0.658 → 0.838 against a 0.852 pool ceiling). The sufficiency selector is a
-**selection** mechanism aimed at exactly the loss M25/M26 have now localised, and
-`ablate --width` can score it on both corpora with no reader beyond the selector's own call.
-Run `RetrieveConfig::select_sufficient` through the width instrument before paying for a build.
-
-**Still blocked, still pre-registered, still needing only a GPU window:** M24's decomposition arm
-(`bench --decompose 4 --categories 1` on LoCoMo n=282, `--categories 4` on LongMemEval_S n=133,
-≥ +5.0 judged with a paired CI excluding zero) and M23's G3 sweep (`attack --live`, three quota
-conditions plus `adjudicate` revision 3, against the one gate with a quantified miss — ASR 12.50%
-[5.5, 26.1] versus ≤10%). Neither needs another line of code.
-
-**The one corpus still outside all of this is LME-V2**, where M16 and M22 measured
-S = P(sufficient | wrong) at 7.4% and 12.1%. It has no per-turn gold, so `ablate --width` and
-`coverage` both refuse it, and the "retrieval-limited" finding stands exactly where it was
-measured and nowhere else. Giving LME-V2 a per-turn annotation — or accepting that its only
-instrument is a judged one — is an open question this plan does not yet answer.
+**Still outside all of it: LME-V2**, where M16/M22 measured S = 7.4% / 12.1%. No per-turn gold,
+so `ablate --width` and `coverage` both refuse it, and "retrieval-limited" stands exactly where
+it was measured and nowhere else.
