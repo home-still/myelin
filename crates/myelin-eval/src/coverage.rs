@@ -162,8 +162,8 @@ enum Golds {
 /// Read `<run>/per_question.jsonl`.
 fn read_rows(run_dir: &Path) -> Result<Vec<ScoredQuestion>> {
     let path = run_dir.join("per_question.jsonl");
-    let text = std::fs::read_to_string(&path)
-        .with_context(|| format!("read {}", path.display()))?;
+    let text =
+        std::fs::read_to_string(&path).with_context(|| format!("read {}", path.display()))?;
     let mut rows = Vec::new();
     for line in text.lines().filter(|l| !l.trim().is_empty()) {
         let row: ScoredQuestion = serde_json::from_str(line).with_context(|| {
@@ -196,8 +196,7 @@ fn read_rows(run_dir: &Path) -> Result<Vec<ScoredQuestion>> {
 fn read_corpus(run_dir: &Path) -> Result<String> {
     let path = run_dir.join("aggregated_metrics.json");
     let metrics: serde_json::Value = serde_json::from_str(
-        &std::fs::read_to_string(&path)
-            .with_context(|| format!("read {}", path.display()))?,
+        &std::fs::read_to_string(&path).with_context(|| format!("read {}", path.display()))?,
     )
     .with_context(|| format!("parse {}", path.display()))?;
     let corpus = metrics
@@ -218,10 +217,7 @@ fn read_corpus(run_dir: &Path) -> Result<String> {
 }
 
 /// Gold units per `question_id`, plus the dangling-evidence count.
-fn golds_longmemeval(
-    dataset: &Path,
-    rows: &[ScoredQuestion],
-) -> Result<HashMap<String, Golds>> {
+fn golds_longmemeval(dataset: &Path, rows: &[ScoredQuestion]) -> Result<HashMap<String, Golds>> {
     let items = longmemeval::load(dataset).context("load longmemeval_s")?;
     let by_id: HashMap<&str, &longmemeval::LongMemEvalItem> = items
         .iter()
@@ -490,7 +486,7 @@ mod tests {
         // 31 characters clears the floor and is found in the same value.
         let long = "Thanks! That helps a lot, truly";
         assert_eq!(long.chars().count(), 31);
-        assert!(is_found(long, &vec![format!("[2023-05-20] {long} — and more")]));
+        assert!(is_found(long, &[format!("[2023-05-20] {long} — and more")]));
     }
 
     /// Only the first 80 characters have to survive: `compose` emits a
@@ -500,18 +496,18 @@ mod tests {
         let gold = "I finally replaced the area rug in the living room last Tuesday \
                     and the cat has already claimed it as her own private territory.";
         let truncated: String = gold.chars().take(95).collect();
-        assert!(is_found(gold, &vec![format!("[2023-07-20] {truncated}")]));
+        assert!(is_found(gold, &[format!("[2023-07-20] {truncated}")]));
         // 79 characters of the gold is one short of the prefix and must miss.
         let too_short: String = gold.chars().take(79).collect();
-        assert!(!is_found(gold, &vec![format!("[2023-07-20] {too_short}")]));
+        assert!(!is_found(gold, &[format!("[2023-07-20] {too_short}")]));
     }
 
     /// A byte slice at offset 80 panics mid-codepoint on this corpus.
     #[test]
     fn a_multibyte_gold_unit_does_not_panic() {
         let gold = "🎧".repeat(100);
-        assert!(!is_found(&gold, &vec!["nothing".to_string()]));
-        assert!(is_found(&gold, &vec![format!("[2023-01-01] {gold}")]));
+        assert!(!is_found(&gold, &["nothing".to_string()]));
+        assert!(is_found(&gold, &[format!("[2023-01-01] {gold}")]));
     }
 }
 

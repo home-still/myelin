@@ -119,7 +119,11 @@ fn bench_out_dir(
             ""
         },
         if switches.question_date { "_qdate" } else { "" },
-        if switches.select_sufficient { "_sel" } else { "" },
+        if switches.select_sufficient {
+            "_sel"
+        } else {
+            ""
+        },
         if switches.profile { "_prof" } else { "" },
         if switches.profile_clause {
             "_pclause"
@@ -360,6 +364,11 @@ enum Command {
         /// instead of failing.
         #[arg(long)]
         repair: bool,
+        /// M23 D1: mint the typed pools (events/notes) for LME-V2 into the
+        /// same collection instead of the episodic pass. Off by default so
+        /// the shipped store stays reproducible from the same command.
+        #[arg(long)]
+        pools: bool,
         /// Accept a LongMemEval build in which some sessions carried no
         /// parseable date.
         ///
@@ -401,6 +410,19 @@ enum Command {
         ledger: Option<String>,
         #[arg(long, default_value_t = 6)]
         k: usize,
+        /// Total token ceiling for the composed evidence set. 4096 unless
+        /// widened; every run before M23 used exactly 4096.
+        #[arg(long)]
+        budget_tokens: Option<usize>,
+        /// Per-channel candidate depth before fusion. Overrides
+        /// `RetrieveConfig::default()`'s 50 (M23 width arms).
+        #[arg(long)]
+        prefetch_limit: Option<u64>,
+        /// How many fused candidates the reranker sees. Must stay ≤
+        /// prefetch_limit: the reranked pool cannot be wider than its
+        /// prefetch. Overrides `RetrieveConfig::default()`'s 25.
+        #[arg(long)]
+        rerank_depth: Option<usize>,
         /// `recall` is the fast path; `investigate` runs the agentic loop.
         #[arg(long, default_value = "recall")]
         mode: String,
@@ -443,6 +465,30 @@ enum Command {
         /// `recall`, so it can never become a `recall` default.
         #[arg(long)]
         select_sufficient: bool,
+        /// Rerank the whole accumulated pool against the original question
+        /// once, after the last step, before compose (M23 A2). The pool's
+        /// stored scores are cross-encoder logits from *different* probe
+        /// queries and are not mutually comparable; this is the one pass
+        /// that is question-conditioned. `--mode investigate` only.
+        #[arg(long)]
+        rerank_pool: bool,
+        /// Replace the bare insufficiency statement with an explicit
+        /// analysis of the question's premise (M23 A3). Implies the
+        /// insufficiency gate, because the analysis is what the gate emits.
+        #[arg(long)]
+        premise: bool,
+        /// Let the reflect gate aim its next probe at a record kind:
+        /// raw | event | note (M23 D2). Inert against a store with no typed
+        /// pools — build one with `build --pools`.
+        #[arg(long)]
+        typed_probes: bool,
+        /// Cap how many `Untrusted` records the composed set may contain
+        /// (M23 B1). A ceiling, not an exclusion: the quota never drops
+        /// untrusted evidence to zero and never drops a trusted record.
+        /// Measured here for its utility cost; `attack --live` measures the
+        /// same switch for ASR.
+        #[arg(long)]
+        untrusted_max: Option<usize>,
         /// Score only these category codes, for a stratum arm. LoCoMo: 1
         /// multi-hop, 2 temporal, 3 open-domain, 4 single-hop, 5 adversarial.
         /// LongMemEval_S: 1 ss-user, 2 ss-assistant, 3 ss-preference,
@@ -572,6 +618,30 @@ enum Command {
         #[arg(long, default_value = ".venv/bin/python")]
         python: String,
     },
+    /// Compare today's artifacts against our own pinned floor and fail on a
+    /// regression. `standing` compares us to the literature; this compares
+    /// us to ourselves, which is the check that was missing when the shipped
+    /// defaults lost 3.3 points between M16 and M22 without anyone noticing.
+    Ratchet {
+        #[arg(long, default_value = "runs")]
+        runs: String,
+        #[arg(long, default_value = "docs/sota/progression.json")]
+        baseline: String,
+        /// Raise the floor to today's quotable values first. Only ever
+        /// moves a pin in the improving direction.
+        #[arg(long)]
+        update: bool,
+        /// Also fail when a pinned metric's best artifact is an arm, is
+        /// incomplete, or does not record its operating point.
+        #[arg(long)]
+        strict: bool,
+        /// Points of slack before a drop counts, in the metric's own units.
+        /// Zero by default: a floor with give is not a floor.
+        #[arg(long, default_value_t = 0.0)]
+        tolerance: f64,
+        #[arg(long, default_value = ".venv/bin/python")]
+        python: String,
+    },
     /// Package a leaderboard submission
     Package,
 }
@@ -591,6 +661,7 @@ impl Command {
             Command::EvidenceAudit { .. } => "evidence-audit",
             Command::Coverage { .. } => "coverage",
             Command::Standing { .. } => "standing",
+            Command::Ratchet { .. } => "ratchet",
             Command::Package => "package",
         }
     }
@@ -609,6 +680,7 @@ async fn main() -> anyhow::Result<()> {
             ref question_types,
             concurrency,
             ref lmev2_dir,
+            pools,
             repair,
             allow_undated,
         } => {
@@ -620,6 +692,7 @@ async fn main() -> anyhow::Result<()> {
                 question_types.as_deref(),
                 concurrency,
                 lmev2_dir,
+                pools,
                 repair,
                 allow_undated,
             )
@@ -722,6 +795,9 @@ async fn main() -> anyhow::Result<()> {
             ref collection,
             ref ledger,
             k,
+            budget_tokens,
+            prefetch_limit,
+            rerank_depth,
             ref mode,
             max_steps,
             limit,
@@ -733,6 +809,10 @@ async fn main() -> anyhow::Result<()> {
             profile_clause,
             mmr,
             select_sufficient,
+            rerank_pool,
+            premise,
+            typed_probes,
+            untrusted_max,
             ref categories,
             scorer,
         } => {
@@ -742,6 +822,9 @@ async fn main() -> anyhow::Result<()> {
                 collection.as_deref(),
                 ledger.as_deref(),
                 k,
+                budget_tokens,
+                prefetch_limit,
+                rerank_depth,
                 mode,
                 max_steps,
                 limit,
@@ -754,6 +837,10 @@ async fn main() -> anyhow::Result<()> {
                     profile_clause,
                     mmr,
                     select_sufficient,
+                    rerank_pool,
+                    premise,
+                    typed_probes,
+                    untrusted_max,
                     categories: categories.clone().unwrap_or_default(),
                 },
                 scorer,
@@ -775,10 +862,8 @@ async fn main() -> anyhow::Result<()> {
             ref run,
             ref dataset,
         } => {
-            let report = myelin_eval::coverage::run(
-                Path::new(run),
-                dataset.as_deref().map(Path::new),
-            )?;
+            let report =
+                myelin_eval::coverage::run(Path::new(run), dataset.as_deref().map(Path::new))?;
             myelin_eval::coverage::print_table(&report);
             Ok(())
         }
@@ -794,6 +879,22 @@ async fn main() -> anyhow::Result<()> {
             Path::new(out),
             gate,
             python,
+        )
+        .map(|_| ()),
+        Command::Ratchet {
+            ref runs,
+            ref baseline,
+            update,
+            strict,
+            tolerance,
+            ref python,
+        } => myelin_eval::ratchet::run(
+            Path::new(runs),
+            Path::new(baseline),
+            python,
+            update,
+            strict,
+            tolerance,
         )
         .map(|_| ()),
         rest => {
@@ -859,6 +960,7 @@ async fn build_cmd(
     question_types: Option<&[String]>,
     concurrency: usize,
     lmev2_dir: &str,
+    pools: bool,
     repair: bool,
     allow_undated: bool,
 ) -> anyhow::Result<()> {
@@ -914,21 +1016,42 @@ async fn build_cmd(
             for p in [&trajectories, &questions, &haystack] {
                 anyhow::ensure!(p.exists(), "missing {}", p.display());
             }
-            eprintln!(
-                "ingesting {} -> collection {collection}, ledger {ledger}",
-                corpus.slug()
-            );
-            myelin_eval::build::build_lmev2(
-                &trajectories,
-                &haystack,
-                &questions,
-                corpus.slug(),
-                &collection,
-                Path::new(&ledger),
-                limit,
-                repair,
-            )
-            .await?
+            if pools {
+                // D1 does not take `--concurrency`: the pool pass is one
+                // batched call per trajectory per pool, sequential, against
+                // a reader shared with a live household.
+                eprintln!(
+                    "ingesting {} typed pools -> collection {collection}, ledger {ledger}",
+                    corpus.slug()
+                );
+                myelin_eval::build::build_lmev2_pools(
+                    &trajectories,
+                    &haystack,
+                    &questions,
+                    corpus.slug(),
+                    &collection,
+                    Path::new(&ledger),
+                    limit,
+                    repair,
+                )
+                .await?
+            } else {
+                eprintln!(
+                    "ingesting {} -> collection {collection}, ledger {ledger}",
+                    corpus.slug()
+                );
+                myelin_eval::build::build_lmev2(
+                    &trajectories,
+                    &haystack,
+                    &questions,
+                    corpus.slug(),
+                    &collection,
+                    Path::new(&ledger),
+                    limit,
+                    repair,
+                )
+                .await?
+            }
         }
     };
 
@@ -1011,6 +1134,9 @@ async fn bench_cmd(
     collection: Option<&str>,
     ledger: Option<&str>,
     k: usize,
+    budget_tokens: Option<usize>,
+    prefetch_limit: Option<u64>,
+    rerank_depth: Option<usize>,
     mode: &str,
     max_steps: usize,
     limit: Option<usize>,
@@ -1023,6 +1149,18 @@ async fn bench_cmd(
         "investigate" => Mode::Investigate,
         other => anyhow::bail!("--mode must be recall or investigate, got {other:?}"),
     };
+    // The reranked pool cannot be wider than its prefetch, and every M23 arm
+    // obeys `prefetch_limit ≥ rerank_depth ≥ k`; catch the typo before a GPU
+    // window is spent on it.
+    if let Some(depth) = rerank_depth {
+        let prefetch = prefetch_limit
+            .unwrap_or(myelin_core::pipeline::retrieve::RetrieveConfig::default().prefetch_limit);
+        anyhow::ensure!(
+            prefetch >= depth as u64,
+            "--rerank-depth {depth} exceeds --prefetch-limit {prefetch}: the reranked \
+             pool cannot be wider than its prefetch"
+        );
+    }
     anyhow::ensure!(
         !(switches.question_date && corpus == BenchCorpus::LongmemevalS),
         "--question-date is LoCoMo-only; the LongMemEval_S prompt already carries <today>"
@@ -1061,6 +1199,11 @@ async fn bench_cmd(
                 collection,
                 Path::new(ledger),
                 k,
+                // 4096 is what every run before M23 composed to; the flag
+                // exists so the width arms can raise it with `--k`.
+                budget_tokens.unwrap_or(4096),
+                prefetch_limit,
+                rerank_depth,
                 mode,
                 max_steps,
                 limit,
@@ -1076,6 +1219,11 @@ async fn bench_cmd(
                 collection,
                 Path::new(ledger),
                 k,
+                // 4096 is what every run before M23 composed to; the flag
+                // exists so the width arms can raise it with `--k`.
+                budget_tokens.unwrap_or(4096),
+                prefetch_limit,
+                rerank_depth,
                 mode,
                 max_steps,
                 limit,

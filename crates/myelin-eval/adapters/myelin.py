@@ -330,9 +330,18 @@ class MyelinMemory(Memory):
         # corpus property the run never decided.
         self.select = bool(params.get("select", False))
         self.dated = params.get("dated")
+        # M23 Phase A. Same contract as `dated`: None when absent means
+        # "whatever the server is configured for", not an asserted value.
+        # investigate-only switches; `recall` takes neither.
+        self.pool_rerank = params.get("pool_rerank")
+        self.premise = params.get("premise")
         # R4: the mode is a query-time parameter against one identical
         # store, which is the whole reason a leaderboard submission can
         # present two operating points from one built memory.
+        # M23 D2. `None` means probes are untagged (whole store); a bool on
+        # `investigate` lets the reflect gate aim each probe at the event
+        # (`RecordKind::Semantic`) or note (`RecordKind::Procedural`) pool.
+        self.typed_probes = params.get("typed_probes")
         self.mode = str(params.get("mode", "recall"))
         require(
             self.mode in {"recall", "investigate"},
@@ -414,6 +423,16 @@ class MyelinMemory(Memory):
             arguments["select"] = True
         if self.dated is not None:
             arguments["dated"] = bool(self.dated)
+        # `pool_rerank`, `premise`, and `typed_probes` exist on `investigate`
+        # alone; forwarding a parameter the `recall` schema does not declare is
+        # an invalid-params error, not a silent no-op.
+        if self.mode == "investigate":
+            if self.pool_rerank is not None:
+                arguments["pool_rerank"] = bool(self.pool_rerank)
+            if self.premise is not None:
+                arguments["premise"] = bool(self.premise)
+            if self.typed_probes is not None:
+                arguments["typed_probes"] = bool(self.typed_probes)
         # `query_image` is accepted and ignored for now: the dense channel is
         # text-only (bge-m3), so forwarding a path the server cannot embed
         # would be a lie in the trace. 29 of 451 questions carry one; they are

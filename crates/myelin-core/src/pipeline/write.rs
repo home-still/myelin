@@ -139,6 +139,17 @@ pub struct WritePath<'a> {
     pub segment: SegmentConfig,
     pub source_tier: SourceTier,
     pub actor: ActorId,
+    /// The [`RecordKind`] the segmented episodes are minted with.
+    ///
+    /// Default `Episodic` — every path before M23. The LME-V2 pool pass
+    /// (M23 D1) writes model-generated event and note records through the
+    /// same insert path so dedup, embedding and the ledger see ordinary
+    /// records; it sets `Semantic` / `Procedural` per pool instead of
+    /// minting them through a side door the read path's `kinds` filter
+    /// would never see. The id scheme is untouched: the record id derives
+    /// from the unit and source docs, so re-mapping the kind never forks an
+    /// identity.
+    pub record_kind: RecordKind,
     /// Emit a per-episode progress line on stderr. A corpus ingest is a
     /// multi-minute operation on a shared GPU; a silent one is impossible to
     /// distinguish from a hung one, and the first probe run had to be killed
@@ -221,6 +232,7 @@ impl<'a> WritePath<'a> {
             segment: SegmentConfig::default(),
             source_tier: SourceTier::Asserted,
             actor: ActorId::new("myelin"),
+            record_kind: RecordKind::Episodic,
             progress: false,
             concurrency: 4,
             extract_facts: true,
@@ -654,7 +666,11 @@ impl<'a> WritePath<'a> {
     ) -> Result<Vec<MemoryRecord>> {
         let mut out = Vec::with_capacity(drafts.len());
         for draft in drafts {
-            let record = draft.to_record(scope, &self.actor, &self.actor);
+            let mut record = draft.to_record(scope, &self.actor, &self.actor);
+            // The pool pass (M23 D1) mints Semantic/Procedural records
+            // through this same path; the default leaves every pre-M23
+            // record exactly what it was.
+            record.kind = self.record_kind;
             // Re-ingesting the same corpus hits the same v5 id. An existing
             // episode is not an error; it is the idempotence the id scheme
             // exists to provide.

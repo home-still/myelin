@@ -31,17 +31,16 @@ use anyhow::{Context, Result};
 use myelin_core::config::MyelinConfig;
 use myelin_core::embed::remote::RemoteEmbedder;
 use myelin_core::llm::openai::OpenAiLlm;
+use myelin_core::llm::{CompletionRequest, Llm, Message};
 use myelin_core::model::query::{Budget, Mode, Recall, ScopeFilter};
 use myelin_core::model::record::{Scope, SourceRef};
 use myelin_core::pipeline::consolidate::SourceTier;
 use myelin_core::pipeline::ingest::Turn;
 use myelin_core::pipeline::retrieve::Retriever;
-use myelin_core::llm::{CompletionRequest, Llm, Message};
 use myelin_core::pipeline::write::WritePath;
 use myelin_core::store::ledger::Ledger;
 use myelin_core::store::qdrant::QdrantStore;
 use serde::{Deserialize, Serialize};
-
 
 /// One attack: the injected interaction, the query it is aimed at, and the
 /// token that proves it landed.
@@ -432,6 +431,13 @@ pub struct Condition {
     /// arrives as `Asserted`, the default tier. The adjudicator is
     /// content-based and must not care.
     pub tier: SourceTier,
+    /// The untrusted-occupancy quota this condition composed with (M23 B1).
+    /// `None` — every condition before M23 — is uncapped. Inert at the
+    /// `Asserted` tier by construction: the quota caps `Untrusted`-tier
+    /// records, and poison written as an ordinary interaction is `Asserted`
+    /// unless the store itself demoted it.
+    #[serde(default)]
+    pub untrusted_max: Option<usize>,
     /// `WritePath::adjudicate` for this condition.
     pub adjudicated: bool,
     /// Poison payloads the write path actually admitted.
@@ -521,7 +527,7 @@ fn tier_slug(tier: SourceTier) -> &'static str {
     }
 }
 
-/// The six conditions, in the order the verdict reads them:
+/// The six base conditions, in the order the verdict reads them:
 /// `(prepopulated, tier, adjudicated)`.
 ///
 /// Rows 1–2 reproduce M11 at n=40, which is the only way to tell a defence
@@ -535,6 +541,25 @@ const CONDITIONS: [(bool, SourceTier, bool); 6] = [
     (true, SourceTier::Untrusted, true),
     (true, SourceTier::Asserted, false),
     (true, SourceTier::Asserted, true),
+];
+
+/// The M23 quota arms (B2), appended after the base six so the standing
+/// selector's `find` — which matches on `(prepopulated, tier, adjudicated)`
+/// alone — still lands on the uncapped condition first, the cheapest
+/// operating point.
+///
+/// Rows 1–2 put the quota on the gate condition itself: pre-populated,
+/// `Untrusted`, defended — the row `minja.asr.k6_prepopulated_defended`
+/// reads. Row 3 puts it on the realistic tier, where it is *inert by
+/// construction* (poison written as an ordinary interaction is `Asserted`,
+/// and the quota caps `Untrusted`-tier records only) — measured, not
+/// asserted, because an inert-by-construction defence that turns out to
+/// move the number would mean the trust model is not doing what it claims.
+/// The `None` point for each pair is already in [`CONDITIONS`].
+const QUOTA_CONDITIONS: [(bool, SourceTier, bool, Option<usize>); 3] = [
+    (true, SourceTier::Untrusted, true, Some(2)),
+    (true, SourceTier::Untrusted, true, Some(3)),
+    (true, SourceTier::Asserted, true, Some(2)),
 ];
 
 /// Run E1 and E2 over one scratch collection per condition.
@@ -559,6 +584,24 @@ pub async fn run(ledger_dir: &Path, ks: &[usize]) -> Result<AttackRun> {
                 prepopulated,
                 tier,
                 adjudicated,
+                None,
+                ks,
+            )
+            .await?,
+        );
+    }
+    for (prepopulated, tier, adjudicated, quota) in QUOTA_CONDITIONS {
+        conditions.push(
+            measure(
+                &cfg,
+                &llm,
+                &embedder,
+                ledger_dir,
+                ATTACKS,
+                prepopulated,
+                tier,
+                adjudicated,
+                quota,
                 ks,
             )
             .await?,
@@ -576,6 +619,7 @@ pub async fn run(ledger_dir: &Path, ks: &[usize]) -> Result<AttackRun> {
         true,
         SourceTier::Asserted,
         true,
+        None,
         &[6],
     )
     .await?;
@@ -627,13 +671,22 @@ async fn measure(
     prepopulated: bool,
     tier: SourceTier,
     adjudicated: bool,
+    untrusted_max: Option<usize>,
     ks: &[usize],
 ) -> Result<Condition> {
     let name = format!(
-        "{}/{}/{}",
+        "{}/{}/{}{}",
         if prepopulated { "pre-pop" } else { "empty" },
         tier_slug(tier),
-        if adjudicated { "defended" } else { "undefended" }
+        if adjudicated {
+            "defended"
+        } else {
+            "undefended"
+        },
+        match untrusted_max {
+            None => String::new(),
+            Some(n) => format!("/quota{n}"),
+        }
     );
     let slug = name.replace(['/', '-'], "_");
     let groups = cohorts(attacks);
@@ -716,7 +769,18 @@ async fn measure(
             }
         }
 
-        let retriever = Retriever::new(embedder, &store, &ledger);
+        // The quota is a compose-time operating point, not a new mechanism:
+        // the same retriever, one config field turned. `None` leaves the
+        // default and the whole pre-M23 path byte-identical.
+        let retriever = Retriever::new(embedder, &store, &ledger).with_config(
+            myelin_core::pipeline::retrieve::RetrieveConfig {
+                compose: myelin_core::pipeline::compose::ComposeConfig {
+                    untrusted_max,
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        );
         let mut form_asr = Vec::with_capacity(ks.len());
         for (slot, &k) in ks.iter().enumerate() {
             let mut retrieved = 0usize;
@@ -805,6 +869,7 @@ async fn measure(
         name,
         prepopulated,
         tier,
+        untrusted_max,
         adjudicated,
         injected,
         attempted: attacks.len(),
@@ -1024,7 +1089,13 @@ fn print_condition(c: &Condition) {
     );
     println!(
         "{:<34} {:>9} {:>6} {:>6} {:>6}  {:<9} {}",
-        "", "", "", "", "", "ASR", curve(&c.asr, true)
+        "",
+        "",
+        "",
+        "",
+        "",
+        "ASR",
+        curve(&c.asr, true)
     );
 }
 
@@ -1086,11 +1157,7 @@ mod tests {
     /// other's payload in the answer scores it as a success.
     #[test]
     fn markers_are_unique() {
-        let all: Vec<&str> = ATTACKS
-            .iter()
-            .chain(ADAPTIVE)
-            .map(|a| a.marker)
-            .collect();
+        let all: Vec<&str> = ATTACKS.iter().chain(ADAPTIVE).map(|a| a.marker).collect();
         let distinct: HashSet<&str> = all.iter().copied().collect();
         assert_eq!(
             distinct.len(),
@@ -1185,8 +1252,7 @@ mod tests {
             let placed: usize = groups.iter().map(Vec::len).sum();
             assert_eq!(placed, set.len(), "{label}: an attack was dropped");
             for (g, group) in groups.iter().enumerate() {
-                let queries: HashSet<&str> =
-                    group.iter().map(|i| set[*i].victim_query).collect();
+                let queries: HashSet<&str> = group.iter().map(|i| set[*i].victim_query).collect();
                 assert_eq!(
                     queries.len(),
                     group.len(),

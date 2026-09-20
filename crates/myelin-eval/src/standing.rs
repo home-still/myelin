@@ -259,6 +259,26 @@ pub struct Ours {
     /// published the arm. "Where we stand" is what the defaults do.
     #[serde(default)]
     pub arm: bool,
+    /// The run's recorded switch set disagrees with **today's** shipped
+    /// defaults, so it measures a configuration this code no longer
+    /// produces. `None` is a run that today's defaults could have written.
+    ///
+    /// [`Ours::arm`] and this field answer different questions and neither
+    /// implies the other. `arm` is "this run turned something on that ships
+    /// off" — a deliberate measurement of today's code. This is "this run
+    /// predates, or postdates, a change to what ships" — a measurement of
+    /// code that is gone.
+    ///
+    /// M22 is why it exists. `standing` published **39.91** on
+    /// `lme_v2_small.overall_full_set.combined` from `runs/myelin_inv2_web_small`,
+    /// a pre-M19 artifact, for six milestones after M19 changed what ships;
+    /// re-measuring the *same configuration* on the same store gave
+    /// **36.59**. Nothing caught it because the stale run is not an arm —
+    /// it was the shipped configuration, of a system that no longer exists.
+    /// The drift is computable from the artifacts themselves, so it is
+    /// computed rather than remembered.
+    #[serde(default)]
+    pub unrecorded: Vec<&'static str>,
     /// Every run that supplied this metric, so the report shows what was not
     /// selected.
     pub candidates: Vec<Candidate>,
@@ -278,18 +298,45 @@ pub struct Candidate {
 #[serde(tag = "verdict", rename_all = "snake_case")]
 pub enum Verdict {
     Comparable,
-    CaveatJudge { ours: JudgeClass, theirs: JudgeClass },
-    CaveatBackbone { ours: Class, theirs: Class },
-    NotComparableSubset { ours: usize, theirs: usize },
-    NotComparableSource { provenance: Provenance },
-    IncompleteArtifact { detail: String },
-    MissingArtifact { command: String },
+    CaveatJudge {
+        ours: JudgeClass,
+        theirs: JudgeClass,
+    },
+    CaveatBackbone {
+        ours: Class,
+        theirs: Class,
+    },
+    NotComparableSubset {
+        ours: usize,
+        theirs: usize,
+    },
+    NotComparableSource {
+        provenance: Provenance,
+    },
+    IncompleteArtifact {
+        detail: String,
+    },
+    /// The artifact does not record the operating point it ran at, so what
+    /// it measures cannot be reproduced or checked against today's
+    /// defaults.
+    ///
+    /// Not a defect in the data and not a partial artifact: the run
+    /// happened and its number is real. What is missing is the evidence
+    /// that the number describes *this* system.
+    StaleConfig {
+        detail: String,
+    },
+    MissingArtifact {
+        command: String,
+    },
     /// The registry row's unit and ours cannot be converted into each other.
     ///
     /// A defect in the extractor table or the registry, not in the data — but
     /// one malformed row must not abort the whole report, which is what the
     /// `panic!` in `converted` used to do.
-    UnitMismatch { detail: String },
+    UnitMismatch {
+        detail: String,
+    },
 }
 
 impl Verdict {
@@ -305,10 +352,18 @@ impl Verdict {
         match self {
             Verdict::Comparable => "comparable".into(),
             Verdict::CaveatJudge { ours, theirs } => {
-                format!("caveat-judge({} vs {})", judge_slug(*ours), judge_slug(*theirs))
+                format!(
+                    "caveat-judge({} vs {})",
+                    judge_slug(*ours),
+                    judge_slug(*theirs)
+                )
             }
             Verdict::CaveatBackbone { ours, theirs } => {
-                format!("caveat-backbone({} vs {})", class_slug(*ours), class_slug(*theirs))
+                format!(
+                    "caveat-backbone({} vs {})",
+                    class_slug(*ours),
+                    class_slug(*theirs)
+                )
             }
             Verdict::NotComparableSubset { ours, theirs } => {
                 format!("not-comparable(n {ours} vs {theirs})")
@@ -317,6 +372,7 @@ impl Verdict {
                 format!("not-comparable({})", prov_slug(*provenance))
             }
             Verdict::IncompleteArtifact { detail } => format!("incomplete({detail})"),
+            Verdict::StaleConfig { detail } => format!("stale-config({detail})"),
             Verdict::UnitMismatch { detail } => format!("unit-mismatch({detail})"),
             Verdict::MissingArtifact { .. } => "missing-artifact".into(),
         }
@@ -519,6 +575,19 @@ fn metric_def(id: &str) -> Option<&'static MetricDef> {
     METRICS.iter().find(|m| m.id == id)
 }
 
+/// Which way is better for this metric.
+///
+/// The one piece of [`METRICS`] the ratchet needs, exposed rather than
+/// duplicated: a second copy of the direction table is how a lower-is-
+/// better metric like `minja.asr.*` ends up graded upside down in one
+/// command and not the other. Unknown ids fall back to higher-is-better,
+/// matching [`collect`]'s own default for a metric with no definition.
+pub fn metric_direction(id: &str) -> Direction {
+    metric_def(id)
+        .map(|d| d.direction)
+        .unwrap_or(Direction::HigherIsBetter)
+}
+
 // ---------------------------------------------------------------------------
 // Loading
 // ---------------------------------------------------------------------------
@@ -530,8 +599,7 @@ fn metric_def(id: &str) -> Option<&'static MetricDef> {
 /// the extractor have diverged, and a standing report computed across that
 /// divergence would be wrong in a direction nobody can see.
 pub fn load_registry(path: &Path) -> Result<Registry> {
-    let text = std::fs::read_to_string(path)
-        .with_context(|| format!("read {}", path.display()))?;
+    let text = std::fs::read_to_string(path).with_context(|| format!("read {}", path.display()))?;
     let reg: Registry =
         serde_json::from_str(&text).with_context(|| format!("parse {}", path.display()))?;
     anyhow::ensure!(
@@ -553,11 +621,7 @@ pub fn load_registry(path: &Path) -> Result<Registry> {
                  known metrics: {}",
                 row.id,
                 row.metric,
-                METRICS
-                    .iter()
-                    .map(|m| m.id)
-                    .collect::<Vec<_>>()
-                    .join(", ")
+                METRICS.iter().map(|m| m.id).collect::<Vec<_>>().join(", ")
             )
         })?;
         anyhow::ensure!(
@@ -593,9 +657,22 @@ struct HarnessRun {
     judge_class: JudgeClass,
     /// The keys that make two domain runs one operating point.
     fingerprint: String,
+    /// Keys in [`PAIR_KEYS`] the artifact does not record at all, so this
+    /// run's operating point is not fully recoverable from disk.
+    ///
+    /// Distinct from a key recorded as `null`: `tau_abstain` is null in
+    /// every artifact and means "not set", where an absent `dated` means
+    /// the harness that wrote the run had never heard of the switch.
+    /// `runs/myelin_inv2_web_small` — the artifact `standing` quoted 39.91
+    /// from until M23 — records neither `select`, `dated`,
+    /// `prefetch_limit` nor `rerank_depth`.
+    unrecorded: Vec<&'static str>,
+    /// Does this run's operating point differ from the server's defaults?
+    /// A pair is an arm when either half is.
+    arm: bool,
 }
 
-/// Which `memory_params` make two domain runs the same operating point.
+/// Which `memory_params` make two domain runs one operating point.
 ///
 /// `tau_abstain` is not in the list on purpose: it is `null` in every run and
 /// present in some artifacts only because a later harness version wrote the
@@ -607,7 +684,13 @@ struct HarnessRun {
 /// an operating point that never ran. Every run written before M22 lacks both
 /// keys and therefore reads `null` for each, so their existing pairings are
 /// unchanged.
-const PAIR_KEYS: [&str; 8] = [
+///
+/// `pool_rerank` and `premise` (M23 Phase A) join them for the same reason,
+/// with the same backward compatibility: runs written before M23 lack both
+/// and read `null`, and the M23 arms write both as explicit booleans, so the
+/// M23 arms pair only with each other and the M22 bases pair only with each
+/// other.
+const PAIR_KEYS: [&str; 11] = [
     "mode",
     "k",
     "budget_tokens",
@@ -616,6 +699,9 @@ const PAIR_KEYS: [&str; 8] = [
     "rerank_depth",
     "select",
     "dated",
+    "pool_rerank",
+    "premise",
+    "typed_probes",
 ];
 
 /// Walk `runs`, extract every metric any artifact supports, and keep the best
@@ -634,10 +720,10 @@ pub fn collect(runs: &Path, python: &str) -> Result<BTreeMap<String, Ours>> {
     for dir in &dirs {
         let agg = dir.join("aggregated_metrics.json");
         if agg.exists() {
-            let text = std::fs::read_to_string(&agg)
-                .with_context(|| format!("read {}", agg.display()))?;
-            let value: Value = serde_json::from_str(&text)
-                .with_context(|| format!("parse {}", agg.display()))?;
+            let text =
+                std::fs::read_to_string(&agg).with_context(|| format!("read {}", agg.display()))?;
+            let value: Value =
+                serde_json::from_str(&text).with_context(|| format!("parse {}", agg.display()))?;
             if value.get("corpus").is_some() {
                 for o in bench_metrics(dir, &text)? {
                     found.entry(o.metric.clone()).or_default().push(o);
@@ -707,9 +793,15 @@ pub fn collect(runs: &Path, python: &str) -> Result<BTreeMap<String, Ours>> {
 
 /// Which of two artifacts for the same metric the report should quote.
 ///
-/// Complete before partial, **shipped configuration before arm**, larger
-/// population before smaller, then the metric's own direction, then path so
-/// the report is deterministic.
+/// Complete before partial, **current configuration before stale**,
+/// **shipped configuration before arm**, larger population before smaller,
+/// then the metric's own direction, then path so the report is
+/// deterministic.
+///
+/// Stale outranks arm on purpose: an arm measures today's code with a
+/// switch flipped, which is at least a configuration this build can
+/// reproduce. A stale artifact measures code that is gone, and "where do we
+/// stand" cannot be answered by it at all.
 fn prefer(a: &Ours, b: &Ours, direction: Direction) -> std::cmp::Ordering {
     let (x, y) = match direction {
         Direction::HigherIsBetter => (b.value, a.value),
@@ -718,6 +810,14 @@ fn prefer(a: &Ours, b: &Ours, direction: Direction) -> std::cmp::Ordering {
     a.incomplete
         .is_some()
         .cmp(&b.incomplete.is_some())
+        // Fewer unrecorded keys first: zero is a fully recoverable
+        // operating point, and among artifacts that are all partly
+        // unrecoverable the closest one to today's code is the least bad
+        // answer to "where do we stand". On the LME-V2 pair this is the
+        // difference between quoting `myelin_inv2_web_small` (pre-M19,
+        // seven keys missing, 39.91) and `m22_base_*` (three, 36.59) —
+        // and 36.59 is the number M22 actually measured the defaults at.
+        .then_with(|| a.unrecorded.len().cmp(&b.unrecorded.len()))
         .then_with(|| a.arm.cmp(&b.arm))
         .then_with(|| b.n.cmp(&a.n))
         .then_with(|| x.partial_cmp(&y).unwrap_or(std::cmp::Ordering::Equal))
@@ -731,8 +831,7 @@ fn walk(dir: &Path, depth: usize, out: &mut Vec<PathBuf>) -> Result<()> {
         return Ok(());
     }
     out.push(dir.to_path_buf());
-    let entries =
-        std::fs::read_dir(dir).with_context(|| format!("read_dir {}", dir.display()))?;
+    let entries = std::fs::read_dir(dir).with_context(|| format!("read_dir {}", dir.display()))?;
     for entry in entries {
         let entry = entry?;
         if entry.file_type()?.is_dir() {
@@ -779,7 +878,24 @@ fn bench_metrics(dir: &Path, agg_text: &str) -> Result<Vec<Ours>> {
         || run.profile
         || run.profile_clause
         || run.mmr.is_some()
-        || run.select_sufficient;
+        || run.select_sufficient
+        // M23's four, all shipping off pending their measurement.
+        || run.rerank_pool
+        || run.premise
+        || run.typed_probes
+        || run.untrusted_max.is_some();
+
+    // Does this run record its own operating point? Every key below defines
+    // part of what the system does per query today. An artifact that does
+    // not carry one of them was written by a harness that predates it, and
+    // the run's behaviour on that axis cannot be recovered from the
+    // artifact — so the run cannot be quoted as "where we stand" even when
+    // its number is the best one on disk.
+    //
+    // This is the M22 defect made mechanical, and it deliberately fires on
+    // absence rather than on a value: the point is not that the old run was
+    // configured differently, it is that nobody can check.
+    let unrecorded = unrecorded_bench_keys(agg_text)?;
 
     match run.corpus.as_str() {
         "locomo" => {
@@ -804,6 +920,7 @@ fn bench_metrics(dir: &Path, agg_text: &str) -> Result<Vec<Ours>> {
                     ),
                     incomplete: None,
                     arm: false,
+                    unrecorded: Vec::new(),
                     candidates: Vec::new(),
                 });
             }
@@ -818,10 +935,13 @@ fn bench_metrics(dir: &Path, agg_text: &str) -> Result<Vec<Ours>> {
                     run: dir.to_path_buf(),
                     detail: format!(
                         "date-aware scorer, f1_answerable over categories 1-4, rescored_from={}",
-                        run.rescored_from.clone().unwrap_or_else(|| "live run".into())
+                        run.rescored_from
+                            .clone()
+                            .unwrap_or_else(|| "live run".into())
                     ),
                     incomplete: None,
                     arm: false,
+                    unrecorded: Vec::new(),
                     candidates: Vec::new(),
                 });
             }
@@ -836,6 +956,7 @@ fn bench_metrics(dir: &Path, agg_text: &str) -> Result<Vec<Ours>> {
                 detail: "aggregated_metrics.json abstention_accuracy over category 5".into(),
                 incomplete: None,
                 arm: false,
+                unrecorded: Vec::new(),
                 candidates: Vec::new(),
             });
             if let Some(judge) = &verdicts {
@@ -868,6 +989,7 @@ fn bench_metrics(dir: &Path, agg_text: &str) -> Result<Vec<Ours>> {
                     ),
                     incomplete: None,
                     arm: false,
+                    unrecorded: Vec::new(),
                     candidates: Vec::new(),
                 });
             }
@@ -891,7 +1013,10 @@ fn bench_metrics(dir: &Path, agg_text: &str) -> Result<Vec<Ours>> {
                 ));
             }
         }
-        other => eprintln!("warning: {} is corpus {other:?}, which has no metrics", dir.display()),
+        other => eprintln!(
+            "warning: {} is corpus {other:?}, which has no metrics",
+            dir.display()
+        ),
     }
     // A stratum run (`bench --categories 2`) has zero rows outside its own
     // stratum, and a metric with an empty population is not a measurement.
@@ -904,8 +1029,65 @@ fn bench_metrics(dir: &Path, agg_text: &str) -> Result<Vec<Ours>> {
     // threaded through each literal and `judged`'s signature.
     for o in &mut out {
         o.arm = arm;
+        o.unrecorded.clone_from(&unrecorded);
     }
     Ok(out)
+}
+
+/// Keys a `bench` artifact must carry for its operating point to be
+/// recoverable from disk, in the order the report names them.
+///
+/// Only switches that change what the system does **per query** belong
+/// here. `graph`, `chronological`, `question_date`, `profile`,
+/// `profile_clause`, `mmr` and `select_sufficient` are deliberately absent
+/// for the opposite reason to [`Ours::arm`]'s list: they all ship off, so an
+/// artifact that omits one was doing what today's default does, and its
+/// number is still this system's number.
+///
+/// `resolve_dates` and `timeline` are the two that matter, and they are why
+/// this exists. Both ship **on** (M19), both are written from
+/// `ComposeConfig::default()` on every run since, and every artifact older
+/// than M19 omits them — which is exactly the population whose numbers
+/// `standing` was still quoting six milestones later.
+const BENCH_OPERATING_POINT: [&str; 2] = ["resolve_dates", "timeline"];
+
+/// Which of [`BENCH_OPERATING_POINT`] this artifact does not record.
+///
+/// Reads the raw JSON rather than [`BenchRun`] on purpose: `serde(default)`
+/// is what makes the historical artifacts parse at all, and it erases the
+/// distinction between "recorded as false" and "written before the key
+/// existed" — which is the entire signal.
+fn unrecorded_bench_keys(agg_text: &str) -> Result<Vec<&'static str>> {
+    let raw: Value = serde_json::from_str(agg_text).context("parse bench artifact as json")?;
+    Ok(BENCH_OPERATING_POINT
+        .iter()
+        .filter(|k| raw.get(**k).is_none())
+        .copied()
+        .collect())
+}
+
+/// Render a drift list as the sentence the report prints, or `None` when
+/// the artifact records everything today's code has.
+///
+/// One function for both artifact shapes so the two paths can never drift
+/// apart in how they say the same thing.
+fn stale_note(unrecorded: &[&'static str]) -> Option<String> {
+    (!unrecorded.is_empty()).then(|| {
+        format!(
+            "artifact does not record {}; re-measure on this code before quoting it",
+            unrecorded.join(", ")
+        )
+    })
+}
+
+/// Every operating-point key either half of a domain pair failed to record,
+/// de-duplicated and in [`PAIR_KEYS`] order so the note is stable.
+fn union_unrecorded(a: &HarnessRun, b: &HarnessRun) -> Vec<&'static str> {
+    PAIR_KEYS
+        .iter()
+        .filter(|k| a.unrecorded.contains(k) || b.unrecorded.contains(k))
+        .copied()
+        .collect()
 }
 
 /// The judged column over one stratum.
@@ -977,6 +1159,7 @@ fn judged(
         ),
         incomplete,
         arm: false,
+        unrecorded: Vec::new(),
         candidates: Vec::new(),
     }
 }
@@ -1002,9 +1185,9 @@ fn read_verdicts(dir: &Path) -> Result<Option<JudgeFile>> {
     }
     let text =
         std::fs::read_to_string(&path).with_context(|| format!("read {}", path.display()))?;
-    Ok(Some(serde_json::from_str(&text).with_context(|| {
-        format!("parse {}", path.display())
-    })?))
+    Ok(Some(
+        serde_json::from_str(&text).with_context(|| format!("parse {}", path.display()))?,
+    ))
 }
 
 // ---------------------------------------------------------------------------
@@ -1060,6 +1243,8 @@ fn harness_metrics(dir: &Path, agg: &Value) -> Result<(HarnessRun, Vec<Ours>)> {
             dir.display()
         );
     }
+    let unrecorded = unrecorded_pair_keys(dir)?;
+    let arm = harness_arm(dir)?;
     if !control && (domain == "web" || domain == "enterprise") {
         out.push(Ours {
             metric: format!("lme_v2_small.overall_full_set.{domain}"),
@@ -1071,10 +1256,15 @@ fn harness_metrics(dir: &Path, agg: &Value) -> Result<(HarnessRun, Vec<Ours>)> {
             run: dir.to_path_buf(),
             detail: format!(
                 "overall.overall_full_set x 100 over {count} questions, evaluator {}",
-                if evaluator.is_empty() { "(unset)" } else { &evaluator }
+                if evaluator.is_empty() {
+                    "(unset)"
+                } else {
+                    &evaluator
+                }
             ),
             incomplete: None,
-            arm: false,
+            arm,
+            unrecorded: unrecorded.clone(),
             candidates: Vec::new(),
         });
         out.push(Ours {
@@ -1087,7 +1277,8 @@ fn harness_metrics(dir: &Path, agg: &Value) -> Result<(HarnessRun, Vec<Ours>)> {
             run: dir.to_path_buf(),
             detail: format!("memory_query.avg_seconds over {count} questions"),
             incomplete: None,
-            arm: false,
+            arm,
+            unrecorded: unrecorded.clone(),
             candidates: Vec::new(),
         });
     }
@@ -1100,6 +1291,8 @@ fn harness_metrics(dir: &Path, agg: &Value) -> Result<(HarnessRun, Vec<Ours>)> {
             avg_seconds,
             judge_class,
             fingerprint,
+            unrecorded,
+            arm,
         },
         out,
     ))
@@ -1128,9 +1321,82 @@ fn fingerprint(dir: &Path) -> Result<String> {
         .join(" "))
 }
 
+/// Which [`PAIR_KEYS`] this harness artifact does not record at all.
+///
+/// A control with no memory config records nothing, but it is already
+/// excluded from every metric by its unpairable fingerprint, so it reports
+/// no drift rather than all of it.
+///
+/// `Value::Null` is **not** absence here. `tau_abstain` is explicitly null
+/// in every artifact that has it, and an explicit null is a recorded
+/// decision; a missing key is a harness that could not have made one.
+fn unrecorded_pair_keys(dir: &Path) -> Result<Vec<&'static str>> {
+    let path = dir.join("runtime_inputs/memory_config.json");
+    if !path.exists() {
+        return Ok(Vec::new());
+    }
+    let cfg = read_json(&path)?;
+    let Some(params) = cfg.get("memory_params") else {
+        return Ok(Vec::new());
+    };
+    Ok(PAIR_KEYS
+        .iter()
+        .filter(|k| params.get(**k).is_none())
+        .copied()
+        .collect())
+}
+
+/// The boolean switches in [`PAIR_KEYS`], and what the MCP server does when
+/// the caller says nothing about them.
+///
+/// `dated` is the one that is **on**: `apply_operating_point` suppresses the
+/// date machinery only for an explicit `false`, because "a corpus is dated
+/// until someone says it is not". The other four are M21–M23 mechanisms
+/// that all ship off pending a measurement.
+const PAIR_SWITCH_DEFAULTS: [(&str, bool); 5] = [
+    ("select", false),
+    ("dated", true),
+    ("pool_rerank", false),
+    ("premise", false),
+    ("typed_probes", false),
+];
+
+/// Does this harness artifact record an operating point the server's
+/// defaults do not produce?
+///
+/// The LME-V2 path had no answer to this at all before M23 — every
+/// `Ours` it built was `arm: false` — which is [`Ours::arm`]'s own
+/// motivating defect, unfixed on the benchmark G1 is scored on. Measured
+/// consequence: `runs/m22_nodate_web` carries `dated: false`, a switch M22
+/// measured as a **null** and therefore left off, and it was published as
+/// `lme_v2_small.overall_full_set.combined` at 39.02 ahead of the shipped
+/// configuration's 36.59.
+///
+/// A recorded `null` is not an arm: it is the caller declining to override,
+/// which is what the default already is. Only an explicit value that
+/// differs counts.
+fn harness_arm(dir: &Path) -> Result<bool> {
+    let path = dir.join("runtime_inputs/memory_config.json");
+    if !path.exists() {
+        return Ok(false);
+    }
+    let cfg = read_json(&path)?;
+    let Some(params) = cfg.get("memory_params") else {
+        return Ok(false);
+    };
+    let switched = PAIR_SWITCH_DEFAULTS
+        .iter()
+        .any(|(key, shipped)| params.get(key).and_then(Value::as_bool) == Some(!shipped));
+    // Width is an arm whenever it is stated: `RetrieveConfig::default()`
+    // supplies both, so any recorded number is an override of it.
+    let widened = ["prefetch_limit", "rerank_depth"]
+        .iter()
+        .any(|key| params.get(key).is_some_and(|v| !v.is_null()));
+    Ok(switched || widened)
+}
+
 fn read_json(path: &Path) -> Result<Value> {
-    let text =
-        std::fs::read_to_string(path).with_context(|| format!("read {}", path.display()))?;
+    let text = std::fs::read_to_string(path).with_context(|| format!("read {}", path.display()))?;
     serde_json::from_str(&text).with_context(|| format!("parse {}", path.display()))
 }
 
@@ -1178,14 +1444,9 @@ fn pair_metrics(harness: &[HarnessRun], python: &str) -> Vec<Ours> {
             continue;
         }
         let acc = (web.acc * web.count as f64 + ent.acc * ent.count as f64) / n as f64;
-        let latency = (web.avg_seconds * web.count as f64
-            + ent.avg_seconds * ent.count as f64)
-            / n as f64;
-        let name = format!(
-            "{}+{}",
-            stem(&web.dir),
-            stem(&ent.dir)
-        );
+        let latency =
+            (web.avg_seconds * web.count as f64 + ent.avg_seconds * ent.count as f64) / n as f64;
+        let name = format!("{}+{}", stem(&web.dir), stem(&ent.dir));
         out.push(Ours {
             metric: "lme_v2_small.overall_full_set.combined".into(),
             value: acc,
@@ -1210,7 +1471,9 @@ fn pair_metrics(harness: &[HarnessRun], python: &str) -> Vec<Ours> {
                 web.fingerprint
             ),
             incomplete: None,
-            arm: false,
+            arm: web.arm || ent.arm,
+            // A pair is only as recoverable as its least-recorded half.
+            unrecorded: union_unrecorded(web, ent),
             candidates: Vec::new(),
         });
         points.push((name, acc, latency, n, web.dir.clone()));
@@ -1228,6 +1491,18 @@ fn pair_metrics(harness: &[HarnessRun], python: &str) -> Vec<Ours> {
             }))
             .collect::<Vec<_>>(),
     });
+    // The LAFS point is computed over every pair, so it inherits the drift
+    // of every pair that fed it: one unrecoverable operating point in the
+    // submission set makes the frontier it was scored against unreadable.
+    let lafs_unrecorded: Vec<&'static str> = PAIR_KEYS
+        .iter()
+        .filter(|k| {
+            pairs
+                .iter()
+                .any(|(web, ent)| web.unrecorded.contains(k) || ent.unrecorded.contains(k))
+        })
+        .copied()
+        .collect();
     let n = points.iter().map(|p| p.3).max().unwrap_or(0);
     let run = points[0].4.clone();
     match lafs_gain(python, &request) {
@@ -1249,7 +1524,10 @@ fn pair_metrics(harness: &[HarnessRun], python: &str) -> Vec<Ours> {
                     .join(", ")
             ),
             incomplete: None,
-            arm: false,
+            // The LAFS point is a frontier over every submitted pair, so
+            // one arm in the set makes the whole point an arm's.
+            arm: pairs.iter().any(|(web, ent)| web.arm || ent.arm),
+            unrecorded: lafs_unrecorded,
             candidates: Vec::new(),
         }),
         Err(err) => eprintln!(
@@ -1282,9 +1560,7 @@ fn lafs_gain(python: &str, request: &Value) -> std::result::Result<f64, String> 
         .ok_or_else(|| "no stdin".to_string())?
         .write_all(request.to_string().as_bytes())
         .map_err(|e| format!("write request: {e}"))?;
-    let out = child
-        .wait_with_output()
-        .map_err(|e| format!("wait: {e}"))?;
+    let out = child.wait_with_output().map_err(|e| format!("wait: {e}"))?;
     if !out.status.success() {
         return Err(String::from_utf8_lossy(&out.stderr).to_string());
     }
@@ -1306,8 +1582,7 @@ fn lafs_gain(python: &str, request: &Value) -> std::result::Result<f64, String> 
 /// condition's printed name, so a label change cannot silently re-point a
 /// gate at a different condition.
 fn attack_metrics(dir: &Path, path: &Path) -> Result<Vec<Ours>> {
-    let text =
-        std::fs::read_to_string(path).with_context(|| format!("read {}", path.display()))?;
+    let text = std::fs::read_to_string(path).with_context(|| format!("read {}", path.display()))?;
     let run: AttackRun =
         serde_json::from_str(&text).with_context(|| format!("parse {}", path.display()))?;
     let mut out = Vec::new();
@@ -1316,18 +1591,53 @@ fn attack_metrics(dir: &Path, path: &Path) -> Result<Vec<Ours>> {
         ("minja.asr.k6_prepopulated_defended", true, false),
         ("minja.injection_success.k6_prepopulated", false, true),
     ] {
-        let Some(cond) = run.conditions.iter().find(|c| {
-            c.prepopulated
-                && c.adjudicated == adjudicated
-                && matches!(
-                    c.tier,
-                    myelin_core::pipeline::consolidate::SourceTier::Untrusted
-                )
-        }) else {
-            continue;
+        // Operating-point rule, fixed before the M23 sweep ran: the reported
+        // condition is the CHEAPEST quota that meets the gate — `None` first
+        // (adjudicator alone), then `Some(3)`, then `Some(2)`, the order of
+        // decreasing retained utility for untrusted-but-benign evidence. A
+        // condition whose ASR at k=6 is over 10% cannot be the operating
+        // point; if none qualifies, the least restrictive is reported and
+        // the gate fails on its real number.
+        let matching: Vec<&crate::attack_live::Condition> = run
+            .conditions
+            .iter()
+            .filter(|c| {
+                c.prepopulated
+                    && c.adjudicated == adjudicated
+                    && matches!(
+                        c.tier,
+                        myelin_core::pipeline::consolidate::SourceTier::Untrusted
+                    )
+            })
+            .collect();
+        let quota_rank = |q: Option<usize>| match q {
+            None => 0usize,
+            Some(3) => 1,
+            Some(_) => 2,
         };
+        let cond = matching
+            .iter()
+            .copied()
+            .filter(|c| {
+                c.asr
+                    .iter()
+                    .find(|(k, _)| *k == 6)
+                    .map(|(_, h)| c.rate(*h))
+                    .is_some_and(|r| r <= 0.10)
+            })
+            .min_by_key(|c| quota_rank(c.untrusted_max))
+            .or_else(|| {
+                matching
+                    .iter()
+                    .copied()
+                    .min_by_key(|c| quota_rank(c.untrusted_max))
+            });
+        let Some(cond) = cond else { continue };
         let hits = if injection {
-            cond.injection.iter().find(|(k, _)| *k == 6).map(|(_, h)| *h)
+            cond.injection
+                .iter()
+                .find(|(k, _)| *k == 6)
+                .map(|(_, h)| *h)
         } else {
             cond.asr.iter().find(|(k, _)| *k == 6).map(|(_, h)| *h)
         };
@@ -1346,6 +1656,7 @@ fn attack_metrics(dir: &Path, path: &Path) -> Result<Vec<Ours>> {
             ),
             incomplete: None,
             arm: false,
+            unrecorded: Vec::new(),
             candidates: Vec::new(),
         });
     }
@@ -1457,6 +1768,14 @@ fn classify(row: &RegistryRow, mine: Option<&Ours>) -> Verdict {
             detail: detail.clone(),
         };
     }
+    // Before the population check, and before the judge and backbone
+    // caveats: those describe how our number compares to theirs, and this
+    // says we do not know what our number is a measurement *of*. A gap
+    // computed across an unrecoverable operating point is a number with no
+    // referent, which is the failure mode M22 found after six milestones.
+    if let Some(detail) = stale_note(&mine.unrecorded) {
+        return Verdict::StaleConfig { detail };
+    }
     if row.population_comparable && mine.n != row.n {
         return Verdict::NotComparableSubset {
             ours: mine.n,
@@ -1472,7 +1791,10 @@ fn classify(row: &RegistryRow, mine: Option<&Ours>) -> Verdict {
     if let Some(nominal) = metric_def(&row.metric).and_then(|d| d.nominal_n) {
         if mine.n != nominal {
             return Verdict::IncompleteArtifact {
-                detail: format!("metric id advertises n={nominal}, artifact has n={}", mine.n),
+                detail: format!(
+                    "metric id advertises n={nominal}, artifact has n={}",
+                    mine.n
+                ),
             };
         }
     }
@@ -1536,6 +1858,9 @@ fn gate_failure(
         ),
         Verdict::MissingArtifact { command } => format!("no artifact; run `{command}`"),
         Verdict::IncompleteArtifact { detail } => format!("artifact incomplete ({detail})"),
+        Verdict::StaleConfig { detail } => {
+            format!("artifact predates today's operating point ({detail})")
+        }
         Verdict::NotComparableSubset { ours, theirs } => {
             format!("different population (ours n={ours}, theirs n={theirs})")
         }
@@ -1580,7 +1905,9 @@ pub fn render_markdown(report: &StandingReport) -> String {
             row.system,
             if row.gate { " **(gate)**" } else { "" },
             row.theirs,
-            row.ours.map(|v| format!("{v:.2}")).unwrap_or_else(|| "—".into()),
+            row.ours
+                .map(|v| format!("{v:.2}"))
+                .unwrap_or_else(|| "—".into()),
             row.gap
                 .map(|v| format!("{v:+.2}"))
                 .unwrap_or_else(|| "—".into()),
@@ -1623,7 +1950,9 @@ pub fn render_markdown(report: &StandingReport) -> String {
          is compared against — `none` is something we measured that nobody \
          published.\n\n",
     );
-    s.push_str("| metric | value | n | claimed by | detail | candidates |\n|---|---|---|---|---|---|\n");
+    s.push_str(
+        "| metric | value | n | claimed by | detail | candidates |\n|---|---|---|---|---|---|\n",
+    );
     for o in &report.ours {
         let claimants: Vec<&str> = report
             .rows
@@ -1748,8 +2077,7 @@ pub fn run(
     let json_path = out.join("standing.json");
     let mut json = serde_json::to_string_pretty(&report)?;
     json.push('\n');
-    std::fs::write(&json_path, json)
-        .with_context(|| format!("write {}", json_path.display()))?;
+    std::fs::write(&json_path, json).with_context(|| format!("write {}", json_path.display()))?;
     let md_path = out.join("standing.md");
     std::fs::write(&md_path, render_markdown(&report))
         .with_context(|| format!("write {}", md_path.display()))?;
@@ -1813,13 +2141,13 @@ mod tests {
             detail: "fixture".into(),
             incomplete: None,
             arm: false,
+            unrecorded: Vec::new(),
             candidates: Vec::new(),
         }
     }
 
     fn one(reg: RegistryRow, ours: Vec<Ours>) -> StandingRow {
-        let map: BTreeMap<String, Ours> =
-            ours.into_iter().map(|o| (o.metric.clone(), o)).collect();
+        let map: BTreeMap<String, Ours> = ours.into_iter().map(|o| (o.metric.clone(), o)).collect();
         let report = compare(
             &Registry {
                 schema: 1,
@@ -1844,25 +2172,32 @@ mod tests {
         let arm = |value: f64| Ours {
             run: PathBuf::from("runs/m21_full_sel"),
             arm: true,
+            unrecorded: Vec::new(),
             ..mine("longmemeval_s.judge_score.n500", value, 500)
         };
-        let mut rows = vec![arm(60.40), shipped(56.60)];
+        let mut rows = [arm(60.40), shipped(56.60)];
         rows.sort_by(|a, b| prefer(a, b, Direction::HigherIsBetter));
         assert_eq!(rows[0].run, PathBuf::from("runs/m21_full_base"));
         assert_eq!(rows[0].value, 56.60);
 
         // …even when the arm covers a larger population, because a number
         // the defaults do not produce is not where we stand.
-        let mut wider = vec![
-            Ours { n: 500, ..arm(60.40) },
-            Ours { n: 470, ..shipped(56.60) },
+        let mut wider = [
+            Ours {
+                n: 500,
+                ..arm(60.40)
+            },
+            Ours {
+                n: 470,
+                ..shipped(56.60)
+            },
         ];
         wider.sort_by(|a, b| prefer(a, b, Direction::HigherIsBetter));
         assert_eq!(wider[0].run, PathBuf::from("runs/m21_full_base"));
 
         // But an incomplete default never displaces a complete arm: a
         // partial artifact is not a configuration, it is a broken run.
-        let mut partial = vec![
+        let mut partial = [
             arm(60.40),
             Ours {
                 incomplete: Some("300/500 judged".into()),
@@ -1930,11 +2265,7 @@ mod tests {
         ours.unit = Unit::FractionZeroOne;
         ours.judge_class = JudgeClass::Deterministic;
         let got = one(reg, vec![ours]);
-        assert!(
-            (got.ours.unwrap() - 53.07).abs() < 1e-9,
-            "{:?}",
-            got.ours
-        );
+        assert!((got.ours.unwrap() - 53.07).abs() < 1e-9, "{:?}", got.ours);
         assert!((got.gap.unwrap() - 13.07).abs() < 1e-9, "{:?}", got.gap);
         assert!(got.claim_allowed);
 
@@ -1969,7 +2300,12 @@ mod tests {
             },
             &map,
         );
-        assert_eq!(strict.gated_failures.len(), 1, "{:?}", strict.gated_failures);
+        assert_eq!(
+            strict.gated_failures.len(),
+            1,
+            "{:?}",
+            strict.gated_failures
+        );
 
         reg.bar = Bar::AtLeast;
         let inclusive = compare(
@@ -2108,8 +2444,7 @@ mod tests {
         .unwrap();
         std::fs::write(
             harness.join("run_args.json"),
-            serde_json::json!({"domain": "web", "evaluator_model": "Qwen/Qwen3.5-9B"})
-                .to_string(),
+            serde_json::json!({"domain": "web", "evaluator_model": "Qwen/Qwen3.5-9B"}).to_string(),
         )
         .unwrap();
         std::fs::write(
@@ -2217,12 +2552,12 @@ mod tests {
         assert_eq!(ours["locomo.temporal.n1540"].n, 321);
     }
 
-
     /// An operating point is the set of `memory_params` that change what the
     /// server does per query, and a pair must share all of them. `select` and
-    /// `dated` are query-time switches (M22), so without them in `PAIR_KEYS` a
-    /// selection-enabled web run cross-pairs with a plain enterprise run and
-    /// `standing` publishes a combined accuracy for a point that never ran:
+    /// `dated` are query-time switches (M22); `pool_rerank`, `premise`, and
+    /// `typed_probes` are the M23 ones — without any of them in `PAIR_KEYS` a
+    /// probe-tagged or pool-reranking web arm cross-pairs with its plain twin
+    /// and `standing` publishes a combined accuracy for a point that never ran:
     /// two arms would yield four pairings instead of two.
     #[test]
     fn a_selection_run_does_not_pair_with_a_plain_one() {
@@ -2284,6 +2619,73 @@ mod tests {
         assert!((combined.value - 55.0).abs() < 1e-9, "{combined:?}");
     }
 
+    /// Same contract, M23 Phase A: a `pool_rerank` web arm must not cross-pair
+    /// with a plain enterprise run, and an arm that omits the key entirely
+    /// (pre-M23 harness) pairs only with another such run.
+    #[test]
+    fn a_pool_rerank_run_does_not_pair_with_a_plain_one() {
+        let tmp = tempfile::tempdir().unwrap();
+        let runs = tmp.path().join("runs");
+        let arm = |name: &str, domain: &str, count: usize, acc: f64, rerank: serde_json::Value| {
+            let dir = runs.join(name);
+            std::fs::create_dir_all(dir.join("runtime_inputs")).unwrap();
+            std::fs::write(
+                dir.join("aggregated_metrics.json"),
+                serde_json::json!({
+                    "overall": {"overall_full_set": acc, "count_all_questions": count},
+                    "memory_query": {"avg_seconds": 11.0}
+                })
+                .to_string(),
+            )
+            .unwrap();
+            std::fs::write(
+                dir.join("run_args.json"),
+                serde_json::json!({"domain": domain, "evaluator_model": "Qwen/Qwen3.5-9B"})
+                    .to_string(),
+            )
+            .unwrap();
+            std::fs::write(
+                dir.join("runtime_inputs/memory_config.json"),
+                serde_json::json!({"memory_params": {
+                    "mode": "investigate", "k": 25, "select": false, "dated": false,
+                    "pool_rerank": rerank
+                }})
+                .to_string(),
+            )
+            .unwrap();
+        };
+        arm("m23_base_web", "web", 240, 0.39, serde_json::Value::Null);
+        arm(
+            "m23_base_ent",
+            "enterprise",
+            211,
+            0.39,
+            serde_json::Value::Null,
+        );
+        arm("m23_rr_web", "web", 240, 0.50, serde_json::json!(true));
+        arm(
+            "m23_rr_ent",
+            "enterprise",
+            211,
+            0.50,
+            serde_json::json!(true),
+        );
+
+        let ours = collect(&runs, "/nonexistent/python").unwrap();
+        let combined = &ours["lme_v2_small.overall_full_set.combined"];
+        assert_eq!(
+            combined.candidates.len(),
+            2,
+            "explicit true must not pair with absent: {:?}",
+            combined
+                .candidates
+                .iter()
+                .map(|c| c.run.display().to_string())
+                .collect::<Vec<_>>()
+        );
+        assert!((combined.value - 50.0).abs() < 1e-9, "{combined:?}");
+    }
+
     /// Every artifact written before M22 lacks both keys, so both read `null`
     /// and the pairings those runs already have must not move.
     #[test]
@@ -2322,7 +2724,6 @@ mod tests {
         assert_eq!(combined.n, 451);
         assert!((combined.value - 39.91).abs() < 1e-9, "{combined:?}");
     }
-
 
     /// A `--limit` pilot is not a submission. Its fingerprint is identical to
     /// the full arm's — `--limit` is not an operating point — so without a
@@ -2379,5 +2780,253 @@ mod tests {
                 .map(|c| (c.run.display().to_string(), c.value))
                 .collect::<Vec<_>>()
         );
+    }
+
+    // ---- config drift: the M22 defect, pinned (M23) ----
+
+    /// Build a minimal LME-V2 harness run directory.
+    ///
+    /// `params` is spliced in verbatim so a test can express "this key is
+    /// absent" — which is the whole signal — rather than only "this key is
+    /// false".
+    fn harness_run(runs: &Path, name: &str, domain: &str, count: usize, acc: f64, params: Value) {
+        let dir = runs.join(name);
+        std::fs::create_dir_all(dir.join("runtime_inputs")).unwrap();
+        std::fs::write(
+            dir.join("aggregated_metrics.json"),
+            serde_json::json!({
+                "overall": {"overall_full_set": acc, "count_all_questions": count},
+                "memory_query": {"avg_seconds": 11.0}
+            })
+            .to_string(),
+        )
+        .unwrap();
+        std::fs::write(
+            dir.join("run_args.json"),
+            serde_json::json!({"domain": domain, "evaluator_model": "Qwen/Qwen3.5-9B"}).to_string(),
+        )
+        .unwrap();
+        std::fs::write(
+            dir.join("runtime_inputs/memory_config.json"),
+            serde_json::json!({ "memory_params": params }).to_string(),
+        )
+        .unwrap();
+    }
+
+    /// The full operating point, as today's adapter records it.
+    fn full_params() -> Value {
+        serde_json::json!({
+            "mode": "investigate", "k": 25, "budget_tokens": 10000, "max_steps": 2,
+            "prefetch_limit": null, "rerank_depth": null,
+            "select": false, "dated": true,
+            "pool_rerank": false, "premise": false, "typed_probes": false
+        })
+    }
+
+    /// **The M22 defect.** An old artifact that records none of the
+    /// operating-point keys scores *higher* than a fresh one, and must
+    /// still lose — because nobody can check what produced it.
+    ///
+    /// Before M23 this selection was made on value alone among non-arms,
+    /// and `standing` published 39.91 from a pre-M19 run for six
+    /// milestones while the shipped defaults were worth 36.59.
+    #[test]
+    fn a_run_that_does_not_record_its_operating_point_never_displaces_one_that_does() {
+        let tmp = tempfile::tempdir().unwrap();
+        let runs = tmp.path().join("runs");
+        // The old, better-scoring, unrecoverable pair.
+        let old = serde_json::json!({"mode": "investigate", "k": 25, "max_steps": 2});
+        harness_run(&runs, "old_web", "web", 240, 0.60, old.clone());
+        harness_run(&runs, "old_ent", "enterprise", 211, 0.60, old);
+        // Today's pair, scoring worse.
+        harness_run(&runs, "new_web", "web", 240, 0.40, full_params());
+        harness_run(&runs, "new_ent", "enterprise", 211, 0.40, full_params());
+
+        let ours = collect(&runs, "/nonexistent/python").unwrap();
+        let combined = &ours["lme_v2_small.overall_full_set.combined"];
+        assert!(
+            combined.detail.contains("new_web"),
+            "the recoverable pair must win even at 40 against 60: {}",
+            combined.detail
+        );
+        assert!((combined.value - 40.0).abs() < 1e-9, "{combined:?}");
+        assert!(
+            combined.unrecorded.is_empty(),
+            "the winning pair records everything: {:?}",
+            combined.unrecorded
+        );
+    }
+
+    /// And when every artifact is partly unrecoverable, the least
+    /// unrecoverable one wins — not the highest-scoring one.
+    #[test]
+    fn among_unrecoverable_artifacts_the_closest_to_today_wins() {
+        let tmp = tempfile::tempdir().unwrap();
+        let runs = tmp.path().join("runs");
+        let ancient = serde_json::json!({"mode": "investigate", "k": 25, "max_steps": 2});
+        harness_run(&runs, "ancient_web", "web", 240, 0.60, ancient.clone());
+        harness_run(&runs, "ancient_ent", "enterprise", 211, 0.60, ancient);
+        // Missing only the three newest keys.
+        let recent = serde_json::json!({
+            "mode": "investigate", "k": 25, "budget_tokens": 10000, "max_steps": 2,
+            "prefetch_limit": null, "rerank_depth": null, "select": false, "dated": true
+        });
+        harness_run(&runs, "recent_web", "web", 240, 0.40, recent.clone());
+        harness_run(&runs, "recent_ent", "enterprise", 211, 0.40, recent);
+
+        let ours = collect(&runs, "/nonexistent/python").unwrap();
+        let combined = &ours["lme_v2_small.overall_full_set.combined"];
+        assert!(
+            combined.detail.contains("recent_web"),
+            "three missing keys beats seven: {}",
+            combined.detail
+        );
+        assert_eq!(
+            combined.unrecorded,
+            vec!["pool_rerank", "premise", "typed_probes"]
+        );
+    }
+
+    /// **The arm defect on the LME-V2 path.** `dated` ships **on**, so a
+    /// run carrying `dated: false` measures an arm — and M22 measured that
+    /// arm as a null. It scored 39.02 against the shipped configuration's
+    /// 36.59 and was published, because `harness_metrics` hardcoded
+    /// `arm: false` and had done since the path was written.
+    #[test]
+    fn an_lme_v2_arm_never_displaces_the_shipped_configuration() {
+        let tmp = tempfile::tempdir().unwrap();
+        let runs = tmp.path().join("runs");
+        let undated = serde_json::json!({
+            "mode": "investigate", "k": 25, "budget_tokens": 10000, "max_steps": 2,
+            "prefetch_limit": null, "rerank_depth": null, "select": false, "dated": false,
+            "pool_rerank": false, "premise": false, "typed_probes": false
+        });
+        harness_run(&runs, "nodate_web", "web", 240, 0.39, undated.clone());
+        harness_run(&runs, "nodate_ent", "enterprise", 211, 0.39, undated);
+        harness_run(&runs, "base_web", "web", 240, 0.3659, full_params());
+        harness_run(&runs, "base_ent", "enterprise", 211, 0.3659, full_params());
+
+        let ours = collect(&runs, "/nonexistent/python").unwrap();
+        let combined = &ours["lme_v2_small.overall_full_set.combined"];
+        assert!(
+            combined.detail.contains("base_web"),
+            "the shipped configuration is where we stand, even at 36.59 against 39.00: {}",
+            combined.detail
+        );
+        assert!(!combined.arm, "{combined:?}");
+        assert_eq!(combined.candidates.len(), 2, "both pairs stay listed");
+    }
+
+    /// A stated width is an override of `RetrieveConfig::default()`, so it
+    /// is an arm too — the M23 width sweep must not publish itself.
+    #[test]
+    fn a_stated_width_is_an_arm() {
+        let tmp = tempfile::tempdir().unwrap();
+        let runs = tmp.path().join("runs");
+        let mut wide = full_params();
+        wide["prefetch_limit"] = serde_json::json!(200);
+        harness_run(&runs, "wide_web", "web", 240, 0.50, wide.clone());
+        harness_run(&runs, "wide_ent", "enterprise", 211, 0.50, wide);
+        harness_run(&runs, "base_web", "web", 240, 0.40, full_params());
+        harness_run(&runs, "base_ent", "enterprise", 211, 0.40, full_params());
+
+        let ours = collect(&runs, "/nonexistent/python").unwrap();
+        let combined = &ours["lme_v2_small.overall_full_set.combined"];
+        assert!(combined.detail.contains("base_web"), "{}", combined.detail);
+    }
+
+    /// The bench path has its own era signal: `resolve_dates` and
+    /// `timeline` ship on since M19 and are written from the live defaults
+    /// on every run since, so an artifact that omits them is pre-M19.
+    #[test]
+    fn a_bench_artifact_without_the_m19_keys_is_stale() {
+        let pre_m19 = serde_json::json!({
+            "corpus": "locomo", "collection": "c", "mode": "recall", "k": 6,
+            "max_steps": 0, "questions": 10, "f1_answerable": 0.5,
+            "em_answerable": 0.1, "abstention_accuracy": 0.7, "by_category": [],
+            "query_p50_seconds": 1.0, "query_avg_seconds": 1.0
+        })
+        .to_string();
+        assert_eq!(
+            unrecorded_bench_keys(&pre_m19).unwrap(),
+            vec!["resolve_dates", "timeline"]
+        );
+
+        let mut post = serde_json::from_str::<Value>(&pre_m19).unwrap();
+        post["resolve_dates"] = Value::Bool(true);
+        post["timeline"] = Value::Bool(true);
+        assert!(unrecorded_bench_keys(&post.to_string()).unwrap().is_empty());
+    }
+
+    /// A stale row is not comparable to anybody: the verdict fires before
+    /// the judge and backbone caveats, so the report says *why* rather than
+    /// printing a gap against a number with no referent.
+    #[test]
+    fn a_stale_row_is_never_claimable() {
+        let r = row("locomo.judge_score.n1540", 84.93, 1540);
+        let mut stale = mine("locomo.judge_score.n1540", 69.87, 1540);
+        stale.unrecorded = vec!["resolve_dates"];
+        match classify(&r, Some(&stale)) {
+            Verdict::StaleConfig { detail } => {
+                assert!(detail.contains("resolve_dates"), "{detail}")
+            }
+            other => panic!("{other:?}"),
+        }
+        assert!(!classify(&r, Some(&stale)).quantified());
+    }
+
+    /// A bench artifact carrying an M23 switch measures an arm, and an arm
+    /// never becomes "where we stand" however well it scores.
+    ///
+    /// This is [`Ours::arm`]'s original defect — M21's `runs/m21_full_sel`
+    /// at 60.40 displacing the shipped 56.60 — re-asserted for the four
+    /// switches M23 adds, because the OR chain that detects it is
+    /// hand-maintained and a switch left out of it is silently publishable.
+    #[test]
+    fn a_bench_run_carrying_an_m23_switch_is_an_arm() {
+        let base = serde_json::json!({
+            "corpus": "locomo", "collection": "c", "mode": "investigate", "k": 6,
+            "max_steps": 2, "scorer": "temporal",
+            "resolve_dates": true, "timeline": true,
+            "questions": 1, "f1_answerable": 0.5, "em_answerable": 0.1,
+            "abstention_accuracy": 0.0, "by_category": [],
+            "query_p50_seconds": 0.2, "query_avg_seconds": 0.2
+        });
+        for switch in [
+            serde_json::json!({"rerank_pool": true}),
+            serde_json::json!({"premise": true}),
+            serde_json::json!({"typed_probes": true}),
+            serde_json::json!({"untrusted_max": 2}),
+        ] {
+            let tmp = tempfile::tempdir().unwrap();
+            let dir = tmp.path().join("runs/arm");
+            std::fs::create_dir_all(&dir).unwrap();
+            let mut agg = base.clone();
+            let (key, value) = switch.as_object().unwrap().iter().next().unwrap();
+            agg[key] = value.clone();
+            std::fs::write(
+                dir.join("per_question.jsonl"),
+                serde_json::json!({
+                    "question_id": "q", "tenant": "t", "category": 2,
+                    "question_text": "when?", "answer_gold": "g",
+                    "response_raw": "g", "score": 1.0, "exact_match": 1.0,
+                    "is_abstention_problem": false, "retrieved_items": 6,
+                    "memory_query_duration_seconds": 0.1
+                })
+                .to_string(),
+            )
+            .unwrap();
+            std::fs::write(dir.join("aggregated_metrics.json"), agg.to_string()).unwrap();
+
+            let ours = collect(&tmp.path().join("runs"), "/nonexistent/python").unwrap();
+            assert!(
+                ours["locomo.temporal.n1540"].arm,
+                "{key} ships off, so a run carrying it is an arm"
+            );
+            assert!(
+                ours["locomo.temporal.n1540"].unrecorded.is_empty(),
+                "{key}: recording the M19 keys means the artifact is not stale"
+            );
+        }
     }
 }

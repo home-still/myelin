@@ -442,6 +442,427 @@ pub async fn build_lmev2(
     Ok(report)
 }
 
+/// M23 D1 — mint the typed pools (events, notes) for LME-V2 into the SAME
+/// store the episodic build already wrote, so one collection carries all
+/// three kinds and the read path stays R4-queryable.
+///
+/// AgentRunbook-R's 58.6 comes from three pools with per-pool queries
+/// (`10.48550/arXiv.2605.12493` §4.1); this is the write-path half. The
+/// read-path half is D2's typed probes in `investigate`.
+///
+/// **One batched call per trajectory per pool, not AgentRunbook-R's
+/// per-transition pass.** Their event pass is one call per transition —
+/// 28 states per trajectory is ~43k calls on the tier-small corpus. The
+/// batched form is ~1,540 calls on each pool and the plan caps it at 6
+/// events per trajectory. The note template is used verbatim; the event
+/// template keeps its field spec and rules verbatim and generalises only
+/// the "one target transition" delivery clause into "up to 6 transitions",
+/// which is the deviation the batching *is*.
+///
+/// Resume is per trajectory, keyed on the ledger's `unit_complete` audit
+/// event with the unit string as the key — `build_locomo`'s predicate, at
+/// pool granularity. A trajectory whose pools already exist is skipped, so
+/// an interrupted pass costs only the trajectories it had not reached.
+///
+/// Every record routes through [`WritePath::insert`] with
+/// [`WritePath::record_kind`] set, so dedup, embedding, indexing and the
+/// ledger see ordinary records: events are `RecordKind::Semantic` under
+/// unit `{id}#events`, notes are `RecordKind::Procedural` under
+/// `{id}#notes`. `t_valid` stays the ingest time — the corpus has no event
+/// dates (the M22 finding), and the arms that read these records run
+/// `--undated`.
+// Same shape and same eight arguments as `build_lmev2`, which carries the
+// same allow: the two are called from one `match` arm and a struct for one
+// of them would make the pair harder to read, not easier.
+#[allow(clippy::too_many_arguments)]
+pub async fn build_lmev2_pools(
+    trajectories: &Path,
+    haystack_path: &Path,
+    questions_path: &Path,
+    tier: &str,
+    collection: &str,
+    ledger_path: &Path,
+    limit: Option<usize>,
+    repair: bool,
+) -> Result<BuildReport> {
+    use myelin_core::llm::{complete_json, CompletionRequest, Message};
+    use myelin_core::model::record::RecordKind;
+
+    // The template, verbatim from the vendored AgentRunbook-R
+    // (`memory_modules/support.py`, NOTE_GENERATION_SYSTEM_PROMPT,
+    // prompt version `qwen_v6_retrieval_safe`).
+    const NOTE_PROMPT: &str = r#"You convert one UI task trajectory into two reusable memory notes for a future agent.
+
+Assume these notes will later be retrieved for unknown future questions.
+You do not know the downstream question in advance.
+Your job is to preserve the workflow and the highest-value reusable facts from the touched pages.
+
+Write:
+1. procedure_note
+2. hint_note
+
+Each note must be an object with:
+- title: a short retrieval-friendly title with app/module/task context
+- description: 1 short sentence describing what the note is about
+- content: a bullet list string using '- ' lines
+
+Rules:
+- Use only evidence grounded in the provided goal, outcome, thoughts, annotated actions, and screenshots.
+- Never write a fact unless it is directly supported by the observed run.
+- Mention application / page / module names when they are visible from the actions or screenshots.
+- Do not invent unseen fields, filters, modules, or outcomes.
+- Prefer exact literal UI strings over paraphrases whenever a label, tab, button, menu item, module, or option is visible.
+- If the run failed, procedure_note may describe the intended or attempted workflow only where the evidence supports it. Do not pretend the task succeeded.
+- For failed runs, use hint_note to explain what may trip an agent up or what signal in the UI matters.
+- Do not mention screenshot numbers, state numbers, or the word trajectory.
+- Do not copy the internal thoughts verbatim line-by-line. Distill them into useful notes.
+- procedure_note should capture the reliable core workflow only.
+- hint_note should preserve only durable, high-value facts from the touched pages.
+- Prefer high-signal facts that are likely to help later retrieval.
+- Keep procedure_note.content to 4 to 8 bullets.
+- Keep hint_note.content to 6 to 12 bullets when the evidence supports it.
+- Do not output analysis, reasoning, headings, markdown fences, or any text before or after the JSON object.
+- Start your answer with { and end your answer with }.
+
+Return only valid JSON in this shape:
+{"procedure_note":{"title":"...","description":"...","content":"- ...\n- ..."},"hint_note":{"title":"...","description":"...","content":"- ...\n- ..."}}"#;
+
+    // AgentRunbook-R's event template
+    // (`memory_modules/agentrunbook_r.py`, EVENT_GENERATION_SYSTEM_PROMPT),
+    // with its single-transition delivery clause generalised to a capped
+    // list — the only textual deviation, and the one the batching makes.
+    const EVENT_PROMPT: &str = r#"You convert one UI transition from a longer task trajectory into retrieval-ready event text.
+
+You will be given:
+- the full task goal and outcome
+- the full annotated action trace for the trajectory
+
+In this dataset, actions are attached to destination states:
+- transition event_0000 means state 0 -> action stored on state 1 -> state 1
+- transition event_0001 means state 1 -> action stored on state 2 -> state 2
+
+Return exactly one JSON object with this shape:
+{"events":[{"overview":"...","state_transition":"..."}]}
+
+Emit at most 6 events: pick the transitions that changed what the page could do or show — navigation into a new module, a revealed or replaced panel, a form submitted, a value or status changed, a confirmation or blocker appeared. Return an empty list if the trajectory contains no such transition.
+
+Field requirements:
+- "overview": one concise paragraph that briefly recaps the concrete task goal and places this transition in the broader workflow. Do not just say "while pursuing the goal". Mention what the agent is trying to accomplish and what stage this step represents.
+- "state_transition": one concise paragraph that explicitly compares the post-state to the pre-state. Describe what happened after the action: a new page, new module, revealed panel, form fields, changed values, confirmation signal, blocker, popup, navigation, or lack of visible change.
+
+Rules:
+- Ground both fields only in the provided goal, outcome, action trace, and thoughts.
+- Be retrieval-friendly for unknown future dynamic questions.
+- Reuse the exact task entities and labels when they are present in the evidence. Do not rename users, products, themes, modules, or records.
+- Preserve the most answer-bearing visible facts:
+  - exact module, page, tab, menu, button, field, option, status, stage, entity, or label names
+  - values, counts, dates, before/after states, selected options, confirmation signals, blocking signals, or newly revealed UI
+  - distinctions between similar controls when the evidence supports them
+- Use the annotated action text when naming what the agent clicked, typed, selected, or opened.
+- In "state_transition", prioritize what changed because of the action: newly visible or replaced pages, menus, panels, dialogs, fields, values, warnings, or blockers.
+- Avoid spending space on unchanged background widgets or unrelated page content unless they are needed to identify the current view.
+- Do not invent unseen controls, labels, outcomes, or causal claims.
+- Do not quote raw thoughts verbatim line-by-line; distill them.
+- Do not output markdown fences, commentary, or extra keys.
+- First character must be { and last character must be }.
+"#;
+
+    #[derive(Debug, serde::Deserialize)]
+    struct Note {
+        title: String,
+        description: String,
+        content: String,
+    }
+    #[derive(Debug, serde::Deserialize)]
+    struct NoteSet {
+        procedure_note: Note,
+        hint_note: Note,
+    }
+    #[derive(Debug, serde::Deserialize)]
+    struct Event {
+        overview: String,
+        state_transition: String,
+    }
+    #[derive(Debug, serde::Deserialize)]
+    struct EventList {
+        events: Vec<Event>,
+    }
+
+    fn note_schema() -> serde_json::Value {
+        serde_json::json!({
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["procedure_note", "hint_note"],
+            "properties": {
+                "procedure_note": note(),
+                "hint_note": note(),
+            }
+        })
+    }
+    fn note() -> serde_json::Value {
+        serde_json::json!({
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["title", "description", "content"],
+            "properties": {
+                "title": {"type": "string", "maxLength": 200},
+                "description": {"type": "string", "maxLength": 400},
+                "content": {"type": "string", "maxLength": 2000},
+            }
+        })
+    }
+    fn event_schema() -> serde_json::Value {
+        serde_json::json!({
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["events"],
+            "properties": {
+                "events": {
+                    "type": "array",
+                    "maxItems": 6,
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": ["overview", "state_transition"],
+                        "properties": {
+                            "overview": {"type": "string", "maxLength": 1000},
+                            "state_transition": {"type": "string", "maxLength": 1000},
+                        }
+                    }
+                }
+            }
+        })
+    }
+
+    /// The trajectory's goal/outcome/ordered steps, the evidence both
+    /// templates name. Screenshots are not attached: the write path is
+    /// text-only, and the tree chunks carrying the page state are already
+    /// in the episodic store.
+    fn trace_text(traj: &lmev2::Trajectory) -> String {
+        let mut lines = vec![
+            format!("Goal: {}", traj.goal),
+            format!("Environment: {} ({})", traj.environment, traj.domain),
+            format!("Start URL: {}", traj.start_url),
+            format!("Outcome: {}", traj.outcome),
+            String::from("Annotated action trace:"),
+        ];
+        for s in &traj.states {
+            let action = s.action.as_deref().unwrap_or("(initial state)");
+            let thought = s.thought.as_deref().unwrap_or("").trim();
+            if !thought.is_empty() || s.action.is_some() {
+                lines.push(format!("[{}] {action}", s.step));
+                if !thought.is_empty() {
+                    lines.push(format!("    thought: {thought}"));
+                }
+            }
+        }
+        lines.join("\n")
+    }
+
+    fn render_note(n: &Note) -> String {
+        format!("{}\n{}\n{}", n.title, n.description, n.content)
+    }
+
+    let cfg = MyelinConfig::load().context("load myelin config")?;
+    let questions = lmev2::load_questions(questions_path)?;
+    let haystack = lmev2::load_haystack(haystack_path)?;
+    let by_domain = lmev2::haystacks_by_domain(&haystack, &questions)?;
+
+    let mut domain_of: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+    let mut wanted: std::collections::HashSet<String> = std::collections::HashSet::new();
+    for (domain, ids) in &by_domain {
+        for id in ids.iter().take(limit.unwrap_or(usize::MAX)) {
+            domain_of.insert(id.clone(), domain.clone());
+            wanted.insert(id.clone());
+        }
+        eprintln!(
+            "  pools {tier}/{domain}: {} trajectories",
+            limit.map_or(ids.len(), |n| n.min(ids.len()))
+        );
+    }
+
+    let llm = OpenAiLlm::new(&cfg.llm.url, &cfg.llm.model).context("reader client")?;
+    let embedder = RemoteEmbedder::new(&cfg.embed.url, &cfg.embed.model, cfg.embed.dim)
+        .context("embedder client")?;
+
+    let mut qdrant_cfg = cfg.qdrant.clone();
+    qdrant_cfg.collection = collection.to_string();
+    let store = QdrantStore::new(&qdrant_cfg).context("qdrant store")?;
+    store
+        .ensure_collection(cfg.embed.dim, false)
+        .await
+        .context("ensure collection")?;
+
+    let ledger = Ledger::open(ledger_path).await.context("open ledger")?;
+
+    let started = Instant::now();
+    let mut report = BuildReport {
+        per_unit: Vec::new(),
+        total: WriteStats::default(),
+        wall_secs: 0.0,
+        sessions_total: 0,
+        sessions_without_date: 0,
+    };
+    let mut trajectories_without_events = 0usize;
+    let mut trajectories_without_notes = 0usize;
+    let mut units_done = 0usize;
+
+    // Same streaming reader `build_lmev2` uses: depth-2 channel, blocking
+    // task, 1.2 GB file never fully resident.
+    let want_count = wanted.len();
+    let (tx, mut rx) = tokio::sync::mpsc::channel::<lmev2::Trajectory>(2);
+    let traj_path = trajectories.to_path_buf();
+    let reader = tokio::task::spawn_blocking(move || {
+        lmev2::for_each_trajectory(&traj_path, &wanted, |t| {
+            tx.blocking_send(t)
+                .map_err(|_| anyhow::anyhow!("pool ingest stopped before the file was consumed"))
+        })
+    });
+
+    while let Some(traj) = rx.recv().await {
+        let domain = &domain_of[&traj.id];
+        let scope = Scope::new(format!("{tier}/{domain}"), "myelin", tier);
+
+        // Resume: both pools complete means nothing to do. One pool missing
+        // (a crash between the two inserts) redoes the whole trajectory —
+        // the id scheme makes the surviving records dedup to no-ops.
+        let events_done = ledger
+            .unit_is_complete(&format!("{}#events", traj.id))
+            .await?;
+        let notes_done = ledger
+            .unit_is_complete(&format!("{}#notes", traj.id))
+            .await?;
+        if events_done && notes_done {
+            continue;
+        }
+
+        let trace = trace_text(&traj);
+        let mut traj_events = 0usize;
+        let mut traj_notes = 0usize;
+
+        // ── events: RecordKind::Semantic under {id}#events ──
+        if !events_done {
+            let request = CompletionRequest::new(vec![
+                Message::system(EVENT_PROMPT),
+                Message::user(trace.clone()),
+            ])
+            .with_schema(event_schema())
+            .with_max_tokens(2048);
+            let parsed = complete_json::<EventList>(&llm, &request).await;
+            match parsed {
+                Ok(list) => {
+                    let events: Vec<Event> = list.events.into_iter().take(6).collect();
+                    let turns: Vec<Turn> = events
+                        .iter()
+                        .map(|e| Turn {
+                            speaker: "event".into(),
+                            text: format!("{}\n{}", e.overview.trim(), e.state_transition.trim()),
+                            at: None,
+                            source: SourceRef::doc(format!("{}:events", traj.id)),
+                            unit: format!("{}#events", traj.id),
+                        })
+                        .collect();
+                    let mut write = WritePath::new(&llm, &embedder, &store, &ledger);
+                    write.record_kind = RecordKind::Semantic;
+                    write.extract_facts = false;
+                    let stats = write.insert(&scope, &turns).await?;
+                    traj_events = turns.len();
+                    report.total.merge(&stats);
+                }
+                Err(e) => {
+                    eprintln!(
+                        "  {} events: extraction failed ({e}); skipping pool",
+                        traj.id
+                    );
+                    trajectories_without_events += 1;
+                }
+            }
+        }
+
+        // ── notes: RecordKind::Procedural under {id}#notes ──
+        if !notes_done {
+            let request = CompletionRequest::new(vec![
+                Message::system(NOTE_PROMPT),
+                Message::user(trace.clone()),
+            ])
+            .with_schema(note_schema())
+            .with_max_tokens(2048);
+            let parsed = complete_json::<NoteSet>(&llm, &request).await;
+            match parsed {
+                Ok(set) => {
+                    let notes = [set.procedure_note, set.hint_note];
+                    let turns: Vec<Turn> = notes
+                        .iter()
+                        .map(|n| Turn {
+                            speaker: "note".into(),
+                            text: render_note(n),
+                            at: None,
+                            source: SourceRef::doc(format!("{}:notes", traj.id)),
+                            unit: format!("{}#notes", traj.id),
+                        })
+                        .collect();
+                    let mut write = WritePath::new(&llm, &embedder, &store, &ledger);
+                    write.record_kind = RecordKind::Procedural;
+                    write.extract_facts = false;
+                    let stats = write.insert(&scope, &turns).await?;
+                    traj_notes = turns.len();
+                    report.total.merge(&stats);
+                }
+                Err(e) => {
+                    eprintln!(
+                        "  {} notes: extraction failed ({e}); skipping pool",
+                        traj.id
+                    );
+                    trajectories_without_notes += 1;
+                }
+            }
+        }
+
+        eprintln!(
+            "  {:<10} {domain:<10} events={traj_events:<3} notes={traj_notes:<3} {:.1}s",
+            traj.id,
+            started.elapsed().as_secs_f64(),
+        );
+
+        for pool in ["#events", "#notes"] {
+            if (pool == "#events" && traj_events > 0) || (pool == "#notes" && traj_notes > 0) {
+                ledger
+                    .mark_unit_complete(
+                        &format!("{}{pool}", traj.id),
+                        &ActorId::new("myelin-eval"),
+                        serde_json::json!({
+                            "trajectory": traj.id,
+                            "pool": pool.trim_start_matches('#'),
+                            "records": if pool == "#events" { traj_events } else { traj_notes },
+                        }),
+                    )
+                    .await?;
+            }
+        }
+        units_done += 1;
+    }
+
+    let found = reader.await.context("trajectory reader task")??;
+    if found != want_count {
+        anyhow::bail!("haystack names {want_count} trajectories; read {found}");
+    }
+
+    let n = units_done;
+    if n > 0 {
+        let event_rate = 1.0 - trajectories_without_events as f64 / n as f64;
+        let note_rate = 1.0 - trajectories_without_notes as f64 / n as f64;
+        eprintln!(
+            "  pool extraction coverage: events {:.1}%  notes {:.1}% (below 95% means the prompt is broken)",
+            event_rate * 100.0,
+            note_rate * 100.0,
+        );
+    }
+
+    report.wall_secs = started.elapsed().as_secs_f64();
+    check_drift(&ledger, &store, &embedder, tier, repair).await?;
+    Ok(report)
+}
+
 /// Ingest LongMemEval_S: 500 questions, each with its own haystack.
 ///
 /// Unlike LME-V2-Small — where 200 trajectories collapse to two byte-identical
