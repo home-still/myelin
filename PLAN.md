@@ -789,6 +789,7 @@ Each milestone ends with a runnable command and a number, not a description.
 | M19 | **temporal resolution (G2)** | Time made computable rather than textual: the M14 temporal grammar moved into `myelin_core::time` so the read path can call it, plus an anchored `resolve_relative` over exactly the unanchored forms the gold grammar refuses, an `is_interval_question` classifier, a `[timeline]` dated index gated per query, persisted composed evidence on every bench row, a `--categories` stratum filter and a judge-backed `rescore --scorer judge`; three mechanisms measured alone and in combination on their own strata against rules fixed in advance, with paired CIs quoted from the CLI. **Measured: the resolved annotation is +37.6 pts on LoCoMo cat 2 (n=321, CI [+32.2, +43.2]), the reader-side date clause +14.3 ([+10.2, +18.7]), both together +42.8 ([+37.3, +48.5]) — and the marginals say both are needed (+5.2 and +28.4) ⇒ both ship on. The dated index is +6.8 on LongMemEval temporal-reasoning (CI [+3.0, +11.3]) and +6.8 again at k=25, while breadth alone is +3.8 with a CI spanning zero and `investigate` is exactly 0.0 at 6.5× the latency ⇒ the index ships on, `k`/`mode` stay per-call (R4).** Full-set judged: LoCoMo 62.66 → **69.87** (+7.2, CI [+5.5, +9.0]) and LongMemEval_S 52.00 → **56.40** (+4.4, CI [+1.6, +7.2]), halving the LoCoMo G2 gap from −15.19 to **−7.98**, with no off-target category moving on an interval that excludes zero. The diagnosis is per question rather than inferred: 103 of the 321 answers were bare relative expressions against absolute golds, the gold evidence turn was in the composed evidence for **101 of them** (so retrieval had found it), and 94 now carry an absolute date. Found and fixed on the way: **LongMemEval_S's session timestamps had never parsed**, so all 162,181 records carried the build date as `t_valid` and every one of its 500 memories had been showing the reader `[2026-09-15]` since M13 — an in-place repair is correctly refused by I1's trigger, so the corpus was re-ingested, worth 45 → 19 declines on its 61 duration questions on its own (`docs/measurements/m19-temporal-resolution.md`) |
 | M20 | preference/persona profile layer | A typed `RecordKind::Profile` minted by a user-turn-only extraction pass (`WritePath::extract_profiles`, 12.6% of LongMemEval_S's tokens, model call skipped entirely below `PROFILE_MIN_CHARS`), lineage-bound by I4, fetched by scope through a kind-filtered `Ledger::visible_of_kind`, and composed as an always-emitted `[profile]` block at the head of the evidence set; plus a reader clause, a tenth MCP tool `profile`, `remember --as_profile` with supersession through the existing `Delta::Update`, and `build --question-types`/`--concurrency`. Two arms measured alone and together on `single-session-preference` (n=30, judged) against a rule fixed in advance, CIs from the CLI. **Measured: arm A (the block) +0.0 (CI [−16.7, +16.7]), arm B (the clause) +3.3 ([−10.0, +16.7]), A+B +6.7 ([−10.0, +23.3]) ⇒ both defaults stay off.** The null has a cause: the store holds a median of **124 dispositions per tenant** and `PROFILE_MAX_RECORDS = 8` selects by recency, so the block carries 6.5% of them at a gold-content recall of **0.042** (9 of 30 questions at zero). The clause alone moves declines 11 → 7. Selection among in-scope material — neither retrieval nor generation — is the open problem (`docs/measurements/m20-preference-profile.md`) |
 | M21 | **evidence selection, and the instrument for it** | `myelin-eval coverage`: gold-turn recall of the *composed* evidence computed offline and deterministically from each corpus's own annotation (LongMemEval_S `has_answer`, LoCoMo `dia_id`), written to `<run>/coverage.json`, pinned against the three M19 runs (0.662 / 0.653 / 0.852, `all = 106`) and hard-erroring on the twelve pre-M19 artifacts that record no evidence rather than reporting their 0.000 as a measurement. Two selectors then measured against a rule fixed in advance: `ComposeConfig::mmr_lambda` (maximal marginal relevance, rank-based relevance so no cross-encoder logit is ever mixed with a cosine) and `pipeline::select::Selector` + `Retriever::with_llm` + `RetrieveConfig::select_sufficient` (ask the model which candidates jointly answer, stable-partitioned so nothing is dropped). **Measured: MMR is a regression — recall 0.658 → 0.550 / 0.471, judged −5.3 ([−11.3, +0.0]) and −9.8 ([−15.8, −3.8], p = 0.0018) — because the memories that jointly answer one question resemble *each other* 1.60× more than they resemble the rest of the set, so a redundancy penalty is aimed at co-evidence. The sufficiency selector clears the bar — recall 0.658 → 0.838 / 0.809 against a 0.852 pool ceiling, judged +7.5 ([−0.8, +15.8]) and +6.0 ([+1.5, +10.5], p = 0.0081), +3.8 over all 500 ([+1.0, +6.6], p = 0.0087) with no stratum regressing — and ships off anyway: §7.1 forbids an LLM in `recall`, and in `investigate`, the one path it was allowed to default on, it is exactly +0.0 ([−3.8, +3.8]) at +1.87 s/query because that loop unions its probes into a 60-record pool and re-composes. Does not transfer to LoCoMo multi-hop (−3.2, CI [−7.8, +1.1]; recall 0.478 → 0.367). All three switches off.** Also fixed `standing`, which was publishing the 60.40 arm instead of the 56.60 shipped configuration: selection is now complete → shipped-default → population → value. `docs/measurements/m21-evidence-selection.md` |
+| M22 | **G1 at its own operating point** | Pool-level selection (`investigate.rs::select_pool` replacing M21's per-probe view, one question-conditioned judgement over the accumulated pool because its cross-probe `score`s are logits from different queries and not mutually comparable), an undated-corpus gate (`dated`, suppressing `stamp_valid_time`/`resolve_relative`/`timeline`), both reachable as query-time operating points on **both** MCP tools — plus the missing `.with_llm` that had made the selector inert on the MCP path, `select`/`dated` in `standing::PAIR_KEYS`, and a population guard that stops a `--limit` pilot pairing into a 451-question submission. Three arms over the full tier-small pair (web 240 + enterprise 211), CIs from the CLI over the pooled 451, `evidence-audit` beside every accuracy, against a rule fixed in advance. **Measured: both switches are nulls — `dated=false` 39.02 vs a fresh same-code base of 36.59 (+2.4, CI [−1.1, +6.0]) and `select` 37.92, *negative* against `nodate` (−1.1, CI [−4.7, +2.4]) ⇒ both ship off and G1's 51.0 break-even is not claimed.** Three findings outrank the nulls: all **85,589** LME-V2 records carry the build date as `t_valid` (one calendar day, `t_valid == t_ingested` to the nanosecond) so M19's two shipped compose defaults have been annotating against a meaningless anchor — a `[timeline]` block on 240/240 web questions, and suppressing them is worth **−7.4 s/query**; the fresh base is **3.3 points below** the 39.91 `standing` still publishes, which pre-M19 code produced; and M16's S = P(sufficient \| wrong) reproduces at **12.1% [8.1, 17.6]** against its 12.2%, so the reader-fix ceiling (41.5) is still below break-even and retrieval is still the binding constraint (`docs/measurements/m22-g1-selection.md`) |
 
 M0 and M5 are not ceremony. M0 pins the four probe findings in §5 — exactly the kind of thing a Qdrant point
 release changes underneath us. M5 pins the benchmark's own privacy test against our adapter, which is the
@@ -825,75 +826,56 @@ web UI — the MCP surface and the eval report are the interfaces.
 
 ## 15. Immediate next step
 
-M0–M21 are done and committed. `docs/measurements/` carries one file per milestone; the standing table
+M0–M22 are done and committed. `docs/measurements/` carries one file per milestone; the standing table
 against the published literature is `docs/sota/registry.json` + `runs/standing/`.
 
-**M22 — make question-conditioned selection cheap enough for `recall`.** M21 did not find that
-selection fails. It found that selection *works* and there is nowhere to put it.
+**M23 — retrieval width and granularity on LME-V2, where the ceiling actually is.**
 
-The measured quantity: asking the model which of the 25 reranked candidates jointly answer the
-question raises gold-turn recall of the composed set from **0.658 to 0.838** (multi-session) and
-**0.809** (temporal-reasoning) — against a 0.852 ceiling that `k = 25` needs four times the items to
-touch — and converts to **+6.0 judged points on temporal-reasoning (CI [+1.5, +10.5], p = 0.0081)**
-and **+3.8 over all 500 (CI [+1.0, +6.6], p = 0.0087)** with no stratum regressing and no off-target
-cost. That is the largest unexploited lever measured on this project, and it is larger than the two
-strata it was aimed at: it is 3.8 of the 24.20 points between us and MemPro-15's Qwen3-30B row.
+M22 closed the selection question and the answer was no. Pool-level selection over `investigate`'s
+accumulated pool is **−1.1 (CI [−4.7, +2.4])** against the better baseline on the full 451-question
+tier-small pair, after the same mechanism measured +3.8 over all 500 LongMemEval_S questions and
+−3.2 on LoCoMo multi-hop. Three corpora, three signs: **selection's value is corpus-shaped, and the
+benchmark G1 is scored on is not the shape.**
 
-It ships off because it costs **+1.06 s per query**. `PLAN.md` §7.1 specifies `recall` as "target p95
-< 100 ms, no LLM in the loop", and `investigate` — the only path that could have defaulted it on —
-dissolves the effect entirely: exactly **+0.0 (CI [−3.8, +3.8])** at +1.87 s/query, because
-`step_k = 10` and `max_pool = 60` mean the probes are unioned and re-composed, so reordering one
-probe's candidates changes which items enter a pool that was going to hold them anyway.
+What M22 leaves is a much sharper target, because the diagnosis survived its own null. `evidence-audit`
+over all six new runs puts S = P(sufficient | wrong) at **12.1% [8.1, 17.6]** on the shipped
+configuration — reproducing M16's 12.2% [8.1, 17.9] on different code and a fresh run. So:
 
-So the target is fixed, and unusually well specified: **0.658 → 0.838 recall at `recall` latency,
-under ~10 ms.**
+- a perfect **reader** over today's evidence scores **41.5**, below the 51.0 break-even;
+- a perfect **retrieval** scores **76.9**, above AgentRunbook-R's 58.60 and within sight of
+  AgentRunbook-C's 74.90.
 
-**It is not reachable without giving something up, and the milestone's first job is to choose
-which.** Three commitments currently hold, and the measurement says they are inconsistent:
+The answer is in the store and not in the evidence set, on ~88% of the questions we get wrong. Two
+mechanisms are now the only ones left that address that, and M22 measured the reason both are
+untried:
 
-1. §7.1 — `recall` has no LLM in the loop.
-2. §14 — no cross-encoder training.
-3. The +3.8 points, which M21 measured and which only a question-conditioned *set*-level judgement
-   has produced.
+1. **Width.** `InvestigateConfig::step_k = 10` and `max_steps = 2`, so `investigate` composes from at
+   most **20** records and `k = 25` never binds. Every selection arm this project has run on LME-V2
+   was reordering a set it was going to emit in full anyway; only the 10,000-token budget ever
+   dropped anything. `prefetch_limit`, `rerank_depth` and `step_k` were deliberately out of scope for
+   M21 and M22, and M21's argument against breadth was measured on LongMemEval_S, not here.
+2. **Granularity.** LME-V2 records are whole rendered pages. A `k`-item evidence set of page dumps
+   can be simultaneously the right pages and the wrong context — which is exactly the shape of a
+   retrieval-limited corpus with a 42-point reader ceiling. Sub-record retrieval (span or section
+   level, composed back into the page's frame) is the only mechanism on the table that changes what
+   the reader reads rather than which records it reads.
 
-M21 closes off the cheap escape: a set-level judgement cannot be approximated by a distance, because
-the memories that jointly answer one question resemble *each other* **1.60×** more than they
-resemble the rest of the composed set (token-Jaccard 0.2235 vs 0.1399) — which is why MMR's
-redundancy term, aimed precisely at co-evidence, costs −9.8 judged points on temporal-reasoning.
-Any untrained, model-free selector is a distance in disguise and has the same defect.
+Four constraints to carry in, all measured:
 
-So one of the three gives, and the options should be priced before code is written:
-
-- **Relax §14 for one head, not for the reranker.** The cross-encoder already runs on every query
-  and already encodes (query, document) jointly; a set-level head over its 25 scored candidates is a
-  new head on a resident model rather than a second model or a retrained reranker. This is the
-  narrowest breach of the three and the only one that keeps §7.1 intact. Training data is cheap but
-  **not** free-standing: `bench` persists the composed evidence, not the selector's `keep[]` or the
-  25-candidate pool, so the labels have to be regenerated — either by persisting `keep[]` on
-  `RecallTrace` first, or by re-running retrieval, which is deterministic against a fixed store.
-  The population is already defined: **1,048 selector calls over 782 distinct questions** across
-  both corpora (`runs/m21_{ms,tr,full,mh}_sel`), and more are one bench run away.
-- **Relax §7.1 for `investigate` only, and fix `investigate` first.** The selector is not slow
-  *there* relative to what that path already spends — it is simply neutralised, and §10 of the
-  measurement says why: `step_k = 10` with `max_pool = 60` unions the probes. A loop that selected
-  once over its accumulated pool instead of per probe is a smaller change than training anything,
-  and it is the one option that needs no new model at all. It cannot reach the `recall` numbers,
-  because `recall` is what the product uses.
-- **Accept the +3.8 as unreachable and say so in the standing table.** The honest floor: it is a
-  measured ceiling on what selection is worth, and a system that reports the gap it cannot close is
-  better than one that quietly reports an arm — which is exactly the defect M21 found in `standing`.
-
-Three constraints to carry in, all measured:
-
-- **It must be checked on both corpora.** The selector does **not** transfer to LoCoMo multi-hop:
-  −3.2 judged (CI [−7.8, +1.1], a null) but recall **0.478 → 0.367**, unambiguously the wrong
-  direction. LoCoMo's records are short consolidated facts, not whole session turns; a selector tuned
-  only on LongMemEval_S will regress the other benchmark.
-- **The instrument exists and is free.** `myelin-eval coverage` computes gold-turn recall of the
-  composed evidence offline, deterministically, with no model call, and is pinned against the M19 runs
-  (0.662 / 0.653 / 0.852). Any candidate can be rejected on recall before a single judge call is
-  spent — which is how M21 killed MMR.
-- **Measure the path that ships.** M21 planned `investigate` as the selector's home on the strength of
-  `recall`-path numbers and would have shipped +0.0 at +1.87 s/query had it not measured that exact
-  configuration. And `standing` was publishing the 60.40 arm as our score until the selection rule was
-  fixed to prefer the shipped defaults; "where we stand" is where the defaults put us.
+- **Re-measure the base on the same store, every time.** M22's fresh same-code base is **36.59**
+  where `standing` still publishes **39.91** from pre-M19 code — the shipped defaults have lost 3.3
+  points on this corpus and nobody noticed, because no arm had re-run the base since M16.
+- **This corpus has no dates.** All 85,589 records carry the build wall-clock as `t_valid`, so
+  `resolve_relative` and `timeline` annotate against a meaningless anchor and emit a `[timeline]`
+  block on every `investigate` question. Suppressing them is a null on accuracy (+2.4, CI
+  [−1.1, +6.0]) but **−7.4 s per query**, and any future temporal claim on LME-V2 is invalid until
+  the corpus is re-ingested with real timestamps or `dated=false` is set. The `dated` operating point
+  exists; it is off because the rule said measured nulls do not change defaults.
+- **`investigate` skips the `is_interval_question` gate that `recall` applies**, so the dated index
+  is emitted unconditionally in agentic mode. Fixing it changes every `investigate` number measured
+  since M19 and therefore needs its own arm rather than a quiet correction.
+- **Latency is not the binding constraint at G1's operating point and should stop being treated as
+  one.** The measured points are 10.95 s (nodate), 14.45 s (select) and 18.31 s (shipped) against a
+  40 s budget, where the reference frontier's best point runs at 108.3 s. LAFS gain is 0.00 at every
+  point we have ever measured because the frontier *dominates* them on accuracy — not on time. Width
+  and granularity both cost seconds, and there are seconds to spend.

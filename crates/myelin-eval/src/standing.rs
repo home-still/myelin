@@ -1134,6 +1134,14 @@ fn read_json(path: &Path) -> Result<Value> {
     serde_json::from_str(&text).with_context(|| format!("parse {}", path.display()))
 }
 
+/// LongMemEval-V2 tier-small's population, per domain.
+///
+/// Not a convention: `docs/sota/registry.json` states the AgentRunbook rows
+/// against the tier's own 451 questions (web 240 + enterprise 211), and any
+/// other population is a different measurement wearing the same metric id.
+const LME_V2_SMALL_WEB: usize = 240;
+const LME_V2_SMALL_ENTERPRISE: usize = 211;
+
 /// The two metrics that need a web+enterprise pair: the tier-small combined
 /// accuracy, and the LAFS gain the leaderboard scores.
 ///
@@ -1143,7 +1151,20 @@ fn read_json(path: &Path) -> Result<Value> {
 fn pair_metrics(harness: &[HarnessRun], python: &str) -> Vec<Ours> {
     let mut pairs: Vec<(&HarnessRun, &HarnessRun)> = Vec::new();
     for web in harness.iter().filter(|h| h.domain == "web") {
+        // A `--limit` run is a pilot, not a submission. Without this check a
+        // 40-question web pilot pairs with a 211-question enterprise arm —
+        // the fingerprints match, because `--limit` is not an operating point
+        // — and publishes a "combined" accuracy over 251 questions against a
+        // bar defined on 451. Measured: M22's three pilots did exactly that
+        // and entered the candidate list, where the only thing standing
+        // between one of them and the published number was its value.
+        if web.count != LME_V2_SMALL_WEB {
+            continue;
+        }
         for ent in harness.iter().filter(|h| h.domain == "enterprise") {
+            if ent.count != LME_V2_SMALL_ENTERPRISE {
+                continue;
+            }
             if web.fingerprint == ent.fingerprint {
                 pairs.push((web, ent));
             }
@@ -2300,5 +2321,63 @@ mod tests {
         let combined = &ours["lme_v2_small.overall_full_set.combined"];
         assert_eq!(combined.n, 451);
         assert!((combined.value - 39.91).abs() < 1e-9, "{combined:?}");
+    }
+
+
+    /// A `--limit` pilot is not a submission. Its fingerprint is identical to
+    /// the full arm's — `--limit` is not an operating point — so without a
+    /// population guard a 40-question web pilot pairs with a 211-question
+    /// enterprise arm and publishes a "combined" accuracy over 251 questions
+    /// against a bar defined on 451. M22's three pilots did exactly that.
+    #[test]
+    fn a_limit_pilot_never_pairs_into_a_tier_population() {
+        let tmp = tempfile::tempdir().unwrap();
+        let runs = tmp.path().join("runs");
+        let arm = |name: &str, domain: &str, count: usize, acc: f64| {
+            let dir = runs.join(name);
+            std::fs::create_dir_all(dir.join("runtime_inputs")).unwrap();
+            std::fs::write(
+                dir.join("aggregated_metrics.json"),
+                serde_json::json!({
+                    "overall": {"overall_full_set": acc, "count_all_questions": count},
+                    "memory_query": {"avg_seconds": 11.0}
+                })
+                .to_string(),
+            )
+            .unwrap();
+            std::fs::write(
+                dir.join("run_args.json"),
+                serde_json::json!({"domain": domain, "evaluator_model": "Qwen/Qwen3.5-9B"})
+                    .to_string(),
+            )
+            .unwrap();
+            std::fs::write(
+                dir.join("runtime_inputs/memory_config.json"),
+                serde_json::json!({"memory_params": {"mode": "investigate", "k": 25}}).to_string(),
+            )
+            .unwrap();
+        };
+        // One real pair, plus a pilot that scores far higher than either.
+        arm("full_web", "web", 240, 0.40);
+        arm("full_ent", "enterprise", 211, 0.40);
+        arm("pilot_web", "web", 40, 0.95);
+
+        let ours = collect(&runs, "/nonexistent/python").unwrap();
+        let combined = &ours["lme_v2_small.overall_full_set.combined"];
+        assert_eq!(combined.n, 451, "only the tier's own population may pair");
+        assert!(
+            (combined.value - 40.0).abs() < 1e-9,
+            "the 0.95 pilot must not win: {combined:?}"
+        );
+        assert_eq!(
+            combined.candidates.len(),
+            1,
+            "one pair, not two: {:?}",
+            combined
+                .candidates
+                .iter()
+                .map(|c| (c.run.display().to_string(), c.value))
+                .collect::<Vec<_>>()
+        );
     }
 }

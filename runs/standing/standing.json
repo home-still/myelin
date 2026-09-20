@@ -1,6 +1,6 @@
 {
-  "commit": "b92456fffec27b98b5008baeceecb63ab75c9950-dirty",
-  "generated_at": "2026-09-19T21:03:26.746027Z",
+  "commit": "7954469e83cffc9568c6de9e340e8844af796de1-dirty",
+  "generated_at": "2026-09-20T07:11:23.522481Z",
   "rows": [
     {
       "registry_id": "locomo.judge.mempro15.gpt4omini",
@@ -916,11 +916,23 @@
       "run": "runs/myelin_inv2_web_small",
       "source_doi": "10.48550/arXiv.2605.12493",
       "caveat": "G1's accuracy bar (PLAN.md 11.5). Two facts make this the cleanest comparison in the registry and one makes it dirtier. Clean: the reader is Qwen3.5-9B (L518, L525, L952) - the same open-weights model we serve - and the population is the same 451 questions we run (L77, Table 1 #Q L299), abstention and gotchas included. Dirty: the coding-agent family's controller is Codex + GPT-5.4-mini at xhigh reasoning (L656), where ours is the local reader, and free-form answers are graded by GPT-5.2 at medium reasoning (L974) where ours are graded by Qwen3.5-9B. The paper prints 0.749; recorded here on the pct_0_100 scale. The 240 web / 211 enterprise split is our harness's, not the paper's - it pools domains per tier (L1195).",
-      "detail": "question-weighted mean of myelin_inv2_web_small (45.00 over 240) and myelin_inv2_enterprise_small (34.12 over 211); mode=\"investigate\" k=25 budget_tokens=10000 max_steps=2 prefetch_limit=null rerank_depth=null",
+      "detail": "question-weighted mean of myelin_inv2_web_small (45.00 over 240) and myelin_inv2_enterprise_small (34.12 over 211); mode=\"investigate\" k=25 budget_tokens=10000 max_steps=2 prefetch_limit=null rerank_depth=null select=null dated=null",
       "candidates": [
         {
           "run": "runs/myelin_inv2_web_small",
           "value": 39.91130820399113
+        },
+        {
+          "run": "runs/m22_nodate_web",
+          "value": 39.02439024390244
+        },
+        {
+          "run": "runs/m22_sel_web",
+          "value": 37.91574279379157
+        },
+        {
+          "run": "runs/m22_base_web",
+          "value": 36.58536585365854
         },
         {
           "run": "runs/myelin_k25_web_small",
@@ -946,11 +958,23 @@
       "run": "runs/myelin_inv2_web_small",
       "source_doi": "10.48550/arXiv.2605.12493",
       "caveat": "The RAG-family ceiling, and the closest published system to ours in kind: Qwen3.5-9B as both memory controller and reader with Qwen3-Embedding-8B for retrieval (L518). Only the judge differs from our protocol. 26.9 s per query.",
-      "detail": "question-weighted mean of myelin_inv2_web_small (45.00 over 240) and myelin_inv2_enterprise_small (34.12 over 211); mode=\"investigate\" k=25 budget_tokens=10000 max_steps=2 prefetch_limit=null rerank_depth=null",
+      "detail": "question-weighted mean of myelin_inv2_web_small (45.00 over 240) and myelin_inv2_enterprise_small (34.12 over 211); mode=\"investigate\" k=25 budget_tokens=10000 max_steps=2 prefetch_limit=null rerank_depth=null select=null dated=null",
       "candidates": [
         {
           "run": "runs/myelin_inv2_web_small",
           "value": 39.91130820399113
+        },
+        {
+          "run": "runs/m22_nodate_web",
+          "value": 39.02439024390244
+        },
+        {
+          "run": "runs/m22_sel_web",
+          "value": 37.91574279379157
+        },
+        {
+          "run": "runs/m22_base_web",
+          "value": 36.58536585365854
         },
         {
           "run": "runs/myelin_k25_web_small",
@@ -976,11 +1000,23 @@
       "run": "runs/myelin_inv2_web_small",
       "source_doi": "10.48550/arXiv.2605.12493",
       "caveat": "PLAN.md 11.5 recorded 69.3 at about 182 s/query, which is the abstract's tier-unspecific figure (L311); Table 2's tier-small row is 0.699 at 177.2 s and the medium row is 0.687 at 185.8 s (L659-671). The tier-small number is the comparable one and is what this row carries.",
-      "detail": "question-weighted mean of myelin_inv2_web_small (45.00 over 240) and myelin_inv2_enterprise_small (34.12 over 211); mode=\"investigate\" k=25 budget_tokens=10000 max_steps=2 prefetch_limit=null rerank_depth=null",
+      "detail": "question-weighted mean of myelin_inv2_web_small (45.00 over 240) and myelin_inv2_enterprise_small (34.12 over 211); mode=\"investigate\" k=25 budget_tokens=10000 max_steps=2 prefetch_limit=null rerank_depth=null select=null dated=null",
       "candidates": [
         {
           "run": "runs/myelin_inv2_web_small",
           "value": 39.91130820399113
+        },
+        {
+          "run": "runs/m22_nodate_web",
+          "value": 39.02439024390244
+        },
+        {
+          "run": "runs/m22_sel_web",
+          "value": 37.91574279379157
+        },
+        {
+          "run": "runs/m22_base_web",
+          "value": 36.58536585365854
         },
         {
           "run": "runs/myelin_k25_web_small",
@@ -1006,11 +1042,23 @@
       "run": "runs/myelin_inv2_web_small",
       "source_doi": "10.48550/arXiv.2605.12493",
       "caveat": "The LAFS break-even bar: this is the reference frontier's fastest point (51.0 at 0.2 s), so any submission slower than 0.2 s must beat 51.0 to move the frontier at all (docs/EVALUATION.md 3.3). Our 45.0 at 11.06 s sits below it, which is why the LAFS gain is exactly 0.",
-      "detail": "question-weighted mean of myelin_inv2_web_small (45.00 over 240) and myelin_inv2_enterprise_small (34.12 over 211); mode=\"investigate\" k=25 budget_tokens=10000 max_steps=2 prefetch_limit=null rerank_depth=null",
+      "detail": "question-weighted mean of myelin_inv2_web_small (45.00 over 240) and myelin_inv2_enterprise_small (34.12 over 211); mode=\"investigate\" k=25 budget_tokens=10000 max_steps=2 prefetch_limit=null rerank_depth=null select=null dated=null",
       "candidates": [
         {
           "run": "runs/myelin_inv2_web_small",
           "value": 39.91130820399113
+        },
+        {
+          "run": "runs/m22_nodate_web",
+          "value": 39.02439024390244
+        },
+        {
+          "run": "runs/m22_sel_web",
+          "value": 37.91574279379157
+        },
+        {
+          "run": "runs/m22_base_web",
+          "value": 36.58536585365854
         },
         {
           "run": "runs/myelin_k25_web_small",
@@ -1033,13 +1081,13 @@
       },
       "claim_allowed": false,
       "gate": true,
-      "run": "runs/myelin_inv2_web_small",
+      "run": "runs/m22_base_web",
       "source_doi": "10.48550/arXiv.2605.12493",
       "caveat": "G1's primary gate. The number to beat is a GAIN, so the bar is strict: 0.0 is what a dominated submission scores, and `bar: greater_than` is what stops a tie from passing. The reference frontier is hard-coded in the released tool (leaderboard/compute_lafs.py `fixed_frontier_points['small']` = 51.0@0.2s, 58.6@26.9s, 74.9@108.3s, 69.9@177.2s) and computes to reference_lafs 55.76484693638005, matching PLAN.md 11.5's 55.765.",
-      "detail": "adapters/lafs_point.py over 2 submission point(s): myelin_inv2_web_small+myelin_inv2_enterprise_small 39.91@12.76s, myelin_k25_web_small+myelin_k25_enterprise_small 35.70@1.97s",
+      "detail": "adapters/lafs_point.py over 5 submission point(s): m22_base_web+m22_base_ent 36.59@18.31s, m22_nodate_web+m22_nodate_ent 39.02@10.95s, m22_sel_web+m22_sel_ent 37.92@14.45s, myelin_inv2_web_small+myelin_inv2_enterprise_small 39.91@12.76s, myelin_k25_web_small+myelin_k25_enterprise_small 35.70@1.97s",
       "candidates": [
         {
-          "run": "runs/myelin_inv2_web_small",
+          "run": "runs/m22_base_web",
           "value": 0.0
         }
       ]
@@ -1700,13 +1748,13 @@
       "n": 451,
       "judge_class": "open_weights_local",
       "backbone_class": "open_weights",
-      "run": "runs/myelin_inv2_web_small",
-      "detail": "adapters/lafs_point.py over 2 submission point(s): myelin_inv2_web_small+myelin_inv2_enterprise_small 39.91@12.76s, myelin_k25_web_small+myelin_k25_enterprise_small 35.70@1.97s",
+      "run": "runs/m22_base_web",
+      "detail": "adapters/lafs_point.py over 5 submission point(s): m22_base_web+m22_base_ent 36.59@18.31s, m22_nodate_web+m22_nodate_ent 39.02@10.95s, m22_sel_web+m22_sel_ent 37.92@14.45s, myelin_inv2_web_small+myelin_inv2_enterprise_small 39.91@12.76s, myelin_k25_web_small+myelin_k25_enterprise_small 35.70@1.97s",
       "incomplete": null,
       "arm": false,
       "candidates": [
         {
-          "run": "runs/myelin_inv2_web_small",
+          "run": "runs/m22_base_web",
           "value": 0.0
         }
       ]
@@ -1728,8 +1776,20 @@
           "value": 2.1204330713065533
         },
         {
+          "run": "runs/m22_nodate_ent",
+          "value": 10.904980897107846
+        },
+        {
+          "run": "runs/m22_sel_ent",
+          "value": 14.673792037900736
+        },
+        {
           "run": "runs/myelin_inv2_enterprise_small",
           "value": 14.689353794246522
+        },
+        {
+          "run": "runs/m22_base_ent",
+          "value": 23.060961017346504
         }
       ]
     },
@@ -1754,8 +1814,32 @@
           "value": 2.098842330049956
         },
         {
+          "run": "runs/m22_nodate_web",
+          "value": 10.995170539757964
+        },
+        {
           "run": "runs/myelin_inv2_web_small",
           "value": 11.059355974995771
+        },
+        {
+          "run": "runs/m22_base_web",
+          "value": 14.139020609409153
+        },
+        {
+          "run": "runs/m22_sel_web",
+          "value": 14.2584205737597
+        },
+        {
+          "run": "runs/m22_pilot_base",
+          "value": 13.569880828152236
+        },
+        {
+          "run": "runs/m22_pilot_nodate",
+          "value": 18.641847096951096
+        },
+        {
+          "run": "runs/m22_pilot_sel",
+          "value": 26.80674800304987
         }
       ]
     },
@@ -1767,13 +1851,25 @@
       "judge_class": "open_weights_local",
       "backbone_class": "open_weights",
       "run": "runs/myelin_inv2_web_small",
-      "detail": "question-weighted mean of myelin_inv2_web_small (45.00 over 240) and myelin_inv2_enterprise_small (34.12 over 211); mode=\"investigate\" k=25 budget_tokens=10000 max_steps=2 prefetch_limit=null rerank_depth=null",
+      "detail": "question-weighted mean of myelin_inv2_web_small (45.00 over 240) and myelin_inv2_enterprise_small (34.12 over 211); mode=\"investigate\" k=25 budget_tokens=10000 max_steps=2 prefetch_limit=null rerank_depth=null select=null dated=null",
       "incomplete": null,
       "arm": false,
       "candidates": [
         {
           "run": "runs/myelin_inv2_web_small",
           "value": 39.91130820399113
+        },
+        {
+          "run": "runs/m22_nodate_web",
+          "value": 39.02439024390244
+        },
+        {
+          "run": "runs/m22_sel_web",
+          "value": 37.91574279379157
+        },
+        {
+          "run": "runs/m22_base_web",
+          "value": 36.58536585365854
         },
         {
           "run": "runs/myelin_k25_web_small",
@@ -1783,23 +1879,35 @@
     },
     {
       "metric": "lme_v2_small.overall_full_set.enterprise",
-      "value": 34.59715639810427,
+      "value": 36.018957345971565,
       "unit": "pct_0_100",
       "n": 211,
       "judge_class": "open_weights_local",
       "backbone_class": "open_weights",
-      "run": "runs/myelin_k25_enterprise_small",
+      "run": "runs/m22_sel_ent",
       "detail": "overall.overall_full_set x 100 over 211 questions, evaluator Qwen/Qwen3.5-9B",
       "incomplete": null,
       "arm": false,
       "candidates": [
         {
+          "run": "runs/m22_sel_ent",
+          "value": 36.018957345971565
+        },
+        {
           "run": "runs/myelin_k25_enterprise_small",
           "value": 34.59715639810427
         },
         {
+          "run": "runs/m22_nodate_ent",
+          "value": 34.12322274881517
+        },
+        {
           "run": "runs/myelin_inv2_enterprise_small",
           "value": 34.12322274881517
+        },
+        {
+          "run": "runs/m22_base_ent",
+          "value": 32.22748815165877
         }
       ]
     },
@@ -1820,12 +1928,36 @@
           "value": 45.0
         },
         {
+          "run": "runs/m22_nodate_web",
+          "value": 43.333333333333336
+        },
+        {
+          "run": "runs/m22_base_web",
+          "value": 40.416666666666664
+        },
+        {
+          "run": "runs/m22_sel_web",
+          "value": 39.58333333333333
+        },
+        {
           "run": "runs/myelin_k25_web_small",
           "value": 36.666666666666664
         },
         {
           "run": "runs/myelin_fast_web_small",
           "value": 30.833333333333336
+        },
+        {
+          "run": "runs/m22_pilot_sel",
+          "value": 47.5
+        },
+        {
+          "run": "runs/m22_pilot_nodate",
+          "value": 45.0
+        },
+        {
+          "run": "runs/m22_pilot_base",
+          "value": 40.0
         }
       ]
     },
