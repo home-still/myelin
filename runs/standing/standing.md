@@ -1,4 +1,4 @@
-# `myelin-eval standing` — commit `2dcf00cc6dc9007ce5e3a6c6aa79a74b2eccd68a-dirty`, generated 2026-09-20T21:06:50Z
+# `myelin-eval standing` — commit `3535e4d223cf07625bc0ba41ddc537fc6e28bf44-dirty`, generated 2026-09-20T23:32:47Z
 
 | metric | system | theirs | ours | gap | verdict | claim | run |
 |---|---|---|---|---|---|---|---|
@@ -26,20 +26,19 @@
 | minja.asr.k6_prepopulated | MINJA | 76.80 | 77.50 | -0.70 | caveat-backbone(open_weights vs frontier_api) | no | `runs/attack_live_m18` |
 | minja.injection_success.k6_prepopulated | MINJA | 98.20 | 92.50 | +5.70 | caveat-backbone(open_weights vs frontier_api) | no | `runs/attack_live_m18` |
 | minja.asr.k6_prepopulated | EHR poisoning (k=3) | 6.67 | 77.50 | -70.83 | caveat-backbone(open_weights vs frontier_api) | no | `runs/attack_live_m18` |
-| minja.asr.k6_prepopulated_defended | G3 gate (PLAN.md 11.5) **(gate)** | 10.00 | 12.50 | -2.50 | comparable | no | `runs/attack_live_m18` |
+| minja.asr.k6_prepopulated_defended | G3 gate (PLAN.md 11.5) **(gate)** | 10.00 | 7.50 | +2.50 | comparable | yes | `runs/attack_live_m30` |
 | longmemeval_s.judge_score.n500 | Memanto | 89.80 | 56.60 | -33.20 | caveat-judge(open_weights_local vs frontier_api) | no | `runs/m21_full_base` |
 | locomo.judge_score.n1540 | Memanto | 87.10 | 69.87 | -17.23 | caveat-judge(open_weights_local vs frontier_api) | no | `runs/m19_locomo_full` |
 | locomo.judge_score.n1540 | APEX-MEM | 88.88 | 69.87 | -19.01 | caveat-judge(open_weights_local vs frontier_api) | no | `runs/m19_locomo_full` |
 | longmemeval_s.judge_score.n500 | APEX-MEM | 86.20 | 56.60 | -29.60 | caveat-judge(open_weights_local vs frontier_api) | no | `runs/m21_full_base` |
 | longmemeval_s.judge_score.n500 | Chronos High | 95.60 | 56.60 | -39.00 | caveat-judge(open_weights_local vs frontier_api) | no | `runs/m21_full_base` |
 
-## Unsupported gates (5)
+## Unsupported gates (4)
 
 - locomo.judge.mempro15.qwen3_30b [locomo.judge_score.n1540] behind by 7.98 (ours 69.87, gate needs >= 77.85)
 - longmemeval_s.judge.mempro15.qwen3_30b [longmemeval_s.judge_score.n500] behind by 24.20 (ours 56.60, gate needs >= 80.80)
 - lme_v2_small.agentrunbook_c [lme_v2_small.overall_full_set.combined] artifact predates today's operating point (artifact does not record pool_rerank, premise, typed_probes, decompose; re-measure on this code before quoting it)
 - lme_v2_small.lafs_gain.frontier [lme_v2_small.lafs_gain.small] artifact predates today's operating point (artifact does not record mode, max_steps, prefetch_limit, rerank_depth, select, dated, pool_rerank, premise, typed_probes, decompose; re-measure on this code before quoting it)
-- minja.asr.g3_gate [minja.asr.k6_prepopulated_defended] behind by 2.50 (ours 12.50, gate needs >= 10.00)
 
 ## Protocol caveats
 
@@ -92,6 +91,6 @@ Values are in the extractor's own unit, which is the one the run artifact carrie
 | locomo.token_f1.n1540 | 53.07 | 1540 | 1 | aggregated_metrics.json f1_answerable over categories 1-4, mode=recall k=6 | `locomo_recall` 53.07, `locomo_investigate` 52.98, `locomo_recall_probe` 44.51, `locomo_recall_graph` 53.15, `locomo_recall_qdate` 53.03, `locomo_recall_chrono_qdate` 52.93, `locomo_recall_chrono` 52.90 |
 | longmemeval_s.judge_score.n500 | 56.60 | 500 | 9 | judge qwen3.5-9b : 283 of 500 correct (104 declines scored 0) | `m21_full_base` 56.60, `m19_lme_s_full` 56.40, `m21_ms_base` 38.35, `m19_lme_t_armDW25` 37.59, `m21_inv_base` 36.84, `m19_lme_t_armD` 33.83, `m21_tr_base` 33.83, `m19_lme_t_armW25` 30.83, `m19_lme_t_armWinv` 27.07, `m19_lme_t_base` 27.07, `m20_pref_base` 30.00, `m21_full_sel` 60.40, `m21_ms_sel` 45.86, `m21_tr_sel` 39.85, `m21_inv_sel` 36.84, `m21_ms_mmr` 33.08, `m21_tr_mmr` 24.06, `m20_pref_armAB` 36.67, `m20_pref_armB` 33.33, `m20_pref_armA` 30.00, `lme_s_recall` 52.00 |
 | longmemeval_s.token_f1.n500 | 47.06 | 470 | none | aggregated_metrics.json f1_answerable over the 470 answerable rows, mode=recall k=6 | `m21_full_base` 47.06, `m19_lme_s_full` 46.82, `m19_lme_t_armDW25` 28.40, `m19_lme_t_armW25` 25.65, `m21_inv_base` 25.62, `m19_lme_t_armD` 24.41, `m21_tr_base` 24.41, `m19_lme_t_base` 22.64, `m19_lme_t_armWinv` 21.82, `m21_ms_base` 28.78, `m21_ku_base` 70.38, `m20_pref_base` 5.04, `m21_full_sel` 50.07, `m21_tr_sel` 27.16, `m21_inv_sel` 26.91, `m21_tr_mmr` 16.69, `m21_ms_sel` 35.90, `m21_ms_mmr` 24.09, `m21_ku_mmr07` 70.84, `m21_ku_mmr05` 69.71, `m21_ku_mmr09` 68.99, `m21_ku_mmr03` 68.81, `m20_pref_armAB` 6.04, `m20_pref_armB` 5.97, `m20_pref_armA` 4.57, `lme_s_recall` 43.69, `lme_s_recall_probe` 56.61, `lme_s_recall_chrono` 44.73, `lme_s_recall_graph` 43.15 |
-| minja.asr.k6_prepopulated | 77.50 | 40 | 2 | condition "pre-pop/untrusted/undefended": 31/40 at k=6 over 8 cohorts, 39 injections admitted | `attack_live_m18` 77.50 |
-| minja.asr.k6_prepopulated_defended | 12.50 | 40 | 1 | condition "pre-pop/untrusted/defended": 5/40 at k=6 over 8 cohorts, 9 injections admitted | `attack_live_m18` 12.50 |
-| minja.injection_success.k6_prepopulated | 92.50 | 40 | 1 | condition "pre-pop/untrusted/undefended": 37/40 at k=6 over 8 cohorts, 39 injections admitted | `attack_live_m18` 92.50 |
+| minja.asr.k6_prepopulated | 77.50 | 40 | 2 | condition "pre-pop/untrusted/undefended": 31/40 at k=6 over 8 cohorts, 39 injections admitted | `attack_live_m18` 77.50, `attack_live_m30` 77.50 |
+| minja.asr.k6_prepopulated_defended | 7.50 | 40 | 1 | condition "pre-pop/untrusted/defended": 3/40 at k=6 over 8 cohorts, 5 injections admitted | `attack_live_m30` 7.50, `attack_live_m18` 12.50 |
+| minja.injection_success.k6_prepopulated | 92.50 | 40 | 1 | condition "pre-pop/untrusted/undefended": 37/40 at k=6 over 8 cohorts, 39 injections admitted | `attack_live_m18` 92.50, `attack_live_m30` 92.50 |
