@@ -30,33 +30,57 @@ import random
 from pathlib import Path
 
 
-def load_scores(run_dir: str) -> dict[str, float]:
-    """Map question_id -> score for one completed run."""
+def _dirs(spec: str) -> list[str]:
+    """One side of the comparison, as one or more run directories.
+
+    LongMemEval-V2's tier-small population is a *pair* of domain runs — web
+    240 + enterprise 211 = 451 — and `standing` rejects either alone as
+    not-comparable. So an arm on that benchmark is two directories, and a rule
+    written against its combined accuracy cannot be applied without pooling
+    them. `web+enterprise` on each side does that; question ids are disjoint
+    across domains, so the union is still one question per pair.
+
+    A single directory parses to a one-element list and every id, ordering and
+    interval is bit-identical to before.
+    """
+    parts = [p for p in spec.split("+") if p]
+    if not parts:
+        raise SystemExit(f"empty run spec: {spec!r}")
+    return parts
+
+
+def load_scores(run_spec: str) -> dict[str, float]:
+    """Map question_id -> score over one side's run directories."""
     scores: dict[str, float] = {}
-    with open(Path(run_dir) / "per_question.jsonl", encoding="utf-8") as handle:
-        for line in handle:
-            line = line.strip()
-            if not line:
-                continue
-            row = json.loads(line)
-            scores[str(row["question_id"])] = float(row["score"])
+    for run_dir in _dirs(run_spec):
+        with open(Path(run_dir) / "per_question.jsonl", encoding="utf-8") as handle:
+            for line in handle:
+                line = line.strip()
+                if not line:
+                    continue
+                row = json.loads(line)
+                qid = str(row["question_id"])
+                if qid in scores:
+                    raise SystemExit(f"duplicate question id {qid} across {run_spec}")
+                scores[qid] = float(row["score"])
     return scores
 
 
-def load_flags(run_dir: str) -> dict[str, bool]:
+def load_flags(run_spec: str) -> dict[str, bool]:
     """Map question_id -> is_abstention_problem, for stratified reporting."""
     flags: dict[str, bool] = {}
-    with open(Path(run_dir) / "per_question.jsonl", encoding="utf-8") as handle:
-        for line in handle:
-            line = line.strip()
-            if not line:
-                continue
-            row = json.loads(line)
-            flags[str(row["question_id"])] = bool(row["is_abstention_problem"])
+    for run_dir in _dirs(run_spec):
+        with open(Path(run_dir) / "per_question.jsonl", encoding="utf-8") as handle:
+            for line in handle:
+                line = line.strip()
+                if not line:
+                    continue
+                row = json.loads(line)
+                flags[str(row["question_id"])] = bool(row["is_abstention_problem"])
     return flags
 
 
-def load_categories(run_dir: str) -> dict[str, int]:
+def load_categories(run_spec: str) -> dict[str, int]:
     """Map question_id -> category, for the per-category stratum.
 
     `category` is written by `bench.rs::finish_run` for both corpora, but the
@@ -67,13 +91,14 @@ def load_categories(run_dir: str) -> dict[str, int]:
     directories, so that is a usage rule rather than something to enforce.
     """
     cats: dict[str, int] = {}
-    with open(Path(run_dir) / "per_question.jsonl", encoding="utf-8") as handle:
-        for line in handle:
-            line = line.strip()
-            if not line:
-                continue
-            row = json.loads(line)
-            cats[str(row["question_id"])] = int(row["category"])
+    for run_dir in _dirs(run_spec):
+        with open(Path(run_dir) / "per_question.jsonl", encoding="utf-8") as handle:
+            for line in handle:
+                line = line.strip()
+                if not line:
+                    continue
+                row = json.loads(line)
+                cats[str(row["question_id"])] = int(row["category"])
     return cats
 
 
@@ -179,8 +204,12 @@ def compare(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("run_a")
-    parser.add_argument("run_b")
+    parser.add_argument(
+        "run_a",
+        help="run directory, or several joined by '+' when one arm spans "
+        "directories (LongMemEval-V2: 'runs/x_web+runs/x_ent' = the tier's 451)",
+    )
+    parser.add_argument("run_b", help="the same, for the arm being compared against")
     parser.add_argument("--iterations", type=int, default=20000)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument(
