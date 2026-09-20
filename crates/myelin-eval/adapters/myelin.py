@@ -111,6 +111,12 @@ class _McpSession:
         self._lock = threading.Lock()
         self._session_id: str | None = None
         self._next_id = 0
+        # Guards session re-establishment. `_epoch` increments once per
+        # successful `initialize`, so four harness workers that all notice the
+        # same dead session re-create it once between them instead of four
+        # times.
+        self._init_lock = threading.Lock()
+        self._epoch = 0
 
     def _post(self, payload: dict[str, Any]) -> tuple[dict[str, Any] | None, dict[str, str]]:
         body = json.dumps(payload).encode("utf-8")
@@ -151,6 +157,11 @@ class _McpSession:
         return message.get("result", {})
 
     def initialize(self) -> None:
+        with self._init_lock:
+            self._initialize_locked()
+
+    def _initialize_locked(self) -> None:
+        self._session_id = None
         message, headers = self._post(
             {
                 "jsonrpc": "2.0",
@@ -169,6 +180,39 @@ class _McpSession:
         # `notifications/initialized` has no id and no response body; the
         # server refuses tool calls until it has been sent.
         self._post({"jsonrpc": "2.0", "method": "notifications/initialized", "params": {}})
+        self._epoch += 1
+
+    # The server may evict a session out from under us, and retrying a dead
+    # one can only fail. Measured: the harness spends >5 minutes loading its
+    # 1.1 GB `trajectories.jsonl` between this adapter's construction-time
+    # liveness probe and the first prompt-building query, and `rmcp`'s
+    # `LocalSessionManager` drops the idle session in that window — every
+    # later call then returns `HTTP 404: Session not found` and a
+    # 240-question arm dies four minutes in. A client that cannot re-establish
+    # its own session is not resilient, whatever the eviction policy is.
+    SESSION_LOST = ("session not found", "session error", "http 404")
+
+    def _recover_session(self, seen_epoch: int) -> bool:
+        """Re-establish the session once per loss, across all worker threads."""
+        with self._init_lock:
+            if self._epoch != seen_epoch:
+                return True  # another worker already rebuilt it
+            try:
+                self._initialize_locked()
+            except McpError as exc:
+                print(
+                    f"myelin adapter: session re-initialize failed ({exc})",
+                    file=sys.stderr,
+                    flush=True,
+                )
+                return False
+        print(
+            f"myelin adapter: server dropped the session; re-initialized as "
+            f"{self._session_id}",
+            file=sys.stderr,
+            flush=True,
+        )
+        return True
 
     # Reads are idempotent, so a failed `tools/call` is retried a bounded
     # number of times. This is harness plumbing, not a change to the system
@@ -182,19 +226,36 @@ class _McpSession:
     # `Prompt building failed for question ...` on the first exception. The
     # retry is logged to stderr so a run's log shows how often it fired; a
     # retried question's `memory_query_duration_seconds` includes the wait.
-    CALL_ATTEMPTS = 3
-    CALL_BACKOFF_SECONDS = 2.0
+    # Six attempts with capped exponential backoff — about three minutes.
+    # Sized against the observed outage, not against a round number: another
+    # tenant starting vLLM drove `big` to load 151, sshd stopped answering,
+    # and the 5810/5813 tunnel was down for five minutes. Three attempts over
+    # six seconds cannot cross that; a two-hour arm dying at minute 35 costs
+    # far more than a few wasted retries.
+    CALL_ATTEMPTS = 6
+    CALL_BACKOFF_SECONDS = 4.0
+    CALL_BACKOFF_CAP_SECONDS = 60.0
 
     def call_tool(self, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         last: McpError | None = None
         for attempt in range(1, self.CALL_ATTEMPTS + 1):
+            epoch = self._epoch
             try:
                 return self._call_tool_once(name, arguments)
             except McpError as exc:
                 last = exc
                 if attempt == self.CALL_ATTEMPTS:
                     break
-                delay = self.CALL_BACKOFF_SECONDS * attempt
+                # A dropped session is not a transient network fault: waiting
+                # cannot fix it, and re-establishing it costs one round trip.
+                text = str(exc).lower()
+                if any(marker in text for marker in self.SESSION_LOST):
+                    if self._recover_session(epoch):
+                        continue
+                delay = min(
+                    self.CALL_BACKOFF_SECONDS * 2 ** (attempt - 1),
+                    self.CALL_BACKOFF_CAP_SECONDS,
+                )
                 print(
                     f"myelin adapter: {name} attempt {attempt}/{self.CALL_ATTEMPTS} "
                     f"failed ({exc}); retrying in {delay:.0f}s",

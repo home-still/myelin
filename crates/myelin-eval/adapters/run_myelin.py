@@ -153,6 +153,18 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--evaluator-base-url", default=os.getenv("EVALUATOR_BASE_URL"))
     parser.add_argument("--evaluator-api-key-env", default="OPENAI_API_KEY")
     parser.add_argument("--evaluator-reasoning-effort", choices=["low", "medium", "high"], default="medium")
+    parser.add_argument(
+        "--openai-max-retries",
+        type=int,
+        default=10,
+        help="Retry budget for every reader and judge call. 10 is the vendored default "
+        "and the openai SDK caps its backoff at 8 s, so 10 covers only ~55 s of outage. "
+        "`big` is a shared host: another tenant's vLLM start drove it to load 151, sshd "
+        "stopped answering, the 5810/5813 tunnel dropped for ~5 minutes, and a 35-minute "
+        "arm died with APIConnectionError. Raise this on a contended host — the harness "
+        "keeps generations in memory and writes per_question.jsonl only during scoring, "
+        "so one exhausted retry budget destroys the whole run.",
+    )
     parser.add_argument("--evaluator-max-completion-tokens", type=int, default=4096)
 
     parser.add_argument("--shuffle-questions-seed", type=int, default=None)
@@ -245,7 +257,18 @@ def main() -> None:
     if args.shuffle_questions_seed is not None:
         harness_argv.extend(["--shuffle-questions-seed", str(args.shuffle_questions_seed)])
 
-    from evaluation.harness import main as harness_main  # noqa: E402
+    from evaluation import harness as harness_module  # noqa: E402
+    from evaluation import qa_eval_metrics  # noqa: E402
+
+    # Set on the modules rather than in the vendored files: `PLAN.md` §3.3
+    # requires the harness, its scorers and its leaderboard builders to run
+    # unmodified, and a retry budget edited into vendor code is a diff that
+    # silently travels with every future run. Both modules build their own
+    # client, so both have to be told.
+    harness_module.OPENAI_MAX_RETRIES = args.openai_max_retries
+    qa_eval_metrics.OPENAI_MAX_RETRIES = args.openai_max_retries
+
+    harness_main = harness_module.main
 
     old_argv = sys.argv
     try:
