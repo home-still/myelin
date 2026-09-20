@@ -9,7 +9,7 @@ MYELIN_EMBED__URL=http://127.0.0.1:5814/v1 \
   myelin-eval ablate --width
 ```
 
-Artifact: `runs/m25_width/width.json`.
+Artifact: `runs/width_locomo/width.json`.
 
 ---
 

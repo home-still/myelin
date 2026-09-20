@@ -1060,7 +1060,7 @@ pub async fn bench_longmemeval_s(
 
 /// LongMemEval names its question types; `ScoredQuestion::category` is numeric
 /// so both corpora share one row shape and one CI tool.
-fn question_type_code(t: &str) -> u8 {
+pub(crate) fn question_type_code(t: &str) -> u8 {
     match t {
         "single-session-user" => 1,
         "single-session-assistant" => 2,

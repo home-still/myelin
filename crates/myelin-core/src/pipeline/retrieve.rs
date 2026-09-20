@@ -246,14 +246,23 @@ pub struct RecallTrace {
     pub subqueries: usize,
     #[serde(default)]
     pub decompose_ms: u128,
-    /// The reranked pool in rank order, before `compose` truncates to `k`.
+    /// The reranked pool in rank order, `(id, text)`, before `compose`
+    /// truncates to `k`.
     ///
     /// In-process only (`serde(skip)`): it is the input to the offline
     /// instruments that need retrieval's *ceiling* rather than its
-    /// emission, and persisting 25 uuids per question would add megabytes
-    /// to every artifact for a diagnostic no artifact reader consumes.
+    /// emission, and persisting it would add megabytes to every artifact
+    /// for a diagnostic no artifact reader consumes.
+    ///
+    /// Carries the text as well as the id because the two corpora decide
+    /// "did we retrieve the gold" differently: LoCoMo resolves record ids
+    /// to `dia_id` turns through I4 lineage, LongMemEval_S matches the
+    /// `has_answer` turn's text prefix against the record. An id-only pool
+    /// can be scored on the first corpus and not the second. The clone is
+    /// the head of a list that is about to be truncated anyway — ~12 KB
+    /// against an embedding call and a 25-document rerank.
     #[serde(skip)]
-    pub pool_ids: Vec<uuid::Uuid>,
+    pub pool: Vec<(uuid::Uuid, String)>,
 }
 
 pub struct Retriever<'a> {
@@ -600,7 +609,10 @@ impl<'a> Retriever<'a> {
         // on a LoCoMo run, for a diagnostic every consumer computes in
         // process. Persisting it would grow every artifact on disk to carry
         // something no artifact reader uses.
-        trace.pool_ids = admissible.iter().map(|(id, _, _)| *id).collect();
+        trace.pool = admissible
+            .iter()
+            .map(|(id, _, text)| (*id, text.clone()))
+            .collect();
 
         // R4: `k` and the token budget are QUERY-time parameters against one
         // identical store, so the request wins over the configured default.
