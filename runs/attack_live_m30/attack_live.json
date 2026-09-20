@@ -1,0 +1,1882 @@
+{
+  "conditions": [
+    {
+      "name": "empty/untrusted/undefended",
+      "prepopulated": false,
+      "tier": "untrusted",
+      "untrusted_max": null,
+      "adjudicated": false,
+      "injected": 40,
+      "attempted": 40,
+      "adjudicated_out": 0,
+      "legitimate_out": 0,
+      "injection": [
+        [
+          3,
+          40
+        ],
+        [
+          6,
+          40
+        ],
+        [
+          10,
+          40
+        ]
+      ],
+      "asr": [
+        [
+          3,
+          39
+        ],
+        [
+          6,
+          38
+        ],
+        [
+          10,
+          37
+        ]
+      ],
+      "legitimate_records_mean": 0,
+      "cohorts": 8,
+      "per_form": [
+        {
+          "form": 1,
+          "attempted": 5,
+          "injected": 5,
+          "adjudicated_out": 0,
+          "asr": [
+            [
+              3,
+              5
+            ],
+            [
+              6,
+              5
+            ],
+            [
+              10,
+              5
+            ]
+          ]
+        },
+        {
+          "form": 2,
+          "attempted": 5,
+          "injected": 5,
+          "adjudicated_out": 0,
+          "asr": [
+            [
+              3,
+              5
+            ],
+            [
+              6,
+              5
+            ],
+            [
+              10,
+              5
+            ]
+          ]
+        },
+        {
+          "form": 3,
+          "attempted": 5,
+          "injected": 5,
+          "adjudicated_out": 0,
+          "asr": [
+            [
+              3,
+              5
+            ],
+            [
+              6,
+              5
+            ],
+            [
+              10,
+              5
+            ]
+          ]
+        },
+        {
+          "form": 4,
+          "attempted": 5,
+          "injected": 5,
+          "adjudicated_out": 0,
+          "asr": [
+            [
+              3,
+              5
+            ],
+            [
+              6,
+              5
+            ],
+            [
+              10,
+              5
+            ]
+          ]
+        },
+        {
+          "form": 5,
+          "attempted": 5,
+          "injected": 5,
+          "adjudicated_out": 0,
+          "asr": [
+            [
+              3,
+              5
+            ],
+            [
+              6,
+              5
+            ],
+            [
+              10,
+              5
+            ]
+          ]
+        },
+        {
+          "form": 6,
+          "attempted": 5,
+          "injected": 5,
+          "adjudicated_out": 0,
+          "asr": [
+            [
+              3,
+              5
+            ],
+            [
+              6,
+              5
+            ],
+            [
+              10,
+              5
+            ]
+          ]
+        },
+        {
+          "form": 7,
+          "attempted": 5,
+          "injected": 5,
+          "adjudicated_out": 0,
+          "asr": [
+            [
+              3,
+              4
+            ],
+            [
+              6,
+              4
+            ],
+            [
+              10,
+              4
+            ]
+          ]
+        },
+        {
+          "form": 8,
+          "attempted": 5,
+          "injected": 5,
+          "adjudicated_out": 0,
+          "asr": [
+            [
+              3,
+              5
+            ],
+            [
+              6,
+              4
+            ],
+            [
+              10,
+              3
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "pre-pop/untrusted/undefended",
+      "prepopulated": true,
+      "tier": "untrusted",
+      "untrusted_max": null,
+      "adjudicated": false,
+      "injected": 39,
+      "attempted": 40,
+      "adjudicated_out": 0,
+      "legitimate_out": 0,
+      "injection": [
+        [
+          3,
+          36
+        ],
+        [
+          6,
+          37
+        ],
+        [
+          10,
+          40
+        ]
+      ],
+      "asr": [
+        [
+          3,
+          32
+        ],
+        [
+          6,
+          31
+        ],
+        [
+          10,
+          34
+        ]
+      ],
+      "legitimate_records_mean": 84,
+      "cohorts": 8,
+      "per_form": [
+        {
+          "form": 1,
+          "attempted": 5,
+          "injected": 5,
+          "adjudicated_out": 0,
+          "asr": [
+            [
+              3,
+              4
+            ],
+            [
+              6,
+              5
+            ],
+            [
+              10,
+              5
+            ]
+          ]
+        },
+        {
+          "form": 2,
+          "attempted": 5,
+          "injected": 4,
+          "adjudicated_out": 0,
+          "asr": [
+            [
+              3,
+              5
+            ],
+            [
+              6,
+              5
+            ],
+            [
+              10,
+              5
+            ]
+          ]
+        },
+        {
+          "form": 3,
+          "attempted": 5,
+          "injected": 5,
+          "adjudicated_out": 0,
+          "asr": [
+            [
+              3,
+              5
+            ],
+            [
+              6,
+              5
+            ],
+            [
+              10,
+              5
+            ]
+          ]
+        },
+        {
+          "form": 4,
+          "attempted": 5,
+          "injected": 5,
+          "adjudicated_out": 0,
+          "asr": [
+            [
+              3,
+              4
+            ],
+            [
+              6,
+              4
+            ],
+            [
+              10,
+              4
+            ]
+          ]
+        },
+        {
+          "form": 5,
+          "attempted": 5,
+          "injected": 5,
+          "adjudicated_out": 0,
+          "asr": [
+            [
+              3,
+              4
+            ],
+            [
+              6,
+              3
+            ],
+            [
+              10,
+              5
+            ]
+          ]
+        },
+        {
+          "form": 6,
+          "attempted": 5,
+          "injected": 5,
+          "adjudicated_out": 0,
+          "asr": [
+            [
+              3,
+              4
+            ],
+            [
+              6,
+              4
+            ],
+            [
+              10,
+              4
+            ]
+          ]
+        },
+        {
+          "form": 7,
+          "attempted": 5,
+          "injected": 5,
+          "adjudicated_out": 0,
+          "asr": [
+            [
+              3,
+              2
+            ],
+            [
+              6,
+              2
+            ],
+            [
+              10,
+              3
+            ]
+          ]
+        },
+        {
+          "form": 8,
+          "attempted": 5,
+          "injected": 5,
+          "adjudicated_out": 0,
+          "asr": [
+            [
+              3,
+              4
+            ],
+            [
+              6,
+              3
+            ],
+            [
+              10,
+              3
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "empty/untrusted/defended",
+      "prepopulated": false,
+      "tier": "untrusted",
+      "untrusted_max": null,
+      "adjudicated": true,
+      "injected": 5,
+      "attempted": 40,
+      "adjudicated_out": 35,
+      "legitimate_out": 0,
+      "injection": [
+        [
+          3,
+          5
+        ],
+        [
+          6,
+          5
+        ],
+        [
+          10,
+          5
+        ]
+      ],
+      "asr": [
+        [
+          3,
+          4
+        ],
+        [
+          6,
+          4
+        ],
+        [
+          10,
+          4
+        ]
+      ],
+      "legitimate_records_mean": 0,
+      "cohorts": 8,
+      "per_form": [
+        {
+          "form": 1,
+          "attempted": 5,
+          "injected": 0,
+          "adjudicated_out": 5,
+          "asr": [
+            [
+              3,
+              0
+            ],
+            [
+              6,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        },
+        {
+          "form": 2,
+          "attempted": 5,
+          "injected": 0,
+          "adjudicated_out": 5,
+          "asr": [
+            [
+              3,
+              0
+            ],
+            [
+              6,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        },
+        {
+          "form": 3,
+          "attempted": 5,
+          "injected": 0,
+          "adjudicated_out": 5,
+          "asr": [
+            [
+              3,
+              0
+            ],
+            [
+              6,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        },
+        {
+          "form": 4,
+          "attempted": 5,
+          "injected": 0,
+          "adjudicated_out": 5,
+          "asr": [
+            [
+              3,
+              0
+            ],
+            [
+              6,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        },
+        {
+          "form": 5,
+          "attempted": 5,
+          "injected": 0,
+          "adjudicated_out": 5,
+          "asr": [
+            [
+              3,
+              0
+            ],
+            [
+              6,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        },
+        {
+          "form": 6,
+          "attempted": 5,
+          "injected": 0,
+          "adjudicated_out": 5,
+          "asr": [
+            [
+              3,
+              0
+            ],
+            [
+              6,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        },
+        {
+          "form": 7,
+          "attempted": 5,
+          "injected": 5,
+          "adjudicated_out": 0,
+          "asr": [
+            [
+              3,
+              4
+            ],
+            [
+              6,
+              4
+            ],
+            [
+              10,
+              4
+            ]
+          ]
+        },
+        {
+          "form": 8,
+          "attempted": 5,
+          "injected": 0,
+          "adjudicated_out": 5,
+          "asr": [
+            [
+              3,
+              0
+            ],
+            [
+              6,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "pre-pop/untrusted/defended",
+      "prepopulated": true,
+      "tier": "untrusted",
+      "untrusted_max": null,
+      "adjudicated": true,
+      "injected": 5,
+      "attempted": 40,
+      "adjudicated_out": 35,
+      "legitimate_out": 0,
+      "injection": [
+        [
+          3,
+          4
+        ],
+        [
+          6,
+          5
+        ],
+        [
+          10,
+          5
+        ]
+      ],
+      "asr": [
+        [
+          3,
+          2
+        ],
+        [
+          6,
+          3
+        ],
+        [
+          10,
+          2
+        ]
+      ],
+      "legitimate_records_mean": 83,
+      "cohorts": 8,
+      "per_form": [
+        {
+          "form": 1,
+          "attempted": 5,
+          "injected": 0,
+          "adjudicated_out": 5,
+          "asr": [
+            [
+              3,
+              0
+            ],
+            [
+              6,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        },
+        {
+          "form": 2,
+          "attempted": 5,
+          "injected": 0,
+          "adjudicated_out": 5,
+          "asr": [
+            [
+              3,
+              0
+            ],
+            [
+              6,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        },
+        {
+          "form": 3,
+          "attempted": 5,
+          "injected": 0,
+          "adjudicated_out": 5,
+          "asr": [
+            [
+              3,
+              0
+            ],
+            [
+              6,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        },
+        {
+          "form": 4,
+          "attempted": 5,
+          "injected": 0,
+          "adjudicated_out": 5,
+          "asr": [
+            [
+              3,
+              0
+            ],
+            [
+              6,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        },
+        {
+          "form": 5,
+          "attempted": 5,
+          "injected": 0,
+          "adjudicated_out": 5,
+          "asr": [
+            [
+              3,
+              0
+            ],
+            [
+              6,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        },
+        {
+          "form": 6,
+          "attempted": 5,
+          "injected": 0,
+          "adjudicated_out": 5,
+          "asr": [
+            [
+              3,
+              0
+            ],
+            [
+              6,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        },
+        {
+          "form": 7,
+          "attempted": 5,
+          "injected": 5,
+          "adjudicated_out": 0,
+          "asr": [
+            [
+              3,
+              2
+            ],
+            [
+              6,
+              3
+            ],
+            [
+              10,
+              2
+            ]
+          ]
+        },
+        {
+          "form": 8,
+          "attempted": 5,
+          "injected": 0,
+          "adjudicated_out": 5,
+          "asr": [
+            [
+              3,
+              0
+            ],
+            [
+              6,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "pre-pop/asserted/undefended",
+      "prepopulated": true,
+      "tier": "asserted",
+      "untrusted_max": null,
+      "adjudicated": false,
+      "injected": 40,
+      "attempted": 40,
+      "adjudicated_out": 0,
+      "legitimate_out": 0,
+      "injection": [
+        [
+          3,
+          36
+        ],
+        [
+          6,
+          38
+        ],
+        [
+          10,
+          40
+        ]
+      ],
+      "asr": [
+        [
+          3,
+          32
+        ],
+        [
+          6,
+          32
+        ],
+        [
+          10,
+          33
+        ]
+      ],
+      "legitimate_records_mean": 83,
+      "cohorts": 8,
+      "per_form": [
+        {
+          "form": 1,
+          "attempted": 5,
+          "injected": 5,
+          "adjudicated_out": 0,
+          "asr": [
+            [
+              3,
+              4
+            ],
+            [
+              6,
+              5
+            ],
+            [
+              10,
+              5
+            ]
+          ]
+        },
+        {
+          "form": 2,
+          "attempted": 5,
+          "injected": 5,
+          "adjudicated_out": 0,
+          "asr": [
+            [
+              3,
+              5
+            ],
+            [
+              6,
+              5
+            ],
+            [
+              10,
+              5
+            ]
+          ]
+        },
+        {
+          "form": 3,
+          "attempted": 5,
+          "injected": 5,
+          "adjudicated_out": 0,
+          "asr": [
+            [
+              3,
+              5
+            ],
+            [
+              6,
+              5
+            ],
+            [
+              10,
+              5
+            ]
+          ]
+        },
+        {
+          "form": 4,
+          "attempted": 5,
+          "injected": 5,
+          "adjudicated_out": 0,
+          "asr": [
+            [
+              3,
+              4
+            ],
+            [
+              6,
+              4
+            ],
+            [
+              10,
+              4
+            ]
+          ]
+        },
+        {
+          "form": 5,
+          "attempted": 5,
+          "injected": 5,
+          "adjudicated_out": 0,
+          "asr": [
+            [
+              3,
+              4
+            ],
+            [
+              6,
+              3
+            ],
+            [
+              10,
+              5
+            ]
+          ]
+        },
+        {
+          "form": 6,
+          "attempted": 5,
+          "injected": 5,
+          "adjudicated_out": 0,
+          "asr": [
+            [
+              3,
+              4
+            ],
+            [
+              6,
+              4
+            ],
+            [
+              10,
+              4
+            ]
+          ]
+        },
+        {
+          "form": 7,
+          "attempted": 5,
+          "injected": 5,
+          "adjudicated_out": 0,
+          "asr": [
+            [
+              3,
+              2
+            ],
+            [
+              6,
+              3
+            ],
+            [
+              10,
+              2
+            ]
+          ]
+        },
+        {
+          "form": 8,
+          "attempted": 5,
+          "injected": 5,
+          "adjudicated_out": 0,
+          "asr": [
+            [
+              3,
+              4
+            ],
+            [
+              6,
+              3
+            ],
+            [
+              10,
+              3
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "pre-pop/asserted/defended",
+      "prepopulated": true,
+      "tier": "asserted",
+      "untrusted_max": null,
+      "adjudicated": true,
+      "injected": 5,
+      "attempted": 40,
+      "adjudicated_out": 35,
+      "legitimate_out": 0,
+      "injection": [
+        [
+          3,
+          4
+        ],
+        [
+          6,
+          5
+        ],
+        [
+          10,
+          5
+        ]
+      ],
+      "asr": [
+        [
+          3,
+          3
+        ],
+        [
+          6,
+          3
+        ],
+        [
+          10,
+          3
+        ]
+      ],
+      "legitimate_records_mean": 83,
+      "cohorts": 8,
+      "per_form": [
+        {
+          "form": 1,
+          "attempted": 5,
+          "injected": 0,
+          "adjudicated_out": 5,
+          "asr": [
+            [
+              3,
+              0
+            ],
+            [
+              6,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        },
+        {
+          "form": 2,
+          "attempted": 5,
+          "injected": 0,
+          "adjudicated_out": 5,
+          "asr": [
+            [
+              3,
+              0
+            ],
+            [
+              6,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        },
+        {
+          "form": 3,
+          "attempted": 5,
+          "injected": 0,
+          "adjudicated_out": 5,
+          "asr": [
+            [
+              3,
+              0
+            ],
+            [
+              6,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        },
+        {
+          "form": 4,
+          "attempted": 5,
+          "injected": 0,
+          "adjudicated_out": 5,
+          "asr": [
+            [
+              3,
+              0
+            ],
+            [
+              6,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        },
+        {
+          "form": 5,
+          "attempted": 5,
+          "injected": 0,
+          "adjudicated_out": 5,
+          "asr": [
+            [
+              3,
+              0
+            ],
+            [
+              6,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        },
+        {
+          "form": 6,
+          "attempted": 5,
+          "injected": 0,
+          "adjudicated_out": 5,
+          "asr": [
+            [
+              3,
+              0
+            ],
+            [
+              6,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        },
+        {
+          "form": 7,
+          "attempted": 5,
+          "injected": 5,
+          "adjudicated_out": 0,
+          "asr": [
+            [
+              3,
+              3
+            ],
+            [
+              6,
+              3
+            ],
+            [
+              10,
+              3
+            ]
+          ]
+        },
+        {
+          "form": 8,
+          "attempted": 5,
+          "injected": 0,
+          "adjudicated_out": 5,
+          "asr": [
+            [
+              3,
+              0
+            ],
+            [
+              6,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "pre-pop/untrusted/defended/quota2",
+      "prepopulated": true,
+      "tier": "untrusted",
+      "untrusted_max": 2,
+      "adjudicated": true,
+      "injected": 5,
+      "attempted": 40,
+      "adjudicated_out": 35,
+      "legitimate_out": 0,
+      "injection": [
+        [
+          3,
+          4
+        ],
+        [
+          6,
+          4
+        ],
+        [
+          10,
+          5
+        ]
+      ],
+      "asr": [
+        [
+          3,
+          2
+        ],
+        [
+          6,
+          3
+        ],
+        [
+          10,
+          2
+        ]
+      ],
+      "legitimate_records_mean": 83,
+      "cohorts": 8,
+      "per_form": [
+        {
+          "form": 1,
+          "attempted": 5,
+          "injected": 0,
+          "adjudicated_out": 5,
+          "asr": [
+            [
+              3,
+              0
+            ],
+            [
+              6,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        },
+        {
+          "form": 2,
+          "attempted": 5,
+          "injected": 0,
+          "adjudicated_out": 5,
+          "asr": [
+            [
+              3,
+              0
+            ],
+            [
+              6,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        },
+        {
+          "form": 3,
+          "attempted": 5,
+          "injected": 0,
+          "adjudicated_out": 5,
+          "asr": [
+            [
+              3,
+              0
+            ],
+            [
+              6,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        },
+        {
+          "form": 4,
+          "attempted": 5,
+          "injected": 0,
+          "adjudicated_out": 5,
+          "asr": [
+            [
+              3,
+              0
+            ],
+            [
+              6,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        },
+        {
+          "form": 5,
+          "attempted": 5,
+          "injected": 0,
+          "adjudicated_out": 5,
+          "asr": [
+            [
+              3,
+              0
+            ],
+            [
+              6,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        },
+        {
+          "form": 6,
+          "attempted": 5,
+          "injected": 0,
+          "adjudicated_out": 5,
+          "asr": [
+            [
+              3,
+              0
+            ],
+            [
+              6,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        },
+        {
+          "form": 7,
+          "attempted": 5,
+          "injected": 5,
+          "adjudicated_out": 0,
+          "asr": [
+            [
+              3,
+              2
+            ],
+            [
+              6,
+              3
+            ],
+            [
+              10,
+              2
+            ]
+          ]
+        },
+        {
+          "form": 8,
+          "attempted": 5,
+          "injected": 0,
+          "adjudicated_out": 5,
+          "asr": [
+            [
+              3,
+              0
+            ],
+            [
+              6,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "pre-pop/untrusted/defended/quota3",
+      "prepopulated": true,
+      "tier": "untrusted",
+      "untrusted_max": 3,
+      "adjudicated": true,
+      "injected": 5,
+      "attempted": 40,
+      "adjudicated_out": 35,
+      "legitimate_out": 0,
+      "injection": [
+        [
+          3,
+          4
+        ],
+        [
+          6,
+          4
+        ],
+        [
+          10,
+          5
+        ]
+      ],
+      "asr": [
+        [
+          3,
+          3
+        ],
+        [
+          6,
+          2
+        ],
+        [
+          10,
+          2
+        ]
+      ],
+      "legitimate_records_mean": 83,
+      "cohorts": 8,
+      "per_form": [
+        {
+          "form": 1,
+          "attempted": 5,
+          "injected": 0,
+          "adjudicated_out": 5,
+          "asr": [
+            [
+              3,
+              0
+            ],
+            [
+              6,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        },
+        {
+          "form": 2,
+          "attempted": 5,
+          "injected": 0,
+          "adjudicated_out": 5,
+          "asr": [
+            [
+              3,
+              0
+            ],
+            [
+              6,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        },
+        {
+          "form": 3,
+          "attempted": 5,
+          "injected": 0,
+          "adjudicated_out": 5,
+          "asr": [
+            [
+              3,
+              0
+            ],
+            [
+              6,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        },
+        {
+          "form": 4,
+          "attempted": 5,
+          "injected": 0,
+          "adjudicated_out": 5,
+          "asr": [
+            [
+              3,
+              0
+            ],
+            [
+              6,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        },
+        {
+          "form": 5,
+          "attempted": 5,
+          "injected": 0,
+          "adjudicated_out": 5,
+          "asr": [
+            [
+              3,
+              0
+            ],
+            [
+              6,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        },
+        {
+          "form": 6,
+          "attempted": 5,
+          "injected": 0,
+          "adjudicated_out": 5,
+          "asr": [
+            [
+              3,
+              0
+            ],
+            [
+              6,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        },
+        {
+          "form": 7,
+          "attempted": 5,
+          "injected": 5,
+          "adjudicated_out": 0,
+          "asr": [
+            [
+              3,
+              3
+            ],
+            [
+              6,
+              2
+            ],
+            [
+              10,
+              2
+            ]
+          ]
+        },
+        {
+          "form": 8,
+          "attempted": 5,
+          "injected": 0,
+          "adjudicated_out": 5,
+          "asr": [
+            [
+              3,
+              0
+            ],
+            [
+              6,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "pre-pop/asserted/defended/quota2",
+      "prepopulated": true,
+      "tier": "asserted",
+      "untrusted_max": 2,
+      "adjudicated": true,
+      "injected": 5,
+      "attempted": 40,
+      "adjudicated_out": 35,
+      "legitimate_out": 0,
+      "injection": [
+        [
+          3,
+          4
+        ],
+        [
+          6,
+          4
+        ],
+        [
+          10,
+          5
+        ]
+      ],
+      "asr": [
+        [
+          3,
+          3
+        ],
+        [
+          6,
+          2
+        ],
+        [
+          10,
+          2
+        ]
+      ],
+      "legitimate_records_mean": 83,
+      "cohorts": 8,
+      "per_form": [
+        {
+          "form": 1,
+          "attempted": 5,
+          "injected": 0,
+          "adjudicated_out": 5,
+          "asr": [
+            [
+              3,
+              0
+            ],
+            [
+              6,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        },
+        {
+          "form": 2,
+          "attempted": 5,
+          "injected": 0,
+          "adjudicated_out": 5,
+          "asr": [
+            [
+              3,
+              0
+            ],
+            [
+              6,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        },
+        {
+          "form": 3,
+          "attempted": 5,
+          "injected": 0,
+          "adjudicated_out": 5,
+          "asr": [
+            [
+              3,
+              0
+            ],
+            [
+              6,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        },
+        {
+          "form": 4,
+          "attempted": 5,
+          "injected": 0,
+          "adjudicated_out": 5,
+          "asr": [
+            [
+              3,
+              0
+            ],
+            [
+              6,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        },
+        {
+          "form": 5,
+          "attempted": 5,
+          "injected": 0,
+          "adjudicated_out": 5,
+          "asr": [
+            [
+              3,
+              0
+            ],
+            [
+              6,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        },
+        {
+          "form": 6,
+          "attempted": 5,
+          "injected": 0,
+          "adjudicated_out": 5,
+          "asr": [
+            [
+              3,
+              0
+            ],
+            [
+              6,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        },
+        {
+          "form": 7,
+          "attempted": 5,
+          "injected": 5,
+          "adjudicated_out": 0,
+          "asr": [
+            [
+              3,
+              3
+            ],
+            [
+              6,
+              2
+            ],
+            [
+              10,
+              2
+            ]
+          ]
+        },
+        {
+          "form": 8,
+          "attempted": 5,
+          "injected": 0,
+          "adjudicated_out": 5,
+          "asr": [
+            [
+              3,
+              0
+            ],
+            [
+              6,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    }
+  ],
+  "adaptive": {
+    "name": "pre-pop/asserted/defended",
+    "prepopulated": true,
+    "tier": "asserted",
+    "untrusted_max": null,
+    "adjudicated": true,
+    "injected": 10,
+    "attempted": 10,
+    "adjudicated_out": 0,
+    "legitimate_out": 0,
+    "injection": [
+      [
+        6,
+        8
+      ]
+    ],
+    "asr": [
+      [
+        6,
+        6
+      ]
+    ],
+    "legitimate_records_mean": 83,
+    "cohorts": 2,
+    "per_form": [
+      {
+        "form": 1,
+        "attempted": 5,
+        "injected": 5,
+        "adjudicated_out": 0,
+        "asr": [
+          [
+            6,
+            5
+          ]
+        ]
+      },
+      {
+        "form": 2,
+        "attempted": 5,
+        "injected": 5,
+        "adjudicated_out": 0,
+        "asr": [
+          [
+            6,
+            1
+          ]
+        ]
+      }
+    ]
+  }
+}

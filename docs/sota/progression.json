@@ -38,9 +38,9 @@
       "recorded": "2026-09-20"
     },
     "minja.asr.k6_prepopulated_defended": {
-      "value": 12.5,
+      "value": 7.5,
       "n": 40,
-      "run": "runs/attack_live_m18",
+      "run": "runs/attack_live_m30",
       "recorded": "2026-09-20"
     },
     "minja.injection_success.k6_prepopulated": {
