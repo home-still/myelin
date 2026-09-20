@@ -559,6 +559,19 @@ pub struct WidthPoint {
     /// Mean candidates per query that had a free slot and were refused by
     /// the token budget. Zero means `k` is the only limit that bit.
     pub dropped_for_tokens: f64,
+    /// Mean 1-based rank, within the reranked pool, of the records
+    /// `compose` actually emitted (M29).
+    ///
+    /// **Separates two explanations of the same recall number.** A tight
+    /// budget makes `compose` skip oversized candidates and keep scanning,
+    /// so the emitted set is drawn from *deeper* in the ranked list. If a
+    /// tight budget wins because of that deeper reach, this rises with
+    /// `dropped_for_tokens`; if it wins because short records are simply
+    /// better evidence, it does not and `mean_emitted_tokens` falls alone.
+    pub mean_emitted_rank: f64,
+    /// Mean `approx_tokens` of the emitted records, the other half of that
+    /// separation.
+    pub mean_emitted_tokens: f64,
 }
 
 impl WidthPoint {
@@ -716,6 +729,10 @@ pub async fn width_sweep(
         let mut pool_sum = 0.0;
         let mut degraded = 0.0;
         let mut dropped = 0.0;
+        let mut rank_sum = 0.0;
+        let mut rank_n = 0.0;
+        let mut emitted_tokens = 0.0;
+        let mut emitted_n = 0.0;
         let mut lat: Vec<u128> = Vec::with_capacity(questions.len());
 
         for q in &questions {
@@ -746,6 +763,19 @@ pub async fn width_sweep(
             pool_sum += trace.pool.len() as f64;
             degraded += f64::from(u8::from(trace.select_degraded));
             dropped += trace.dropped_for_tokens as f64;
+            // Rank of each emitted record inside the reranked pool, and
+            // its size. `timeline`/`profile` items carry a nil record id
+            // and are not in the pool, so they are skipped rather than
+            // counted as rank 0.
+            for item in &evidence.items {
+                if let Some(pos) = trace.pool.iter().position(|(id, _)| *id == item.record_id) {
+                    rank_sum += (pos + 1) as f64;
+                    rank_n += 1.0;
+                    emitted_tokens +=
+                        myelin_core::pipeline::ingest::approx_tokens(&trace.pool[pos].1) as f64;
+                    emitted_n += 1.0;
+                }
+            }
             lat.push(trace.total_ms);
         }
 
@@ -765,10 +795,13 @@ pub async fn width_sweep(
             select_degraded: degraded / n,
             budget_tokens,
             dropped_for_tokens: dropped / n,
+            mean_emitted_rank: if rank_n > 0.0 { rank_sum / rank_n } else { 0.0 },
+            mean_emitted_tokens: if emitted_n > 0.0 { emitted_tokens / emitted_n } else { 0.0 },
         };
         println!(
             "  prefetch {:<4} depth {:<4} select {:<5} budget {:<6} recall@{k} {:.4}  \
-             pool {:.4}  (trunc {:.4} / miss {:.4})  tok-drops {:.2}  p50 {}ms",
+             pool {:.4}  (trunc {:.4} / miss {:.4})  tok-drops {:.2}  rank {:.1}  \
+             rec-tok {:.0}  p50 {}ms",
             point.prefetch_limit,
             point.rerank_depth,
             point.select,
@@ -778,6 +811,8 @@ pub async fn width_sweep(
             point.truncation_loss(),
             point.retrieval_loss(),
             point.dropped_for_tokens,
+            point.mean_emitted_rank,
+            point.mean_emitted_tokens,
             point.p50_ms
         );
         out.push(point);
@@ -1070,13 +1105,13 @@ pub fn width_verdict(points: &[WidthPoint]) -> WidthVerdict {
 pub fn print_width(points: &[WidthPoint], k: usize, corpus: &str) {
     println!("\n=== width grid — prefetch x rerank_depth, k={k}, corpus {corpus} ===");
     println!(
-        "\n{:>8} {:>6} {:>7} {:>7} {:>10} {:>10} {:>10} {:>10} {:>10} {:>8}",
+        "\n{:>8} {:>6} {:>7} {:>7} {:>10} {:>10} {:>10} {:>10} {:>10} {:>7} {:>8} {:>8}",
         "prefetch", "depth", "select", "budget", "recall", "pool", "trunc", "miss",
-        "tok-drops", "p50ms"
+        "tok-drops", "rank", "rec-tok", "p50ms"
     );
     for p in points {
         println!(
-            "{:>8} {:>6} {:>7} {:>7} {:>10.4} {:>10.4} {:>10.4} {:>10.4} {:>10.2} {:>8}",
+            "{:>8} {:>6} {:>7} {:>7} {:>10.4} {:>10.4} {:>10.4} {:>10.4} {:>10.2} {:>7.1} {:>8.0} {:>8}",
             p.prefetch_limit,
             p.rerank_depth,
             p.select,
@@ -1086,6 +1121,8 @@ pub fn print_width(points: &[WidthPoint], k: usize, corpus: &str) {
             p.truncation_loss(),
             p.retrieval_loss(),
             p.dropped_for_tokens,
+            p.mean_emitted_rank,
+            p.mean_emitted_tokens,
             p.p50_ms
         );
     }
@@ -1415,6 +1452,8 @@ mod tests {
             select_degraded: 0.0,
             budget_tokens: Budget::default().tokens,
             dropped_for_tokens: 0.0,
+            mean_emitted_rank: 0.0,
+            mean_emitted_tokens: 0.0,
         }
     }
 
