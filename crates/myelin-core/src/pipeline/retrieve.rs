@@ -273,6 +273,15 @@ pub struct RecallTrace {
     /// against an embedding call and a 25-document rerank.
     #[serde(skip)]
     pub pool: Vec<(uuid::Uuid, String)>,
+    /// Which of `compose`'s two limits bit (M28), mirrored from
+    /// [`EvidenceSet`]. `dropped_for_tokens > 0` means the *token budget*
+    /// truncated the evidence; `k_bound` with zero drops means `k` did.
+    /// Every width measurement M25-M27 made ran without recording this and
+    /// attributed the whole loss to `k`.
+    #[serde(default)]
+    pub dropped_for_tokens: usize,
+    #[serde(default)]
+    pub k_bound: bool,
 }
 
 pub struct Retriever<'a> {
@@ -679,6 +688,8 @@ impl<'a> Retriever<'a> {
         trace.profile_records = profile.len();
 
         let mut set = compose(ranked, &profile, &compose_cfg);
+        trace.dropped_for_tokens = set.dropped_for_tokens;
+        trace.k_bound = set.k_bound;
         trace.total_ms = started.elapsed().as_millis();
         set.tokens = set
             .items

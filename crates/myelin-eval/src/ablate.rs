@@ -547,6 +547,18 @@ pub struct WidthPoint {
     /// from a selection that agreed with rank order. `print_width` refuses
     /// to report such a cell as a result.
     pub select_degraded: f64,
+    /// The token budget this cell composed under (M28).
+    ///
+    /// `compose` truncates on `k` **or** on `max_tokens`, and every width
+    /// cell M25–M27 ran used `Budget::default()`'s 2,048 without recording
+    /// which one bound. Measured offline over the 162,181 live
+    /// LongMemEval_S records, the mean costs **380 tokens** — so six of
+    /// them is 2,282 and the *budget* binds before `k` does. On LoCoMo's
+    /// 56-token mean it does not. Two limits, two different fixes.
+    pub budget_tokens: usize,
+    /// Mean candidates per query that had a free slot and were refused by
+    /// the token budget. Zero means `k` is the only limit that bit.
+    pub dropped_for_tokens: f64,
 }
 
 impl WidthPoint {
@@ -622,7 +634,7 @@ pub async fn width_sweep(
     ledger_path: &Path,
     units: usize,
     k: usize,
-    grid: &[(u64, usize, bool)],
+    grid: &[(u64, usize, bool, usize)],
     limit: Option<usize>,
     holdout: bool,
 ) -> Result<Vec<WidthPoint>> {
@@ -678,7 +690,7 @@ pub async fn width_sweep(
         .context("selector client")?;
 
     let mut out = Vec::new();
-    for &(prefetch_limit, rerank_depth, select) in grid {
+    for &(prefetch_limit, rerank_depth, select, budget_tokens) in grid {
         let retriever = Retriever::new(&embedder, &store, &ledger)
             .with_reranker(&reranker as &dyn Reranker)
             .with_llm(&llm)
@@ -692,6 +704,7 @@ pub async fn width_sweep(
                 graph_limit: prefetch_limit as usize,
                 compose: myelin_core::pipeline::compose::ComposeConfig {
                     k,
+                    max_tokens: budget_tokens,
                     ..Default::default()
                 },
                 ..Default::default()
@@ -702,13 +715,14 @@ pub async fn width_sweep(
         let mut any_sum = 0.0;
         let mut pool_sum = 0.0;
         let mut degraded = 0.0;
+        let mut dropped = 0.0;
         let mut lat: Vec<u128> = Vec::with_capacity(questions.len());
 
         for q in &questions {
             let query = Recall {
                 scope: ScopeFilter::tenant(&q.tenant).with_namespace(corpus),
                 text: q.text.clone(),
-                budget: Budget { k, ..Default::default() },
+                budget: Budget { k, tokens: budget_tokens, ..Default::default() },
                 mode: Mode::Recall,
                 kinds: None,
             };
@@ -731,6 +745,7 @@ pub async fn width_sweep(
             any_sum += f64::from(u8::from(pool > 0.0));
             pool_sum += trace.pool.len() as f64;
             degraded += f64::from(u8::from(trace.select_degraded));
+            dropped += trace.dropped_for_tokens as f64;
             lat.push(trace.total_ms);
         }
 
@@ -748,18 +763,21 @@ pub async fn width_sweep(
             p50_ms: percentile(&lat, 0.50),
             p90_ms: percentile(&lat, 0.90),
             select_degraded: degraded / n,
+            budget_tokens,
+            dropped_for_tokens: dropped / n,
         };
         println!(
-            "  prefetch {:<4} depth {:<4} select {:<5} recall@{k} {:.4}  pool {:.4}  \
-             (trunc {:.4} / miss {:.4})  |pool| {:.1}  p50 {}ms",
+            "  prefetch {:<4} depth {:<4} select {:<5} budget {:<6} recall@{k} {:.4}  \
+             pool {:.4}  (trunc {:.4} / miss {:.4})  tok-drops {:.2}  p50 {}ms",
             point.prefetch_limit,
             point.rerank_depth,
             point.select,
+            point.budget_tokens,
             point.recall,
             point.pool_recall,
             point.truncation_loss(),
             point.retrieval_loss(),
-            point.pool,
+            point.dropped_for_tokens,
             point.p50_ms
         );
         out.push(point);
@@ -866,13 +884,13 @@ fn gold_recall(source: &GoldSource, q: &Question, records: &[(Uuid, String)]) ->
 /// baseline — M22's lesson that an arm without a same-code base is not a
 /// measurement, applied to a run that may be cut short by a GPU window
 /// closing.
-pub const WIDTH_GRID: [(u64, usize, bool); 6] = [
-    (50, 25, false),
-    (50, 50, false),
-    (100, 25, false),
-    (100, 50, false),
-    (200, 50, false),
-    (200, 100, false),
+pub const WIDTH_GRID: [(u64, usize, bool, usize); 6] = [
+    (50, 25, false, 2048),
+    (50, 50, false, 2048),
+    (100, 25, false, 2048),
+    (100, 50, false, 2048),
+    (200, 50, false, 2048),
+    (200, 100, false, 2048),
 ];
 
 /// The selection grid (M27): the two width extremes, each with and without
@@ -916,11 +934,28 @@ pub const WIDTH_GRID: [(u64, usize, bool); 6] = [
 ///   `(200, 100)` must exceed the gain at `(50, 25)`. If it does not, the
 ///   wide pool is not merely unhelpful but unrecoverable, and
 ///   `prefetch_limit`/`rerank_depth` should never be revisited again.
-pub const SELECT_GRID: [(u64, usize, bool); 4] = [
-    (50, 25, false),
-    (50, 25, true),
-    (200, 100, false),
-    (200, 100, true),
+pub const SELECT_GRID: [(u64, usize, bool, usize); 4] = [
+    (50, 25, false, 2048),
+    (50, 25, true, 2048),
+    (200, 100, false, 2048),
+    (200, 100, true, 2048),
+];
+
+/// The budget grid (M28): the shipped width, swept over `max_tokens`.
+///
+/// `compose` truncates on `k` **or** on `max_tokens`, and M25-M27 all ran
+/// at `Budget::default()`'s 2,048 without recording which bit. Measured
+/// offline over 162,181 live LongMemEval_S records the mean costs 380
+/// tokens, so six of them is 2,282 and the budget binds first; on LoCoMo's
+/// 56-token mean it does not. This separates the two limits on the one
+/// axis nobody has ever varied.
+///
+/// The shipped budget runs first, for [`WIDTH_GRID`]'s reason.
+pub const BUDGET_GRID: [(u64, usize, bool, usize); 4] = [
+    (50, 25, false, 2048),
+    (50, 25, false, 4096),
+    (50, 25, false, 8192),
+    (50, 25, false, 16384),
 ];
 
 /// Absolute emitted-recall gain a cell must clear to change the defaults.
@@ -1035,20 +1070,22 @@ pub fn width_verdict(points: &[WidthPoint]) -> WidthVerdict {
 pub fn print_width(points: &[WidthPoint], k: usize, corpus: &str) {
     println!("\n=== width grid — prefetch x rerank_depth, k={k}, corpus {corpus} ===");
     println!(
-        "\n{:>8} {:>6} {:>7} {:>10} {:>10} {:>10} {:>10} {:>8} {:>8}",
-        "prefetch", "depth", "select", "recall", "pool", "trunc", "miss", "|pool|", "p50ms"
+        "\n{:>8} {:>6} {:>7} {:>7} {:>10} {:>10} {:>10} {:>10} {:>10} {:>8}",
+        "prefetch", "depth", "select", "budget", "recall", "pool", "trunc", "miss",
+        "tok-drops", "p50ms"
     );
     for p in points {
         println!(
-            "{:>8} {:>6} {:>7} {:>10.4} {:>10.4} {:>10.4} {:>10.4} {:>8.1} {:>8}",
+            "{:>8} {:>6} {:>7} {:>7} {:>10.4} {:>10.4} {:>10.4} {:>10.4} {:>10.2} {:>8}",
             p.prefetch_limit,
             p.rerank_depth,
             p.select,
+            p.budget_tokens,
             p.recall,
             p.pool_recall,
             p.truncation_loss(),
             p.retrieval_loss(),
-            p.pool,
+            p.dropped_for_tokens,
             p.p50_ms
         );
     }
@@ -1057,6 +1094,8 @@ pub fn print_width(points: &[WidthPoint], k: usize, corpus: &str) {
          pool   = the same arithmetic over the reranked pool, before compose truncates to k.\n\
          trunc  = pool - recall: gold retrieval found and compose dropped. A selector's to win.\n\
          miss   = 1 - pool: gold that never entered the pool. Only retrieval can win it.\n\
+         tok-drops = candidates per query that had a free slot and were refused by the token\n\
+         budget. Non-zero means `max_tokens` bound, NOT k, and the fix is compression.\n\
          {} Gold is decided by {}.",
         if points.iter().any(|p| p.select) {
             "Selector cells cost ONE model call per query; no cell generates an answer and\n             no cell is judged."
@@ -1374,6 +1413,8 @@ mod tests {
             p50_ms: p50,
             p90_ms: p50 * 2,
             select_degraded: 0.0,
+            budget_tokens: Budget::default().tokens,
+            dropped_for_tokens: 0.0,
         }
     }
 
@@ -1486,14 +1527,14 @@ mod tests {
     fn the_default_grid_contains_the_shipped_cell() {
         let d = RetrieveConfig::default();
         assert!(
-            WIDTH_GRID.contains(&(d.prefetch_limit, d.rerank_depth, d.select_sufficient)),
+            WIDTH_GRID.contains(&(d.prefetch_limit, d.rerank_depth, d.select_sufficient, Budget::default().tokens)),
             "WIDTH_GRID {WIDTH_GRID:?} must include the shipped ({}, {})",
             d.prefetch_limit,
             d.rerank_depth
         );
         assert_eq!(
             WIDTH_GRID[0],
-            (d.prefetch_limit, d.rerank_depth, d.select_sufficient),
+            (d.prefetch_limit, d.rerank_depth, d.select_sufficient, Budget::default().tokens),
             "and it must run first, so a sweep cut short by a closing GPU window \
              still carries its own baseline"
         );
@@ -1539,18 +1580,18 @@ mod tests {
         let d = RetrieveConfig::default();
         assert_eq!(
             SELECT_GRID[0],
-            (d.prefetch_limit, d.rerank_depth, d.select_sufficient)
+            (d.prefetch_limit, d.rerank_depth, d.select_sufficient, Budget::default().tokens)
         );
         // And it pairs every width it visits, or the selector's effect is
         // confounded with the width's.
         let mut widths: Vec<(u64, usize)> =
-            SELECT_GRID.iter().map(|(p, d, _)| (*p, *d)).collect();
+            SELECT_GRID.iter().map(|(p, d, _, _)| (*p, *d)).collect();
         widths.sort_unstable();
         widths.dedup();
         for w in widths {
             for on in [false, true] {
                 assert!(
-                    SELECT_GRID.contains(&(w.0, w.1, on)),
+                    SELECT_GRID.contains(&(w.0, w.1, on, Budget::default().tokens)),
                     "width {w:?} is missing its select={on} twin"
                 );
             }
@@ -1649,7 +1690,12 @@ mod tests {
     /// that asks for it measures the prefetch instead of the depth.
     #[test]
     fn no_grid_cell_asks_for_a_pool_wider_than_its_prefetch() {
-        for (prefetch, depth, _) in WIDTH_GRID.iter().chain(SELECT_GRID.iter()).copied() {
+        for (prefetch, depth, _, _) in WIDTH_GRID
+            .iter()
+            .chain(SELECT_GRID.iter())
+            .chain(BUDGET_GRID.iter())
+            .copied()
+        {
             assert!(
                 depth as u64 <= prefetch,
                 "({prefetch}, {depth}) reranks deeper than it prefetches"

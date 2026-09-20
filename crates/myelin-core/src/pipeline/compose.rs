@@ -380,6 +380,15 @@ pub fn compose(ranked: Vec<Ranked>, profile: &[MemoryRecord], cfg: &ComposeConfi
     };
 
     // 2. Budget. Rank order by default; joint coverage when asked.
+    //
+    // `dropped_for_tokens` counts candidates that had a slot free and were
+    // refused by the budget — the quantity that says whether "truncation
+    // loss" is `k`'s or `max_tokens`'s. `continue` rather than `break` is
+    // deliberate and predates M28, but it is exactly why the count is
+    // needed: the loop keeps scanning for something smaller, so a bound
+    // budget quietly reshapes the set toward short records.
+    let mut dropped_for_tokens = 0usize;
+    let mut k_bound = false;
     let (selected, tokens) = match cfg.mmr_lambda {
         Some(lambda) => mmr_select(kept, lambda, cfg),
         None => {
@@ -387,6 +396,7 @@ pub fn compose(ranked: Vec<Ranked>, profile: &[MemoryRecord], cfg: &ComposeConfi
             let mut tokens = 0usize;
             for candidate in kept {
                 if selected.len() >= cfg.k {
+                    k_bound = true;
                     break;
                 }
                 let cost = approx_tokens(&candidate.record.text);
@@ -394,6 +404,7 @@ pub fn compose(ranked: Vec<Ranked>, profile: &[MemoryRecord], cfg: &ComposeConfi
                 // single best piece of evidence is large is worse than
                 // overrunning slightly.
                 if !selected.is_empty() && tokens + cost > cfg.max_tokens {
+                    dropped_for_tokens += 1;
                     continue;
                 }
                 tokens += cost;
@@ -454,6 +465,8 @@ pub fn compose(ranked: Vec<Ranked>, profile: &[MemoryRecord], cfg: &ComposeConfi
         items,
         tokens,
         trace: Vec::new(),
+        dropped_for_tokens,
+        k_bound,
     }
 }
 
@@ -1165,6 +1178,63 @@ mod tests {
             PROFILE_MAX_RECORDS
         );
         assert!(!set.items[0].value.contains("pref8"));
+    }
+
+    // ---- which truncation limit bit (M28) ----
+
+    /// **`k` bound, cleanly.** Short records, plenty of budget: `compose`
+    /// stops because it filled the slots, and nothing was refused for
+    /// tokens. On LoCoMo this is the real case — the mean live record is
+    /// 56 tokens, so 2,048 holds ~37 of them.
+    #[test]
+    fn a_short_corpus_binds_on_k_and_reports_no_token_drops() {
+        let input: Vec<Ranked> = (0..12)
+            .map(|i| Ranked {
+                record: record(&format!("short record {i}")),
+                score: 1.0 - i as f32 * 0.01,
+                vector: None,
+            })
+            .collect();
+        let set = compose(input, &[], &ComposeConfig { k: 6, max_tokens: 2048, ..unstamped() });
+        assert_eq!(set.items.len(), 6);
+        assert!(set.k_bound, "the slots filled first");
+        assert_eq!(set.dropped_for_tokens, 0, "and nothing was refused for tokens");
+    }
+
+    /// **The budget bound.** Records too large for six to fit: `compose`
+    /// emits fewer than `k` and reports every candidate the budget
+    /// refused. This is LongMemEval_S's real case — the mean live record
+    /// is 380 tokens, so six is 2,282 against the shipped 2,048.
+    #[test]
+    fn a_long_corpus_binds_on_tokens_and_counts_what_it_refused() {
+        // ~100 tokens each by `approx_tokens` (chars/4 vs words, max).
+        let body = "lorem ipsum dolor sit amet ".repeat(15);
+        let input: Vec<Ranked> = (0..12)
+            .map(|i| Ranked {
+                record: record(&format!("{i} {body}")),
+                score: 1.0 - i as f32 * 0.01,
+                vector: None,
+            })
+            .collect();
+        let set = compose(input, &[], &ComposeConfig { k: 6, max_tokens: 250, ..unstamped() });
+        assert!(set.items.len() < 6, "the budget stopped it short of k: {}", set.items.len());
+        assert!(!set.k_bound, "so `k` never bound");
+        assert!(
+            set.dropped_for_tokens > 0,
+            "and the refusals are counted, not silent"
+        );
+    }
+
+    /// The top item is admitted even when it alone blows the budget —
+    /// existing behaviour, asserted here because the new counters must not
+    /// change it. An empty evidence set is worse than one oversized one.
+    #[test]
+    fn the_single_best_item_survives_a_budget_it_cannot_fit() {
+        let huge = "word ".repeat(5000);
+        let input = vec![Ranked { record: record(&huge), score: 1.0, vector: None }];
+        let set = compose(input, &[], &ComposeConfig { k: 6, max_tokens: 10, ..unstamped() });
+        assert_eq!(set.items.len(), 1);
+        assert_eq!(set.dropped_for_tokens, 0, "there was nothing after it to refuse");
     }
 
     // ---- untrusted occupancy quota (M23 B1) ----
