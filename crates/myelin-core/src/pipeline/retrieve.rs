@@ -237,6 +237,16 @@ pub struct RecallTrace {
     pub selected: usize,
     #[serde(default)]
     pub select_ms: u128,
+    /// The selector ran and fell back to rank order — a model-quality
+    /// failure, or a server that refused the request.
+    ///
+    /// Recorded because a fallback is indistinguishable from a selection
+    /// that agreed with rank order, so without it an inert selector reads
+    /// as a clean null. Measured: a 100-candidate prompt over real
+    /// LongMemEval records is 8,298 tokens against a reader serving 8,192
+    /// per slot, and every call 400s.
+    #[serde(default)]
+    pub select_degraded: bool,
     /// Sub-queries the decomposer produced and what the call cost. Zero
     /// when [`RetrieveConfig::decompose`] is off, when no [`Llm`] was
     /// wired, or when the model judged the question to need only itself —
@@ -582,14 +592,15 @@ impl<'a> Retriever<'a> {
                 let mut slots: Vec<Option<(uuid::Uuid, f32, String)>> =
                     admissible.into_iter().map(Some).collect();
                 let mut front = Vec::with_capacity(slots.len());
-                for &i in &keep {
+                for &i in &keep.keep {
                     if let Some(slot) = slots[i].take() {
                         front.push(slot);
                     }
                 }
                 front.extend(slots.into_iter().flatten());
                 admissible = front;
-                trace.selected = keep.len();
+                trace.selected = keep.keep.len();
+                trace.select_degraded = keep.degraded;
                 trace.select_ms = t3.elapsed().as_millis();
             }
         }

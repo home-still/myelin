@@ -78,6 +78,21 @@ struct Selection {
     keep: Vec<i64>,
 }
 
+/// What the selector decided, and whether the model decided it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Selected {
+    /// Indices into the candidate list, in the model's order.
+    pub keep: Vec<usize>,
+    /// The model did not produce a usable answer and `keep` is the
+    /// unmodified rank order.
+    ///
+    /// Load-bearing for measurement, not for behaviour: the caller's
+    /// evidence set is the same either way, but an arm that cannot tell a
+    /// fallback from a real selection reports a mis-sized server as a
+    /// mechanism's null.
+    pub degraded: bool,
+}
+
 pub struct Selector<'a> {
     llm: &'a dyn Llm,
     max_tokens: u32,
@@ -98,20 +113,40 @@ impl<'a> Selector<'a> {
         self
     }
 
-    /// Indices into `candidates`, best-first, at most `k`.
+    /// Indices into `candidates`, best-first, at most `k`, and whether the
+    /// selection is the model's or a fallback.
     ///
     /// Never fails the caller on a model-quality failure: the fallback is
     /// `0..k`, which is the unmodified rank order, so a bad response costs
     /// the latency and changes nothing. `EmptyCompletion` still propagates.
+    ///
+    /// # Why the flag, and why it is not optional
+    ///
+    /// A fallback is *indistinguishable in the output* from a selection
+    /// that happened to agree with rank order, so an inert selector reads
+    /// as a clean null. Measured: at `rerank_depth = 100` a
+    /// 100-candidate prompt over real LongMemEval records is **8,298
+    /// tokens** against a reader serving 8,192 per slot, and llama.cpp
+    /// answers HTTP 400 `exceed_context_size_error` on *every* query. The
+    /// arm would have reported the unmodified rank order as "selection
+    /// does not help at depth 100" — a pre-registered question answered by
+    /// a mis-sized server. That is the failure class M12, M14 and M20 each
+    /// lost a run to, and the caller cannot see it unless it is told.
     pub async fn select(
         &self,
         question: &str,
         candidates: &[String],
         k: usize,
-    ) -> Result<Vec<usize>> {
-        let fallback = || -> Vec<usize> { (0..k.min(candidates.len())).collect() };
+    ) -> Result<Selected> {
+        let fallback = || Selected {
+            keep: (0..k.min(candidates.len())).collect(),
+            degraded: true,
+        };
         if candidates.is_empty() || k == 0 {
-            return Ok(Vec::new());
+            return Ok(Selected {
+                keep: Vec::new(),
+                degraded: false,
+            });
         }
 
         let mut numbered = String::new();
@@ -138,8 +173,9 @@ impl<'a> Selector<'a> {
             // R7: a zero-byte body is a dead model and must not be read as a
             // considered "nothing helps".
             Err(e @ MyelinError::EmptyCompletion { .. }) => return Err(e),
-            // Anything else is the model producing something unusable, which
-            // is a quality problem and not a transport one.
+            // Anything else is the model producing something unusable, or
+            // the server refusing the request. Both degrade to rank order,
+            // and both are reported as degraded.
             Err(_) => return Ok(fallback()),
         };
 
@@ -157,7 +193,10 @@ impl<'a> Selector<'a> {
         if out.is_empty() {
             return Ok(fallback());
         }
-        Ok(out)
+        Ok(Selected {
+            keep: out,
+            degraded: false,
+        })
     }
 }
 
@@ -207,7 +246,49 @@ mod tests {
             .select("what happened", &ten(), 6)
             .await
             .unwrap();
-        assert_eq!(picked, vec![3, 0]);
+        assert_eq!(picked.keep, vec![3, 0]);
+    }
+
+    /// **A fallback is reported as one.** Without this the caller cannot
+    /// tell a selection that agreed with rank order from a selector that
+    /// never ran — and a measurement then reads a mis-sized server as the
+    /// mechanism's null. Measured: a 100-candidate prompt over real
+    /// LongMemEval records is 8,298 tokens against an 8,192-token slot,
+    /// and llama.cpp 400s every one of them.
+    #[tokio::test]
+    async fn a_refused_request_degrades_and_says_so() {
+        let llm = Canned(std::sync::Mutex::new(vec![Err(MyelinError::Store(
+            "request (8298 tokens) exceeds the available context size (8192 tokens)".into(),
+        ))]));
+        let picked = Selector::new(&llm)
+            .select("what happened", &ten(), 6)
+            .await
+            .unwrap();
+        assert!(picked.degraded, "a refused request is not a selection");
+        assert_eq!(picked.keep, vec![0, 1, 2, 3, 4, 5], "and it is rank order");
+    }
+
+    /// A real selection is not flagged, or the guard would refuse every
+    /// cell and the instrument would be useless.
+    #[tokio::test]
+    async fn a_real_selection_is_not_degraded() {
+        let llm = Canned::text(r#"{"keep":[3,0]}"#);
+        let picked = Selector::new(&llm)
+            .select("what happened", &ten(), 6)
+            .await
+            .unwrap();
+        assert!(!picked.degraded);
+    }
+
+    /// An empty candidate list is not a degradation — there was nothing to
+    /// select from, which is a fact about the store and not about the
+    /// model.
+    #[tokio::test]
+    async fn an_empty_candidate_list_is_not_degraded() {
+        let llm = Canned::text(r#"{"keep":[]}"#);
+        let picked = Selector::new(&llm).select("q", &[], 6).await.unwrap();
+        assert!(!picked.degraded);
+        assert!(picked.keep.is_empty());
     }
 
     /// Out-of-range and repeated indices are reachable in production — the
@@ -219,7 +300,7 @@ mod tests {
             .select("what happened", &ten(), 6)
             .await
             .unwrap();
-        assert_eq!(picked, vec![3, 7]);
+        assert_eq!(picked.keep, vec![3, 7]);
     }
 
     /// More indices than asked for is truncated rather than passed through:
@@ -231,7 +312,7 @@ mod tests {
             .select("what happened", &ten(), 3)
             .await
             .unwrap();
-        assert_eq!(picked, vec![9, 8, 7]);
+        assert_eq!(picked.keep, vec![9, 8, 7]);
     }
 
     /// A malformed response must degrade to rank order, not abort a
@@ -243,7 +324,7 @@ mod tests {
             .select("what happened", &ten(), 6)
             .await
             .unwrap();
-        assert_eq!(picked, vec![0, 1, 2, 3, 4, 5]);
+        assert_eq!(picked.keep, vec![0, 1, 2, 3, 4, 5]);
     }
 
     /// An empty `keep` is indistinguishable from a model that gave up, and
@@ -256,7 +337,7 @@ mod tests {
             .select("what happened", &ten(), 4)
             .await
             .unwrap();
-        assert_eq!(picked, vec![0, 1, 2, 3]);
+        assert_eq!(picked.keep, vec![0, 1, 2, 3]);
     }
 
     /// R7: a zero-byte body is a dead model, and a run that silently

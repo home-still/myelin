@@ -518,6 +518,16 @@ pub struct WidthPoint {
     pub prefetch_limit: u64,
     pub rerank_depth: usize,
     pub k: usize,
+    /// Did this cell run the sufficiency selector (M21,
+    /// `RetrieveConfig::select_sufficient`)?
+    ///
+    /// The selector stable-partitions the reranked pool — nothing is
+    /// dropped — so it cannot change `pool_recall` and can only move
+    /// `recall`. That makes it a direct read on how much of
+    /// [`WidthPoint::truncation_loss`] is recoverable by choosing better,
+    /// which is the quantity M25 and M26 localised and nobody has measured
+    /// on a full population.
+    pub select: bool,
     /// Gold-turn recall of the **emitted** evidence — what the reader sees.
     pub recall: f64,
     /// Gold-turn recall of the **reranked pool**, before `compose`
@@ -529,6 +539,14 @@ pub struct WidthPoint {
     pub pool: f64,
     pub p50_ms: u128,
     pub p90_ms: u128,
+    /// Fraction of queries on which the selector fell back to rank order.
+    ///
+    /// A selecting cell with a high value measured a mis-sized server, not
+    /// a mechanism: `Selector::select` degrades to the unmodified order on
+    /// any non-empty failure, and that is indistinguishable in the output
+    /// from a selection that agreed with rank order. `print_width` refuses
+    /// to report such a cell as a result.
+    pub select_degraded: f64,
 }
 
 impl WidthPoint {
@@ -604,7 +622,7 @@ pub async fn width_sweep(
     ledger_path: &Path,
     units: usize,
     k: usize,
-    grid: &[(u64, usize)],
+    grid: &[(u64, usize, bool)],
     limit: Option<usize>,
     holdout: bool,
 ) -> Result<Vec<WidthPoint>> {
@@ -653,12 +671,19 @@ pub async fn width_sweep(
     {
         eprintln!("  reranker warm-up failed ({e}); the first cell may tie-break differently");
     }
+    // Wired unconditionally, exactly as `bench` wires it: the switch alone
+    // is inert without a client, and wiring the client only under the
+    // switch is the failure class M12, M14 and M20 each lost a run to.
+    let llm = myelin_core::llm::openai::OpenAiLlm::new(&cfg.llm.url, &cfg.llm.model)
+        .context("selector client")?;
 
     let mut out = Vec::new();
-    for &(prefetch_limit, rerank_depth) in grid {
+    for &(prefetch_limit, rerank_depth, select) in grid {
         let retriever = Retriever::new(&embedder, &store, &ledger)
             .with_reranker(&reranker as &dyn Reranker)
+            .with_llm(&llm)
             .with_config(RetrieveConfig {
+                select_sufficient: select,
                 prefetch_limit,
                 rerank_depth,
                 // Every fused channel contributes the same depth, which is
@@ -676,6 +701,7 @@ pub async fn width_sweep(
         let mut pool_recall_sum = 0.0;
         let mut any_sum = 0.0;
         let mut pool_sum = 0.0;
+        let mut degraded = 0.0;
         let mut lat: Vec<u128> = Vec::with_capacity(questions.len());
 
         for q in &questions {
@@ -704,6 +730,7 @@ pub async fn width_sweep(
             pool_recall_sum += pool;
             any_sum += f64::from(u8::from(pool > 0.0));
             pool_sum += trace.pool.len() as f64;
+            degraded += f64::from(u8::from(trace.select_degraded));
             lat.push(trace.total_ms);
         }
 
@@ -713,18 +740,21 @@ pub async fn width_sweep(
             prefetch_limit,
             rerank_depth,
             k,
+            select,
             recall: recall_sum / n,
             pool_recall: pool_recall_sum / n,
             any: any_sum / n,
             pool: pool_sum / n,
             p50_ms: percentile(&lat, 0.50),
             p90_ms: percentile(&lat, 0.90),
+            select_degraded: degraded / n,
         };
         println!(
-            "  prefetch {:<4} depth {:<4} recall@{k} {:.4}  pool {:.4}  (trunc {:.4} / miss {:.4})  \
-             |pool| {:.1}  p50 {}ms",
+            "  prefetch {:<4} depth {:<4} select {:<5} recall@{k} {:.4}  pool {:.4}  \
+             (trunc {:.4} / miss {:.4})  |pool| {:.1}  p50 {}ms",
             point.prefetch_limit,
             point.rerank_depth,
+            point.select,
             point.recall,
             point.pool_recall,
             point.truncation_loss(),
@@ -836,17 +866,73 @@ fn gold_recall(source: &GoldSource, q: &Question, records: &[(Uuid, String)]) ->
 /// baseline — M22's lesson that an arm without a same-code base is not a
 /// measurement, applied to a run that may be cut short by a GPU window
 /// closing.
-pub const WIDTH_GRID: [(u64, usize); 6] = [
-    (50, 25),
-    (50, 50),
-    (100, 25),
-    (100, 50),
-    (200, 50),
-    (200, 100),
+pub const WIDTH_GRID: [(u64, usize, bool); 6] = [
+    (50, 25, false),
+    (50, 50, false),
+    (100, 25, false),
+    (100, 50, false),
+    (200, 50, false),
+    (200, 100, false),
+];
+
+/// The selection grid (M27): the two width extremes, each with and without
+/// the sufficiency selector.
+///
+/// Four cells and not the full six-cell cross, because the question is not
+/// "which width" — M25 and M26 answered that twice — but **how much of
+/// `truncation_loss` a selector recovers, and whether it recovers more
+/// where there is more to recover.** The shipped cell has the least
+/// truncation loss on both corpora and `(200, 100)` the most, so the two
+/// extremes bracket the effect; the middle cells would cost an hour each
+/// to interpolate a line between two points.
+///
+/// Shipped-and-unselected runs first, for [`WIDTH_GRID`]'s reason: a sweep
+/// cut short by a closing GPU window still carries its own baseline.
+///
+/// # The diagnostic rule, fixed before the first cell ran
+///
+/// [`width_verdict`]'s defaults rule still applies and still governs
+/// `RetrieveConfig`, but for a selector cell its latency clause is
+/// **dispositive by construction**: a model call per query cannot come in
+/// under 2x a pure-retrieval p50, so a selecting cell can never be reported
+/// as `Change`. That is correct — `PLAN.md` 7.1 forbids an LLM in `recall`
+/// whatever this measures — and it means the VERDICT line is not the
+/// finding here. The finding is the recall delta, read against this:
+///
+/// - **Selection recovers the truncation loss** if emitted `recall@k` rises
+///   by >= 0.02 absolute at the shipped cell with `pool_recall` unchanged
+///   (it must be: the selector stable-partitions, it never drops a
+///   candidate). Recovering it does NOT flip a default — M21 measured this
+///   same mechanism at exactly +0.0 judged inside `investigate` — it opens
+///   a branch that only a bench arm can close.
+/// - **It fails to recover it** if the rise is under 0.02, and then the
+///   selection branch is closed on evidence rather than opinion, leaving
+///   granularity the only remaining lever on the loss M25 and M26
+///   localised.
+/// - **The interaction is the second question.** M26 found the
+///   cross-encoder's precision at the top 6 *degrades* as its pool widens
+///   (emitted recall fell monotonically 0.8251 -> 0.7791 while pool recall
+///   rose to 0.9976). If selection is what recovers that, the gain at
+///   `(200, 100)` must exceed the gain at `(50, 25)`. If it does not, the
+///   wide pool is not merely unhelpful but unrecoverable, and
+///   `prefetch_limit`/`rerank_depth` should never be revisited again.
+pub const SELECT_GRID: [(u64, usize, bool); 4] = [
+    (50, 25, false),
+    (50, 25, true),
+    (200, 100, false),
+    (200, 100, true),
 ];
 
 /// Absolute emitted-recall gain a cell must clear to change the defaults.
 pub const RECALL_MARGIN: f64 = 0.02;
+/// Fraction of degraded selector calls above which a cell is not a result.
+///
+/// Not zero: one refused request in five hundred is noise, and failing a
+/// 90-minute sweep on it would be its own kind of unreliability. Low
+/// enough that a systematically mis-sized server — which degrades on
+/// *every* query, as a 100-candidate prompt does against an 8,192-token
+/// slot — can never pass.
+pub const MAX_DEGRADED: f64 = 0.02;
 /// Multiple of the shipped cell's p50 latency a winner may cost.
 pub const LATENCY_FACTOR: f64 = 2.0;
 
@@ -868,6 +954,19 @@ pub enum WidthVerdict {
     /// Nothing cleared them. `best` is the highest emitted recall on the
     /// grid, which may still be the shipped cell.
     Keep { base: f64, best: f64 },
+    /// A selecting cell fell back to rank order on more than
+    /// [`MAX_DEGRADED`] of its queries, so the grid measured a mis-sized
+    /// server rather than a mechanism.
+    ///
+    /// Reported instead of a recall comparison because the comparison
+    /// would be arithmetically fine and semantically empty: the selecting
+    /// cell's evidence set IS the unselected cell's, so it reads as a
+    /// clean null for a mechanism that never ran.
+    Degraded {
+        prefetch_limit: u64,
+        rerank_depth: usize,
+        rate: f64,
+    },
 }
 
 /// Apply the rule [`width_sweep`]'s doc fixed before the first cell ran.
@@ -878,11 +977,30 @@ pub enum WidthVerdict {
 ///
 /// The shipped cell is found **by its values**, never by its position, so
 /// reordering [`WIDTH_GRID`] cannot silently change what the comparison is
-/// against.
+/// against — and `select` must be **off** for it, because
+/// `RetrieveConfig::select_sufficient` ships off. Without that clause a
+/// selector cell at the shipped width becomes its own baseline and every
+/// arm is measured against the arm, which is the defect M21 added
+/// `Ours::arm` to prevent and M23 found unfixed on the LME-V2 path.
 pub fn width_verdict(points: &[WidthPoint]) -> WidthVerdict {
+    // Before anything else: did the selector actually run where it was
+    // asked to? A degraded cell's recall is real arithmetic over an
+    // evidence set the mechanism never touched.
+    if let Some(bad) = points
+        .iter()
+        .find(|p| p.select && p.select_degraded > MAX_DEGRADED)
+    {
+        return WidthVerdict::Degraded {
+            prefetch_limit: bad.prefetch_limit,
+            rerank_depth: bad.rerank_depth,
+            rate: bad.select_degraded,
+        };
+    }
     let defaults = RetrieveConfig::default();
     let Some(base) = points.iter().find(|p| {
-        p.prefetch_limit == defaults.prefetch_limit && p.rerank_depth == defaults.rerank_depth
+        p.prefetch_limit == defaults.prefetch_limit
+            && p.rerank_depth == defaults.rerank_depth
+            && p.select == defaults.select_sufficient
     }) else {
         return WidthVerdict::NoBaseline {
             prefetch_limit: defaults.prefetch_limit,
@@ -917,14 +1035,15 @@ pub fn width_verdict(points: &[WidthPoint]) -> WidthVerdict {
 pub fn print_width(points: &[WidthPoint], k: usize, corpus: &str) {
     println!("\n=== width grid — prefetch x rerank_depth, k={k}, corpus {corpus} ===");
     println!(
-        "\n{:>8} {:>6} {:>10} {:>10} {:>10} {:>10} {:>8} {:>8}",
-        "prefetch", "depth", "recall", "pool", "trunc", "miss", "|pool|", "p50ms"
+        "\n{:>8} {:>6} {:>7} {:>10} {:>10} {:>10} {:>10} {:>8} {:>8}",
+        "prefetch", "depth", "select", "recall", "pool", "trunc", "miss", "|pool|", "p50ms"
     );
     for p in points {
         println!(
-            "{:>8} {:>6} {:>10.4} {:>10.4} {:>10.4} {:>10.4} {:>8.1} {:>8}",
+            "{:>8} {:>6} {:>7} {:>10.4} {:>10.4} {:>10.4} {:>10.4} {:>8.1} {:>8}",
             p.prefetch_limit,
             p.rerank_depth,
+            p.select,
             p.recall,
             p.pool_recall,
             p.truncation_loss(),
@@ -938,7 +1057,12 @@ pub fn print_width(points: &[WidthPoint], k: usize, corpus: &str) {
          pool   = the same arithmetic over the reranked pool, before compose truncates to k.\n\
          trunc  = pool - recall: gold retrieval found and compose dropped. A selector's to win.\n\
          miss   = 1 - pool: gold that never entered the pool. Only retrieval can win it.\n\
-         No reader and no judge: gold is decided by {}.",
+         {} Gold is decided by {}.",
+        if points.iter().any(|p| p.select) {
+            "Selector cells cost ONE model call per query; no cell generates an answer and\n             no cell is judged."
+        } else {
+            "No reader and no judge at all."
+        },
         match corpus {
             "longmemeval_s" => "the has_answer turn's 80-char text prefix",
             _ => "LoCoMo's dia_id turns through I4 lineage",
@@ -958,6 +1082,13 @@ pub fn print_width(points: &[WidthPoint], k: usize, corpus: &str) {
             "VERDICT change defaults to prefetch={prefetch_limit} depth={rerank_depth}: \
              recall {from:.4} -> {to:.4} (+{:.4})",
             to - from
+        ),
+        WidthVerdict::Degraded { prefetch_limit, rerank_depth, rate } => println!(
+            "VERDICT not a result: the selector at prefetch={prefetch_limit} \
+             depth={rerank_depth} fell back to rank order on {:.1}% of queries. \
+             That cell measured a mis-sized server, not a mechanism — raise the \
+             reader's per-slot context and re-run it.",
+            rate * 100.0
         ),
         WidthVerdict::Keep { base, best } => println!(
             "VERDICT defaults stay. Best cell on the grid is {best:.4} against the shipped \
@@ -1235,12 +1366,14 @@ mod tests {
             prefetch_limit: prefetch,
             rerank_depth: depth,
             k: 6,
+            select: false,
             recall,
             pool_recall: pool,
             any: 1.0,
             pool: depth as f64,
             p50_ms: p50,
             p90_ms: p50 * 2,
+            select_degraded: 0.0,
         }
     }
 
@@ -1353,17 +1486,119 @@ mod tests {
     fn the_default_grid_contains_the_shipped_cell() {
         let d = RetrieveConfig::default();
         assert!(
-            WIDTH_GRID.contains(&(d.prefetch_limit, d.rerank_depth)),
+            WIDTH_GRID.contains(&(d.prefetch_limit, d.rerank_depth, d.select_sufficient)),
             "WIDTH_GRID {WIDTH_GRID:?} must include the shipped ({}, {})",
             d.prefetch_limit,
             d.rerank_depth
         );
         assert_eq!(
             WIDTH_GRID[0],
-            (d.prefetch_limit, d.rerank_depth),
+            (d.prefetch_limit, d.rerank_depth, d.select_sufficient),
             "and it must run first, so a sweep cut short by a closing GPU window \
              still carries its own baseline"
         );
+    }
+
+    /// **A selector cell is never the baseline.** `select_sufficient`
+    /// ships off, so a selecting cell at the shipped width is an arm; let
+    /// it match and every arm is measured against the arm, which is
+    /// exactly the defect M21 added `Ours::arm` for and M23 found still
+    /// unfixed on the LME-V2 path.
+    #[test]
+    fn a_selecting_cell_at_the_shipped_width_is_not_the_baseline() {
+        let d = RetrieveConfig::default();
+        let mut selecting = shipped(0.95, 0.99, 100);
+        selecting.select = true;
+        // Only the selecting cell exists at the shipped width: there is no
+        // baseline at all, and the rule must say so rather than compare
+        // the arm to itself.
+        assert_eq!(
+            width_verdict(&[selecting.clone()]),
+            WidthVerdict::NoBaseline {
+                prefetch_limit: d.prefetch_limit,
+                rerank_depth: d.rerank_depth,
+            }
+        );
+        // With a real baseline present, the selector is judged against it.
+        let verdict = width_verdict(&[shipped(0.80, 0.99, 100), selecting]);
+        assert_eq!(
+            verdict,
+            WidthVerdict::Change {
+                prefetch_limit: d.prefetch_limit,
+                rerank_depth: d.rerank_depth,
+                from: 0.80,
+                to: 0.95,
+            }
+        );
+    }
+
+    /// The selection grid must carry the shipped-and-unselected cell, or
+    /// every sweep it drives reports `NoBaseline`.
+    #[test]
+    fn the_select_grid_contains_the_shipped_unselected_cell() {
+        let d = RetrieveConfig::default();
+        assert_eq!(
+            SELECT_GRID[0],
+            (d.prefetch_limit, d.rerank_depth, d.select_sufficient)
+        );
+        // And it pairs every width it visits, or the selector's effect is
+        // confounded with the width's.
+        let mut widths: Vec<(u64, usize)> =
+            SELECT_GRID.iter().map(|(p, d, _)| (*p, *d)).collect();
+        widths.sort_unstable();
+        widths.dedup();
+        for w in widths {
+            for on in [false, true] {
+                assert!(
+                    SELECT_GRID.contains(&(w.0, w.1, on)),
+                    "width {w:?} is missing its select={on} twin"
+                );
+            }
+        }
+    }
+
+    /// **A degraded selector cell is not a result.** This is the exact
+    /// shape that nearly shipped: the selecting cell's recall equals the
+    /// unselected cell's, which reads as a clean null for a mechanism that
+    /// never ran, because every request was refused for exceeding the
+    /// reader's per-slot context.
+    #[test]
+    fn a_degraded_selector_cell_is_refused_rather_than_reported() {
+        let d = RetrieveConfig::default();
+        let base = shipped(0.8251, 0.9665, 410);
+        let mut selecting = shipped(0.8251, 0.9665, 1385);
+        selecting.select = true;
+        selecting.select_degraded = 1.0;
+        assert_eq!(
+            width_verdict(&[base, selecting]),
+            WidthVerdict::Degraded {
+                prefetch_limit: d.prefetch_limit,
+                rerank_depth: d.rerank_depth,
+                rate: 1.0,
+            },
+            "identical recall plus a total fallback rate is a mis-sized server, not a null"
+        );
+    }
+
+    /// A trickle of fallbacks is noise, not a broken run: failing a
+    /// 90-minute sweep on one refused request would be its own kind of
+    /// unreliability.
+    #[test]
+    fn a_trickle_of_fallbacks_still_reports_a_result() {
+        let base = shipped(0.8251, 0.9665, 410);
+        let mut selecting = shipped(0.8836, 0.9665, 1385);
+        selecting.select = true;
+        selecting.select_degraded = MAX_DEGRADED;
+        let verdict = width_verdict(&[base, selecting]);
+        assert!(
+            !matches!(verdict, WidthVerdict::Degraded { .. }),
+            "at exactly the threshold the cell is still a result: {verdict:?}"
+        );
+        // And it is `Keep`, not `Change`: the selector's model call puts it
+        // over the 2x latency budget by construction, which is the
+        // pre-registered reason the VERDICT line is not the finding for a
+        // selecting cell. The recall delta in the table is.
+        assert!(matches!(verdict, WidthVerdict::Keep { .. }), "{verdict:?}");
     }
 
     /// LongMemEval_S is scored by text prefix, and the two recalls in a
@@ -1414,7 +1649,7 @@ mod tests {
     /// that asks for it measures the prefetch instead of the depth.
     #[test]
     fn no_grid_cell_asks_for_a_pool_wider_than_its_prefetch() {
-        for (prefetch, depth) in WIDTH_GRID {
+        for (prefetch, depth, _) in WIDTH_GRID.iter().chain(SELECT_GRID.iter()).copied() {
             assert!(
                 depth as u64 <= prefetch,
                 "({prefetch}, {depth}) reranks deeper than it prefetches"

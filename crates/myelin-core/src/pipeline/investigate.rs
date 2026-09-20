@@ -343,14 +343,14 @@ async fn select_pool(
 
     let mut slots: Vec<Option<Ranked>> = std::mem::take(ranked).into_iter().map(Some).collect();
     let mut front = Vec::with_capacity(slots.len());
-    for &i in &keep {
+    for &i in &keep.keep {
         if let Some(slot) = slots[i].take() {
             front.push(slot);
         }
     }
     front.extend(slots.into_iter().flatten());
     *ranked = front;
-    Ok(keep.len())
+    Ok(keep.keep.len())
 }
 
 /// Reorder a best-first pool by fresh question-conditioned scores, highest

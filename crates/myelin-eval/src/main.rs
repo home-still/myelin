@@ -571,6 +571,12 @@ enum Command {
         /// channel ablation and the step curve, which are LoCoMo-only.
         #[arg(long, default_value = "locomo")]
         corpus: String,
+        /// Run the selection grid instead of the width grid (M27): the two
+        /// width extremes, each with and without the sufficiency selector,
+        /// measuring how much of `compose`'s truncation loss a selector
+        /// recovers. Costs one model call per query.
+        #[arg(long)]
+        select: bool,
     },
     /// Re-score a finished bench run under a different scorer. Pure CPU:
     /// `response_raw` and `answer_gold` are on disk, so no reader call and no
@@ -795,6 +801,7 @@ async fn main() -> anyhow::Result<()> {
             ref steps,
             width,
             ref corpus,
+            select,
             holdout,
         } => {
             ablate_cmd(
@@ -807,6 +814,7 @@ async fn main() -> anyhow::Result<()> {
                 steps.as_deref(),
                 width,
                 corpus,
+                select,
                 holdout,
             )
             .await
@@ -1117,6 +1125,7 @@ async fn ablate_cmd(
     steps: Option<&[usize]>,
     width: bool,
     corpus: &str,
+    select: bool,
     holdout: bool,
 ) -> anyhow::Result<()> {
     // clap's value is the user's spelling; the rest of the crate keys on
@@ -1159,13 +1168,18 @@ async fn ablate_cmd(
             Path::new(&ledger),
             units,
             k,
-            &myelin_eval::ablate::WIDTH_GRID,
+            if select {
+                &myelin_eval::ablate::SELECT_GRID[..]
+            } else {
+                &myelin_eval::ablate::WIDTH_GRID[..]
+            },
             limit,
             holdout,
         )
         .await?;
         myelin_eval::ablate::print_width(&points, k, corpus);
-        myelin_eval::ablate::write_width(&points, Path::new(&format!("runs/width_{corpus}")))?;
+        let slug = if select { "select" } else { "width" };
+        myelin_eval::ablate::write_width(&points, Path::new(&format!("runs/{slug}_{corpus}")))?;
         return Ok(());
     }
     let run = myelin_eval::ablate::ablate_locomo(
