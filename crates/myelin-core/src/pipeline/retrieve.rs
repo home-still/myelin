@@ -237,16 +237,22 @@ pub struct RecallTrace {
     pub selected: usize,
     #[serde(default)]
     pub select_ms: u128,
-    /// The selector ran and fell back to rank order — a model-quality
-    /// failure, or a server that refused the request.
+    /// Why the selector fell back to rank order, when it did.
     ///
     /// Recorded because a fallback is indistinguishable from a selection
     /// that agreed with rank order, so without it an inert selector reads
     /// as a clean null. Measured: a 100-candidate prompt over real
     /// LongMemEval records is 8,298 tokens against a reader serving 8,192
-    /// per slot, and every call 400s.
+    /// per slot, and every call 400s
+    /// ([`crate::pipeline::select::Degradation::CallFailed`]).
+    ///
+    /// Carries the *cause* rather than a bool because the two causes need
+    /// opposite responses: M32 measured 11 fallbacks in 298 queries against
+    /// a healthy server, all of them
+    /// [`crate::pipeline::select::Degradation::ModelDeclined`], and a gate
+    /// that cannot tell them apart refuses that run.
     #[serde(default)]
-    pub select_degraded: bool,
+    pub select_degraded: crate::pipeline::select::Degradation,
     /// Sub-queries the decomposer produced and what the call cost. Zero
     /// when [`RetrieveConfig::decompose`] is off, when no [`Llm`] was
     /// wired, or when the model judged the question to need only itself —

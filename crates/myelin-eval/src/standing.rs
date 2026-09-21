@@ -850,6 +850,30 @@ fn walk(dir: &Path, depth: usize, out: &mut Vec<PathBuf>) -> Result<()> {
 // Extractors — `bench`
 // ---------------------------------------------------------------------------
 
+/// What `select_sufficient` ships as for a run's mode.
+///
+/// The first switch whose shipped value depends on the mode, so it cannot be
+/// tested by value like the others. M32 measured the pool-level selector at
+/// **+5.8 judged (95% CI [+2.8, +8.8], n = 500)** inside `investigate` and
+/// made it the default there; `PLAN.md` §7.1 keeps `recall` free of an LLM,
+/// so it still ships off on that path.
+///
+/// An arm is a run that differs from the default **for its own mode**.
+/// Testing the raw value instead would flag the shipped `investigate`
+/// configuration as an arm and publish the *unselected* run as "where we
+/// stand" — the M23 defect that had `standing` quoting 39.91 for four
+/// milestones, one switch later.
+///
+/// Read from the library defaults rather than hardcoded, so flipping either
+/// default moves this with it instead of silently disagreeing.
+fn shipped_select_sufficient(mode: &str) -> bool {
+    if mode == "investigate" {
+        myelin_core::pipeline::investigate::InvestigateConfig::default().select_sufficient
+    } else {
+        myelin_core::pipeline::retrieve::RetrieveConfig::default().select_sufficient
+    }
+}
+
 /// Every metric a `bench` run directory supports.
 ///
 /// Subsets are computed from `per_question.jsonl`, never from a pre-aggregated
@@ -883,7 +907,7 @@ fn bench_metrics(dir: &Path, agg_text: &str) -> Result<Vec<Ours>> {
         || run.profile
         || run.profile_clause
         || run.mmr.is_some()
-        || run.select_sufficient
+        || run.select_sufficient != shipped_select_sufficient(&run.mode)
         // M23's four, all shipping off pending their measurement.
         || run.rerank_pool
         || run.premise
@@ -3035,6 +3059,57 @@ mod tests {
             assert!(
                 ours["locomo.temporal.n1540"].unrecorded.is_empty(),
                 "{key}: recording the M19 keys means the artifact is not stale"
+            );
+        }
+    }
+
+    /// `select_sufficient` ships **on** for `investigate` (M32: +5.8 judged,
+    /// CI [+2.8, +8.8], n = 500) and **off** for `recall` (§7.1 forbids an
+    /// LLM on that path). So the same switch value means opposite things
+    /// depending on the mode, and testing the raw value — as the OR chain
+    /// did for twelve milestones — inverts both verdicts at once: the
+    /// shipped investigate configuration reads as an arm, and the
+    /// *unselected* run gets published as "where we stand".
+    ///
+    /// That is [`Ours::arm`]'s original defect exactly, and the reason this
+    /// asserts all four corners rather than the one that changed.
+    #[test]
+    fn select_sufficient_is_an_arm_only_against_its_own_modes_default() {
+        let row = serde_json::json!({
+            "question_id": "q", "tenant": "t", "category": 2,
+            "question_text": "when?", "answer_gold": "g",
+            "response_raw": "g", "score": 1.0, "exact_match": 1.0,
+            "is_abstention_problem": false, "retrieved_items": 6,
+            "memory_query_duration_seconds": 0.1
+        })
+        .to_string();
+
+        // (mode, select_sufficient) -> is this an arm?
+        for (mode, select, expect_arm, why) in [
+            ("investigate", true, false, "the shipped investigate default"),
+            ("investigate", false, true, "investigate with the default turned OFF"),
+            ("recall", false, false, "the shipped recall default"),
+            ("recall", true, true, "recall with an LLM §7.1 forbids"),
+        ] {
+            let tmp = tempfile::tempdir().unwrap();
+            let dir = tmp.path().join("runs/r");
+            std::fs::create_dir_all(&dir).unwrap();
+            let agg = serde_json::json!({
+                "corpus": "locomo", "collection": "c", "mode": mode, "k": 6,
+                "max_steps": 2, "scorer": "temporal",
+                "resolve_dates": true, "timeline": true,
+                "select_sufficient": select,
+                "questions": 1, "f1_answerable": 0.5, "em_answerable": 0.1,
+                "abstention_accuracy": 0.0, "by_category": [],
+                "query_p50_seconds": 0.2, "query_avg_seconds": 0.2
+            });
+            std::fs::write(dir.join("per_question.jsonl"), &row).unwrap();
+            std::fs::write(dir.join("aggregated_metrics.json"), agg.to_string()).unwrap();
+
+            let ours = collect(&tmp.path().join("runs"), "/nonexistent/python").unwrap();
+            assert_eq!(
+                ours["locomo.temporal.n1540"].arm, expect_arm,
+                "{mode} + select_sufficient={select} is {why}"
             );
         }
     }

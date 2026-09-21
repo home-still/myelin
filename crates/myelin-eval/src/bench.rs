@@ -65,6 +65,7 @@ use myelin_core::llm::{CompletionRequest, Llm, Message};
 use myelin_core::model::query::{Budget, Mode, Recall, ScopeFilter};
 use myelin_core::pipeline::investigate::Investigator;
 use myelin_core::pipeline::retrieve::{RetrieveConfig, Retriever};
+use myelin_core::pipeline::select::Degradation;
 use myelin_core::rerank::cross::CrossEncoder;
 use myelin_core::rerank::Reranker;
 use myelin_core::store::graph::GraphIndex;
@@ -164,6 +165,142 @@ pub struct ScoredQuestion {
     #[serde(default)]
     pub evidence: Vec<String>,
     pub memory_query_duration_seconds: f64,
+    /// What the sufficiency selector did on this row, when it was on: how
+    /// many candidates it kept, and — if it fell back to rank order — why.
+    ///
+    /// Persisted because `bench` is the path that produces every *judged*
+    /// number, and until M32 it discarded the retrieval trace entirely
+    /// (`.0` on both `recall` and `investigate`) — so a `--select-sufficient`
+    /// arm could not show that its mechanism had run. A degraded call
+    /// returns `0..k`, which is byte-identical to the unselected arm's
+    /// evidence, so the arm reads as a clean null for a mechanism that never
+    /// ran. M27 measured that shape on the offline instrument and gated it
+    /// there; the judged path was still blind.
+    ///
+    /// `#[serde(default)]` so the historical run artifacts `standing` and
+    /// `ratchet` read still parse — they report `selected: 0` and
+    /// `Degradation::None`, which is correct for every arm that had the
+    /// switch off.
+    #[serde(default)]
+    pub selected: usize,
+    #[serde(default)]
+    pub select_degraded: Degradation,
+}
+
+/// Queries the guard must see before a failed call can abort a run.
+///
+/// **Derived, not chosen.** `MAX_DEGRADED` is 2% because M27 judged one
+/// refused request in five hundred to be noise rather than a broken run. The
+/// guard's rule is `wilson_lower(call_failed, seen) > MAX_DEGRADED`, so the
+/// question is the smallest `n` at which a *single* failure is still
+/// compatible with that floor: `wilson_lower(1, 8) = 0.0224` (would abort)
+/// and `wilson_lower(1, 9) = 0.0197` (does not). Nine is that `n`.
+///
+/// A systematically mis-sized server fails *every* call, so it reaches
+/// `wilson_lower(9, 9) = 0.70` and aborts nine queries in — not after the
+/// 44 minutes the full LongMemEval_S investigate arm costs.
+const MIN_DEGRADED_OBSERVATIONS: usize = 9;
+
+/// Refuses to let a run finish when its sufficiency selector is silently
+/// falling back to rank order because the *calls are failing*.
+///
+/// # Why this is a hard error and not a warning
+///
+/// The fallback is `0..k`, so a fully degraded selecting arm emits *the
+/// unselected arm's evidence set*. Its judged score is therefore the base
+/// arm's score, and the pair reads as a clean, tight, entirely credible
+/// null — for a mechanism that never ran. That is the failure class M12, M14
+/// and M20 each lost a run to, M27 caught on the offline instrument, and M32
+/// found still live in the judged path: `bench` discarded the retrieval
+/// trace on both branches, so no run artifact could distinguish the two
+/// cases. A warning printed into a 44-minute log is not a defence; refusing
+/// to produce the number is.
+///
+/// # Why only [`Degradation::CallFailed`] counts
+///
+/// The first version of this guard counted every fallback and **refused a
+/// healthy run**: 11 of 298 LongMemEval_S `investigate` queries fell back
+/// (3.7%, Wilson lower 2.1%) against a reader and reranker that both
+/// answered `/health` = ok for the whole run. Every one of them was
+/// [`Degradation::ModelDeclined`] — the model answered and named no usable
+/// candidate, which is a position the selector is allowed to take. M27's 2%
+/// floor was calibrated for refusals ("one refused request in five hundred
+/// is noise"), and applying it to the union of two unrelated causes gates
+/// on the wrong quantity.
+///
+/// So declines are counted and reported — a rate that climbs is a
+/// model-quality regression worth seeing — and only failures abort.
+#[derive(Debug, Default)]
+pub struct DegradationGuard {
+    seen: usize,
+    declined: usize,
+    call_failed: usize,
+}
+
+impl DegradationGuard {
+    /// Record one query's selector outcome.
+    ///
+    /// `Err` means the run must stop: the observed *call-failure* rate is
+    /// incompatible with [`crate::ablate::MAX_DEGRADED`] at 95% confidence.
+    pub fn observe(&mut self, why: Degradation) -> Result<()> {
+        self.seen += 1;
+        match why {
+            Degradation::None => {}
+            Degradation::ModelDeclined => self.declined += 1,
+            Degradation::CallFailed => self.call_failed += 1,
+        }
+        if self.seen < MIN_DEGRADED_OBSERVATIONS || self.call_failed == 0 {
+            return Ok(());
+        }
+        let lower = crate::attack_live::wilson(self.call_failed, self.seen).0;
+        if lower > crate::ablate::MAX_DEGRADED {
+            anyhow::bail!(
+                "the sufficiency selector's model call FAILED on {}/{} queries \
+                 ({:.1}%, Wilson 95% lower bound {:.1}% > the {:.0}% floor): this run \
+                 would report the UNSELECTED evidence set as a selected arm and read \
+                 as a clean null. Most likely the reader's per-slot context is too \
+                 small for the selector prompt — a 100-candidate prompt over real \
+                 LongMemEval records is 8,298 tokens. Serve it wider \
+                 (ops/big/serve-models.sh defaults 2 slots x 32768) and re-run. \
+                 ({} further queries had the call succeed and the model decline, \
+                 which is not a fault and does not count toward this.)",
+                self.call_failed,
+                self.seen,
+                100.0 * self.call_failed_rate(),
+                100.0 * lower,
+                100.0 * crate::ablate::MAX_DEGRADED,
+                self.declined,
+            );
+        }
+        Ok(())
+    }
+
+    /// Rate of failed selector calls — the quantity the guard gates on.
+    pub fn call_failed_rate(&self) -> f64 {
+        self.ratio(self.call_failed)
+    }
+
+    /// Rate at which the model answered and named nothing usable. Reported,
+    /// never fatal.
+    pub fn declined_rate(&self) -> f64 {
+        self.ratio(self.declined)
+    }
+
+    fn ratio(&self, n: usize) -> f64 {
+        if self.seen == 0 {
+            0.0
+        } else {
+            n as f64 / self.seen as f64
+        }
+    }
+}
+
+/// Fraction of rows whose selector fell back for one particular cause.
+fn row_rate(rows: &[ScoredQuestion], why: Degradation) -> f64 {
+    if rows.is_empty() {
+        return 0.0;
+    }
+    rows.iter().filter(|r| r.select_degraded == why).count() as f64 / rows.len() as f64
 }
 
 /// Every run written before M23 composed to this budget; a run artifact
@@ -220,6 +357,22 @@ pub struct BenchRun {
     pub mmr: Option<f32>,
     #[serde(default)]
     pub select_sufficient: bool,
+    /// Fractions of queries on which the sufficiency selector fell back to
+    /// rank order, split by cause. Derived from the rows rather than plumbed
+    /// through, so a rescored artifact reports them too.
+    ///
+    /// `select_call_failed_rate` is what `DegradationGuard` gates on, so on
+    /// a published artifact a `0.0` there next to `select_sufficient: true`
+    /// is the positive evidence that the arm's mechanism ran — the pair
+    /// M27's failure class cannot produce.
+    ///
+    /// `select_declined_rate` is the model answering and naming no usable
+    /// candidate. Never fatal; M32 measured it at **3.7% (11/298)** on a
+    /// healthy server, which is why the two are separate numbers.
+    #[serde(default)]
+    pub select_call_failed_rate: f64,
+    #[serde(default)]
+    pub select_declined_rate: f64,
     /// M23's width/budget triple, mirroring `Budget::tokens` and
     /// `RetrieveConfig::{prefetch_limit, rerank_depth}`. Recorded for the
     /// reason M21's pair is: `standing` fingerprints LME-V2 harness runs on
@@ -708,6 +861,7 @@ pub async fn bench_locomo(
     // question it finished (see `RowSink`).
     let mut scored = RowSink::create(out_dir)?;
     let mut latencies: Vec<f64> = Vec::new();
+    let mut degradation = DegradationGuard::default();
     // Arm B rides on `READER_SYSTEM` rather than replacing it: the arm is the
     // clause, and swapping the whole prompt would confound it with the
     // abstention and date instructions every prior run carried.
@@ -769,23 +923,31 @@ pub async fn bench_locomo(
             };
 
             let started = std::time::Instant::now();
-            let evidence = match mode {
+            // Both arms of the match yield the same pair: the evidence the
+            // reader sees, and what the selector did to produce it. Before
+            // M32 both branches ended in `.0` and the second half was
+            // dropped, which is why a judged selecting arm could not show
+            // its mechanism had run.
+            let (evidence, selection) = match mode {
                 Mode::Investigate => {
-                    Investigator::new(&llm, &retriever)
+                    let (ev, tr) = Investigator::new(&llm, &retriever)
                         .with_config(investigate_cfg)
                         .investigate(&query)
                         .await
-                        .with_context(|| format!("investigate {tenant}#{i}"))?
-                        .0
+                        .with_context(|| format!("investigate {tenant}#{i}"))?;
+                    (ev, (tr.selected, tr.select_degraded))
                 }
                 Mode::Recall => {
-                    retriever
+                    let (ev, tr) = retriever
                         .recall(&query)
                         .await
-                        .with_context(|| format!("recall {tenant}#{i}"))?
-                        .0
+                        .with_context(|| format!("recall {tenant}#{i}"))?;
+                    (ev, (tr.selected, tr.select_degraded))
                 }
             };
+            if switches.select_sufficient {
+                degradation.observe(selection.1)?;
+            }
             let elapsed = started.elapsed().as_secs_f64();
             latencies.push(elapsed);
 
@@ -837,6 +999,8 @@ pub async fn bench_locomo(
                 retrieved_items: evidence.items.len(),
                 evidence: evidence.items.iter().map(|i| i.value.clone()).collect(),
                 memory_query_duration_seconds: elapsed,
+                selected: selection.0,
+                select_degraded: selection.1,
             })?;
         }
     }
@@ -950,6 +1114,7 @@ pub async fn bench_longmemeval_s(
     // question it finished (see `RowSink`).
     let mut scored = RowSink::create(out_dir)?;
     let mut latencies: Vec<f64> = Vec::new();
+    let mut degradation = DegradationGuard::default();
     // See `bench_locomo`: the clause is appended, not substituted.
     let system = if switches.profile_clause {
         format!("{READER_SYSTEM}{READER_PREFERENCE_CLAUSE}")
@@ -975,23 +1140,26 @@ pub async fn bench_longmemeval_s(
         };
 
         let started = std::time::Instant::now();
-        let evidence = match mode {
+        let (evidence, selection) = match mode {
             Mode::Investigate => {
-                Investigator::new(&llm, &retriever)
+                let (ev, tr) = Investigator::new(&llm, &retriever)
                     .with_config(investigate_cfg)
                     .investigate(&query)
                     .await
-                    .with_context(|| format!("investigate {}", item.question_id))?
-                    .0
+                    .with_context(|| format!("investigate {}", item.question_id))?;
+                (ev, (tr.selected, tr.select_degraded))
             }
             Mode::Recall => {
-                retriever
+                let (ev, tr) = retriever
                     .recall(&query)
                     .await
-                    .with_context(|| format!("recall {}", item.question_id))?
-                    .0
+                    .with_context(|| format!("recall {}", item.question_id))?;
+                (ev, (tr.selected, tr.select_degraded))
             }
         };
+        if switches.select_sufficient {
+            degradation.observe(selection.1)?;
+        }
         let elapsed = started.elapsed().as_secs_f64();
         latencies.push(elapsed);
 
@@ -1035,6 +1203,8 @@ pub async fn bench_longmemeval_s(
             retrieved_items: evidence.items.len(),
             evidence: evidence.items.iter().map(|i| i.value.clone()).collect(),
             memory_query_duration_seconds: elapsed,
+            selected: selection.0,
+            select_degraded: selection.1,
         })?;
     }
 
@@ -1171,6 +1341,8 @@ fn finish_run(
         // says which produced these rows.
         mmr: spec.switches.mmr,
         select_sufficient: spec.switches.select_sufficient,
+        select_call_failed_rate: row_rate(&scored, Degradation::CallFailed),
+        select_declined_rate: row_rate(&scored, Degradation::ModelDeclined),
         // M23's four, same rule again: all ship off, so the artifact is the
         // only record of which produced these rows — and `standing` reads
         // them back to decide whether the run is an arm.
@@ -1413,6 +1585,114 @@ fn judged_score(judge: &crate::judge::JudgeFile, row: &ScoredQuestion) -> Result
 mod tests {
     use super::*;
 
+    /// The shape that nearly shipped, and the reason this guard exists: a
+    /// selecting arm whose every call *failed* emits the UNSELECTED
+    /// evidence set, so its judged score equals the base arm's and the pair
+    /// reads as a tight, credible null for a mechanism that never ran.
+    ///
+    /// It must be an error, not a row. If this test is ever relaxed to
+    /// "warns", M27's failure class is back in the judged path.
+    #[test]
+    fn a_run_whose_selector_calls_all_fail_is_refused_not_reported() {
+        let mut g = DegradationGuard::default();
+        let mut fired = None;
+        for i in 1..=500 {
+            if let Err(e) = g.observe(Degradation::CallFailed) {
+                fired = Some((i, e.to_string()));
+                break;
+            }
+        }
+        let (at, msg) = fired.expect("a 100%-failing run must not be allowed to finish");
+        assert_eq!(
+            at, MIN_DEGRADED_OBSERVATIONS,
+            "and must abort at the first query the rule can speak, not after \
+             the 44 minutes a full investigate arm costs"
+        );
+        // The operator has to be able to act on it: the message names the
+        // actual cause M27 measured, not just a rate.
+        assert!(msg.contains("8,298 tokens"), "{msg}");
+        assert!(msg.contains("9/9"), "{msg}");
+    }
+
+    /// **The regression this guard's first version WAS.** A model that
+    /// answers and names no usable candidate has taken a position the
+    /// selector is allowed to take, and it must never abort a run however
+    /// often it happens.
+    ///
+    /// Measured: 11 of 298 LongMemEval_S `investigate` queries (3.7%,
+    /// Wilson lower 2.1%) against a reader and reranker that both answered
+    /// `/health` = ok for the whole run. Counting them refused that run —
+    /// so this asserts a rate far above the 2% floor still passes, which is
+    /// the only assertion that would have caught it.
+    #[test]
+    fn model_declines_are_never_fatal_however_many() {
+        let mut g = DegradationGuard::default();
+        for i in 0..500 {
+            // 10% decline rate — five times the floor the failure class is
+            // gated on.
+            let why = if i % 10 == 0 {
+                Degradation::ModelDeclined
+            } else {
+                Degradation::None
+            };
+            g.observe(why)
+                .expect("a decline is an answer, not a broken run");
+        }
+        assert_eq!(g.declined_rate(), 0.10);
+        assert_eq!(
+            g.call_failed_rate(),
+            0.0,
+            "and declines must not leak into the gated quantity"
+        );
+    }
+
+    /// The floor is 2% for a reason M27 gave: one refused request in five
+    /// hundred is noise, and failing a 44-minute arm on it would be its own
+    /// kind of unreliability.
+    #[test]
+    fn one_failed_request_is_noise_and_never_aborts() {
+        let mut g = DegradationGuard::default();
+        g.observe(Degradation::CallFailed)
+            .expect("the first call cannot decide a rate");
+        for _ in 0..499 {
+            g.observe(Degradation::None)
+                .expect("1-in-500 is inside the floor");
+        }
+        assert!(g.call_failed_rate() < crate::ablate::MAX_DEGRADED);
+    }
+
+    /// `MIN_DEGRADED_OBSERVATIONS` is derived from the floor, not chosen: at
+    /// n = 8 a single failure is still incompatible with 2% at 95%
+    /// confidence and would abort a healthy run; at n = 9 it is not. Pinning
+    /// both sides means the constant cannot be nudged without the arithmetic
+    /// that justifies it failing first.
+    #[test]
+    fn the_minimum_sample_is_the_smallest_that_tolerates_one_failure() {
+        let lower = |s, n| crate::attack_live::wilson(s, n).0;
+        assert!(
+            lower(1, MIN_DEGRADED_OBSERVATIONS - 1) > crate::ablate::MAX_DEGRADED,
+            "one failure in 8 would abort, so 8 is too small a sample"
+        );
+        assert!(
+            lower(1, MIN_DEGRADED_OBSERVATIONS) <= crate::ablate::MAX_DEGRADED,
+            "one failure in 9 is inside the floor, so 9 is the minimum"
+        );
+    }
+
+    /// A clean selecting run must pass untouched — the guard is a tripwire,
+    /// not a tax — and report the 0.0 that is the positive evidence its
+    /// mechanism ran.
+    #[test]
+    fn a_clean_selecting_run_passes_and_reports_zero() {
+        let mut g = DegradationGuard::default();
+        for _ in 0..500 {
+            g.observe(Degradation::None)
+                .expect("a clean run is not a failure");
+        }
+        assert_eq!(g.call_failed_rate(), 0.0);
+        assert_eq!(g.declined_rate(), 0.0);
+    }
+
     #[test]
     fn normalize_drops_articles_and_punctuation() {
         assert_eq!(
@@ -1573,6 +1853,8 @@ mod tests {
             retrieved_items: 6,
             evidence: vec!["e".into()],
             memory_query_duration_seconds: 1.0,
+            selected: 4,
+            select_degraded: Degradation::ModelDeclined,
         };
         sink.push(row.clone()).unwrap();
 
@@ -1580,6 +1862,12 @@ mod tests {
         let text = std::fs::read_to_string(&path).unwrap();
         let back: ScoredQuestion = serde_json::from_str(text.trim()).unwrap();
         assert_eq!(back.question_id, "q1");
+        // The selector's outcome survives the round trip. `bench` discarded
+        // the retrieval trace entirely before M32, so a judged selecting arm
+        // had no way to show its mechanism had run rather than silently
+        // fallen back to rank order.
+        assert_eq!(back.selected, 4);
+        assert_eq!(back.select_degraded, Degradation::ModelDeclined);
         assert_eq!(sink.len(), 1, "the row is kept for the aggregate too");
 
         // A second `create` on the same directory truncates: `rescore_run`

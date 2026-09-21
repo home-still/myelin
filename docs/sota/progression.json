@@ -20,16 +20,16 @@
       "recorded": "2026-09-20"
     },
     "longmemeval_s.judge_score.n500": {
-      "value": 56.599999999999994,
+      "value": 62.0,
       "n": 500,
-      "run": "runs/m21_full_base",
-      "recorded": "2026-09-20"
+      "run": "runs/m32_inv_sel",
+      "recorded": "2026-09-21"
     },
     "longmemeval_s.token_f1.n500": {
-      "value": 47.05592845627785,
+      "value": 48.894108087780296,
       "n": 470,
-      "run": "runs/m21_full_base",
-      "recorded": "2026-09-20"
+      "run": "runs/m32_inv_sel",
+      "recorded": "2026-09-21"
     },
     "minja.asr.k6_prepopulated": {
       "value": 77.5,
