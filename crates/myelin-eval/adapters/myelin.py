@@ -346,13 +346,15 @@ class MyelinMemory(Memory):
         # the M23 switches this one changes the candidate pool rather than
         # the loop, and `recall` has a pool too.
         self.decompose = params.get("decompose")
-        # Where to append the per-query selector outcome. Not an operating
-        # point and deliberately absent from `PAIR_KEYS`: it changes nothing
-        # about what the server does, only whether the run can prove what it
-        # did. `None` disables it, so an external caller that knows nothing
-        # about this key behaves exactly as before.
-        trace_path = params.get("trace_path")
-        self.trace_path = str(trace_path) if trace_path else None
+        # The last query's retrieval trace, per worker thread.
+        #
+        # THREAD-LOCAL, not an attribute, for the reason the base class's own
+        # `_query_context_local` is: `harness.py` builds prompts across four
+        # worker threads against one shared `Memory`, so a plain
+        # `self._last_trace` would let one question's trace be reported
+        # against another's — a silent mis-attribution, which is worse than
+        # no instrument at all.
+        self._trace_local = threading.local()
         self.mode = str(params.get("mode", "recall"))
         require(
             self.mode in {"recall", "investigate"},
@@ -457,36 +459,61 @@ class MyelinMemory(Memory):
         # would be a lie in the trace. 29 of 451 questions carry one; they are
         # answered from text evidence like any other.
         result = self._session.call_tool(self.mode, arguments)
-        self._record_trace(result)
+        self._trace_local.trace = result.get("trace") or {}
         items = result.get("items", [])
         require(isinstance(items, list), f"recall returned non-list items: {items!r}")
         return items
 
-    def _record_trace(self, result: dict[str, Any]) -> None:
-        """Append this query's selector outcome to `trace_path`, if set.
+    def post_query_hook(
+        self,
+        *,
+        query: str,
+        query_image: str | None,
+        memory_context: list[MemoryContextItem],
+    ) -> dict[str, object] | None:
+        """Report the retrieval trace for the question just queried.
 
-        The harness path was `bench` before M32: it drives retrieval over
-        MCP and had no way to tell a working sufficiency selector from a
-        silent fallback to rank order. The fallback is `0..k`, so a fully
-        degraded selecting arm emits the *unselected* arm's evidence set and
-        its score is the unselected arm's score — a clean, credible null for
-        a mechanism that never ran. M22's LME-V2 selector arm ran against a
-        reader serving 4,096 tokens per slot, where a 60-candidate selector
-        prompt does not fit, and nothing in its artifact can say whether the
-        mechanism ran at all.
+        `harness.py` calls this immediately after `query()` on the same
+        thread and writes the result to `per_question.jsonl` as
+        `memory_post_query_metadata` — **keyed to the question id by the
+        harness itself**. That is the whole reason this replaced M33's
+        sidecar file: a sidecar has no question identifier, and prompts are
+        built across four worker threads, so its line order is not the
+        question order and the rows cannot be joined to outcomes at all.
+        M33 shipped one and could only report aggregate counts.
 
-        Written as one JSON line per query rather than aggregated, so a run
-        that dies mid-way still says what happened up to that point.
+        Why the trace is worth reporting: the fallback in
+        `Selector::select` is `0..k`, so a selecting arm whose calls fail
+        emits the *unselected* arm's evidence set, scores what it scores,
+        and reads as a clean null for a mechanism that never ran. M22's
+        LME-V2 selector arm ran against a reader serving 4,096 tokens per
+        slot, where a 60-candidate selector prompt does not fit, and nothing
+        in its artifact can say whether the mechanism ran.
+
+        Returns `None` when the server sent no trace, which is the base
+        class's own "nothing to report" and keeps the key `null` rather than
+        an empty object that would read as a measurement.
         """
-        if not self.trace_path:
-            return
-        trace = result.get("trace") or {}
-        row = {
+        trace = getattr(self._trace_local, "trace", None)
+        if not trace:
+            return None
+        return {
             "selected": trace.get("selected"),
             "select_ms": trace.get("select_ms"),
             "select_degraded": trace.get("select_degraded"),
             "pool": trace.get("pool"),
             "steps": trace.get("steps"),
+            "stopped_because": trace.get("stopped_because"),
+            "abstained": trace.get("abstained"),
         }
-        with open(self.trace_path, "a", encoding="utf-8") as fh:
-            fh.write(json.dumps(row) + "\n")
+
+    def clear_query_context(self) -> None:
+        """Drop this thread's trace along with the base class's context.
+
+        `harness.py` calls this in a `finally`, so a query that raised must
+        not leave its trace behind for the next question on this thread to
+        report as its own.
+        """
+        super().clear_query_context()
+        if hasattr(self._trace_local, "trace"):
+            del self._trace_local.trace

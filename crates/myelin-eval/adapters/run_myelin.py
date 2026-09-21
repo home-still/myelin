@@ -77,6 +77,18 @@ def parse_args() -> argparse.Namespace:
     # exactly what `myelin-eval build --corpus lme-v2-*` writes, so the two
     # halves cannot drift apart silently.
     parser.add_argument("--mcp-url", default=os.getenv("MYELIN_MCP_URL", "http://127.0.0.1:7446/mcp"))
+    parser.add_argument(
+        "--ledger",
+        default=None,
+        help="SQLite ledger the served collection is backed by. Read-only, and "
+        "only to census it: the census goes into `memory_config.json` as "
+        "`store_fingerprint` so two runs that read DIFFERENT STORE CONTENT "
+        "through the same collection name cannot be paired as one submission. "
+        "M34 created exactly that situation -- it minted the events/notes "
+        "pools into `myelin_lme_v2_small`, after which `standing` paired an "
+        "M34 web run with an M33 enterprise run and published 39.47, a "
+        "combined number no configuration ever produced.",
+    )
     parser.add_argument("--tenant", default=None)
     parser.add_argument("--namespace", default=None)
     parser.add_argument("--k", type=int, default=6)
@@ -209,6 +221,32 @@ def parse_question_ids(raw: list[str] | None) -> list[str] | None:
     return ids or None
 
 
+def store_fingerprint(ledger: str | None) -> str | None:
+    """Census the ledger by record kind, as an order-independent string.
+
+    The collection NAME is not the store's identity: M34 minted two new
+    record kinds into `myelin_lme_v2_small` without renaming it, so runs
+    before and after read materially different stores through one name. The
+    counts are what actually differ, and they are cheap to read.
+
+    `None` when no ledger was given, which is how every pre-M34 artifact
+    reads — and `standing` refuses to pair an artifact that names its store
+    with one that does not, because "unknown" is not a match.
+    """
+    if not ledger:
+        return None
+    import sqlite3
+
+    con = sqlite3.connect(f"file:{ledger}?mode=ro", uri=True)
+    try:
+        rows = con.execute(
+            "SELECT kind, COUNT(*) FROM record WHERE t_invalid IS NULL GROUP BY kind"
+        ).fetchall()
+    finally:
+        con.close()
+    return " ".join(f"{k}={n}" for k, n in sorted(rows))
+
+
 def main() -> None:
     args = parse_args()
     data_root = Path(args.data_root).expanduser().resolve()
@@ -260,11 +298,9 @@ def main() -> None:
             # reason: it is in `PAIR_KEYS`, and an artifact that omits it is
             # `stale-config` and unpublishable.
             "decompose": args.decompose,
-            # Not an operating point, so it is deliberately absent from
-            # `PAIR_KEYS`: it changes nothing about what the server does,
-            # only whether the run can prove what its selector did. The
-            # harness path had no answer to that at all before M33.
-            "trace_path": str(Path(args.output_dir) / "myelin_trace.jsonl"),
+            # Not an operating-point SWITCH but part of the operating point:
+            # which store was read. See `store_fingerprint`.
+            "store_fingerprint": store_fingerprint(args.ledger),
         },
     }
     memory_config_path = runtime_dir / "memory_config.json"

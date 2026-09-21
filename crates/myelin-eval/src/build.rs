@@ -442,6 +442,78 @@ pub async fn build_lmev2(
     Ok(report)
 }
 
+/// Largest `maxLength` llama.cpp's json-schema-to-grammar will compile.
+///
+/// Not a style choice. It expands `maxLength` into that many optional
+/// character repetitions and the grammar parser then rejects the result with
+/// `failed to initialize samplers: failed to parse grammar` — an HTTP 400 on
+/// every request, for a schema that is perfectly valid JSON Schema.
+///
+/// Bisected against the live reader (Qwen3.5-9B under llama.cpp): **1999
+/// compiles, 2000 does not**. M23 D1 shipped the notes pool at exactly 2000,
+/// so it failed on every trajectory at 0% coverage while the events pool at
+/// 1000 succeeded — and because the failure is caught per trajectory and
+/// logged as "skipping pool", the pass reported success.
+pub const MAX_SCHEMA_MAX_LENGTH: u64 = 2000;
+
+fn note_schema() -> serde_json::Value {
+    serde_json::json!({
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["procedure_note", "hint_note"],
+        "properties": {
+            "procedure_note": note(),
+            "hint_note": note(),
+        }
+    })
+}
+fn note() -> serde_json::Value {
+    serde_json::json!({
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["title", "description", "content"],
+        "properties": {
+            "title": {"type": "string", "maxLength": 200},
+            "description": {"type": "string", "maxLength": 400},
+            // 2000 is a HARD llama.cpp limit, not a soft one: its
+            // json-schema-to-grammar expands `maxLength` into that many
+            // optional character repetitions, and the grammar parser
+            // rejects the result with `failed to initialize samplers:
+            // failed to parse grammar`. Bisected against the live
+            // reader: 1999 compiles, 2000 does not.
+            //
+            // M23 D1 shipped this at exactly 2000, so the notes pool
+            // failed on EVERY trajectory — 0% coverage — while the
+            // events pool at 1000 worked. 1500 keeps margin against a
+            // limit that is a llama.cpp implementation detail rather
+            // than a specified one. `MAX_SCHEMA_MAX_LENGTH` pins it.
+            "content": {"type": "string", "maxLength": 1500},
+        }
+    })
+}
+fn event_schema() -> serde_json::Value {
+    serde_json::json!({
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["events"],
+        "properties": {
+            "events": {
+                "type": "array",
+                "maxItems": 6,
+                "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["overview", "state_transition"],
+                    "properties": {
+                        "overview": {"type": "string", "maxLength": 1000},
+                        "state_transition": {"type": "string", "maxLength": 1000},
+                    }
+                }
+            }
+        }
+    })
+}
+
 /// M23 D1 — mint the typed pools (events, notes) for LME-V2 into the SAME
 /// store the episodic build already wrote, so one collection carries all
 /// three kinds and the read path stays R4-queryable.
@@ -588,52 +660,6 @@ Rules:
         events: Vec<Event>,
     }
 
-    fn note_schema() -> serde_json::Value {
-        serde_json::json!({
-            "type": "object",
-            "additionalProperties": false,
-            "required": ["procedure_note", "hint_note"],
-            "properties": {
-                "procedure_note": note(),
-                "hint_note": note(),
-            }
-        })
-    }
-    fn note() -> serde_json::Value {
-        serde_json::json!({
-            "type": "object",
-            "additionalProperties": false,
-            "required": ["title", "description", "content"],
-            "properties": {
-                "title": {"type": "string", "maxLength": 200},
-                "description": {"type": "string", "maxLength": 400},
-                "content": {"type": "string", "maxLength": 2000},
-            }
-        })
-    }
-    fn event_schema() -> serde_json::Value {
-        serde_json::json!({
-            "type": "object",
-            "additionalProperties": false,
-            "required": ["events"],
-            "properties": {
-                "events": {
-                    "type": "array",
-                    "maxItems": 6,
-                    "items": {
-                        "type": "object",
-                        "additionalProperties": false,
-                        "required": ["overview", "state_transition"],
-                        "properties": {
-                            "overview": {"type": "string", "maxLength": 1000},
-                            "state_transition": {"type": "string", "maxLength": 1000},
-                        }
-                    }
-                }
-            }
-        })
-    }
-
     /// The trajectory's goal/outcome/ordered steps, the evidence both
     /// templates name. Screenshots are not attached: the write path is
     /// text-only, and the tree chunks carrying the page state are already
@@ -740,6 +766,31 @@ Rules:
         let mut traj_events = 0usize;
         let mut traj_notes = 0usize;
 
+        // I4's ancestors: the trajectory's own episodic records, which the
+        // episodic pass wrote with `SourceRef::doc("{id}:{state}")`. An
+        // event abstracts over those states, so they are literally what it
+        // was derived from.
+        //
+        // Resolved before the model call so a store without the episodic
+        // pass fails here — with a sentence naming the cause — instead of
+        // spending 400 LLM calls and then dying inside the ledger on `I4:
+        // semantic record … has empty derived_from`, which is how M23 D1
+        // shipped and why this pass had never run.
+        let ancestors = ledger
+            .ids_from_source_docs(
+                &myelin_core::model::query::ScopeFilter::tenant(&scope.tenant).with_namespace(&scope.namespace),
+                &format!("{}:", traj.id),
+            )
+            .await?;
+        if ancestors.is_empty() && !events_done {
+            anyhow::bail!(
+                "trajectory {} has no episodic records in {}: the pools pass \
+                 abstracts over the episodic pass and cannot run first. Build \
+                 the episodic store, then re-run with --pools.",
+                traj.id,
+                ledger_path.display()
+            );
+        }
         // ── events: RecordKind::Semantic under {id}#events ──
         if !events_done {
             let request = CompletionRequest::new(vec![
@@ -765,6 +816,8 @@ Rules:
                     let mut write = WritePath::new(&llm, &embedder, &store, &ledger);
                     write.record_kind = RecordKind::Semantic;
                     write.extract_facts = false;
+                    // I4, enforced by the ledger on every Semantic record.
+                    write.derived_from = ancestors.clone();
                     let stats = write.insert(&scope, &turns).await?;
                     traj_events = turns.len();
                     report.total.merge(&stats);
@@ -1106,6 +1159,57 @@ impl BuildReport {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Every `maxLength` in a schema we send must be under the limit
+    /// llama.cpp will actually compile.
+    ///
+    /// **The regression this exists for.** M23 D1 capped the note's
+    /// `content` at exactly 2000, which llama.cpp rejects with HTTP 400
+    /// `failed to parse grammar`. The pool pass catches that per trajectory
+    /// and logs "skipping pool", so the build **reported success** with the
+    /// notes pool at 0% coverage and `myelin_lme_v2_small` carried one of
+    /// AgentRunbook-R's three pools for two milestones.
+    ///
+    /// A live-server test would catch it too, but only when a server is up.
+    /// This is arithmetic over the schemas themselves, so it runs in the
+    /// hermetic suite and cannot be skipped.
+    #[test]
+    fn no_schema_asks_for_a_maxlength_llama_cpp_cannot_compile() {
+        fn walk(v: &serde_json::Value, found: &mut Vec<u64>) {
+            match v {
+                serde_json::Value::Object(map) => {
+                    if let Some(n) = map.get("maxLength").and_then(serde_json::Value::as_u64) {
+                        found.push(n);
+                    }
+                    for child in map.values() {
+                        walk(child, found);
+                    }
+                }
+                serde_json::Value::Array(items) => {
+                    for child in items {
+                        walk(child, found);
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        let mut found = Vec::new();
+        walk(&note_schema(), &mut found);
+        walk(&event_schema(), &mut found);
+        assert!(
+            !found.is_empty(),
+            "the walk found no maxLength at all, so it is asserting nothing"
+        );
+        for n in found {
+            assert!(
+                n < MAX_SCHEMA_MAX_LENGTH,
+                "maxLength {n} >= {MAX_SCHEMA_MAX_LENGTH}: llama.cpp will \
+                 reject this grammar and the pool it belongs to will report \
+                 0% coverage while the build says it succeeded"
+            );
+        }
+    }
 
     /// LoCoMo's own date format must actually parse, or every episode loses
     /// its `t_valid` and the temporal questions become unanswerable.

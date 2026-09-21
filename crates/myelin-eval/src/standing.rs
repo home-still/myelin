@@ -657,6 +657,9 @@ struct HarnessRun {
     judge_class: JudgeClass,
     /// The keys that make two domain runs one operating point.
     fingerprint: String,
+    /// Ledger census of the store this run read, or `None` when the
+    /// artifact does not name it. See the store check in `pair_metrics`.
+    store: Option<String>,
     /// Keys in [`PAIR_KEYS`] the artifact does not record at all, so this
     /// run's operating point is not fully recoverable from disk.
     ///
@@ -1313,6 +1316,14 @@ fn harness_metrics(dir: &Path, agg: &Value) -> Result<(HarnessRun, Vec<Ours>)> {
             candidates: Vec::new(),
         });
     }
+    let store = read_json(&dir.join("runtime_inputs/memory_config.json"))
+        .ok()
+        .and_then(|cfg| {
+            cfg.get("memory_params")
+                .and_then(|p| p.get("store_fingerprint"))
+                .and_then(Value::as_str)
+                .map(str::to_owned)
+        });
     Ok((
         HarnessRun {
             dir: dir.to_path_buf(),
@@ -1322,6 +1333,7 @@ fn harness_metrics(dir: &Path, agg: &Value) -> Result<(HarnessRun, Vec<Ours>)> {
             avg_seconds,
             judge_class,
             fingerprint,
+            store,
             unrecorded,
             arm,
         },
@@ -1480,6 +1492,21 @@ fn pair_metrics(harness: &[HarnessRun], python: &str) -> Vec<Ours> {
         }
         for ent in harness.iter().filter(|h| h.domain == "enterprise") {
             if ent.count != LME_V2_SMALL_ENTERPRISE {
+                continue;
+            }
+            // Same operating point is not enough: it must be the same
+            // STORE. M34 minted the events/notes pools into
+            // `myelin_lme_v2_small` without renaming the collection, so
+            // runs before and after read materially different content
+            // through one name — 85,589 episodic records versus those plus
+            // 190 events and 200 notes. `standing` paired an M34 web run
+            // with an M33 enterprise run and published **39.47**, a
+            // combined accuracy no configuration ever produced.
+            //
+            // `store_fingerprint` is a ledger census, and absence is not a
+            // match for presence: an artifact that does not name its store
+            // cannot be shown to have read the same one.
+            if web.store != ent.store {
                 continue;
             }
             if web.fingerprint == ent.fingerprint {
@@ -3022,6 +3049,68 @@ mod tests {
             assert_eq!(
                 combined.arm, expect_arm,
                 "{mode} + select={select} is {why}"
+            );
+        }
+    }
+
+    /// **A pair must read the same store, not merely the same switches.**
+    ///
+    /// M34 minted the events/notes pools into `myelin_lme_v2_small` without
+    /// renaming the collection, so runs before and after read materially
+    /// different content — 85,589 episodic records versus those plus 190
+    /// events and 200 notes — through one name and one operating point.
+    /// `standing` paired an M34 web run (44.58) with an M33 enterprise run
+    /// (33.65) and published **39.47**, a combined accuracy no
+    /// configuration ever produced and nobody could reproduce.
+    ///
+    /// Absence is not a match for presence: an artifact that does not name
+    /// its store cannot be shown to have read the same one.
+    #[test]
+    fn a_pair_must_have_read_the_same_store() {
+        let store_a = "episodic=85589";
+        let store_b = "episodic=85589 procedural=200 semantic=190";
+
+        let build = |runs: &Path, web_store: Option<&str>, ent_store: Option<&str>| {
+            let mut w = full_params();
+            let mut e = full_params();
+            for (p, s) in [(&mut w, web_store), (&mut e, ent_store)] {
+                if let Some(s) = s {
+                    p["store_fingerprint"] = serde_json::json!(s);
+                }
+            }
+            // Distinct accuracies, so a cross pair would be visible.
+            harness_run(runs, "web", "web", 240, 0.4458, w);
+            harness_run(runs, "ent", "enterprise", 211, 0.3365, e);
+        };
+
+        // Same store: pairs, and the combined is the micro-average.
+        let tmp = tempfile::tempdir().unwrap();
+        let runs = tmp.path().join("runs");
+        build(&runs, Some(store_b), Some(store_b));
+        let ours = collect(&runs, "/nonexistent/python").unwrap();
+        let combined = &ours["lme_v2_small.overall_full_set.combined"];
+        let expect = 100.0 * (0.4458 * 240.0 + 0.3365 * 211.0) / 451.0;
+        assert!(
+            (combined.value - expect).abs() < 0.01,
+            "same store must pair: got {} want {expect}",
+            combined.value
+        );
+
+        // Different stores, and one-sided absence: neither may pair, so the
+        // metric has no candidate at all.
+        for (w, e) in [
+            (Some(store_a), Some(store_b)),
+            (Some(store_b), None),
+            (None, Some(store_b)),
+        ] {
+            let tmp = tempfile::tempdir().unwrap();
+            let runs = tmp.path().join("runs");
+            build(&runs, w, e);
+            let ours = collect(&runs, "/nonexistent/python").unwrap();
+            assert!(
+                !ours.contains_key("lme_v2_small.overall_full_set.combined"),
+                "web={w:?} ent={e:?} must not pair: a combined number from two \
+                 different stores is not reproducible"
             );
         }
     }
