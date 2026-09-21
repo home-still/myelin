@@ -24,7 +24,7 @@ mod common;
 use common::{commit, episode, scratch_store, semantic, HashEmbedder};
 use myelin_core::model::query::{Budget, Mode, Recall, ScopeFilter};
 use myelin_core::model::record::Scope;
-use myelin_core::pipeline::retrieve::Retriever;
+use myelin_core::pipeline::retrieve::{rerank_head_depth, Retriever};
 use myelin_core::store::ledger::Ledger;
 
 fn ask(k: usize, tokens: usize, text: &str) -> Recall {
@@ -116,4 +116,61 @@ async fn a_tight_token_budget_truncates_below_k() {
         "the top item must be admitted even when it alone busts the budget — \
          returning nothing is worse than a slight overrun"
     );
+}
+
+/// Widening the reranker's head must change *which* records are emitted,
+/// never *how many*.
+///
+/// The distinction is the whole safety argument for `rerank_factor`.
+/// Shuster et al. (2021, EMNLP Findings, "Retrieval Augmentation Reduces
+/// Hallucination in Conversation") measured that feeding a reader more
+/// documents raises hallucination: "increasing the number of documents for
+/// these models yields higher levels of hallucination." So the fix for a
+/// degenerate second stage has to buy recall on the *selection* side while
+/// leaving the reader's context width exactly where it was. If a future
+/// change lets `rerank_factor` leak into the emitted count, this fails.
+#[tokio::test]
+async fn a_deeper_rerank_head_does_not_widen_what_the_reader_sees() {
+    use myelin_core::pipeline::retrieve::RetrieveConfig;
+
+    let (store, _guard) = scratch_store("factor").await;
+    let ledger = Ledger::open_memory().await.expect("ledger");
+    let embedder = HashEmbedder;
+    let scope = Scope::new("t/budget", "myelin", "budget");
+
+    let parent = episode(&scope, "ep", "Dana: I adopted a rescue dog.");
+    let mut all = vec![parent.clone()];
+    all.extend((0..24).map(|i| {
+        semantic(
+            &scope,
+            &format!("sem-{i}"),
+            &format!("Dana adopted a rescue dog in city number {i}"),
+            vec![parent.id],
+        )
+    }));
+    commit(&ledger, &store, &embedder, &all).await;
+
+    for factor in [1usize, 4] {
+        let retriever = Retriever::new(&embedder, &store, &ledger).with_config(RetrieveConfig {
+            rerank_factor: factor,
+            ..RetrieveConfig::default()
+        });
+        let (set, trace) = retriever
+            .recall(&ask(5, 4096, "Which dog did Dana adopt?"))
+            .await
+            .expect("recall");
+        assert_eq!(
+            set.len(),
+            5,
+            "factor {factor} emitted {} items for k=5; the head depth must \
+             not reach the reader's context width",
+            set.len()
+        );
+        assert_eq!(
+            trace.rerank_depth,
+            rerank_head_depth(25, factor, 5),
+            "the trace must report the head actually used, so an arm can \
+             verify the knob at the wire instead of inferring it"
+        );
+    }
 }

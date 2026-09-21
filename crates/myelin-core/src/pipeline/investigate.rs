@@ -213,7 +213,34 @@ pub struct InvestigateConfig {
     /// cost −8.75. Every other recorded signal was worse: the selector's own
     /// decline scores *below* base rate at 0.85× lift.
     ///
-    /// Ships off until measured. `docs/measurements/m36-*.md`.
+    /// **Calibrated, and it does not discriminate. Default `false`, and that
+    /// is the measurement talking.**
+    ///
+    /// M37 ran the 14-question calibration pilot the mechanism was built to
+    /// earn (`runs/m37_cal`, `EVIDENCE_CHARS` = 2000) and the verdict
+    /// distribution has no `Supported` in it at all:
+    ///
+    /// | stratum | supported | ambiguous | unsupported |
+    /// |---|---|---|---|
+    /// | answerable | **0** | 5 | 6 |
+    /// | abstention | **0** | 0 | 3 |
+    ///
+    /// 6 of 11 answerable questions judged `unsupported` — a 54.5%
+    /// false-refusal rate, against 67% when the evidence was truncated to
+    /// 600 chars. Truncation was a contributing defect, not the defect.
+    ///
+    /// The design argument is what fails. `Supported` was the branch that
+    /// made this safe: it emits the evidence untouched, so a correctly
+    /// classified question cannot be harmed, and the arm would have measured
+    /// evaluator error rather than prompt contamination. A gate that never
+    /// returns `Supported` modifies every prompt, which is the shape that
+    /// cost `premise_analysis` −8.75. A prompted 9B evaluator asked for an
+    /// absolute judgement over 25 AXTree page dumps says "not enough"
+    /// essentially always; CRAG's evaluator is a fine-tuned T5, and their
+    /// own note that a prompted evaluator underperforms it is the warning
+    /// this should have been read as.
+    ///
+    /// `docs/measurements/m36-*.md` for the build, `m37-*.md` for the kill.
     pub answerability_gate: bool,
     /// Tag the loop's next probe with a record-kind filter the reflect gate
     /// chooses: `raw` | `event` | `note` (M23 D2).

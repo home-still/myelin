@@ -400,7 +400,11 @@ async fn payload_drift_catches_a_mutated_t_valid() {
         )
         .await
         .unwrap();
-    let dense = embedder.embed(&[r.text.clone()]).await.unwrap().remove(0);
+    let dense = embedder
+        .embed(std::slice::from_ref(&r.text))
+        .await
+        .unwrap()
+        .remove(0);
     store
         .upsert(&[IndexItem {
             record: &r,

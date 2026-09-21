@@ -54,7 +54,7 @@ pub struct Backend {
 }
 
 impl Backend {
-    /// `prefetch_limit` and `rerank_depth` override the
+    /// `prefetch_limit`, `rerank_depth` and `rerank_factor` override the
     /// [`RetrieveConfig`] defaults; `None` keeps them. They are arguments
     /// rather than globals because a second configuration channel beside
     /// `MyelinConfig` is how an operating point silently stops being
@@ -64,6 +64,7 @@ impl Backend {
         collection: &str,
         prefetch_limit: Option<u64>,
         rerank_depth: Option<usize>,
+        rerank_factor: Option<usize>,
     ) -> anyhow::Result<Self> {
         let mut qdrant_cfg = cfg.qdrant.clone();
         qdrant_cfg.collection = collection.to_string();
@@ -77,6 +78,7 @@ impl Backend {
             config: RetrieveConfig {
                 prefetch_limit: prefetch_limit.unwrap_or(defaults.prefetch_limit),
                 rerank_depth: rerank_depth.unwrap_or(defaults.rerank_depth),
+                rerank_factor: rerank_factor.unwrap_or(defaults.rerank_factor),
                 // Documented as equal to `prefetch_limit` so every fused
                 // channel contributes the same depth (`retrieve.rs:125-128`).
                 // `graph` itself stays off — M12 measured the PPR channel as
@@ -183,6 +185,10 @@ pub struct RecallTraceJson {
     pub fused: usize,
     pub reranked: usize,
     pub admitted: usize,
+    /// Fused candidates handed to the reranker. `rerank_depth == reranked
+    /// == admitted == k` is the signature of a second stage that can only
+    /// reorder what it will emit, which is what shipped through M36.
+    pub rerank_depth: usize,
     pub embed_ms: u64,
     pub search_ms: u64,
     pub rerank_ms: u64,
@@ -213,6 +219,7 @@ impl From<RecallTrace> for RecallTraceJson {
             fused: t.fused,
             reranked: t.reranked,
             admitted: t.admitted,
+            rerank_depth: t.rerank_depth,
             embed_ms: t.embed_ms as u64,
             search_ms: t.search_ms as u64,
             rerank_ms: t.rerank_ms as u64,
