@@ -260,6 +260,11 @@ def main() -> None:
             # reason: it is in `PAIR_KEYS`, and an artifact that omits it is
             # `stale-config` and unpublishable.
             "decompose": args.decompose,
+            # Not an operating point, so it is deliberately absent from
+            # `PAIR_KEYS`: it changes nothing about what the server does,
+            # only whether the run can prove what its selector did. The
+            # harness path had no answer to that at all before M33.
+            "trace_path": str(Path(args.output_dir) / "myelin_trace.jsonl"),
         },
     }
     memory_config_path = runtime_dir / "memory_config.json"

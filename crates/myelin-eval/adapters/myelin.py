@@ -346,6 +346,13 @@ class MyelinMemory(Memory):
         # the M23 switches this one changes the candidate pool rather than
         # the loop, and `recall` has a pool too.
         self.decompose = params.get("decompose")
+        # Where to append the per-query selector outcome. Not an operating
+        # point and deliberately absent from `PAIR_KEYS`: it changes nothing
+        # about what the server does, only whether the run can prove what it
+        # did. `None` disables it, so an external caller that knows nothing
+        # about this key behaves exactly as before.
+        trace_path = params.get("trace_path")
+        self.trace_path = str(trace_path) if trace_path else None
         self.mode = str(params.get("mode", "recall"))
         require(
             self.mode in {"recall", "investigate"},
@@ -422,9 +429,14 @@ class MyelinMemory(Memory):
             arguments["namespace"] = self.namespace
         if self.tau_abstain is not None:
             arguments["tau_abstain"] = self.tau_abstain
-        # Both tools take both keys, so no branch on `self.mode` is needed.
-        if self.select:
-            arguments["select"] = True
+        # Sent UNCONDITIONALLY, unlike the switches below. M32 made
+        # `select_sufficient` the `investigate` default, so an omitted key no
+        # longer means "off" — the server would turn the selector ON while
+        # `memory_config.json` recorded `select: false`, and the artifact
+        # would misdescribe the run it came from. `standing` reads that key
+        # to decide whether a run is an arm, so the lie would decide which
+        # number gets published.
+        arguments["select"] = bool(self.select)
         if self.dated is not None:
             arguments["dated"] = bool(self.dated)
         # M24 is declared on both schemas, so it needs no mode branch.
@@ -445,6 +457,36 @@ class MyelinMemory(Memory):
         # would be a lie in the trace. 29 of 451 questions carry one; they are
         # answered from text evidence like any other.
         result = self._session.call_tool(self.mode, arguments)
+        self._record_trace(result)
         items = result.get("items", [])
         require(isinstance(items, list), f"recall returned non-list items: {items!r}")
         return items
+
+    def _record_trace(self, result: dict[str, Any]) -> None:
+        """Append this query's selector outcome to `trace_path`, if set.
+
+        The harness path was `bench` before M32: it drives retrieval over
+        MCP and had no way to tell a working sufficiency selector from a
+        silent fallback to rank order. The fallback is `0..k`, so a fully
+        degraded selecting arm emits the *unselected* arm's evidence set and
+        its score is the unselected arm's score — a clean, credible null for
+        a mechanism that never ran. M22's LME-V2 selector arm ran against a
+        reader serving 4,096 tokens per slot, where a 60-candidate selector
+        prompt does not fit, and nothing in its artifact can say whether the
+        mechanism ran at all.
+
+        Written as one JSON line per query rather than aggregated, so a run
+        that dies mid-way still says what happened up to that point.
+        """
+        if not self.trace_path:
+            return
+        trace = result.get("trace") or {}
+        row = {
+            "selected": trace.get("selected"),
+            "select_ms": trace.get("select_ms"),
+            "select_degraded": trace.get("select_degraded"),
+            "pool": trace.get("pool"),
+            "steps": trace.get("steps"),
+        }
+        with open(self.trace_path, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(row) + "\n")

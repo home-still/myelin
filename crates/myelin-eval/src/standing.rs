@@ -1377,15 +1377,20 @@ fn unrecorded_pair_keys(dir: &Path) -> Result<Vec<&'static str>> {
         .collect())
 }
 
-/// The boolean switches in [`PAIR_KEYS`], and what the MCP server does when
-/// the caller says nothing about them.
+/// The **mode-independent** boolean switches in [`PAIR_KEYS`], and what the
+/// MCP server does when the caller says nothing about them.
 ///
 /// `dated` is the one that is **on**: `apply_operating_point` suppresses the
 /// date machinery only for an explicit `false`, because "a corpus is dated
-/// until someone says it is not". The other four are M21–M23 mechanisms
-/// that all ship off pending a measurement.
-const PAIR_SWITCH_DEFAULTS: [(&str, bool); 5] = [
-    ("select", false),
+/// until someone says it is not". The other three are M23 mechanisms that
+/// all ship off pending a measurement.
+///
+/// `select` is deliberately **absent**. It is the one switch whose shipped
+/// value depends on the mode — M32 made it the `investigate` default and
+/// §7.1 keeps it off for `recall` — so it cannot be a constant here. It is
+/// tested separately in [`harness_arm`] against
+/// [`shipped_select_sufficient`], which reads the library defaults.
+const PAIR_SWITCH_DEFAULTS: [(&str, bool); 4] = [
     ("dated", true),
     ("pool_rerank", false),
     ("premise", false),
@@ -1418,12 +1423,27 @@ fn harness_arm(dir: &Path) -> Result<bool> {
     let switched = PAIR_SWITCH_DEFAULTS
         .iter()
         .any(|(key, shipped)| params.get(key).and_then(Value::as_bool) == Some(!shipped));
+    // `select` against the default for THIS run's mode. Every LME-V2 run is
+    // `investigate`, where M32 made it the shipped default, so testing it
+    // against a hardcoded `false` inverts both verdicts at once: the
+    // shipped configuration reads as an arm and is excluded from "where we
+    // stand", while a `select: false` run — an override — is published as
+    // it. That is this function's own motivating defect, which M32 fixed in
+    // `bench_metrics` and left here.
+    //
+    // An absent or `null` `select` is the caller declining to override, so
+    // it is whatever the server's default is, and never an arm.
+    let mode = params.get("mode").and_then(Value::as_str).unwrap_or("recall");
+    let select_switched = params
+        .get("select")
+        .and_then(Value::as_bool)
+        .is_some_and(|set| set != shipped_select_sufficient(mode));
     // Width is an arm whenever it is stated: `RetrieveConfig::default()`
     // supplies both, so any recorded number is an override of it.
     let widened = ["prefetch_limit", "rerank_depth"]
         .iter()
         .any(|key| params.get(key).is_some_and(|v| !v.is_null()));
-    Ok(switched || widened)
+    Ok(switched || select_switched || widened)
 }
 
 fn read_json(path: &Path) -> Result<Value> {
@@ -2844,12 +2864,16 @@ mod tests {
         .unwrap();
     }
 
-    /// The full operating point, as today's adapter records it.
+    /// The shipped configuration, as an LME-V2 `memory_config.json` would
+    /// record it. `select` is **true** because every LME-V2 run is
+    /// `investigate` and M32 made the pool-level selector that mode's
+    /// default; a `false` here would be an override, and `harness_arm`
+    /// now says so.
     fn full_params() -> Value {
         serde_json::json!({
             "mode": "investigate", "k": 25, "budget_tokens": 10000, "max_steps": 2,
             "prefetch_limit": null, "rerank_depth": null,
-            "select": false, "dated": true,
+            "select": true, "dated": true,
             "pool_rerank": false, "premise": false, "typed_probes": false,
             "decompose": null
         })
@@ -2966,6 +2990,62 @@ mod tests {
         let ours = collect(&runs, "/nonexistent/python").unwrap();
         let combined = &ours["lme_v2_small.overall_full_set.combined"];
         assert!(combined.detail.contains("base_web"), "{}", combined.detail);
+    }
+
+    /// **The M32 defect's harness twin.** `select`'s shipped value depends
+    /// on the mode, so `harness_arm` cannot test it against a constant.
+    /// Every LME-V2 run is `investigate`, where M32 made the pool-level
+    /// selector the default, so a hardcoded `false` inverts both verdicts:
+    /// the shipped configuration reads as an arm and is excluded, while a
+    /// `select: false` override is published as "where we stand".
+    ///
+    /// M32 fixed this in `bench_metrics` and left it here, which is why
+    /// this asserts all four corners rather than the one that changed.
+    #[test]
+    fn harness_select_is_an_arm_only_against_its_own_modes_default() {
+        for (mode, select, expect_arm, why) in [
+            ("investigate", true, false, "the shipped investigate default"),
+            ("investigate", false, true, "investigate with the default turned OFF"),
+            ("recall", false, false, "the shipped recall default"),
+            ("recall", true, true, "recall with an LLM §7.1 forbids"),
+        ] {
+            let tmp = tempfile::tempdir().unwrap();
+            let runs = tmp.path().join("runs");
+            let mut params = full_params();
+            params["mode"] = serde_json::json!(mode);
+            params["select"] = serde_json::json!(select);
+            harness_run(&runs, "web", "web", 240, 0.40, params.clone());
+            harness_run(&runs, "ent", "enterprise", 211, 0.40, params);
+
+            let ours = collect(&runs, "/nonexistent/python").unwrap();
+            let combined = &ours["lme_v2_small.overall_full_set.combined"];
+            assert_eq!(
+                combined.arm, expect_arm,
+                "{mode} + select={select} is {why}"
+            );
+        }
+    }
+
+    /// An absent or null `select` is the caller declining to override, not
+    /// an arm — whatever the mode's default happens to be. A recorded
+    /// `null` must not be read as `false` and become an arm the moment the
+    /// `investigate` default is on.
+    #[test]
+    fn an_unset_select_is_never_an_arm() {
+        for value in [serde_json::Value::Null, serde_json::json!(true)] {
+            let tmp = tempfile::tempdir().unwrap();
+            let runs = tmp.path().join("runs");
+            let mut params = full_params();
+            params["select"] = value.clone();
+            harness_run(&runs, "web", "web", 240, 0.40, params.clone());
+            harness_run(&runs, "ent", "enterprise", 211, 0.40, params);
+
+            let ours = collect(&runs, "/nonexistent/python").unwrap();
+            assert!(
+                !ours["lme_v2_small.overall_full_set.combined"].arm,
+                "select={value} on investigate is the shipped default"
+            );
+        }
     }
 
     /// The bench path has its own era signal: `resolve_dates` and
