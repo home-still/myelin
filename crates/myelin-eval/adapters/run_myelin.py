@@ -141,6 +141,14 @@ def parse_args() -> argparse.Namespace:
         "untagged means every measured arm is byte-identical (M23 D2).",
     )
     parser.add_argument(
+        "--kind-quota",
+        action="store_true",
+        help="Allocate k's slots per record kind -- AgentRunbook-R's top-6 events, "
+        "top-3 notes, raw states taking the rest -- instead of handing every slot "
+        "to whichever kind wins one fused ranking. M34 measured our emitted mix at "
+        "10.6%% events against their 31.6%%. investigate and recall both.",
+    )
+    parser.add_argument(
         "--decompose",
         type=int,
         default=None,
@@ -301,6 +309,10 @@ def main() -> None:
             # Not an operating-point SWITCH but part of the operating point:
             # which store was read. See `store_fingerprint`.
             "store_fingerprint": store_fingerprint(args.ledger),
+            # M35, unconditional for the reason `select` is: after a default
+            # moves, an omitted key stops meaning "off" and the artifact
+            # would misdescribe its own run.
+            "kind_quota": args.kind_quota,
         },
     }
     memory_config_path = runtime_dir / "memory_config.json"

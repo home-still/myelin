@@ -346,6 +346,11 @@ class MyelinMemory(Memory):
         # the M23 switches this one changes the candidate pool rather than
         # the loop, and `recall` has a pool too.
         self.decompose = params.get("decompose")
+        # M35: allocate `k`'s slots per record kind (AgentRunbook-R's top-6
+        # events / top-3 notes) instead of one fused ranking. `None` means
+        # "do not override the server's default", which is the contract every
+        # switch here has and the one M33's `select` defect violated.
+        self.kind_quota = params.get("kind_quota")
         # The last query's retrieval trace, per worker thread.
         #
         # THREAD-LOCAL, not an attribute, for the reason the base class's own
@@ -441,6 +446,8 @@ class MyelinMemory(Memory):
         arguments["select"] = bool(self.select)
         if self.dated is not None:
             arguments["dated"] = bool(self.dated)
+        if self.kind_quota is not None:
+            arguments["kind_quota"] = bool(self.kind_quota)
         # M24 is declared on both schemas, so it needs no mode branch.
         if self.decompose is not None:
             arguments["decompose"] = int(self.decompose)
