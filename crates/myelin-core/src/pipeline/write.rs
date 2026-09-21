@@ -150,6 +150,22 @@ pub struct WritePath<'a> {
     /// from the unit and source docs, so re-mapping the kind never forks an
     /// identity.
     pub record_kind: RecordKind,
+    /// Ancestors to stamp on every record this insert mints, when the
+    /// caller is abstracting from records that already exist.
+    ///
+    /// Empty for every ordinary ingest: an episode is the bottom of its own
+    /// lineage and names no ancestor. It is **required** for the LME-V2
+    /// events pool, because `RecordKind::Semantic` triggers
+    /// [`crate::model::record::MemoryRecord::requires_lineage`] and the
+    /// ledger enforces I4 — a semantic record must name what it was
+    /// abstracted from, and every ancestor must exist.
+    ///
+    /// M23 D1 shipped the pool pass without this and it therefore **never
+    /// ran**: the first events insert died on `I4: semantic record … has
+    /// empty derived_from`, which is why `myelin_lme_v2_small` carried
+    /// 85,589 episodic records and zero of the other two AgentRunbook-R
+    /// pools until M34 (`docs/measurements/m34-*.md`).
+    pub derived_from: Vec<uuid::Uuid>,
     /// Emit a per-episode progress line on stderr. A corpus ingest is a
     /// multi-minute operation on a shared GPU; a silent one is impossible to
     /// distinguish from a hung one, and the first probe run had to be killed
@@ -235,6 +251,7 @@ impl<'a> WritePath<'a> {
             record_kind: RecordKind::Episodic,
             progress: false,
             concurrency: 4,
+            derived_from: Vec::new(),
             extract_facts: true,
             adjudicate: false,
             extract_profiles: false,
@@ -671,6 +688,13 @@ impl<'a> WritePath<'a> {
             // through this same path; the default leaves every pre-M23
             // record exactly what it was.
             record.kind = self.record_kind;
+            // I4: `Semantic` (and `Profile`) must name what they were
+            // abstracted from. Stamped here rather than inside
+            // `EpisodeDraft::to_record`, because only the caller knows the
+            // ancestors — the draft is built from turns, which have no ids.
+            if !self.derived_from.is_empty() {
+                record.provenance.derived_from = self.derived_from.clone();
+            }
             // Re-ingesting the same corpus hits the same v5 id. An existing
             // episode is not an error; it is the idempotence the id scheme
             // exists to provide.

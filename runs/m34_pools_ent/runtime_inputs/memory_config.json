@@ -16,7 +16,6 @@
     "pool_rerank": false,
     "premise": false,
     "typed_probes": false,
-    "decompose": null,
-    "trace_path": "/Users/ladvien/myelin/runs/m33_ent/myelin_trace.jsonl"
+    "decompose": null
   }
 }

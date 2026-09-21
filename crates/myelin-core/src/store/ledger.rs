@@ -553,6 +553,51 @@ impl Ledger {
             .collect()
     }
 
+    /// Live record ids whose provenance names a source document under
+    /// `doc_prefix`, within one scope.
+    ///
+    /// Exists for I4. A record that abstracts over other records must name
+    /// them ([`crate::model::record::MemoryRecord::requires_lineage`]), and
+    /// a caller minting one — the LME-V2 events pool is the only one today
+    /// — knows its source documents but not their ids. `visible_of_kind`
+    /// cannot serve this: it is scoped, not source-filtered, and a single
+    /// LME-V2 tenant holds ~38k records, so resolving 200 trajectories
+    /// through it would be 200 full-tenant scans.
+    ///
+    /// `SourceRef::doc` serialises as `{"doc":"<id>"}`, so a trajectory's
+    /// states are the documents under `<traj_id>:` — the prefix this takes.
+    /// `_` and `%` in the prefix are escaped, because a trajectory id is
+    /// caller data and `LIKE` would otherwise treat it as a pattern.
+    pub async fn ids_from_source_docs(
+        &self,
+        filter: &ScopeFilter,
+        doc_prefix: &str,
+    ) -> Result<Vec<Uuid>> {
+        let escaped = doc_prefix
+            .replace('\\', "\\\\")
+            .replace('%', "\\%")
+            .replace('_', "\\_");
+        let pattern = format!(r#"{{"doc":"{escaped}%"#);
+        let rows = sqlx::query(
+            r#"SELECT id FROM record
+               WHERE tenant = ?
+                 AND (? IS NULL OR namespace = ?)
+                 AND t_invalid IS NULL
+                 AND prov_source LIKE ? ESCAPE '\'
+               ORDER BY id"#,
+        )
+        .bind(&filter.tenant)
+        .bind(filter.namespace.as_deref())
+        .bind(filter.namespace.as_deref())
+        .bind(&pattern)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(sql)?;
+        rows.iter()
+            .map(|r| parse_uuid(r.get::<String, _>("id").as_str()))
+            .collect()
+    }
+
     // ── Quarantine (C4 / I3) ────────────────────────────────────
 
     pub async fn quarantine(&self, record: &MemoryRecord, reason: &str) -> Result<()> {

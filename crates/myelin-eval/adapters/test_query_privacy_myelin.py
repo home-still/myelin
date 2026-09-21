@@ -25,6 +25,9 @@ server's.
 
 from __future__ import annotations
 
+import itertools
+import threading
+import time
 import unittest
 from typing import Any
 
@@ -93,25 +96,41 @@ class RecordingSession:
             "items": [{"type": "text", "value": "Dana adopted a rescue dog."}],
             "record_ids": ["00000000-0000-0000-0000-000000000001"],
             "tokens": 7,
+            # The trace `post_query_hook` reports. A real server always sends
+            # one; `model_declined` is the benign fallback cause M32 split out
+            # of `CallFailed`, and it is the value a healthy run mostly shows.
+            "trace": {
+                "selected": 3,
+                "select_ms": 412,
+                "select_degraded": "model_declined",
+                "pool": 41,
+                "steps": 2,
+                "stopped_because": "sufficient",
+                "abstained": False,
+            },
         }
 
 
 def build_memory() -> tuple[myelin.MyelinMemory, RecordingSession]:
+    """Construct through the REAL `__init__`, with the transport swapped.
+
+    Hand-setting attributes is what this used to do, and it drifted: M33 made
+    `query()` send `select` unconditionally and these three tests started
+    raising `AttributeError` for a field the constructor sets and the fixture
+    did not. They are `unittest`, so `cargo test` never runs them and nothing
+    in the landing checklist caught it.
+
+    Going through `__init__` means a new operating-point field can never make
+    the fixture stale again — it either works for the real thing or it works
+    for neither.
+    """
     recorder = RecordingSession()
-    memory = object.__new__(myelin.MyelinMemory)
-    # `Memory.__init__` sets up the thread-local query context the harness
-    # uses; skipping it would make the test vacuous.
-    myelin.Memory.__init__(memory, {"tenant": "t/privacy"})
-    memory.tenant = "t/privacy"
-    memory.namespace = None
-    memory.k = 6
-    memory.budget_tokens = 2048
-    memory.tau_abstain = None
-    memory.mode = "recall"
-    memory.max_steps = 2
-    memory.url = "recorder://"
-    memory._session = recorder
-    memory._inserted = set()
+    original = myelin._McpSession
+    myelin._McpSession = lambda url, timeout: recorder  # noqa: ARG005
+    try:
+        memory = myelin.MyelinMemory({"tenant": "t/privacy", "url": "recorder://"})
+    finally:
+        myelin._McpSession = original
     return memory, recorder
 
 
@@ -163,7 +182,13 @@ class MyelinQueryPrivacyTest(unittest.TestCase):
 
         self.assertEqual(
             set(arguments),
-            {"query", "tenant", "k", "budget_tokens"},
+            # `select` joined this set deliberately in M33. M32 made
+            # `select_sufficient` the `investigate` default, so an omitted key
+            # stopped meaning "off" — the server would turn the selector on
+            # while `memory_config.json` recorded `false`, and the artifact
+            # would describe a run that did not happen. It carries a boolean
+            # the caller already chose, so it adds no benchmark metadata.
+            {"query", "tenant", "k", "budget_tokens", "select"},
             "the outbound argument set is the privacy surface; a new key here "
             "is a new opportunity to leak benchmark metadata",
         )
@@ -176,6 +201,104 @@ class MyelinQueryPrivacyTest(unittest.TestCase):
             [{"type", "value"}],
             "R1: LongMemEval-V2 requires list[{type, value}] exactly; record "
             "ids and scores must not ride along",
+        )
+
+
+class MyelinTraceReportingTest(unittest.TestCase):
+    """`post_query_hook` must report THIS question's trace, on this thread."""
+
+    def test_the_trace_reaches_the_harness_keyed_to_its_question(self) -> None:
+        memory, _ = build_memory()
+        memory.query(QUESTION)
+        meta = memory.post_query_hook(
+            query=QUESTION, query_image=None, memory_context=[]
+        )
+        self.assertEqual(meta["selected"], 3)
+        self.assertEqual(meta["select_degraded"], "model_declined")
+        self.assertEqual(meta["pool"], 41)
+
+    def test_a_cleared_context_does_not_report_a_stale_trace(self) -> None:
+        """`harness.py` clears in a `finally`, so a query that raised must not
+        leave its trace for the next question on this thread to claim."""
+        memory, _ = build_memory()
+        memory.query(QUESTION)
+        memory.clear_query_context()
+        self.assertIsNone(
+            memory.post_query_hook(
+                query=QUESTION, query_image=None, memory_context=[]
+            )
+        )
+
+    def test_concurrent_workers_never_report_each_others_traces(self) -> None:
+        """**The defect this design exists to prevent.**
+
+        `harness.py` builds prompts across four worker threads against ONE
+        shared `Memory`. A plain `self._last_trace` would let one question's
+        trace be written to another question's row — a silent
+        mis-attribution, which is worse than no instrument, because the join
+        it enables would look valid and be wrong.
+
+        Each thread here gets a distinct `selected` from the transport, so a
+        shared attribute shows up as a thread reading a value it never
+        produced.
+        """
+        memory, recorder = build_memory()
+        n = 8
+        # One distinct trace per thread, handed out in call order.
+        counter = itertools.count()
+        lock = threading.Lock()
+
+        def call_tool(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+            with lock:
+                i = next(counter)
+            # Widen the window a real scheduler would give us.
+            time.sleep(0.01)
+            return {
+                "items": [{"type": "text", "value": f"answer {i}"}],
+                "record_ids": [],
+                "tokens": 1,
+                "trace": {"selected": i, "pool": 100 + i},
+            }
+
+        recorder.call_tool = call_tool  # type: ignore[method-assign]
+        seen: list[tuple[int, int]] = []
+        seen_lock = threading.Lock()
+
+        def one_question() -> None:
+            try:
+                memory.query(QUESTION)
+                # `harness.py` does real work between these two calls; the
+                # sleep stands in for it. Without a window here a shared
+                # attribute would usually survive by luck, and this test
+                # would assert nothing. Verified: with `self._shared_trace`
+                # in place of the thread-local, this fails.
+                time.sleep(0.02)
+                meta = memory.post_query_hook(
+                    query=QUESTION, query_image=None, memory_context=[]
+                )
+                with seen_lock:
+                    seen.append((meta["selected"], meta["pool"]))
+            finally:
+                memory.clear_query_context()
+
+        threads = [threading.Thread(target=one_question) for _ in range(n)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        self.assertEqual(len(seen), n)
+        for selected, pool in seen:
+            self.assertEqual(
+                pool,
+                100 + selected,
+                "a thread reported a trace it did not produce: the per-query "
+                "state is shared, not thread-local",
+            )
+        self.assertEqual(
+            sorted(s for s, _ in seen),
+            list(range(n)),
+            "every thread must report its own distinct trace exactly once",
         )
 
 
