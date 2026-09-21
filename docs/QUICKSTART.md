@@ -114,6 +114,9 @@ export MYELIN_LLM__MODEL=qwen3.5-9b
 > ```
 
 ## Step 4: Start the MCP server
+![myelin-mcp --help output showing CLI flags](docs/images/mcp-help.png)
+
+*Figure 1: `myelin-mcp --help` output showing the five CLI flags: `--serve`, `--collection`, `--ledger`, `--prefetch-limit`, `--rerank-depth`.*
 
 ```sh
 myelin-mcp --serve 127.0.0.1:7462 --collection myelin_locomo --ledger data/locomo.ledger
@@ -214,6 +217,9 @@ Response (captured from a real run against the `locomo/conv-26` tenant):
 
 The `trace` field shows the retrieval pipeline: 50 dense hits + 5 lexical hits
 → 54 fused → 25 reranked → 25 admitted, in 686 ms total.
+![Live MCP session: initialize, tools/list, recall, remember](docs/images/mcp-session.png)
+
+*Figure 2: A live MCP session against `myelin_locomo` showing the `initialize` handshake (protocol 2025-06-18), `tools/list` (10 tools), `recall` on tenant `locomo/conv-26` (3 items, 686 ms), and `remember` with `as_profile: true` (1 added, 1 profile, 237 ms).*
 
 ## MCP client config
 
@@ -277,6 +283,9 @@ locomo/conv-41
 locomo/conv-42
 locomo/conv-43
 ```
+![SQLite ledger schema showing the record table](docs/images/ledger-schema.png)
+
+*Figure 3: `sqlite3 data/locomo.ledger '.schema record'` output showing the record table with its immutability triggers (I1) and scope index.*
 
 Always verify the tenant exists before reading. The `search` tool can also list
 records for a scope, but the SQL query above is the definitive check.

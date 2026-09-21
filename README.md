@@ -75,6 +75,9 @@ graph TB
     R4 --> Q
     I2 --> R2
 ```
+![Qdrant dashboard showing real collections with vector counts](docs/images/qdrant-dashboard.png)
+
+*Figure 1: Qdrant web dashboard at `http://192.168.1.110:6333/dashboard` showing the real `myelin_locomo`, `myelin_longmemeval_s`, and `myelin_lme_v2_small` collections with their vector counts.*
 
 ## Configuration
 
@@ -128,6 +131,15 @@ scorers and an LLM judge. See [`docs/EVALUATION.md`](docs/EVALUATION.md) and
 surface.
 
 Current standing against published systems:
+
+![myelin-eval standing output showing 30 comparison rows](docs/images/standing.png)
+
+*Figure 2: `myelin-eval standing` output — 30 rows comparing myelin against published systems (MemPro, Mem0, Zep, NEMORI, etc.) with per-row comparability verdicts.*
+
+![myelin-eval ratchet output showing all metrics held](docs/images/ratchet.png)
+
+*Figure 3: `myelin-eval ratchet` output — regression check against our own pinned floor. All 8 metrics held, 0 regressed.*
+
 ```
 myelin-eval standing    # 30 rows, comparability verdicts per row
 myelin-eval ratchet     # regression check against our own pinned floor
