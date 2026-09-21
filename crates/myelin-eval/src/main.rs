@@ -289,6 +289,47 @@ mod tests {
     }
 }
 
+/// Which grid `ablate --width` sweeps.
+///
+/// An enum rather than a set of mutually exclusive booleans: `--select`
+/// and `--budget` could both be passed and one silently won, which is the
+/// same class of quiet-wrong-configuration defect M23's drift guard and
+/// M27's degraded guard exist for.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, clap::ValueEnum)]
+enum GridName {
+    /// `prefetch_limit` × `rerank_depth` at the shipped budget (M25/M26).
+    Width,
+    /// The two width extremes, with and without the selector (M27).
+    Select,
+    /// The shipped width swept over `max_tokens` (M28/M29).
+    Budget,
+    /// The shipped width crossed over budget and selector — does the
+    /// selector add anything the tight budget is not already doing? (M31).
+    Interaction,
+}
+
+impl GridName {
+    fn cells(self) -> &'static [(u64, usize, bool, usize)] {
+        match self {
+            GridName::Width => &myelin_eval::ablate::WIDTH_GRID,
+            GridName::Select => &myelin_eval::ablate::SELECT_GRID,
+            GridName::Budget => &myelin_eval::ablate::BUDGET_GRID,
+            GridName::Interaction => &myelin_eval::ablate::INTERACTION_GRID,
+        }
+    }
+
+    /// Run-directory slug, so two grids on one corpus do not overwrite
+    /// each other's artifact.
+    fn slug(self) -> &'static str {
+        match self {
+            GridName::Width => "width",
+            GridName::Select => "select",
+            GridName::Budget => "budget",
+            GridName::Interaction => "interaction",
+        }
+    }
+}
+
 #[derive(Copy, Clone, Debug, PartialEq, Eq, clap::ValueEnum)]
 enum Corpus {
     Locomo,
@@ -571,19 +612,9 @@ enum Command {
         /// channel ablation and the step curve, which are LoCoMo-only.
         #[arg(long, default_value = "locomo")]
         corpus: String,
-        /// Run the selection grid instead of the width grid (M27): the two
-        /// width extremes, each with and without the sufficiency selector,
-        /// measuring how much of `compose`'s truncation loss a selector
-        /// recovers. Costs one model call per query.
-        #[arg(long)]
-        select: bool,
-        /// Run the budget grid instead (M28): the shipped width swept over
-        /// `max_tokens`. `compose` truncates on `k` OR on the token
-        /// budget, and no milestone has ever varied the second — on
-        /// LongMemEval_S the mean record is 380 tokens, so six of them
-        /// exceed the shipped 2,048 and the budget binds before `k` does.
-        #[arg(long)]
-        budget: bool,
+        /// Which grid `--width` sweeps.
+        #[arg(long, value_enum, default_value_t = GridName::Width)]
+        grid: GridName,
     },
     /// Re-score a finished bench run under a different scorer. Pure CPU:
     /// `response_raw` and `answer_gold` are on disk, so no reader call and no
@@ -808,8 +839,7 @@ async fn main() -> anyhow::Result<()> {
             ref steps,
             width,
             ref corpus,
-            select,
-            budget,
+            grid,
             holdout,
         } => {
             ablate_cmd(
@@ -822,8 +852,7 @@ async fn main() -> anyhow::Result<()> {
                 steps.as_deref(),
                 width,
                 corpus,
-                select,
-                budget,
+                grid,
                 holdout,
             )
             .await
@@ -1134,8 +1163,7 @@ async fn ablate_cmd(
     steps: Option<&[usize]>,
     width: bool,
     corpus: &str,
-    select: bool,
-    budget: bool,
+    grid: GridName,
     holdout: bool,
 ) -> anyhow::Result<()> {
     // clap's value is the user's spelling; the rest of the crate keys on
@@ -1178,21 +1206,13 @@ async fn ablate_cmd(
             Path::new(&ledger),
             units,
             k,
-            match (select, budget) {
-                (_, true) => &myelin_eval::ablate::BUDGET_GRID[..],
-                (true, false) => &myelin_eval::ablate::SELECT_GRID[..],
-                (false, false) => &myelin_eval::ablate::WIDTH_GRID[..],
-            },
+            grid.cells(),
             limit,
             holdout,
         )
         .await?;
         myelin_eval::ablate::print_width(&points, k, corpus);
-        let slug = match (select, budget) {
-            (_, true) => "budget",
-            (true, false) => "select",
-            (false, false) => "width",
-        };
+        let slug = grid.slug();
         myelin_eval::ablate::write_width(&points, Path::new(&format!("runs/{slug}_{corpus}")))?;
         return Ok(());
     }

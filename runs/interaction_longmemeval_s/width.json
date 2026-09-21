@@ -1,0 +1,82 @@
+{
+  "grid": [
+    {
+      "any": 0.9874476987447699,
+      "budget_tokens": 2048,
+      "dropped_for_tokens": 8.43305439330544,
+      "k": 6,
+      "mean_emitted_rank": 4.719170188244333,
+      "mean_emitted_tokens": 357.0553207837111,
+      "p50_ms": 343,
+      "p90_ms": 410,
+      "pool": 25.0,
+      "pool_recall": 0.9665271966527196,
+      "prefetch_limit": 50,
+      "recall": 0.825139470013947,
+      "rerank_depth": 25,
+      "select": false,
+      "select_degraded": 0.0
+    },
+    {
+      "any": 0.9874476987447699,
+      "budget_tokens": 2048,
+      "dropped_for_tokens": 7.102510460251046,
+      "k": 6,
+      "mean_emitted_rank": 4.426321709786277,
+      "mean_emitted_tokens": 330.4540682414698,
+      "p50_ms": 1278,
+      "p90_ms": 1435,
+      "pool": 25.0,
+      "pool_recall": 0.9665271966527196,
+      "prefetch_limit": 50,
+      "recall": 0.88465829846583,
+      "rerank_depth": 25,
+      "select": true,
+      "select_degraded": 0.008368200836820083
+    },
+    {
+      "any": 0.9874476987447699,
+      "budget_tokens": 8192,
+      "dropped_for_tokens": 0.0041841004184100415,
+      "k": 6,
+      "mean_emitted_rank": 3.5327754532775453,
+      "mean_emitted_tokens": 497.87622036262206,
+      "p50_ms": 337,
+      "p90_ms": 401,
+      "pool": 25.0,
+      "pool_recall": 0.9665271966527196,
+      "prefetch_limit": 50,
+      "recall": 0.7642956764295675,
+      "rerank_depth": 25,
+      "select": false,
+      "select_degraded": 0.0
+    },
+    {
+      "any": 0.9874476987447699,
+      "budget_tokens": 8192,
+      "dropped_for_tokens": 0.0020920502092050207,
+      "k": 6,
+      "mean_emitted_rank": 3.5292887029288704,
+      "mean_emitted_tokens": 443.81380753138075,
+      "p50_ms": 1240,
+      "p90_ms": 1390,
+      "pool": 25.0,
+      "pool_recall": 0.9665271966527196,
+      "prefetch_limit": 50,
+      "recall": 0.8755927475592749,
+      "rerank_depth": 25,
+      "select": true,
+      "select_degraded": 0.008368200836820083
+    }
+  ],
+  "rule": {
+    "latency_factor": 2.0,
+    "recall_margin": 0.02
+  },
+  "schema": 1,
+  "verdict": {
+    "base": 0.825139470013947,
+    "best": 0.88465829846583,
+    "verdict": "keep"
+  }
+}

@@ -568,6 +568,15 @@ pub struct WidthPoint {
     /// tight budget wins because of that deeper reach, this rises with
     /// `dropped_for_tokens`; if it wins because short records are simply
     /// better evidence, it does not and `mean_emitted_tokens` falls alone.
+    ///
+    /// **Only informative when `select` is off.** `RecallTrace::pool` is
+    /// captured *after* the sufficiency selector's stable partition, so on
+    /// a selecting cell this measures position in the selector's output,
+    /// not in the reranker's — and `compose` then takes its head, pinning
+    /// the value at `mean(1..k)` (3.5 at k = 6) whatever the selector did.
+    /// M31 measured exactly that: 3.5 at both `(8192, off)` and
+    /// `(8192, on)`. `mean_emitted_tokens` has no such defect and stays
+    /// readable on every cell.
     pub mean_emitted_rank: f64,
     /// Mean `approx_tokens` of the emitted records, the other half of that
     /// separation.
@@ -991,6 +1000,35 @@ pub const BUDGET_GRID: [(u64, usize, bool, usize); 4] = [
     (50, 25, false, 4096),
     (50, 25, false, 8192),
     (50, 25, false, 16384),
+];
+
+/// The interaction grid (M31): the shipped width, crossed over the token
+/// budget and the selector.
+///
+/// M26, M27 and M29 measured three mechanisms and found one fact under all
+/// of them — **the cross-encoder's top-6 ordering is the bottleneck**.
+/// Widening the pool costs −0.046, the selector reorders past the top-6
+/// for +0.0585, and a tight budget skips past it for +0.0608. The last two
+/// are nearly the same size, which is the reason to suspect they are the
+/// same effect and cannot both own it.
+///
+/// A 2×2 is the smallest design that separates a main effect from an
+/// interaction, and this is the only question on the board where two
+/// shipped-off mechanisms are each credited with the same ~0.06.
+///
+/// **Pre-registered before the first cell, in `PLAN.md` §15:** if they are
+/// the same escape mechanism, `select` at 8,192 recovers most of M29's
+/// 0.0608 while `select` at 2,048 adds much less than its solo +0.0585 —
+/// the interaction term is **negative and at least half the smaller main
+/// effect**. If the interaction is ≈ 0 they are independent levers and the
+/// combination is the new operating point.
+///
+/// Shipped-and-plain first, for [`WIDTH_GRID`]'s reason.
+pub const INTERACTION_GRID: [(u64, usize, bool, usize); 4] = [
+    (50, 25, false, 2048),
+    (50, 25, true, 2048),
+    (50, 25, false, 8192),
+    (50, 25, true, 8192),
 ];
 
 /// Absolute emitted-recall gain a cell must clear to change the defaults.
@@ -1679,6 +1717,54 @@ mod tests {
         // pre-registered reason the VERDICT line is not the finding for a
         // selecting cell. The recall delta in the table is.
         assert!(matches!(verdict, WidthVerdict::Keep { .. }), "{verdict:?}");
+    }
+
+    /// Every grid must contain the shipped cell first, or the sweep it
+    /// drives reports `NoBaseline` and an hour of GPU buys nothing.
+    ///
+    /// Covers all four by construction rather than one at a time: a fifth
+    /// grid added without its baseline fails here instead of at the end of
+    /// a run.
+    #[test]
+    fn every_grid_leads_with_the_shipped_cell() {
+        let d = RetrieveConfig::default();
+        let shipped = (
+            d.prefetch_limit,
+            d.rerank_depth,
+            d.select_sufficient,
+            Budget::default().tokens,
+        );
+        for (name, grid) in [
+            ("WIDTH_GRID", &WIDTH_GRID[..]),
+            ("SELECT_GRID", &SELECT_GRID[..]),
+            ("BUDGET_GRID", &BUDGET_GRID[..]),
+            ("INTERACTION_GRID", &INTERACTION_GRID[..]),
+        ] {
+            assert_eq!(grid[0], shipped, "{name} must lead with the shipped cell");
+        }
+    }
+
+    /// The interaction grid must be a complete 2x2, or it measures a main
+    /// effect and calls it an interaction.
+    #[test]
+    fn the_interaction_grid_is_a_complete_two_by_two() {
+        let budgets: std::collections::BTreeSet<usize> =
+            INTERACTION_GRID.iter().map(|c| c.3).collect();
+        assert_eq!(budgets.len(), 2, "two budgets: {budgets:?}");
+        // One width throughout, or budget and width are confounded.
+        let widths: std::collections::BTreeSet<(u64, usize)> =
+            INTERACTION_GRID.iter().map(|c| (c.0, c.1)).collect();
+        assert_eq!(widths.len(), 1, "one width: {widths:?}");
+        for b in budgets {
+            for on in [false, true] {
+                assert!(
+                    INTERACTION_GRID
+                        .iter()
+                        .any(|c| c.3 == b && c.2 == on),
+                    "missing cell budget={b} select={on}"
+                );
+            }
+        }
     }
 
     /// LongMemEval_S is scored by text prefix, and the two recalls in a
