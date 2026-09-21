@@ -770,7 +770,13 @@ pub async fn width_sweep(
             pool_recall_sum += pool;
             any_sum += f64::from(u8::from(pool > 0.0));
             pool_sum += trace.pool.len() as f64;
-            degraded += f64::from(u8::from(trace.select_degraded));
+            // Only a FAILED call is the M27 failure class. A model that
+            // answered and named nothing usable is a real answer at a low
+            // steady rate (M32: 11/298 on a healthy server), and gating on
+            // the union of the two refuses healthy cells.
+            degraded += f64::from(u8::from(
+                trace.select_degraded == myelin_core::pipeline::select::Degradation::CallFailed,
+            ));
             dropped += trace.dropped_for_tokens as f64;
             // Rank of each emitted record inside the reranked pool, and
             // its size. `timeline`/`profile` items carry a nil record id

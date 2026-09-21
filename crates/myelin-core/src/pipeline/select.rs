@@ -78,19 +78,63 @@ struct Selection {
     keep: Vec<i64>,
 }
 
+/// Why `keep` is the unmodified rank order rather than a selection.
+///
+/// The two causes look identical in the output and must not be treated
+/// alike. M32 measured the difference: over 298 LongMemEval_S
+/// `investigate` queries against a **healthy** reader and reranker (both
+/// `/health` = ok throughout), 11 calls fell back — 3.7%, all of them
+/// [`Degradation::ModelDeclined`]. A guard that cannot tell the causes apart
+/// refuses that run, because M27's 2% floor was calibrated for refusals
+/// only ("one refused request in five hundred is noise") and a model that
+/// legitimately picks nothing is not a refusal at all.
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, schemars::JsonSchema,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum Degradation {
+    /// The model answered and the answer was usable.
+    #[default]
+    None,
+    /// The call succeeded and the model's answer named no usable candidate
+    /// — an empty list, or only out-of-range and duplicate indices.
+    ///
+    /// A real answer, at a low steady rate, and **never** grounds to abort a
+    /// run: "none of these jointly answer it" is a position the selector is
+    /// allowed to take. Counted and reported, because a rate that climbs is
+    /// a model-quality regression even though no single instance is a fault.
+    ModelDeclined,
+    /// The call itself failed — the server refused it, timed out, or
+    /// answered unparseably.
+    ///
+    /// This is M27's failure class and the one that must stop a run: a
+    /// mis-sized server fails *every* call, so the arm silently reports the
+    /// unselected evidence set and reads as a clean null. Measured cause: a
+    /// 100-candidate prompt over real LongMemEval records is 8,298 tokens
+    /// against a reader serving 8,192 per slot, and llama.cpp answers HTTP
+    /// 400 on all of them.
+    CallFailed,
+}
+
+impl Degradation {
+    /// Did the selector fall back to rank order, for either reason?
+    pub fn fell_back(self) -> bool {
+        self != Self::None
+    }
+}
+
 /// What the selector decided, and whether the model decided it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Selected {
     /// Indices into the candidate list, in the model's order.
     pub keep: Vec<usize>,
-    /// The model did not produce a usable answer and `keep` is the
-    /// unmodified rank order.
+    /// Why `keep` is rank order, when it is.
     ///
     /// Load-bearing for measurement, not for behaviour: the caller's
     /// evidence set is the same either way, but an arm that cannot tell a
     /// fallback from a real selection reports a mis-sized server as a
     /// mechanism's null.
-    pub degraded: bool,
+    pub degraded: Degradation,
 }
 
 pub struct Selector<'a> {
@@ -138,14 +182,14 @@ impl<'a> Selector<'a> {
         candidates: &[String],
         k: usize,
     ) -> Result<Selected> {
-        let fallback = || Selected {
+        let fallback = |why: Degradation| Selected {
             keep: (0..k.min(candidates.len())).collect(),
-            degraded: true,
+            degraded: why,
         };
         if candidates.is_empty() || k == 0 {
             return Ok(Selected {
                 keep: Vec::new(),
-                degraded: false,
+                degraded: Degradation::None,
             });
         }
 
@@ -173,10 +217,9 @@ impl<'a> Selector<'a> {
             // R7: a zero-byte body is a dead model and must not be read as a
             // considered "nothing helps".
             Err(e @ MyelinError::EmptyCompletion { .. }) => return Err(e),
-            // Anything else is the model producing something unusable, or
-            // the server refusing the request. Both degrade to rank order,
-            // and both are reported as degraded.
-            Err(_) => return Ok(fallback()),
+            // The server refused it, timed out, or answered unparseably.
+            // This is the class that must stop a run.
+            Err(_) => return Ok(fallback(Degradation::CallFailed)),
         };
 
         let mut out: Vec<usize> = Vec::with_capacity(k);
@@ -191,11 +234,13 @@ impl<'a> Selector<'a> {
             }
         }
         if out.is_empty() {
-            return Ok(fallback());
+            // The call worked; the model named nothing usable. A real
+            // answer, not a fault.
+            return Ok(fallback(Degradation::ModelDeclined));
         }
         Ok(Selected {
             keep: out,
-            degraded: false,
+            degraded: Degradation::None,
         })
     }
 }
@@ -264,7 +309,12 @@ mod tests {
             .select("what happened", &ten(), 6)
             .await
             .unwrap();
-        assert!(picked.degraded, "a refused request is not a selection");
+        assert_eq!(
+            picked.degraded,
+            Degradation::CallFailed,
+            "a refused request is not a selection, and it is the cause that \
+             must abort a run rather than the one that must not"
+        );
         assert_eq!(picked.keep, vec![0, 1, 2, 3, 4, 5], "and it is rank order");
     }
 
@@ -277,7 +327,7 @@ mod tests {
             .select("what happened", &ten(), 6)
             .await
             .unwrap();
-        assert!(!picked.degraded);
+        assert_eq!(picked.degraded, Degradation::None);
     }
 
     /// An empty candidate list is not a degradation — there was nothing to
@@ -287,7 +337,7 @@ mod tests {
     async fn an_empty_candidate_list_is_not_degraded() {
         let llm = Canned::text(r#"{"keep":[]}"#);
         let picked = Selector::new(&llm).select("q", &[], 6).await.unwrap();
-        assert!(!picked.degraded);
+        assert_eq!(picked.degraded, Degradation::None);
         assert!(picked.keep.is_empty());
     }
 
@@ -301,6 +351,43 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(picked.keep, vec![3, 7]);
+    }
+
+    /// The model answered, the answer parsed, and it named nothing usable.
+    /// That is a position the selector is allowed to take — "none of these
+    /// jointly answer it" — and it MUST NOT read as the failure class that
+    /// aborts a run.
+    ///
+    /// M32 measured this at 3.7% (11 of 298 LongMemEval_S `investigate`
+    /// queries) against a reader and reranker that both answered
+    /// `/health` = ok for the whole run. The first version of the guard
+    /// counted it and refused that run.
+    #[tokio::test]
+    async fn a_model_that_names_nothing_usable_declines_rather_than_fails() {
+        // An empty pick over a non-empty candidate list.
+        let llm = Canned::text(r#"{"keep":[]}"#);
+        let picked = Selector::new(&llm)
+            .select("what happened", &ten(), 6)
+            .await
+            .unwrap();
+        assert_eq!(picked.degraded, Degradation::ModelDeclined);
+        assert_eq!(picked.keep, vec![0, 1, 2, 3, 4, 5], "and it is rank order");
+
+        // Indices that are all out of range are the same thing: the call
+        // worked and produced no usable candidate.
+        let llm = Canned::text(r#"{"keep":[99,100]}"#);
+        let picked = Selector::new(&llm)
+            .select("what happened", &ten(), 6)
+            .await
+            .unwrap();
+        assert_eq!(picked.degraded, Degradation::ModelDeclined);
+
+        assert!(
+            !Degradation::None.fell_back(),
+            "and only `None` is not a fallback"
+        );
+        assert!(Degradation::ModelDeclined.fell_back());
+        assert!(Degradation::CallFailed.fell_back());
     }
 
     /// More indices than asked for is truncated rather than passed through:

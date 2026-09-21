@@ -37,7 +37,7 @@ use crate::model::record::{RecordKind, SourceRef, TrustTier};
 
 use super::compose::{compose, ComposeConfig, Ranked, PROFILE_MAX_RECORDS};
 use super::retrieve::Retriever;
-use super::select::Selector;
+use super::select::{Degradation, Selected, Selector};
 
 /// `Copy`: every field is a `usize` or a `bool`, and a per-question bench
 /// loop should not clone a config to read it.
@@ -122,10 +122,22 @@ pub struct InvestigateConfig {
     /// a model call per step on the reflect gate — is the only path it can
     /// default on.
     ///
-    /// **Default off until the pool-level arrangement is measured.** This
-    /// project ships a default on a number, never on a mechanism's
-    /// plausibility. Verdicts: `docs/measurements/m21-evidence-selection.md`
-    /// (per-probe), `docs/measurements/m22-g1-selection.md` (pool-level).
+    /// **Default ON since M32, on the pool-level number its own condition
+    /// asked for.** Judged on LongMemEval_S, all 500 questions, both arms
+    /// `--mode investigate --k 6 --max-steps 2`, differing only in this
+    /// switch: **56.2 → 62.0, +5.8 (95% CI [+2.8, +8.8], p = 0.0001)**. The
+    /// gain is larger here than the +3.8 the forbidden `recall` path showed,
+    /// and it is concentrated exactly where a pool-level decision should
+    /// matter: **+12.0 on multi-session** (n = 133) and **+0.0 on both
+    /// single-session strata** (n = 70, 56), which have no second hop to
+    /// select across. Cost is +1.87 s/query, inside the §7.2 budget for a
+    /// loop that already spends a model call per step.
+    ///
+    /// M21's per-probe null is not contradicted — it measured the
+    /// arrangement described above, which no longer exists. Verdicts:
+    /// `docs/measurements/m32-pool-selection-default.md` (this number),
+    /// `m21-evidence-selection.md` (per-probe), `m22-g1-selection.md`
+    /// (pool-level mechanism).
     pub select_sufficient: bool,
     /// Rerank the WHOLE accumulated pool against the **original question**
     /// once, after the last step and before selection/compose (M23 A2).
@@ -188,7 +200,7 @@ impl Default for InvestigateConfig {
             max_steps: 2,
             max_pool: 60,
             abstain_on_insufficient: false,
-            select_sufficient: false,
+            select_sufficient: true,
             rerank_pool: false,
             premise_analysis: false,
             typed_probes: false,
@@ -334,9 +346,12 @@ async fn select_pool(
     question: &str,
     ranked: &mut Vec<Ranked>,
     k: usize,
-) -> Result<usize> {
+) -> Result<Selected> {
     if ranked.is_empty() {
-        return Ok(0);
+        return Ok(Selected {
+            keep: Vec::new(),
+            degraded: Degradation::None,
+        });
     }
     let docs: Vec<String> = ranked.iter().map(|r| r.record.text.clone()).collect();
     let keep = Selector::new(llm).select(question, &docs, k).await?;
@@ -350,7 +365,7 @@ async fn select_pool(
     }
     front.extend(slots.into_iter().flatten());
     *ranked = front;
-    Ok(keep.keep.len())
+    Ok(keep)
 }
 
 /// Reorder a best-first pool by fresh question-conditioned scores, highest
@@ -462,14 +477,28 @@ pub struct InvestigateTrace {
     #[serde(default)]
     pub abstained: bool,
     /// How many pool records the sufficiency selector kept, and what the
-    /// model call cost. Zero when [`InvestigateConfig::select_sufficient`] is
-    /// off — which is the check that catches an inert switch before a whole
-    /// arm is measured against nothing, the same job the identically named
-    /// [`crate::pipeline::retrieve::RecallTrace`] fields do.
+    /// model call cost. Zero when [`InvestigateConfig::select_sufficient`]
+    /// is off — which is the check that catches an inert switch before a
+    /// whole arm is measured against nothing, the same job the identically
+    /// named [`crate::pipeline::retrieve::RecallTrace`] fields do.
     #[serde(default)]
     pub selected: usize,
     #[serde(default)]
     pub select_ms: u128,
+    /// Why the selector fell back to rank order, when it did.
+    ///
+    /// `selected` cannot report this. The fallback is `0..k`, so a degraded
+    /// call over a 60-record pool at `k = 6` returns `selected = 6`, which
+    /// is exactly what a real selection that kept six returns. M27 measured
+    /// the shape: a 100-candidate prompt over real LongMemEval records is
+    /// 8,298 tokens against a reader serving 8,192 per slot, and llama.cpp
+    /// answers HTTP 400 on *every* query — so the whole arm reads as a clean
+    /// null for a mechanism that never ran. This is the same field
+    /// [`crate::pipeline::retrieve::RecallTrace::select_degraded`] carries
+    /// for the `recall` path; the pool-level selector shipped without it and
+    /// M32 added it before making the switch a default.
+    #[serde(default)]
+    pub select_degraded: Degradation,
     /// Did the pool get reranked against the original question, and what the
     /// call cost. False/zero when [`InvestigateConfig::rerank_pool`] is off
     /// or no reranker is wired — the check that catches an inert switch
@@ -632,7 +661,8 @@ impl<'a> Investigator<'a> {
         if self.config.select_sufficient {
             let t = std::time::Instant::now();
             let keep = select_pool(self.llm, &query.text, &mut ranked, query.budget.k).await?;
-            trace.selected = keep;
+            trace.selected = keep.keep.len();
+            trace.select_degraded = keep.degraded;
             trace.select_ms = t.elapsed().as_millis();
         }
 
@@ -776,6 +806,27 @@ impl<'a> Investigator<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The pool-level selector ships **on**, and reverting it is a
+    /// measurement question, not an edit.
+    ///
+    /// M32 measured it over all 500 LongMemEval_S questions, both arms
+    /// `--mode investigate --k 6 --max-steps 2`: judged **56.2 → 62.0,
+    /// +5.8 (95% CI [+2.8, +8.8], p = 0.0001)**, concentrated on
+    /// multi-session (+12.0) and exactly +0.0 on both single-session
+    /// strata, which have no second hop to select across.
+    ///
+    /// This is pinned because M21 measured the *per-probe* arrangement of
+    /// the same switch at exactly +0.0 and that null lived in this file as
+    /// the reason the default was off. A future reader meeting that number
+    /// first must not be able to "restore" it silently.
+    #[test]
+    fn the_pool_level_selector_ships_on() {
+        assert!(
+            InvestigateConfig::default().select_sufficient,
+            "M32: +5.8 judged over 500, CI [+2.8, +8.8]"
+        );
+    }
 
     #[test]
     fn conflict_overrides_sufficiency() {
@@ -1003,7 +1054,20 @@ mod tests {
         let llm = Canned::text("not json at all");
         let mut ranked = pool(&texts);
         let kept = select_pool(&llm, "q", &mut ranked, 3).await.unwrap();
-        assert_eq!(kept, 3, "a malformed body degrades to rank order 0..k");
+        assert_eq!(
+            kept.keep.len(),
+            3,
+            "a malformed body degrades to rank order 0..k"
+        );
+        assert_eq!(
+            kept.degraded,
+            Degradation::CallFailed,
+            "and says so, by cause: `selected == k` is exactly what a real \
+             selection of k records returns, so the count cannot carry this. \
+             An unparseable body is the selector not working — the cause that \
+             aborts a run. Only a parsed answer naming no usable candidate is \
+             `ModelDeclined`."
+        );
         assert_eq!(composed(ranked, 3), before);
     }
 
@@ -1018,7 +1082,8 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(kept, 2);
+        assert_eq!(kept.keep.len(), 2);
+        assert_eq!(kept.degraded, Degradation::None, "a real selection is not a fallback");
         let order: Vec<&str> = ranked.iter().map(|r| r.record.text.as_str()).collect();
         assert_eq!(
             order,
@@ -1038,7 +1103,8 @@ mod tests {
         let mut ranked = pool(&["alpha", "bravo", "charlie", "delta"]);
         let kept = select_pool(&llm, "q", &mut ranked, 4).await.unwrap();
 
-        assert_eq!(kept, 1);
+        assert_eq!(kept.keep.len(), 1);
+        assert_eq!(kept.degraded, Degradation::None);
         assert_eq!(ranked.len(), 4, "the pool must not shrink");
         let order: Vec<&str> = ranked.iter().map(|r| r.record.text.as_str()).collect();
         assert_eq!(order, vec!["delta", "alpha", "bravo", "charlie"]);
@@ -1051,7 +1117,13 @@ mod tests {
         // `Canned` yields an error once exhausted, so a call here would fail.
         let llm = Canned(std::sync::Mutex::new(Vec::new()));
         let mut ranked: Vec<Ranked> = Vec::new();
-        assert_eq!(select_pool(&llm, "q", &mut ranked, 6).await.unwrap(), 0);
+        let kept = select_pool(&llm, "q", &mut ranked, 6).await.unwrap();
+        assert_eq!(kept.keep.len(), 0);
+        assert_eq!(
+            kept.degraded,
+            Degradation::None,
+            "an empty pool is a real answer, not a failed selection"
+        );
     }
 
     // ---- pool rerank + premise analysis (M23) ----
