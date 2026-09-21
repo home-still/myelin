@@ -25,6 +25,7 @@ use myelin_core::model::query::{Budget, Mode, Recall, ScopeFilter};
 use myelin_core::model::record::{ActorId, LinkKind, RecordKind, Scope, SourceRef};
 use myelin_core::pipeline::extract::CandidateKind;
 use myelin_core::pipeline::ingest::Turn;
+use myelin_core::pipeline::compose::KindQuota;
 use myelin_core::pipeline::investigate::{InvestigateConfig, InvestigateTrace, Investigator};
 use myelin_core::pipeline::retrieve::{RecallTrace, RetrieveConfig, Retriever};
 use myelin_core::pipeline::write::WritePath;
@@ -138,6 +139,18 @@ pub struct RecallParams {
     /// resolve against a meaningless anchor.
     #[serde(default)]
     pub dated: Option<bool>,
+    /// Allocate `k`'s slots per record kind instead of handing them to one
+    /// fused ranking: AgentRunbook-R's published **top-6 events, top-3
+    /// notes**, raw states taking the rest
+    /// ([`myelin_core::pipeline::compose::KindQuota::AGENTRUNBOOK`]).
+    ///
+    /// Not tunable from the wire on purpose. The allocation under test is
+    /// the paper's, and a tunable one would invite fitting it to the test
+    /// set. M34 measured our emitted mix at 10.6% events against their
+    /// 31.6%, which is the gap this closes.
+    #[serde(default)]
+    pub kind_quota: Option<bool>,
+
     /// Split the question into at most N sub-queries and retrieve for each,
     /// fusing them into the same RRF call as the original (M24).
     ///
@@ -265,7 +278,12 @@ impl MyelinServer {
         if params.tau_abstain.is_some() {
             retriever.config.tau_abstain = params.tau_abstain;
         }
-        apply_operating_point(&mut retriever.config, params.select, params.dated);
+        apply_operating_point(
+            &mut retriever.config,
+            params.select,
+            params.dated,
+            params.kind_quota,
+        );
         retriever.config.decompose = params.decompose;
         let (evidence, trace) = retriever.recall(&query).await.map_err(mcp_err)?;
 
@@ -306,7 +324,12 @@ impl MyelinServer {
         // loop selects once over its accumulated pool, and a per-probe
         // selection underneath it is the arrangement M21 measured at +0.0.
         let mut retriever = self.retriever();
-        apply_operating_point(&mut retriever.config, None, params.dated);
+        apply_operating_point(
+            &mut retriever.config,
+            None,
+            params.dated,
+            params.kind_quota,
+        );
         retriever.config.decompose = params.decompose;
         // `--premise` implies the gate: the analysis rewrites the statement
         // the gate emits, so one without the other is a silently inert
@@ -703,7 +726,20 @@ impl MyelinServer {
 /// Takes the config rather than the `Retriever` that owns it so the decision
 /// is testable without an embedder, a live Qdrant and a ledger; the same
 /// reason `investigate.rs::gate_insufficient` is a free function.
-fn apply_operating_point(cfg: &mut RetrieveConfig, select: Option<bool>, dated: Option<bool>) {
+fn apply_operating_point(
+    cfg: &mut RetrieveConfig,
+    select: Option<bool>,
+    dated: Option<bool>,
+    kind_quota: Option<bool>,
+) {
+    // Absent means "do not override", so only an explicit value moves it —
+    // the same contract `dated` has, and the reason M33's adapter defect was
+    // a defect: after a default flips, an omitted key stops meaning "off".
+    match kind_quota {
+        Some(true) => cfg.compose.kind_quota = Some(KindQuota::AGENTRUNBOOK),
+        Some(false) => cfg.compose.kind_quota = None,
+        None => {}
+    }
     if let Some(on) = select {
         cfg.select_sufficient = on;
     }
@@ -741,6 +777,18 @@ pub struct InvestigateParams {
     /// [`RecallParams::dated`].
     #[serde(default)]
     pub dated: Option<bool>,
+    /// Allocate `k`'s slots per record kind instead of handing them to one
+    /// fused ranking: AgentRunbook-R's published **top-6 events, top-3
+    /// notes**, raw states taking the rest
+    /// ([`myelin_core::pipeline::compose::KindQuota::AGENTRUNBOOK`]).
+    ///
+    /// Not tunable from the wire on purpose. The allocation under test is
+    /// the paper's, and a tunable one would invite fitting it to the test
+    /// set. M34 measured our emitted mix at 10.6% events against their
+    /// 31.6%, which is the gap this closes.
+    #[serde(default)]
+    pub kind_quota: Option<bool>,
+
     /// Rerank the loop's accumulated pool against the original question
     /// before composing (M23 A2). Off by default; inert without a reranker
     /// wired on the server.
@@ -1110,7 +1158,7 @@ mod tests {
         assert!(cfg.compose.resolve_relative, "precondition");
         assert!(cfg.compose.timeline, "precondition");
 
-        apply_operating_point(&mut cfg, None, Some(false));
+        apply_operating_point(&mut cfg, None, Some(false), None);
 
         assert!(!cfg.compose.stamp_valid_time);
         assert!(!cfg.compose.resolve_relative);
@@ -1127,7 +1175,7 @@ mod tests {
     #[test]
     fn an_absent_operating_point_changes_nothing() {
         let mut cfg = RetrieveConfig::default();
-        apply_operating_point(&mut cfg, None, None);
+        apply_operating_point(&mut cfg, None, None, None);
         assert_eq!(cfg, RetrieveConfig::default());
     }
 
@@ -1138,7 +1186,7 @@ mod tests {
     fn dated_true_does_not_re_enable_a_disabled_mechanism() {
         let mut cfg = RetrieveConfig::default();
         cfg.compose.timeline = false;
-        apply_operating_point(&mut cfg, None, Some(true));
+        apply_operating_point(&mut cfg, None, Some(true), None);
         assert!(!cfg.compose.timeline);
         assert!(cfg.compose.stamp_valid_time);
     }
@@ -1148,14 +1196,14 @@ mod tests {
     #[test]
     fn select_is_switchable_in_both_directions() {
         let mut on = RetrieveConfig::default();
-        apply_operating_point(&mut on, Some(true), None);
+        apply_operating_point(&mut on, Some(true), None, None);
         assert!(on.select_sufficient);
 
         let mut off = RetrieveConfig {
             select_sufficient: true,
             ..RetrieveConfig::default()
         };
-        apply_operating_point(&mut off, Some(false), None);
+        apply_operating_point(&mut off, Some(false), None, None);
         assert!(!off.select_sufficient);
     }
 }

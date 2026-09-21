@@ -22,10 +22,52 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::model::evidence::{EvidenceItem, EvidenceKind, EvidenceSet};
-use crate::model::record::{MemoryRecord, SourceRef, TrustTier};
+use crate::model::record::{MemoryRecord, RecordKind, SourceRef, TrustTier};
 
 use super::consolidate::cosine;
 use super::ingest::approx_tokens;
+
+/// How many of the `k` slots each abstracted pool is allotted, replacing
+/// "whatever wins one fused ranking".
+///
+/// **Why this exists.** M34 minted AgentRunbook-R's two missing knowledge
+/// pools into the LME-V2 store and measured completing them at **+0.22
+/// (95% CI [−3.77, +4.21], n = 451)** — a null, while the new records took
+/// 33.3% of the reader's evidence and reached 96.7% of questions. So the
+/// difference to their 58.60 is not what is stored, and not how much of it
+/// is emitted. It is the allocation, and the allocation is lopsided in one
+/// specific, measured way:
+///
+/// | | AgentRunbook-R | ours (M34) | Δ |
+/// |---|---|---|---|
+/// | raw states | 52.6% | 66.7% | −14.1 |
+/// | events (`Semantic`) | **31.6%** | **10.6%** | **+21.0** |
+/// | notes (`Procedural`) | 15.8% | 22.7% | −6.9 |
+///
+/// `docs/research/11-frontier-2026.md` §1.6: their controller takes
+/// **top-6 events, top-3 notes, top-m raw states**. Those are a floor *and*
+/// a ceiling per pool, which one fused ranking cannot express — under it a
+/// slot goes to whichever kind scores highest against the *whole* question,
+/// so an event that answers one hop competes on the whole of it. That is
+/// the same incommensurability
+/// [`crate::pipeline::retrieve::RetrieveConfig::tau_abstain`] documents for
+/// RRF scores.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct KindQuota {
+    /// Slots for `RecordKind::Semantic` — AgentRunbook's event pool.
+    pub semantic: usize,
+    /// Slots for `RecordKind::Procedural` — their procedure/hint notes.
+    pub procedural: usize,
+}
+
+impl KindQuota {
+    /// AgentRunbook-R's published allocation, verbatim: top-6 events,
+    /// top-3 notes. Everything else goes to raw states.
+    pub const AGENTRUNBOOK: Self = Self {
+        semantic: 6,
+        procedural: 3,
+    };
+}
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ComposeConfig {
@@ -204,6 +246,13 @@ pub struct ComposeConfig {
     /// additive weight measured as, and MINJA's own moderation defenses
     /// (which do exactly that) are reported ineffective.
     pub untrusted_max: Option<usize>,
+    /// Per-pool slot allocation, or `None` for one fused ranking.
+    ///
+    /// Ships **off** until measured, like every mechanism here. See
+    /// [`KindQuota`] for the measured allocation gap it is aimed at, and
+    /// `docs/measurements/m35-*.md` for the verdict.
+    #[serde(default)]
+    pub kind_quota: Option<KindQuota>,
 }
 
 impl Default for ComposeConfig {
@@ -220,6 +269,7 @@ impl Default for ComposeConfig {
             profile: false,
             mmr_lambda: None,
             untrusted_max: None,
+            kind_quota: None,
         }
     }
 }
@@ -281,6 +331,77 @@ fn label(record: &MemoryRecord, cfg: &ComposeConfig) -> String {
 ///
 /// Returns the selection **in selection order** — relevance-ish, which is
 /// what [`bookend`] expects — and the tokens it spent.
+/// Reorder `kept` so the first `k` slots honour each pool's allocation.
+///
+/// Returns the **same multiset** in a different order, never a filter.
+/// AgentRunbook-R's numbers are a floor and a ceiling at once — top-6
+/// events, top-3 notes — so a pool that would have taken more slots than
+/// its quota gives them back, and one that would have taken fewer is
+/// guaranteed them.
+///
+/// Three buckets, concatenated, each internally in the incoming rank order
+/// so no tie-break is invented:
+///
+/// 1. **Reserved** — each quota'd kind's best `quota` records.
+/// 2. **Raw** — every un-quota'd kind, which fills the slots the pools did
+///    not claim.
+/// 3. **Overflow** — quota'd records beyond their allocation. Last, so the
+///    quota is a real ceiling under `k`, but still present, so a tenant
+///    with few raw states backfills instead of leaving the reader short. A
+///    quota allocates contested slots; it does not cap how much evidence
+///    exists.
+fn apply_kind_quota(kept: Vec<Ranked>, k: usize, quota: KindQuota) -> Vec<Ranked> {
+    let allotment = |kind: RecordKind| match kind {
+        RecordKind::Semantic => Some(quota.semantic),
+        RecordKind::Procedural => Some(quota.procedural),
+        _ => None,
+    };
+
+    let mut reserved: Vec<Ranked> = Vec::new();
+    let mut raw: Vec<Ranked> = Vec::new();
+    let mut overflow: Vec<Ranked> = Vec::new();
+    let mut taken: Vec<(RecordKind, usize)> = Vec::new();
+
+    for candidate in kept {
+        match allotment(candidate.record.kind) {
+            None => raw.push(candidate),
+            Some(limit) => {
+                let kind = candidate.record.kind;
+                let seen = match taken.iter_mut().find(|(k2, _)| *k2 == kind) {
+                    Some((_, n)) => n,
+                    None => {
+                        taken.push((kind, 0));
+                        &mut taken.last_mut().expect("just pushed").1
+                    }
+                };
+                if *seen < limit {
+                    *seen += 1;
+                    reserved.push(candidate);
+                } else {
+                    overflow.push(candidate);
+                }
+            }
+        }
+    }
+
+    // `k` is not used to truncate — the budget loop owns that, and owns
+    // `k_bound`/`dropped_for_tokens` with it. It only says how many slots
+    // the allocation is contesting, which is worth asserting: a quota that
+    // reserves more than `k` would starve raw states entirely, and that is
+    // a configuration error rather than an allocation.
+    debug_assert!(
+        quota.semantic + quota.procedural <= k || k == 0,
+        "kind quota {} + {} exceeds k = {k}: no slot is left for raw states",
+        quota.semantic,
+        quota.procedural
+    );
+
+    reserved.reserve(raw.len() + overflow.len());
+    reserved.extend(raw);
+    reserved.extend(overflow);
+    reserved
+}
+
 fn mmr_select(kept: Vec<Ranked>, lambda: f32, cfg: &ComposeConfig) -> (Vec<Ranked>, usize) {
     if kept.is_empty() {
         return (Vec::new(), 0);
@@ -377,6 +498,18 @@ pub fn compose(ranked: Vec<Ranked>, profile: &[MemoryRecord], cfg: &ComposeConfi
                 })
                 .collect()
         }
+    };
+
+    // 1c. Per-pool slot allocation (M35). A *reordering* of the same
+    // candidates, never a filter: the quota'd picks move to the front in
+    // their existing rank order and everything else follows in its own, so
+    // the budget loop below still sees one best-first list, still truncates
+    // on `k`, and still scans deeper under token pressure. Nothing is
+    // dropped that `None` would have kept, which is what makes the arm a
+    // measurement of allocation and not of allocation plus loss.
+    let kept = match cfg.kind_quota {
+        None => kept,
+        Some(quota) => apply_kind_quota(kept, cfg.k, quota),
     };
 
     // 2. Budget. Rank order by default; joint coverage when asked.
@@ -630,6 +763,193 @@ mod tests {
                 vector: None,
             })
             .collect()
+    }
+
+    /// `ranked`, but with kinds, so allocation can be tested.
+    fn ranked_kinds(items: &[(&str, RecordKind)]) -> Vec<Ranked> {
+        items
+            .iter()
+            .enumerate()
+            .map(|(i, (t, kind))| {
+                let mut record = record(t);
+                record.kind = *kind;
+                Ranked {
+                    record,
+                    score: 1.0 - i as f32 * 0.01,
+                    vector: None,
+                }
+            })
+            .collect()
+    }
+
+    fn kinds_of(v: &[Ranked]) -> Vec<RecordKind> {
+        v.iter().map(|r| r.record.kind).collect()
+    }
+
+    /// **The mechanism, stated as arithmetic.** M34 measured the emitted mix
+    /// at 10.6% events against AgentRunbook-R's 31.6% — events lose the
+    /// fused ranking. With a quota they cannot: their reserved picks lead,
+    /// whatever they scored on the whole question.
+    #[test]
+    fn a_quota_guarantees_a_pool_the_slots_the_fused_ranking_denied_it() {
+        // Rank order puts eight raw states ahead of every abstraction,
+        // which is exactly the shape M34 measured.
+        // Distinct texts: `compose` dedups on exact text equality, so eight
+        // identical raw states would collapse to one and the test would be
+        // measuring dedup instead of allocation.
+        let raw_texts = ["r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7"];
+        let mut items: Vec<(&str, RecordKind)> = raw_texts
+            .iter()
+            .map(|t| (*t, RecordKind::Episodic))
+            .collect();
+        items.push(("event-a", RecordKind::Semantic));
+        items.push(("event-b", RecordKind::Semantic));
+        items.push(("note-a", RecordKind::Procedural));
+
+        // Without a quota, `k = 4` emits raw states only.
+        let plain = compose(
+            ranked_kinds(&items),
+            &[],
+            &ComposeConfig {
+                k: 4,
+                ..unstamped()
+            },
+        );
+        assert!(
+            plain
+                .items
+                .iter()
+                .all(|i| raw_texts.contains(&i.value.as_str())),
+            "the fused ranking should hand every slot to raw states: {:?}",
+            plain.items.iter().map(|i| &i.value).collect::<Vec<_>>()
+        );
+
+        // With one, the pools' reserved picks are in.
+        let quota = KindQuota {
+            semantic: 2,
+            procedural: 1,
+        };
+        let out = apply_kind_quota(ranked_kinds(&items), 4, quota);
+        assert_eq!(
+            kinds_of(&out[..3]),
+            vec![
+                RecordKind::Semantic,
+                RecordKind::Semantic,
+                RecordKind::Procedural
+            ],
+            "the reserved picks must lead, in rank order within each kind"
+        );
+    }
+
+    /// A quota is a ceiling as well as a floor — AgentRunbook takes *top-3*
+    /// notes, not "every note that scores well". M34 measured notes at
+    /// 22.7% against their 15.8%, so the ceiling is the half that binds for
+    /// that pool.
+    #[test]
+    fn a_quota_is_also_a_ceiling_and_overflow_goes_last() {
+        let items: Vec<(&str, RecordKind)> = vec![
+            ("note-1", RecordKind::Procedural),
+            ("note-2", RecordKind::Procedural),
+            ("note-3", RecordKind::Procedural),
+            ("raw-1", RecordKind::Episodic),
+            ("raw-2", RecordKind::Episodic),
+        ];
+        let out = apply_kind_quota(
+            ranked_kinds(&items),
+            4,
+            KindQuota {
+                semantic: 6,
+                procedural: 1,
+            },
+        );
+        let values: Vec<&str> = out.iter().map(|r| r.record.text.as_str()).collect();
+        assert_eq!(
+            values,
+            vec!["note-1", "raw-1", "raw-2", "note-2", "note-3"],
+            "one note is reserved, raw fills the rest, the surplus notes go \
+             last so they are a backfill rather than an occupation"
+        );
+    }
+
+    /// Nothing is dropped. The switch measures allocation; if it also lost
+    /// candidates, its arm would measure allocation *plus* loss and the
+    /// number would not attribute.
+    #[test]
+    fn a_quota_never_drops_a_candidate() {
+        let items: Vec<(&str, RecordKind)> = vec![
+            ("e1", RecordKind::Semantic),
+            ("r1", RecordKind::Episodic),
+            ("p1", RecordKind::Procedural),
+            ("e2", RecordKind::Semantic),
+            ("r2", RecordKind::Episodic),
+            ("p2", RecordKind::Procedural),
+        ];
+        let input = ranked_kinds(&items);
+        let before: Vec<String> = input.iter().map(|r| r.record.text.clone()).collect();
+        let out = apply_kind_quota(
+            input,
+            6,
+            KindQuota {
+                semantic: 1,
+                procedural: 1,
+            },
+        );
+        let mut a: Vec<String> = out.iter().map(|r| r.record.text.clone()).collect();
+        let mut b = before;
+        a.sort();
+        b.sort();
+        assert_eq!(a, b, "the same multiset, reordered");
+    }
+
+    /// A tenant can hold fewer raw states than `k`. The quota must backfill
+    /// from the pools rather than hand the reader a short set.
+    #[test]
+    fn overflow_backfills_when_raw_states_run_out() {
+        let items: Vec<(&str, RecordKind)> = vec![
+            ("e1", RecordKind::Semantic),
+            ("e2", RecordKind::Semantic),
+            ("e3", RecordKind::Semantic),
+            ("r1", RecordKind::Episodic),
+        ];
+        let set = compose(
+            apply_kind_quota(
+                ranked_kinds(&items),
+                4,
+                KindQuota {
+                    semantic: 1,
+                    procedural: 3,
+                },
+            ),
+            &[],
+            &ComposeConfig {
+                k: 4,
+                ..unstamped()
+            },
+        );
+        assert_eq!(
+            set.items.len(),
+            4,
+            "four candidates exist and k is four, so four must be emitted"
+        );
+    }
+
+    /// Off by default, and off must be byte-identical to the pre-M35 path —
+    /// otherwise every historical number silently moves.
+    #[test]
+    fn no_quota_is_the_unmodified_order() {
+        assert!(ComposeConfig::default().kind_quota.is_none());
+        let items: Vec<(&str, RecordKind)> = vec![
+            ("e1", RecordKind::Semantic),
+            ("r1", RecordKind::Episodic),
+            ("p1", RecordKind::Procedural),
+        ];
+        let cfg = ComposeConfig { k: 3, ..unstamped() };
+        let a = compose(ranked_kinds(&items), &[], &cfg);
+        let b = compose(ranked_kinds(&items), &[], &cfg);
+        assert_eq!(
+            a.items.iter().map(|i| i.value.clone()).collect::<Vec<_>>(),
+            b.items.iter().map(|i| i.value.clone()).collect::<Vec<_>>()
+        );
     }
 
     /// The lost-in-the-middle defence, stated as a test: best first,

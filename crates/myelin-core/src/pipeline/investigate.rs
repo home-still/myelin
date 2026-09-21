@@ -177,6 +177,28 @@ pub struct InvestigateConfig {
     /// asked for a silently inert switch — the exact class of failure M12,
     /// M14 and M20 each lost a run to. The server enforces the implication;
     /// this struct stays honest by declaring both fields independently.
+    /// **Measured and off: −8.75 judged, and the failure is selectivity.**
+    ///
+    /// M35, LME-V2 tier-small web, n = 240, against the shipped
+    /// configuration on the same store: combined 44.58 → 35.83, **−8.75
+    /// (95% CI [−15.00, −2.92], p = 0.0072)** — the first significantly
+    /// *negative* arm this project has measured.
+    ///
+    /// It is aimed correctly. Abstention goes 25.00 → **30.56**, which is
+    /// what `docs/research/11-frontier-2026.md` §D.1 says AgentRunbook-C's
+    /// premise flagging buys. It charges 52.98 → 38.10 on the answerable
+    /// 72% to get it.
+    ///
+    /// The gate is *anti-selective*. Declines, by stratum:
+    ///
+    /// | | answerable | abstention |
+    /// |---|---|---|
+    /// | off | 8.3% | 29.2% |
+    /// | on | **26.8%** | 37.5% |
+    ///
+    /// 3.2× more declining on questions that have an answer, 1.3× on
+    /// questions that do not. The next attempt needs discrimination, not
+    /// volume: `docs/measurements/m35-abstention-is-the-gap.md`.
     pub premise_analysis: bool,
     /// Tag the loop's next probe with a record-kind filter the reflect gate
     /// chooses: `raw` | `event` | `note` (M23 D2).
@@ -190,6 +212,24 @@ pub struct InvestigateConfig {
     /// the same fallback contract `select.rs` uses for a malformed
     /// selector answer. The first probe of every loop is `raw` — the gate
     /// has not spoken yet.
+    /// **Measured and off: −2.92 judged, and the emitted set barely moves.**
+    ///
+    /// M35, LME-V2 tier-small web, n = 240: combined 44.58 → 41.67,
+    /// **−2.92 (95% CI [−8.33, +2.50], p = 0.3778)**. This is its first
+    /// measurement — until M34 minted the events/notes pools there was
+    /// nothing for a tagged probe to aim at, so an arm before that would
+    /// have been a pre-registered question answered by an empty store.
+    ///
+    /// Why it does nothing is in the emitted mix: episodic 66.7% → 68.1%,
+    /// procedural 22.7% → 21.2%, semantic 10.6% → 10.7%. Tagging changes
+    /// which candidates enter the pool; the pool is then unioned across
+    /// steps and re-composed by one fused ranking, which puts back almost
+    /// the same mix. That is M21's per-probe null in a second location and
+    /// for the same structural reason.
+    ///
+    /// Stopped after web on an arithmetic argument: at 53.2% of the set,
+    /// enterprise would have had to return +9.73 to clear the
+    /// pre-registered +3.0. `docs/measurements/m35-abstention-is-the-gap.md`.
     pub typed_probes: bool,
 }
 
