@@ -200,6 +200,21 @@ pub struct InvestigateConfig {
     /// questions that do not. The next attempt needs discrimination, not
     /// volume: `docs/measurements/m35-abstention-is-the-gap.md`.
     pub premise_analysis: bool,
+    /// Judge whether the composed evidence answers the question, and act on
+    /// a **graded** verdict ([`Support`]) rather than on the loop's stop
+    /// reason.
+    ///
+    /// Replaces the trigger, not the prose. M36 measured
+    /// `stopped_because != "sufficient"` — what `abstain_on_insufficient`
+    /// fires on — as a "should decline" classifier and it is worthless:
+    /// **recall 86.7%, precision 32.8% against a 28.4% base rate, lift
+    /// 1.16×**. It fires on 70% of questions that have an answer, which is
+    /// why `premise_analysis` (which only runs once that gate has fired)
+    /// cost −8.75. Every other recorded signal was worse: the selector's own
+    /// decline scores *below* base rate at 0.85× lift.
+    ///
+    /// Ships off until measured. `docs/measurements/m36-*.md`.
+    pub answerability_gate: bool,
     /// Tag the loop's next probe with a record-kind filter the reflect gate
     /// chooses: `raw` | `event` | `note` (M23 D2).
     ///
@@ -243,6 +258,7 @@ impl Default for InvestigateConfig {
             select_sufficient: true,
             rerank_pool: false,
             premise_analysis: false,
+            answerability_gate: false,
             typed_probes: false,
         }
     }
@@ -358,6 +374,197 @@ fn gate_insufficient(set: &mut EvidenceSet, stopped_because: &str, enabled: bool
         trust: TrustTier::Verified,
     }];
     true
+}
+
+/// What the evaluator concluded about the composed evidence.
+///
+/// Three values, not two, and that is the mechanism. CRAG (2401.15884 §4.3)
+/// ablated the binary form and reports it directly:
+///
+/// > Preliminary experiments of employing only the Correct and Incorrect
+/// > actions show that the efficacy of CRAG was easily affected by the
+/// > accuracy of the retrieval evaluator … The design of the Ambiguous
+/// > action significantly helps to mitigate the dependence on the accuracy
+/// > of the retrieval evaluator.
+///
+/// That is M35's failure named in the literature. `premise_analysis` is a
+/// binary gate and it cost **−8.75 judged (95% CI [−15.00, −2.92])** by
+/// tripling declines on questions that *had* an answer (8.3% → 26.8%) to
+/// raise abstention declines by a third. A binary switch's damage scales
+/// with evaluator error, and CRAG also notes a *prompted* evaluator
+/// underperforms their fine-tuned one — which makes the soft branch matter
+/// more here, not less.
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, schemars::JsonSchema,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum Support {
+    /// The evidence answers the question. Emit it **untouched**.
+    #[default]
+    Supported,
+    /// Neither clearly supported nor clearly not. Emit the evidence and add
+    /// one line permitting a decline, without demanding one.
+    Ambiguous,
+    /// The evidence does not contain what the question asks for, and the
+    /// evaluator can name what is missing.
+    Unsupported,
+}
+
+/// One line appended under [`Support::Ambiguous`].
+///
+/// Deliberately permission, not instruction. M35 measured what an
+/// instruction does to the 72% of questions that have an answer.
+const AMBIGUOUS_HEDGE: &str = "[note] The memories above may not contain what this question asks \
+     for. Answer only if they do; otherwise say you do not know.";
+
+/// Judge whether the composed evidence answers the question, and act on the
+/// verdict — CRAG's `{Correct, Ambiguous, Incorrect}` action trigger.
+///
+/// # The property that bounds the damage
+///
+/// Under [`Support::Supported`] the evidence set is **byte-identical** to
+/// what the gate-off arm emits. So a question this gate classifies
+/// correctly cannot be harmed by it at all, and the arm measures the
+/// evaluator's error rate rather than a prompt-contamination effect. That
+/// is the structural difference from `premise_analysis`, which rewrites the
+/// evidence channel on every question it fires on.
+///
+/// # Fail-open, always
+///
+/// A refused, timed-out or unparseable call returns `Supported` and changes
+/// nothing. The alternative is a server hiccup silently declining on
+/// answerable questions — the same class of silent failure M32's
+/// [`crate::pipeline::select::Degradation`] split exists to prevent, except
+/// here it would corrupt answers rather than a measurement.
+async fn answerability_gate(
+    llm: &dyn Llm,
+    question: &str,
+    set: &mut EvidenceSet,
+    enabled: bool,
+) -> Support {
+    if !enabled || set.items.is_empty() {
+        return Support::Supported;
+    }
+    let evidence: Vec<String> = set.items.iter().map(|i| i.value.clone()).collect();
+    let verdict = match judge_support(llm, question, &evidence).await {
+        Ok(v) => v,
+        Err(_) => return Support::Supported,
+    };
+    match verdict {
+        Support::Supported => {}
+        Support::Ambiguous => set.items.push(EvidenceItem {
+            kind: EvidenceKind::Text,
+            value: AMBIGUOUS_HEDGE.to_string(),
+            record_id: Uuid::nil(),
+            source: SourceRef::doc("myelin://ambiguous"),
+            score: 0.0,
+            trust: TrustTier::Verified,
+        }),
+        Support::Unsupported => {
+            set.items = vec![EvidenceItem {
+                kind: EvidenceKind::Text,
+                value: INSUFFICIENT_EVIDENCE.to_string(),
+                record_id: Uuid::nil(),
+                source: SourceRef::doc("myelin://insufficient"),
+                score: 0.0,
+                trust: TrustTier::Verified,
+            }]
+        }
+    }
+    verdict
+}
+
+/// The evaluator. One call, strict schema, graded verdict.
+///
+/// `missing` is **required** and not decoration: naming the absent fact is
+/// what makes `unsupported` expensive to assert. A model asked for a
+/// boolean will say "no" on thin-looking evidence; a model that must also
+/// state *what* is missing has to look for it first. This is the only
+/// calibration available without CRAG's fine-tuned evaluator.
+/// Characters of each evidence item the evaluator sees. See `judge_support`.
+const EVIDENCE_CHARS: usize = 2000;
+
+const SUPPORT_SYSTEM: &str = "You decide whether a set of retrieved memories contains what a \
+question asks for.\n\n\
+Return one verdict:\n\
+- \"supported\": the memories contain the specific fact the question asks for.\n\
+- \"ambiguous\": they are related and might contain it, but you are not certain.\n\
+- \"unsupported\": they do not contain it, or the question assumes something \
+the memories contradict.\n\n\
+Rules:\n\
+- Judge only what is present. Do not use outside knowledge.\n\
+- For \"unsupported\" you MUST name the specific missing fact in \"missing\". \
+If you cannot name it, the verdict is \"ambiguous\", not \"unsupported\".\n\
+- Related-but-not-answering is \"ambiguous\", not \"unsupported\".\n\
+- Prefer \"supported\" when the answer is present even if surrounded by \
+irrelevant memories.";
+
+#[derive(Debug, Deserialize)]
+struct SupportVerdict {
+    verdict: Support,
+    #[serde(default)]
+    missing: String,
+}
+
+fn support_schema() -> serde_json::Value {
+    serde_json::json!({
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["verdict", "missing"],
+        "properties": {
+            "verdict": {"type": "string", "enum": ["supported", "ambiguous", "unsupported"]},
+            // Under the M34 limit: llama.cpp refuses `maxLength` >= 2000.
+            "missing": {"type": "string", "maxLength": 300},
+        }
+    })
+}
+
+async fn judge_support(llm: &dyn Llm, question: &str, evidence: &[String]) -> Result<Support> {
+    // Bounded far above the selector's 400-char heads, and the bound is
+    // a cost control rather than a modelling choice.
+    //
+    // Selection is a *relative* judgement — which of these is most relevant
+    // — so a head is enough to rank. Answerability is an *absolute* one,
+    // and a head is how you manufacture a false "unsupported". Measured on
+    // an M36 pilot: a 600-char head keeps 39.4% of the median LME-V2 record
+    // (1,642 chars; p90 1,916) and the evaluator called **6 of 9 answerable
+    // questions unsupported** — M35's failure reproduced by blinding the
+    // judge rather than by prompting it.
+    //
+    // Untruncated is the correct semantics (judge what the reader will see)
+    // and is not affordable: at k = 25 it is ~10k tokens per query, and a
+    // 20-question pilot exceeded 1,000 s against a reader serving one slot.
+    // `EVIDENCE_CHARS` keeps essentially all of 90% of records while
+    // bounding the worst case.
+    //
+    // **Unmeasured:** that this bound preserves the verdict quality. The
+    // 600-char figure above is measured; 2,000 is chosen from the record
+    // length distribution and the arm has not been run.
+    let mut numbered = String::new();
+    for (i, e) in evidence.iter().enumerate() {
+        let head = e
+            .char_indices()
+            .nth(EVIDENCE_CHARS)
+            .map_or(e.as_str(), |(b, _)| &e[..b]);
+        numbered.push_str(&format!("[{i}] {head}\n"));
+    }
+    let request = CompletionRequest::new(vec![
+        Message::system(SUPPORT_SYSTEM),
+        Message::user(format!(
+            "<memories>\n{numbered}</memories>\n<question>\n{question}\n</question>"
+        )),
+    ])
+    .with_schema(support_schema())
+    .with_max_tokens(256);
+    let parsed: SupportVerdict = complete_json(llm, &request).await?;
+    // An `unsupported` that cannot say what is missing is the failure the
+    // system prompt forbids; demote rather than trust it. This is the one
+    // place the schema cannot enforce the contract, because a model can
+    // always emit an empty string.
+    if parsed.verdict == Support::Unsupported && parsed.missing.trim().is_empty() {
+        return Ok(Support::Ambiguous);
+    }
+    Ok(parsed.verdict)
 }
 
 /// Select over the WHOLE accumulated pool, once, and stable-partition the
@@ -539,6 +746,15 @@ pub struct InvestigateTrace {
     /// M32 added it before making the switch a default.
     #[serde(default)]
     pub select_degraded: Degradation,
+    /// What [`InvestigateConfig::answerability_gate`] concluded, when it ran.
+    ///
+    /// Recorded because the gate's whole cost is its error rate, and an arm
+    /// that cannot report the verdict distribution cannot separate "the
+    /// evaluator was right and abstention is hard" from "the evaluator
+    /// fired on the wrong questions" — which is exactly the distinction
+    /// M35 could only make after the fact.
+    #[serde(default)]
+    pub support: Support,
     /// Did the pool get reranked against the original question, and what the
     /// call cost. False/zero when [`InvestigateConfig::rerank_pool`] is off
     /// or no reranker is wired — the check that catches an inert switch
@@ -760,6 +976,17 @@ impl<'a> Investigator<'a> {
             trace.premise_emitted =
                 premise_analysis(self.llm, &query.text, &premise_evidence, &mut set).await;
         }
+
+        // M36. After `compose`, so the verdict is about what the reader will
+        // actually see, and after the premise block so the two switches are
+        // measurable apart.
+        trace.support = answerability_gate(
+            self.llm,
+            &query.text,
+            &mut set,
+            self.config.answerability_gate,
+        )
+        .await;
 
         set.tokens = set
             .items
@@ -994,6 +1221,115 @@ mod tests {
     }
 
     // ---- pool-level selection (M22) ----
+
+    /// An `EvidenceSet` shaped like what `compose` hands the gate.
+    fn composed_set(texts: &[&str]) -> EvidenceSet {
+        EvidenceSet {
+            items: texts
+                .iter()
+                .map(|t| EvidenceItem {
+                    kind: EvidenceKind::Text,
+                    value: (*t).into(),
+                    record_id: Uuid::new_v4(),
+                    source: SourceRef::doc("d"),
+                    score: 1.0,
+                    trust: TrustTier::Asserted,
+                })
+                .collect(),
+            ..Default::default()
+        }
+    }
+
+    /// **The property that bounds the damage, and the reason this gate is
+    /// not M35's.** Under `supported` the evidence set must be exactly what
+    /// the gate-off arm emits — so a question the evaluator classifies
+    /// correctly cannot be harmed at all, and the arm measures the
+    /// evaluator's error rate rather than prompt contamination.
+    ///
+    /// `premise_analysis` had no such property: it rewrote the evidence
+    /// channel on every question it fired on, and fired on 70% of the
+    /// answerable ones.
+    #[tokio::test]
+    async fn a_supported_verdict_leaves_the_evidence_byte_identical() {
+        let mut set = composed_set(&["alpha", "bravo"]);
+        let before = set.items.clone();
+        let llm = Canned::text(r#"{"verdict":"supported","missing":""}"#);
+        let v = answerability_gate(&llm, "q", &mut set, true).await;
+        assert_eq!(v, Support::Supported);
+        assert_eq!(set.items, before, "supported must change nothing");
+    }
+
+    /// The soft branch CRAG's ablation says is the difference between
+    /// working and not: the evidence survives and gains one line of
+    /// permission — not an instruction, and not a replacement.
+    #[tokio::test]
+    async fn an_ambiguous_verdict_keeps_the_evidence_and_adds_one_line() {
+        let mut set = composed_set(&["alpha", "bravo"]);
+        let llm = Canned::text(r#"{"verdict":"ambiguous","missing":""}"#);
+        let v = answerability_gate(&llm, "q", &mut set, true).await;
+        assert_eq!(v, Support::Ambiguous);
+        assert_eq!(set.items.len(), 3, "the two records must survive");
+        assert_eq!(set.items[0].value, "alpha");
+        assert_eq!(set.items[1].value, "bravo");
+        assert_eq!(set.items[2].value, AMBIGUOUS_HEDGE);
+    }
+
+    /// Only a verdict that can name what is missing replaces the evidence.
+    #[tokio::test]
+    async fn an_unsupported_verdict_replaces_the_evidence() {
+        let mut set = composed_set(&["alpha", "bravo"]);
+        let llm = Canned::text(r#"{"verdict":"unsupported","missing":"the delivery date"}"#);
+        let v = answerability_gate(&llm, "q", &mut set, true).await;
+        assert_eq!(v, Support::Unsupported);
+        assert_eq!(set.items.len(), 1);
+        assert_eq!(set.items[0].value, INSUFFICIENT_EVIDENCE);
+    }
+
+    /// **The calibration the schema cannot enforce.** A model can always
+    /// emit an empty string, and an `unsupported` that cannot say what is
+    /// missing is the cheap "no" the system prompt forbids. Demote it to
+    /// the soft branch instead of destroying the evidence on it.
+    #[tokio::test]
+    async fn an_unsupported_that_names_nothing_is_demoted_to_ambiguous() {
+        let mut set = composed_set(&["alpha", "bravo"]);
+        let llm = Canned::text(r#"{"verdict":"unsupported","missing":"   "}"#);
+        let v = answerability_gate(&llm, "q", &mut set, true).await;
+        assert_eq!(v, Support::Ambiguous, "an unnamed absence is not a refusal");
+        assert_eq!(set.items.len(), 3, "and the evidence survives");
+    }
+
+    /// **Fail-open.** A refused or unparseable call must not decline. The
+    /// alternative is a server hiccup silently abstaining on answerable
+    /// questions — M32's silent-degradation class, except corrupting
+    /// answers instead of a measurement.
+    #[tokio::test]
+    async fn a_failed_judgement_never_abstains() {
+        for body in [
+            Canned::text("not json at all"),
+            Canned(std::sync::Mutex::new(vec![Err(MyelinError::Store(
+                "exceeds the available context size".into(),
+            ))])),
+        ] {
+            let mut set = composed_set(&["alpha", "bravo"]);
+            let before = set.items.clone();
+            let v = answerability_gate(&body, "q", &mut set, true).await;
+            assert_eq!(v, Support::Supported);
+            assert_eq!(set.items, before, "a broken judge changes nothing");
+        }
+    }
+
+    /// Off is off: no model call, nothing touched. `Canned` errors once
+    /// exhausted, so a call here would surface as a changed set.
+    #[tokio::test]
+    async fn the_gate_off_costs_no_model_call() {
+        assert!(!InvestigateConfig::default().answerability_gate);
+        let mut set = composed_set(&["alpha"]);
+        let before = set.items.clone();
+        let llm = Canned(std::sync::Mutex::new(Vec::new()));
+        let v = answerability_gate(&llm, "q", &mut set, false).await;
+        assert_eq!(v, Support::Supported);
+        assert_eq!(set.items, before);
+    }
 
     struct Canned(std::sync::Mutex<Vec<crate::error::Result<crate::llm::Completion>>>);
 

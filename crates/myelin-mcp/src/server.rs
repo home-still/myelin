@@ -343,6 +343,9 @@ impl MyelinServer {
             rerank_pool: params.pool_rerank.unwrap_or(false),
             premise_analysis: premise,
             abstain_on_insufficient: premise,
+            answerability_gate: params
+                .answerability_gate
+                .unwrap_or(InvestigateConfig::default().answerability_gate),
             typed_probes: params.typed_probes.unwrap_or(false),
             ..InvestigateConfig::default()
         };
@@ -805,6 +808,11 @@ pub struct InvestigateParams {
     /// store; off by default.
     #[serde(default)]
     pub typed_probes: Option<bool>,
+    /// Judge whether the composed evidence answers the question and act on a
+    /// graded verdict (M36). Replaces the loop's stop reason as the
+    /// abstention trigger; `supported` leaves the evidence untouched.
+    #[serde(default)]
+    pub answerability_gate: Option<bool>,
     /// Split each probe into at most N sub-queries and retrieve for each
     /// (M24). One model call per step, on top of the reflect gate's.
     #[serde(default)]

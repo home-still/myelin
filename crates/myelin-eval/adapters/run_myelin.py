@@ -141,6 +141,14 @@ def parse_args() -> argparse.Namespace:
         "untagged means every measured arm is byte-identical (M23 D2).",
     )
     parser.add_argument(
+        "--answerability-gate",
+        action="store_true",
+        help="Judge whether the composed evidence answers the question and act on a "
+        "graded verdict (supported / ambiguous / unsupported). Replaces the loop's "
+        "stop reason as the abstention trigger, which M36 measured at 1.16x lift. "
+        "investigate-only.",
+    )
+    parser.add_argument(
         "--kind-quota",
         action="store_true",
         help="Allocate k's slots per record kind -- AgentRunbook-R's top-6 events, "
@@ -313,6 +321,7 @@ def main() -> None:
             # moves, an omitted key stops meaning "off" and the artifact
             # would misdescribe its own run.
             "kind_quota": args.kind_quota,
+            "answerability_gate": args.answerability_gate,
         },
     }
     memory_config_path = runtime_dir / "memory_config.json"
