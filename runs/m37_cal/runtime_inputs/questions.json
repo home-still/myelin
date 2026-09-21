@@ -1,0 +1,134 @@
+[
+  {
+    "id": "00aa905a",
+    "domain": "web",
+    "environment": "webarena-reddit",
+    "question_type": "dynamic-environment",
+    "question": "I am using our reddit-based custom forum website. I am on the home page of a forum. True or false: there is a textbox where I can directly enter a new post to submit. Your final answer should be wrapped in \\boxed{}.",
+    "answer": "false",
+    "eval_function": "mc_choice_match|require_non_empty=true"
+  },
+  {
+    "id": "01f6e679",
+    "domain": "web",
+    "environment": "webarena-reddit",
+    "question_type": "static-environment-abs",
+    "question": "I am using our reddit-based custom forum website. For the create submission form, what is the field name between \"body\" and \"forum\"? Mark your final answer in \\boxed{}.",
+    "answer": "there is no such field. body and forum are next to each other.",
+    "eval_function": "llm_abstention_checker|require_non_empty=true"
+  },
+  {
+    "id": "0382ed92",
+    "domain": "web",
+    "environment": "webarena-cms",
+    "question_type": "procedure-abs",
+    "question": "I am using our magento-based custom shopping admin website. I am on the home page now and would like to filter orders by their `Fraud Suspect Resolution` status. Given the following constrained action space, how many actions do I need to perform?\n\nAction Space:\nscroll(delta_x: float, delta_y: float), keyboard_press(key: str), click(bid: str, button='left', modifiers=[]), fill(bid: str, value: str, enable_autocomplete_menu: bool = False), hover(bid: str), tab_focus(index: int), new_tab(), go_back(), go_forward(), tab_close(), select_option(bid: str, options: str | list[str])\n\nYour final answer should be an English number (e.g., one, two, three, ...) wrapped in \\boxed{}.",
+    "answer": "This is impossible because there is no `Fraud Suspect Resolution` order-status filter on that interface.",
+    "eval_function": "llm_abstention_checker|require_non_empty=true"
+  },
+  {
+    "id": "0401f0c8",
+    "domain": "web",
+    "environment": "webarena-reddit",
+    "question_type": "dynamic-environment-abs",
+    "question": "I am using our reddit-based custom forum website. I am on the home page of a forum. What is the placeholder text of the textbox where I can directly enter a new post to submit? Your final answer should be wrapped in \\boxed{}.",
+    "answer": "There is no such textbox on the forum home page.",
+    "eval_function": "llm_abstention_checker|require_non_empty=true"
+  },
+  {
+    "id": "0574c69a",
+    "domain": "web",
+    "environment": "webarena-reddit",
+    "question_type": "errors-gotchas",
+    "question": {
+      "text": "I am using our reddit-based custom forum website. I am trying to search for all submissions from an author in a specific forum. Is searching for `author:{author_name}` a good approach?",
+      "image": "/Users/ladvien/myelin/data/lmev2/question_screenshots/0574c69a.png"
+    },
+    "answer": "Correct answers must explicitly say no: this forum does not support Reddit-style searches like `author:{author_name}` for finding an author's submissions within a forum. Answers that only say the search is happening in the wrong scope or on the wrong page, without saying that the `author:` query itself is invalid here, are not acceptable. Answers that say this is a good approach or imply that the query style works are wrong.",
+    "eval_function": "llm_gotchas_checker|require_non_empty=true"
+  },
+  {
+    "id": "05cce9b3",
+    "domain": "web",
+    "environment": "webarena-cms",
+    "question_type": "static-environment",
+    "question": "I am using our magento-based shopping admin dashboard. On customer detail pages, what is the name of the action between \"Delete Customer\" and \"Back\" in the top toolbar? Your final answer should be wrapped in \\boxed{}.",
+    "answer": "Login as Customer",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "06a5a25f",
+    "domain": "web",
+    "environment": "webarena-cms",
+    "question_type": "dynamic-environment",
+    "question": "I am using our magento-based shopping admin dashboard. I am on the product listings page. After selecting a few products and clicking \"Update Attributes\" in the Actions dropdown, I am brought to a new page. What does the confirmation pop-up banner that starts with a green checkmark say when I update an attribute and click Save? Your final answer should be wrapped in \\boxed{}.",
+    "answer": "Message is added to queue",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "06e965cf",
+    "domain": "web",
+    "environment": "webarena-reddit",
+    "question_type": "static-environment",
+    "question": "I am using our reddit-based custom forum website. Which option correctly lists the ways to sort posts on a subreddit, in the exact order shown in the dropdown?\nA. Hot, New, Top, Rising, Controversial\nB. Hot, New, Active, Top, Controversial, Most Commented\nC. Hot, New, Rising, Controversial, Top, Gilded\nD. Hot, New, Top, Rising\nYour final answer should be wrapped in \\boxed{} like \\boxed{A}.",
+    "answer": "B",
+    "eval_function": "mc_choice_match|require_non_empty=true"
+  },
+  {
+    "id": "0738c1ac",
+    "domain": "web",
+    "environment": "webarena-cms",
+    "question_type": "static-environment",
+    "question": "I am using our magento-based shopping admin dashboard. Which column appears immediately to the right of \"Quantity\" in the Low Stock Report table? Your final answer should be wrapped in \\boxed{}.",
+    "answer": "Source Code",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "07a0145f",
+    "domain": "web",
+    "environment": "webarena-reddit",
+    "question_type": "errors-gotchas",
+    "question": {
+      "text": "I am using our reddit-based custom forum website. After clicking downvote on the first five posts, what will be the sum of their points? Your answer should be wrapped in \\boxed{}.",
+      "image": "/Users/ladvien/myelin/data/lmev2/question_screenshots/07a0145f.png"
+    },
+    "answer": "Correct answers must explicitly give the total as -5, for example `-5` or `\\boxed{-5}`. Any other total is wrong.",
+    "eval_function": "llm_gotchas_checker|require_non_empty=true"
+  },
+  {
+    "id": "07ab3723",
+    "domain": "web",
+    "environment": "webarena-cms",
+    "question_type": "procedure",
+    "question": "I am using our magento-based custom shopping admin website. I would like to notify a user to reorder for a recend pending order. I have pinpointed that order and entered its detail page. According to our usual workflow, with the action space below, how many more actions do I need to perform to conclude this task?\n\nAction Space:\nscroll(delta_x: float, delta_y: float), keyboard_press(key: str), click(bid: str, button='left', modifiers=[]), fill(bid: str, value: str, enable_autocomplete_menu: bool = False), hover(bid: str), tab_focus(index: int), new_tab(), go_back(), go_forward(), tab_close(), select_option(bid: str, options: str | list[str])\n\nYour final answer should be an English number (e.g., one, two, three, ...) wrapped in \\boxed{}.",
+    "answer": "three",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "07b49858",
+    "domain": "web",
+    "environment": "webarena-cms",
+    "question_type": "procedure",
+    "question": "I am using our magento-based custom shopping admin website. I am now on the page that lists all products. I would like to take down some product from the website's display. I have selected all the target items. At minimum, how many buttons/links do I have to click to finish the update? Say the number in English (e.g., one, two, three) and then list the button/link names, separated by comma. Your final answers should be wrapped in \\boxed{}.",
+    "answer": "three, Actions, Change Status, Disable",
+    "eval_function": "norm_phrase_set_match_ordered|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "07d86be1",
+    "domain": "web",
+    "environment": "webarena-onestopshop",
+    "question_type": "dynamic-environment",
+    "question": "I am using our magento-based custom shopping website and I am on the \"My Account\" profile page. If I click the \"View Order\" link associated with one of the items on the page, I will be brought to the order's detail page. At the same time, what is the index, starting from one, of the active tab on the left column? What are the names of the active tab and all the tabs above it? Your final answer should be in English, for example one, two, three, followed by the tab names. Separate everything with commas and wrap your final answer in \\boxed{}.",
+    "answer": "two, My Orders, My Account",
+    "eval_function": "norm_phrase_set_match_ordered|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "07fff330",
+    "domain": "web",
+    "environment": "webarena-onestopshop",
+    "question_type": "procedure",
+    "question": "I am using our magento-based custom shopping website and I am on the home page. Which statement is correct about the minimum actions needed to display search results sorted by highest price first versus sorted by product name alphabetically?\n\nA. Highest price first needs fewer actions.\nB. Product name alphabetically needs fewer actions.\nC. They need the same minimum number of actions.\nD. Sorting by product name alphabetically is impossible.\n\nYour final answer should be wrapped in \\boxed{} like \\boxed{A}.",
+    "answer": "A",
+    "eval_function": "mc_choice_match|require_non_empty=true"
+  }
+]

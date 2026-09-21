@@ -857,8 +857,14 @@ mod tests {
         let out = apply_kind_quota(
             ranked_kinds(&items),
             4,
+            // 2 + 1 <= k. The fixture has no semantic records, so this
+            // number cannot affect the expected order; what it must not do
+            // is contradict `apply_kind_quota`'s own invariant that a quota
+            // reserving more than `k` is a configuration error. The original
+            // 6 echoed AgentRunbook's top-6 events without checking it
+            // against this test's k = 4, and tripped the assertion.
             KindQuota {
-                semantic: 6,
+                semantic: 2,
                 procedural: 1,
             },
         );

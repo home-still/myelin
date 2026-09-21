@@ -47,9 +47,15 @@ struct Args {
 
     /// Minimum candidates the reranker scores. Default 25
     /// (`RetrieveConfig::rerank_depth`); the effective depth is
-    /// `max(rerank_depth, k)`.
+    /// `max(rerank_depth, k * rerank_factor)`.
     #[arg(long)]
     rerank_depth: Option<usize>,
+
+    /// Multiplier on `k` for the reranker's candidate head. Default 1, which
+    /// at `k == rerank_depth` makes the reranker reorder the emitted set
+    /// rather than select from a deeper one (M37).
+    #[arg(long)]
+    rerank_factor: Option<usize>,
 }
 
 #[tokio::main]
@@ -78,15 +84,22 @@ async fn main() -> anyhow::Result<()> {
         .unwrap_or_else(|| cfg.qdrant.collection.clone());
 
     let backend = Arc::new(
-        Backend::open(&cfg, &collection, args.prefetch_limit, args.rerank_depth).await?,
+        Backend::open(
+            &cfg,
+            &collection,
+            args.prefetch_limit,
+            args.rerank_depth,
+            args.rerank_factor,
+        )
+        .await?,
     );
     check_pairing(&backend, &cfg.ledger, &collection).await?;
     // The pool size actually used, on stderr in both transports: an arm that
     // did not widen the candidate pool is a configuration bug, and this is
     // the line that proves it either way from the run's own log.
     eprintln!(
-        "retrieval: prefetch={} rerank_depth={}",
-        backend.config.prefetch_limit, backend.config.rerank_depth
+        "retrieval: prefetch={} rerank_depth={} rerank_factor={}",
+        backend.config.prefetch_limit, backend.config.rerank_depth, backend.config.rerank_factor
     );
 
     match args.serve.as_deref() {

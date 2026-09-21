@@ -33,8 +33,8 @@ pub fn qdrant_config() -> QdrantConfig {
 ///
 /// Distinctness is why this is an FNV-1a hash per dimension rather than the
 /// obvious sum of bytes modulo `DIM`. That version was not distinct at all:
-/// any two English sentences of similar length produced vectors at cosine
-/// > 0.999, because summing bytes throws away order. It went unnoticed only
+/// any two English sentences of similar length produced vectors at
+/// cosine > 0.999, because summing bytes throws away order. It went unnoticed
 /// while `compose`'s cosine near-duplicate suppression was dead (every
 /// `Ranked::vector` was `None`); the moment `recall` started returning real
 /// vectors, a 12-record fixture composed down to one item. Hashing the whole

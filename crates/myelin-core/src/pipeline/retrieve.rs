@@ -62,6 +62,53 @@ pub struct RetrieveConfig {
     /// highest-leverage stage (MS MARCO MRR@10 18.7 → 36.5, §2 finding 2), so
     /// it gets a deeper pool than `compose` will finally emit.
     pub rerank_depth: usize,
+    /// Multiplier on `k` for the reranker's candidate head, so the
+    /// cross-encoder *selects* rather than merely reorders.
+    ///
+    /// The effective depth is `max(rerank_depth, k * rerank_factor)`. At the
+    /// shipped operating point (`rerank_depth` 25, `k` 25) a factor of 1
+    /// makes those equal, and equality is the degenerate case: the reranker
+    /// is handed exactly the set that will be emitted, so it can reorder it
+    /// but can never exclude anything, and every fused candidate past rank
+    /// `k` is discarded on RRF rank alone without the cross-encoder ever
+    /// scoring it. `rerank_depth`'s own doc comment above promises "a deeper
+    /// pool than `compose` will finally emit"; with a factor of 1 that
+    /// promise is false.
+    ///
+    /// This is why M37 measured raising `prefetch_limit` from 50 to 400 as a
+    /// **null at every k** (+0.6 / +0.0 / +0.8 points of recall at k =
+    /// 25/50/100): the extra candidates were fused and then truncated away
+    /// at the `take(depth)` below before the reranker saw them. Widening the
+    /// first stage cannot pay while the second stage is degenerate.
+    ///
+    /// **Measured, and it is a null. Default 1, and that is the measurement
+    /// talking.**
+    ///
+    /// M37 ran `factor = 4` (head 100, i.e. the entire fused list at the
+    /// default prefetch) against `factor = 1` over the 255 answerable,
+    /// string-checkable LME-V2 rows: answer-string recall **57.65% → 58.43%,
+    /// +0.78 points, 95% CI [−3.14, +4.71]**, 14 rows gained and 12 lost.
+    /// The pre-registered bar was +3.0 with a CI excluding zero, so the
+    /// default stays 1.
+    ///
+    /// The null is informative rather than disappointing, because the deep
+    /// arm also emitted **42% more evidence** (mean 16.8 → 23.9 items;
+    /// `factor = 1` could not even fill the requested k = 25 once ledger
+    /// admissibility had thinned a 25-candidate head) and still did not move
+    /// recall. A cross-encoder handed four times the candidates returns
+    /// essentially the same set.
+    ///
+    /// Read with the other two widening nulls in the same milestone —
+    /// `prefetch_limit` 50 → 400, and k 25 → 100 buying only +9.1 — the
+    /// conclusion is that widening is exhausted and the *representation* is
+    /// the bottleneck: 98.5% of the LME-V2 index is raw AXTree page dumps,
+    /// and entity extraction yields the single token `page` for all 37,731
+    /// of them. `docs/measurements/m37-rerank-head.md`.
+    ///
+    /// Kept, not deleted: it repairs a real degeneracy (`depth == k` means
+    /// the reranker cannot exclude anything) and is the knob any future
+    /// arm on a sharper representation will need.
+    pub rerank_factor: usize,
     /// Cross-encoder score below which the whole evidence set is withheld.
     ///
     /// **This is an abstention gate, and it exists because abstention is
@@ -182,6 +229,7 @@ impl Default for RetrieveConfig {
             rrf_k: DEFAULT_RRF_K,
             channels: Channels::Hybrid,
             rerank_depth: 25,
+            rerank_factor: 1,
             tau_abstain: None,
             graph: false,
             graph_limit: 50,
@@ -194,6 +242,28 @@ impl Default for RetrieveConfig {
     }
 }
 
+/// How many fused candidates the reranker scores, given the config floor,
+/// the `k` multiplier and the query's `k`.
+///
+/// A free function so the arithmetic is testable without a store, an
+/// embedder, a reranker and a live ledger — the same reason
+/// [`super::investigate`] extracted its gate. This one earned it: the
+/// degenerate case `depth == k` shipped for the whole M25–M36 sequence and
+/// was only found by measuring a *different* knob and getting a null.
+///
+/// Two rules, in order:
+///
+/// 1. `rerank_depth` is a **floor**, never a ceiling on the caller's `k` —
+///    a config constant must not overrule a query parameter (R4).
+/// 2. `k * factor` is the selection head. `factor` of 0 is meaningless and
+///    is read as 1 rather than collapsing the head to nothing.
+///
+/// Saturating throughout: `k` is caller-supplied and `factor` is config, and
+/// `usize` overflow here would silently truncate the head to a few records.
+pub fn rerank_head_depth(rerank_depth: usize, rerank_factor: usize, k: usize) -> usize {
+    rerank_depth.max(k.saturating_mul(rerank_factor.max(1)))
+}
+
 /// What a single `recall` did, for the latency and ablation tables.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct RecallTrace {
@@ -202,6 +272,13 @@ pub struct RecallTrace {
     pub fused: usize,
     pub reranked: usize,
     pub admitted: usize,
+    /// Fused candidates actually handed to the reranker, i.e. the
+    /// `max(rerank_depth, k * rerank_factor)` head. Reported because
+    /// `reranked == admitted == k` is the signature of a degenerate second
+    /// stage, and M37 spent an afternoon inferring that from a null instead
+    /// of reading it off a trace.
+    #[serde(default)]
+    pub rerank_depth: usize,
     pub embed_ms: u128,
     pub search_ms: u128,
     pub rerank_ms: u128,
@@ -504,16 +581,12 @@ impl<'a> Retriever<'a> {
             }
         }
 
-        // `rerank_depth` is a floor on how deep the reranker looks, never a
-        // ceiling on what the caller asked for.
-        //
-        // It used to be a bare `.take(self.config.rerank_depth)`, which
-        // silently capped `k` at 25. An LME-V2 operating-point sweep at
-        // k=60 therefore measured k=25 with a different tie-break and
-        // reported the difference as a finding — both runs came back with
-        // the same ~9,600-token evidence set, which is what gave it away. A
-        // config constant must not quietly overrule a query parameter (R4).
-        let depth = self.config.rerank_depth.max(query.budget.k);
+        let depth = rerank_head_depth(
+            self.config.rerank_depth,
+            self.config.rerank_factor,
+            query.budget.k,
+        );
+        trace.rerank_depth = depth;
         let head: Vec<(uuid::Uuid, f32)> = fused.into_iter().take(depth).collect();
 
         // Rerank before the ledger check: reranking is the expensive stage
@@ -703,5 +776,70 @@ impl<'a> Retriever<'a> {
             .map(|i| super::ingest::approx_tokens(&i.value))
             .sum();
         Ok((set, trace))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{rerank_head_depth, RetrieveConfig};
+
+    /// The shipped operating point, pinned as the thing that was wrong.
+    ///
+    /// `rerank_depth` 25 and `k` 25 make the head exactly `k`, so the
+    /// cross-encoder is handed the set it will emit and cannot drop a single
+    /// record. This asserts the arithmetic, not the wisdom: the default is
+    /// still `factor = 1` until an arm says otherwise, and if someone flips
+    /// that default this test is the one that should make them justify it.
+    #[test]
+    fn factor_one_at_the_default_k_makes_the_reranker_a_reordering() {
+        let cfg = RetrieveConfig::default();
+        assert_eq!(cfg.rerank_factor, 1, "default must stay off until measured");
+        let depth = rerank_head_depth(cfg.rerank_depth, cfg.rerank_factor, 25);
+        assert_eq!(depth, 25, "head equals k, so nothing can be excluded");
+    }
+
+    /// The property that makes the second stage a *selector*: strictly more
+    /// candidates scored than emitted.
+    #[test]
+    fn a_factor_above_one_gives_the_reranker_more_than_it_emits() {
+        for factor in [2usize, 4, 8] {
+            for k in [6usize, 25, 60] {
+                let depth = rerank_head_depth(25, factor, k);
+                assert!(
+                    depth > k,
+                    "factor {factor} at k {k} produced depth {depth}; a head \
+                     no deeper than k cannot select"
+                );
+                assert_eq!(depth, (k * factor).max(25));
+            }
+        }
+    }
+
+    /// R4: a config constant must never overrule a query parameter. This is
+    /// the regression the floor was introduced for — a bare `take(depth)`
+    /// once capped `k` at 25 and an operating-point sweep at k=60 silently
+    /// measured k=25.
+    #[test]
+    fn the_configured_depth_is_a_floor_and_never_caps_k() {
+        assert_eq!(rerank_head_depth(25, 1, 3), 25, "floor applies below k");
+        assert_eq!(rerank_head_depth(25, 1, 60), 60, "k is never capped");
+        assert_eq!(rerank_head_depth(200, 1, 60), 200, "deeper floor still wins");
+    }
+
+    /// A zero factor is a misconfiguration, not an instruction to rerank
+    /// nothing: collapsing the head to zero would return an empty evidence
+    /// set for every query.
+    #[test]
+    fn a_zero_factor_is_read_as_one_rather_than_emptying_the_head() {
+        assert_eq!(rerank_head_depth(25, 0, 60), 60);
+        assert_eq!(rerank_head_depth(1, 0, 7), 7);
+    }
+
+    /// `k` is caller-supplied and `factor` is config; multiplying them must
+    /// not wrap a `usize` and truncate the head to a handful of records.
+    #[test]
+    fn an_absurd_k_and_factor_saturate_instead_of_wrapping() {
+        let depth = rerank_head_depth(25, usize::MAX, usize::MAX);
+        assert_eq!(depth, usize::MAX, "overflow must saturate high, not low");
     }
 }
