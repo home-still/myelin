@@ -351,6 +351,8 @@ class MyelinMemory(Memory):
         # "do not override the server's default", which is the contract every
         # switch here has and the one M33's `select` defect violated.
         self.kind_quota = params.get("kind_quota")
+        # M36: graded answerability gate. investigate-only.
+        self.answerability_gate = params.get("answerability_gate")
         # The last query's retrieval trace, per worker thread.
         #
         # THREAD-LOCAL, not an attribute, for the reason the base class's own
@@ -461,6 +463,8 @@ class MyelinMemory(Memory):
                 arguments["premise"] = bool(self.premise)
             if self.typed_probes is not None:
                 arguments["typed_probes"] = bool(self.typed_probes)
+            if self.answerability_gate is not None:
+                arguments["answerability_gate"] = bool(self.answerability_gate)
         # `query_image` is accepted and ignored for now: the dense channel is
         # text-only (bge-m3), so forwarding a path the server cannot embed
         # would be a lie in the trace. 29 of 451 questions carry one; they are
@@ -512,6 +516,11 @@ class MyelinMemory(Memory):
             "steps": trace.get("steps"),
             "stopped_because": trace.get("stopped_because"),
             "abstained": trace.get("abstained"),
+            # M36's graded verdict. Without it an arm cannot separate "the
+            # evaluator was right and abstention is hard" from "it fired on
+            # the wrong questions" -- the distinction M35 could only make
+            # after the fact.
+            "support": trace.get("support"),
         }
 
     def clear_query_context(self) -> None:
