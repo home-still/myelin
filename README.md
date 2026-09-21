@@ -1,87 +1,156 @@
-Vocabulary of the field
+# myelin
 
- Forms/structure — agentic memory · long-term / short-term / working memory · episodic · semantic · procedural · declarative · autobiographical ·
- memory stream · memory bank · memory graph · knowledge graph · temporal knowledge graph · entity+relation · hierarchical / multi-level / tiered /
- layered memory · memory tier · virtual context · token-level vs parametric vs latent memory
+Agentic long-term memory for LLM agents, backed by Qdrant. myelin gives an
+agent a persistent, multi-tenant memory store with hybrid retrieval (dense +
+BM25 + graph), cross-encoder reranking, and an agentic search→reflect loop —
+all exposed through a 10-tool MCP surface.
 
- Operations — memory writing · memory reading · memory management · consolidation · abstraction · summarization / gist · reflection · compression ·
- compaction · distillation · forgetting / decay · eviction · pruning · salience / importance scoring · recency · deduplication · conflict
- resolution · merge-update-delete · memory evolution · self-evolving / self-organizing memory · lifelong / continual learning · catastrophic
- forgetting · memory governance
+**What it is:** a memory backend that an MCP-compatible agent (Claude, Codex,
+any MCP client) can call to `remember` facts, `recall` them, and `investigate`
+questions with an agentic loop. It is not a chatbot, not a vector database, and
+not a RAG framework — it is the memory layer between an agent and its past.
 
- Retrieval — semantic search · dense retrieval · embeddings · vector store / ANN / HNSW / IVF · sparse / lexical retrieval / BM25 · hybrid
- retrieval · reranking · cross-encoder · late interaction / ColBERT · rank fusion / RRF · multi-hop · query decomposition · query rewriting ·
- iterative retrieval · adaptive retrieval ("when to retrieve") · self-RAG / corrective RAG · just-in-time retrieval · agentic search ·
- scope-before-routing · query-aware indexing · admissibility vs relevance · shard-probe budget
+**Why it exists:** agents that converse over long horizons need to persist what
+they learned, retrieve it efficiently, and forget what is wrong. myelin
+implements the full write path (extract → consolidate → adjudicate → index)
+and two read paths (fast `recall`, agentic `investigate`) described in
+[`PLAN.md`](PLAN.md).
 
- Context engineering — context window management · context budget / attention budget · context rot · lost-in-the-middle · positional bias · prompt
- compression / LLMLingua · KV-cache eviction · attention sink · sliding window · quantization · chunking / segmentation · progressive disclosure ·
- tool-result clearing · subagent context isolation · summary-only returns · context handoff · deferred tool schema loading · microcompact / snip /
- context collapse
+## Quickstart
 
- Evaluation & risk — token efficiency · latency / p95 · grounding · hallucination · faithfulness · provenance · memory poisoning / injection ·
- memory access control · LLM-as-a-judge · trajectory · skill library · experience replay · scratchpad · personalization / user profile ·
- metacognition · cognitive architecture · hippocampus-inspired · Zettelkasten
+See [`docs/QUICKSTART.md`](docs/QUICKSTART.md) for a step-by-step guide with
+every command executed and verified. Summary:
 
- Prevalence numbers (share of the 118 docs that scored as in-field) are in the report — e.g. hierarchical 47.5%, embeddings 53.4%, agentic memory
- 28.8%, agentic search only 2.5%, progressive disclosure 0.8%. Note the last two: the terms your prompt uses are the newest vocabulary in the field
- and the least represented in the literature — they come from production agent harnesses, not papers.
+1. Build the workspace: `cargo build --release --workspace`
+2. Start three services: Qdrant, an embedder, and a reranker
+3. Point myelin at them with `MYELIN_*` env vars
+4. Start the MCP server: `myelin-mcp --serve 127.0.0.1:7446 --collection <name> --ledger <path>`
+5. Call `remember`, then `recall`
 
- The 63 articles
+## Features
 
- Grouped, all verified present: 6 surveys/position (memory-mechanism survey 2024, episodic-memory position 2025, CoALA, SSGM governance 2026), 15
- systems (MemGPT, Generative Agents, MemoryBank, A-MEM, Mem0, Zep, HippoRAG/HippoRAG2, MIRIX, G-Memory, GAM, HiGMem, H-MEM, MOOM, Collaborative
- Memory), 5 learned-memory-policy papers (Mem-α, NEMORI, Live-Evo, Meta-Cognitive Memory Policy, HAGE), 3 retrieval-infra (SwiftMem, ShardMemo,
- QueryLink) + 1 hardware (MemExplorer), 14 RAG/retrieval foundations, 10 context/compression, 6 benchmarks (LongMemEval, LoCoMo, MemBench,
- LoCoBench-Agent, Ragas), 1 security (memory poisoning).
+See [`docs/FEATURES.md`](docs/FEATURES.md) for the full feature reference:
+- All 10 MCP tools with parameters, return shapes, and real examples
+- Retrieval architecture (three channels, RRF, cross-encoder rerank, compose)
+- Write path (dedup, consolidation, injection adjudication, quarantine)
+- Multi-tenancy and the scope-before-ranking invariant
+- Configuration: every `MYELIN_*` env var with its default
+- The `myelin-eval` harness surface
 
- SOTA for concise context retrieval
+## Architecture
 
- Hybrid retrieval as the primitive, agentic search as the control layer, graduated compaction for the window. The wins come from ordering, fusing,
- and pruning before injecting — not from any single technique.
+```mermaid
+graph TB
+    subgraph "Write path"
+        W1[remember / observe] --> W2[ingest: segment into episodes]
+        W2 --> W3[extract: LLM pulls facts]
+        W3 --> W4[adjudicate: injection gate]
+        W4 --> W5[consolidate: dedup, update, delete]
+        W5 --> W6[index: embed + upsert to Qdrant]
+    end
 
- 1. BM25 + dense in parallel, fused with RRF, then rerank (cross-encoder/late-interaction), pass only top 5–10 chunks. RRF is the default because
-    it dodges cross-retriever score normalization; reranking is the highest-leverage stage for conciseness.
- 2. Constrain before ranking. ShardMemo's scope-before-routing is the 2026 pattern: metadata predicates mask inadmissible memories first, then a
-    learned router spends a bounded shard-probe budget. Post-filtering wastes budget on inadmissible memories (+3 F1 on LoCoMo at fixed budget).
- 3. Lexical beats dense for exact-match domains (code symbols, filenames, config keys, logs); dense wins for paraphrase-heavy corpora; adaptively
-    route.
- 4. Just-in-time loading beats pre-indexing when the corpus churns. Claude Code is the reference: lightweight identifiers + runtime grep/glob/read
-    instead of pre-embedding, and an LLM scan of file headers rather than a vector index for memory retrieval. (Source-verified in the corpus paper
-    10.48550/arxiv.2604.14228.)
- 5. Five-layer graduated compaction (Claude Code): budget reduction → snip → microcompact → context collapse → auto-compact. Clear/mask stale
-    re-fetchable tool outputs before lossy summarization; trigger at 60–70% of the effective window and at task boundaries; pin head+tail verbatim,
-    compact only the middle; structured summaries with exact identifiers preserved.
- 6. Isolate the window, not just shrink it — deferred tool schemas, lazy instruction loading, summary-only subagent returns.
+    subgraph "Read path: recall"
+        R1[recall] --> R2[dense + BM25 in parallel]
+        R2 --> R3[RRF fusion k=1]
+        R3 --> R4[cross-encoder rerank]
+        R4 --> R5[compose: k records, token budget]
+    end
 
- Concrete corpus-verified numbers: SwiftMem 11.7 ms/query vs 794–1264 ms/query for Nemori/LightMem/EverMemOS at comparable judge score
- (query-agnostic full-space retrieval is the bottleneck, not the ANN index). HiGMem: the failure mode is bloated evidence sets — extra
- superficially similar turns add little recall but erode precision. Mem0: 91% lower p95 latency, >90% token cost vs full-context, +26% relative
- LLM-judge over OpenAI. Zep: 94.8% DMR vs MemGPT 93.4%.
+    subgraph "Read path: investigate"
+        I1[investigate] --> I2[search]
+        I2 --> I3[reflect: sufficient?]
+        I3 -->|no| I2
+        I3 -->|yes| I4[select_sufficient]
+        I4 --> I5[compose]
+    end
 
- Still unsolved: multi-session long-horizon tasks; benchmark disagreement (LoCoMo/LongMemEval/BEAM leaders differ, hence "LoCoMo Refined");
- predictable code-quality degradation from lossy compaction; memory as an attack surface (>95% injection success under idealized conditions).
+    subgraph "Storage"
+        Q[(Qdrant: vectors + payloads)]
+        S[(SQLite ledger: admissibility, lineage, audit)]
+    end
 
----
+    W6 --> Q
+    W5 --> S
+    R5 --> S
+    R4 --> Q
+    I2 --> R2
+```
+
+## Configuration
+
+Configuration layers: serialized defaults → `~/.myelin/config.yml` →
+`MYELIN_`-prefixed environment variables, with `__` marking nesting
+(`MYELIN_QDRANT__URL`, `MYELIN_QDRANT__COLLECTION`).
+
+See [`docs/FEATURES.md`](docs/FEATURES.md#configuration) for the full env-var
+table with defaults read from the code.
+
+> **Note:** the hardcoded defaults point at the author's LAN
+> (`192.168.1.110`). You will need to override them for your environment. See
+> the quickstart for the generic forms.
 
 ## Building & testing
 
-Three-crate workspace: `myelin-core` (backend library), `myelin-mcp` (MCP surface),
-`myelin-eval` (evaluation harness). Build plan in [`PLAN.md`](PLAN.md).
+Three-crate workspace: `myelin-core` (backend library), `myelin-mcp` (MCP
+surface), `myelin-eval` (evaluation harness). Build plan in
+[`PLAN.md`](PLAN.md).
 
 ```
-cargo test --workspace                                   # hermetic, no network
-cargo test -p myelin-core --features integration         # requires Qdrant on big
+cargo build --release --workspace                    # build all three crates
+cargo test --workspace                               # hermetic, no network
+cargo test -p myelin-core --features integration     # requires Qdrant on big
 MYELIN_QDRANT__URL=http://192.168.1.110:6334 cargo test -p myelin-core --features integration
 ```
 
-The `integration` feature enables `crates/myelin-core/tests/qdrant_capability.rs`, which asserts
-the four Qdrant 1.19.1 findings the storage design rests on — three retrieval channels in one
-collection, server-side RRF at **k = 1** (not Cormack's 60), gRPC-only multivector rerank, and the
-BM25 IDF scoring identity. Measured in
-[`docs/research/00-verified-environment.md`](docs/research/00-verified-environment.md) §3. Each test
-creates and deletes its own `myelin_test_<fn>_<uuid>` scratch collection and never touches an
-existing one; a failing assertion leaves its scratch collection behind for inspection.
+The `integration` feature enables `crates/myelin-core/tests/qdrant_capability.rs`,
+which asserts the four Qdrant 1.19.1 findings the storage design rests on —
+three retrieval channels in one collection, server-side RRF at **k = 1** (not
+Cormack's 60), gRPC-only multivector rerank, and the BM25 IDF scoring identity.
+Measured in
+[`docs/research/00-verified-environment.md`](docs/research/00-verified-environment.md)
+§3. Each test creates and deletes its own `myelin_test_<fn>_<uuid>` scratch
+collection and never touches an existing one; a failing assertion leaves its
+scratch collection behind for inspection.
 
-Configuration layers as serialized defaults → `~/.myelin/config.yml` → `MYELIN_`-prefixed
-environment variables, with `__` marking nesting (`MYELIN_QDRANT__URL`, `MYELIN_QDRANT__COLLECTION`).
+Release binaries are built to the shared target directory:
+
+```
+~/.cargo-target-shared/global/release/myelin-mcp
+~/.cargo-target-shared/global/release/myelin-eval
+```
+
+## Evaluation
+
+The `myelin-eval` harness is a **research tool**, not a product surface. It
+scores myelin against the LoCoMo and LongMemEval-S benchmarks with deterministic
+scorers and an LLM judge. See [`docs/EVALUATION.md`](docs/EVALUATION.md) and
+[`docs/FEATURES.md`](docs/FEATURES.md#myelin-eval-harness) for the subcommand
+surface.
+
+Current standing against published systems:
+```
+myelin-eval standing    # 30 rows, comparability verdicts per row
+myelin-eval ratchet     # regression check against our own pinned floor
+```
+
+## Research vocabulary
+
+The field's vocabulary — memory types, retrieval operations, context
+engineering terms, and the 63-paper corpus survey — has been moved to
+[`docs/research/00-vocabulary.md`](docs/research/00-vocabulary.md). It is
+valuable for understanding the design space; it is not a front page.
+
+## License
+
+See [`LICENSE`](LICENSE).
+
+## Documentation index
+
+| Document | Contents |
+|----------|----------|
+| [Quickstart](docs/QUICKSTART.md) | Prerequisites, service setup, first remember/recall, MCP client config |
+| [Features](docs/FEATURES.md) | All 10 MCP tools, retrieval architecture, write path, config table |
+| [Documentation rubric](docs/DOCUMENTATION-RUBRIC.md) | Scored checklist from the documentation-quality literature |
+| [Evaluation](docs/EVALUATION.md) | Benchmark methodology and results |
+| [Research notes](docs/research/) | Vocabulary, systems survey, SOTA analysis |
+| [Build plan](PLAN.md) | Milestone-by-milestone design document |
