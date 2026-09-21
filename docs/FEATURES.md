@@ -446,6 +446,9 @@ changes, update this table from those source files.
 
 The evaluation harness is a **research tool**, not a product surface. It scores
 myelin against the LoCoMo and LongMemEval-S benchmarks.
+![myelin-eval --help output showing all subcommands](docs/images/eval-help.png)
+
+*Figure 1: `myelin-eval --help` output showing all 14 subcommands of the evaluation harness.*
 
 ### Subcommands
 
