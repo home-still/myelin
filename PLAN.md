@@ -800,6 +800,7 @@ Each milestone ends with a runnable command and a number, not a description.
 | M30 | **G3 closes — ASR 7.5% against a ≤10% gate** | The first gate this project has closed. `attack --live` over M15's 40-attack, 8-cohort partition with every service live and nothing else on the box. **Measured: ASR at k=6, pre-populated, untrusted, defended = 7.5% [Wilson 2.6–19.9], 3/40 — PASS; and 7.5% again at the realistic `Asserted` tier, which is where MINJA's query-only attacker actually arrives. Undefended reproduces at 77.5% against MINJA's published 76.80. Adjudicator refused 35/40 with ZERO false positives (`l.adj` = 0 in every condition, against ~83 legitimate records per cohort).** Trajectory M15 15.0% (6/40) → M18 12.50% (5/40) → **7.5% (3/40)**, and the per-form profile attributes it exactly: **form 6 (forged audit origin) went 0/5 → 5/5 caught** — M23's `adjudicate` revision 3 — while **form 7 (negating redirect) is unchanged at 0/5, and every surviving attack is form 7.** One mechanic, not a spread. **`ComposeConfig::untrusted_max` is a measured null and ships off**: quota 2 gives 7.5%, quota 3 gives 5.0% against 7.5% uncapped — one attack at n=40, intervals almost fully overlapping — so M23 shipped two mechanisms at G3 and only the adjudicator did the work. Honest width: 3/40 is 7.5% and 4/40 is 10.0%, so the gate is passed by one attack and the Wilson upper bound is 19.9%; the gate is on the point estimate (§11.5) and M15 wrote that warning first. Ceiling unchanged and still reported: the adaptive probe (poison whose only defect is being false) is admitted 10/10 at **60.0% ASR**. Standing: unsupported gates **5 → 4**, claimable rows **0 → 1** (`comparable`, gap +2.50), ratchet records **IMPROVED 12.50 → 7.50** (`docs/measurements/m30-g3-closes.md`) |
 | M31 | **one mechanism, not two — and the selector is the better one** | The pre-registered 2×2 that M26/M27/M29 forced: `{2048, 8192} × {select off, on}` at the shipped width, LongMemEval_S, 478 questions, 26 min. Plus `GridName`, replacing three mutually exclusive `--select`/`--budget` booleans with one `--grid` enum, and a test that every grid leads with the shipped cell. **Measured: budget main effect +0.0608, selector at 2,048 +0.0596, selector at 8,192 +0.1113 ⇒ interaction −0.0517 against a pre-registered threshold of 0.0298 (half the smaller main effect). The rule fires: they are largely the same effect.** Read the other marginal and it is starker — with the selector **off** relaxing the budget costs 0.0608; with it **on** it costs **0.0091**. The selector subsumes the tight budget, is stronger where the problem is worst (+0.1113 vs +0.0596), and is general where the budget's effect is a property of the corpus (LoCoMo: −0.0030). **This retires the three-way ambiguity: M26's −0.046, M27's +0.0585 and M29's +0.0608 are one finding — the cross-encoder's top-6 ordering is poor and escaping it is worth +0.06 to +0.11.** Reproducibility: `(2048, off)` = 0.8251 and `(8192, off)` = 0.7643 are bit-identical across four runs; `(2048, on)` moves 0.8836 → 0.8847, tie-break noise on the one cell with a model call. Still no default flip — §7.1 forbids an LLM in `recall`, and M21's same-switch **+0.0 judged** stands. Exposes an instrument defect, now documented: `mean_emitted_rank` reads the **post**-selection pool, so it is pinned at `mean(1..k)` on any selecting cell and is informative only when `select` is off (`docs/measurements/m31-one-mechanism-not-two.md`) |
 | M32 | **the first default flipped on a judged number** | §15's item 1, run as pre-registered. LongMemEval_S, all 500, both arms `--mode investigate --k 6 --max-steps 2`, differing only in `select_sufficient`. **Measured: judged 56.2 → 62.0, +5.8 (95% CI [+2.8, +8.8], p = 0.0001); +12.03 on multi-session (n = 133) and exactly +0.00 on both single-session strata (n = 70, 56), which have no second hop to select across.** Clears the pre-registered ≥ +3.0 with a CI excluding zero, so `InvestigateConfig::select_sufficient` **ships on** — the first default this project has moved on an answer-side number after seven retrieval milestones with no judged point, and the highest LongMemEval_S score it has recorded. The honest prior in §15 was that it fails; the reason it did not is that **M21's +0.0 measured a different thing** — the *per-probe* arrangement M22 replaced, over `step_k = 10`, on the temporal stratum alone (n = 133). M32's base reproduces that cell exactly (36.84) and the pool-level selector moves it to 42.11. The `recall` arm replicates M21 to the digit (+3.8 [+1.0, +6.6], p = 0.0087) and stays unshipped under §7.1. AgentRunbook-R's documented failure mode — evidence that misleads a reader out of abstaining — **did not fire**: the 30 `_abs` rows go 90.0 → 93.3. **Two defects found.** `bench` discarded the retrieval trace on both branches (`.0`) and `InvestigateTrace` never carried `select_degraded` at all, so the judged path — the one that produces every published number — could not distinguish a working selector from M27's silent fallback, whose signature is *exactly* a credible null. Now persisted per row, aggregated as `BenchRun::select_degraded_rate`, and gated by `DegradationGuard`, which **fails** a run whose fallback rate is incompatible with `MAX_DEGRADED` at 95% Wilson confidence — aborting nine queries in rather than after 44 minutes, with the minimum sample *derived* from the floor (`wilson_lower(1,8) = 0.0224` aborts, `wilson_lower(1,9) = 0.0197` does not). And `standing`'s `Ours::arm` tested `select_sufficient` by value, so the flip would have published the *unselected* run as "where we stand" — `Ours::arm`'s original defect, one switch later; it now compares against the shipped default **for the run's mode**, read from the library. `docs/measurements/m32-pool-selection-default.md`. |
+| M33 | **LME-V2 is a comparison again** | §15's item 1. `lme_v2_small.overall_full_set.combined` had been `stale-config` — literally unquotable — since M16. Measured at the shipped operating point, both domains, all 12 `PAIR_KEYS` recorded: **web 42.50 (n=240), enterprise 33.65 (n=211), combined micro 38.36 over 451.** `standing` reports it as `caveat-judge` with real gaps instead of a refusal: −20.24 to **AgentRunbook-R (58.60)**, which is the only apples-to-apples row in the table because LME-V2's reader is the same Qwen3.5-9B myelin serves. Unsupported gates stay at 4 — the gate is AgentRunbook-C's 74.90 and we are behind it — but "behind by 36.54" is a fact where "cannot be quoted" was an absence. **The `stale-config` was not a plumbing gap**: `run_myelin.py` has recorded all 12 keys unconditionally since M24, and the artifacts were stale only because `runs/m22_*` predate the switches. **Three defects, all caused by M32's default flip.** (1) `harness_arm` tested `select` against a hardcoded `false`; every LME-V2 run is `investigate`, so the verdicts were exactly inverted — the shipped configuration read as an arm and the *unselected* arm got published, which is `Ours::arm`'s own motivating defect for the third time. Observable: `standing` was publishing **39.02** from `runs/m22_nodate_web`, an arm carrying a switch M22 measured as a null. Now tested against `shipped_select_sufficient(mode)`. (2) The adapter sent `select` only when true, so after M32 an omitted key made the server turn the selector **on** while `memory_config.json` recorded `false` — the artifact would have described a run that did not happen, and `standing` reads that key to pick the published number. Now unconditional. (3) The harness path was `bench` before M32: `RecallTraceJson` reported everything about the fusion and nothing about the one stage that can silently do nothing, and the adapter discarded the `InvestigateTrace` that has carried `select_degraded` since M32. Both fixed; `<run>/myelin_trace.jsonl` carries one row per query. First certification on this path: **181 none / 30 model_declined / 0 call_failed** over 211 — the selector demonstrably ran on every query. **M32's cause-split proved load-bearing**: LME-V2's decline rate is 14.2% against LongMemEval_S's 3.0%, so a guard on the *union* of causes would have **refused this measurement at five times the floor** (`wilson_lower = 0.1014`), and LongMemEval_S cleared that same union gate by under two thousandths. The decline rate is a property of the corpus, not of the system's health, which is why it cannot be the gated quantity. `lme_v2_small.lafs_gain.small` stays `stale-config` **correctly**: `lafs_unrecorded` unions over every pair feeding the frontier, so the superseded M22 arms poison it, and making it readable is a decision about what "our submission" means rather than an instrument change. `docs/measurements/m33-lme-v2-readable.md`. |
 
 M0 and M5 are not ceremony. M0 pins the four probe findings in §5 — exactly the kind of thing a Qdrant point
 release changes underneath us. M5 pins the benchmark's own privacy test against our adapter, which is the
@@ -837,7 +838,7 @@ web UI — the MCP surface and the eval report are the interfaces.
 
 ## 15. Immediate next step
 
-M0–M32 are done and committed. `docs/measurements/` carries one file per milestone; the standing
+M0–M33 are done and committed. `docs/measurements/` carries one file per milestone; the standing
 table against the published literature is `docs/sota/registry.json` + `runs/standing/`, and the
 floor under our own numbers is `docs/sota/progression.json` + `myelin-eval ratchet`.
 
@@ -848,65 +849,65 @@ floor under our own numbers is `docs/sota/progression.json` + `myelin-eval ratch
 | `minja.asr.k6_prepopulated_defended` | **7.50%** | ≤10% | **+2.50 — CLOSED** |
 | `locomo.judge_score.n1540` | 69.87 | 77.85 | −7.98 |
 | `longmemeval_s.judge_score.n500` | **62.00** | 80.80 | **−18.80** |
-| `lme_v2_small.overall_full_set.combined` | 36.59 | 74.90 | stale-config |
+| `lme_v2_small.overall_full_set.combined` | **38.36** | 74.90 | **−36.54** |
 | `lme_v2_small.lafs_gain.small` | 0.00 | >0.00 | stale-config |
 
-M32 moved the third row 56.60 → 62.00 by flipping one default, which is the
-first time an answer-side number has moved a gate here. It also means the
-retrieval branch is now **closed with a positive result** rather than
-abandoned: the mechanism M25→M31 spent six milestones localising is worth
-**+5.8 judged points**, and it is shipped.
+M32 moved the third row 56.60 → 62.00 by flipping one default — the first time an answer-side
+number has moved a gate here — and closed the retrieval branch with a **positive** result rather
+than abandoning it. M33 made the fourth row readable for the first time since M16. Four of five
+gates are now numbers.
 
-**M33 — the two stale-config rows, which are now the whole gap.**
+**M34 — the reader, which is now the whole gap on two corpora.**
 
-Two of the five gates cannot be read at all, and they have been unreadable
-since M16. That is a larger defect than any remaining accuracy question:
-`lme_v2_small.*` is 74.90 vs a number we cannot even quote, and LME-V2's
-reader is the same Qwen3.5-9B myelin serves, which makes AgentRunbook-R's
-58.60 the only apples-to-apples headroom in the whole table (§11.5).
+Retrieval is done being the suspect. M25→M31 established that retrieval puts 96–99.8% of gold in
+front of `compose`, M32 shipped the mechanism that fixes the emission, and the remaining deficits
+are large and uniform: −18.80 on LongMemEval_S, −36.54 on LME-V2, −7.98 on LoCoMo. On LME-V2 the
+comparison is now exact — AgentRunbook-R runs the same Qwen3.5-9B we serve and scores 58.60
+against our 38.36 — so a 20-point gap against an identical reader is **not** a reader-capability
+gap. It is what that reader is asked to do with what it is given.
 
-1. **Re-run LME-V2 under a recorded operating point.** `stale-config` is
-   `standing` refusing an artifact that does not name what it did per query,
-   not a missing measurement — so this is plumbing plus a run, and it
-   converts two dead rows into live ones. Note M29's finding first: every
-   LME-V2 run carries `budget_tokens = 10000`, which M29 measures as the
-   worst regime on its grid and shows is still binding (25 × 463.3 =
-   11,582). Re-running at the shipped 2,048 changes the emitted *count* as
-   well as the budget at k = 25 (~21 records vs ~4), so run 4,096 too, which
-   keeps ~9, and report all three. **Pre-registered:** the shipped default
-   moves only if 2,048 or 4,096 beats 10,000 on the combined metric with a
-   paired CI excluding zero.
-2. **`bench`'s `default_budget_tokens()` = 4096 vs the library's 2048.**
-   Moves on (1)'s result, not before it.
-3. **The `investigate` default now costs +2.04 s/query.** §7.2 has no stated
-   p95, so this is unbudgeted rather than over budget. State one, then check
-   it — `investigate` is the path an agent actually calls.
-4. **M24's decomposition**, still with no answer-side number. Rule unchanged.
-   It is now the only unmeasured retrieval switch left.
+1. **Read the AgentRunbook method and measure its one transferable idea.** §1.6 of
+   `docs/research/11-frontier-2026.md` describes AgentRunbook-R as three knowledge pools over the
+   same trajectories — raw-state slices, LLM-generated state-transition events, and
+   procedure/hint notes — with an LLM controller. We already write `RecordKind::{Episode,
+   Semantic, Procedural}` and M23 built `typed_probes` to aim at them, and it has **never been
+   measured on LME-V2**, the corpus whose records are agent task logs. That is the closest thing
+   to a pre-built replication in the repo. **Pre-registered:** `typed_probes` ships on for
+   `investigate` at ≥ +3.0 combined points over the 451 with the pair recorded, else it is a
+   measured null and the doc comment carries the number.
+2. **The 30 declines are a reader-side signal, not noise.** M33 measured `ModelDeclined` at 14.2%
+   on LME-V2 against 3.0% on LongMemEval_S. On 30 of 211 questions the selector looked at the
+   pool and said nothing in it jointly answers. Cross that against per-question correctness: if
+   declines concentrate on wrong answers, the selector is a **free abstention signal** the reader
+   never sees, and `abstain_on_insufficient` already exists to act on it. Cheap — it is a join
+   over two files already on disk, no GPU.
+3. **State a p95 for `investigate` and check it.** §7.2 gives none, so M32's +2.04 s/query is
+   unbudgeted rather than over budget, and `investigate` is the path an agent actually calls.
 
-**Two small correctness items, neither urgent.** `RecallTrace` should capture
-the pool *before* selection as well as after, so `mean_emitted_rank` is
-readable on selecting cells; M32 makes this slightly more pressing, because
-the shipped `investigate` configuration is now a selecting one and that metric
-is pinned at `mean(1..k)` on it. And E1's n = 40 makes G3 a one-attack gate
-with a 19.9% upper bound — widen the attack set or accept the point estimate,
-but **do not revise the adjudicator prompt again**: M15 allowed one revision,
-M23 spent it, and a fourth aimed at the one surviving form (form 7, negating
-redirect) would be fitting the prompt to the test set.
+**§7.1 is an architectural question, not a measurement one.** The rule forbids an LLM in `recall`
+to protect **p95 < 100 ms**; plain `recall` measures **0.42 s** today, so the constraint is
+already violated 4× without an LLM, and it is what keeps a measured +3.8 off that path. Either the
+target is real and `recall` is out of compliance, or it has moved and the rule should be restated.
+M32 and M33 both declined to decide this by flipping a switch.
 
-**What stays demoted.** Question-aware compression: M29 showed freeing budget
-is what costs the 0.06, M31 showed the selector already collects that loss
-whatever the budget, and M32 shipped the selector. It must now beat a shipped
-mechanism, not a budget.
+**What stays demoted.** Question-aware compression: M29 showed freeing budget is what costs the
+0.06, M31 showed the selector already collects that loss whatever the budget, and M32 shipped the
+selector. It must now beat a shipped mechanism, not a budget.
 
-**§7.1 is now the open architectural question, not a measurement one.** The
-rule forbids an LLM in `recall` to protect **p95 < 100 ms**; plain `recall`
-measures **0.42 s** average today, so the constraint is already violated by
-4× without an LLM, and it is what keeps a measured +3.8 off that path. Either
-the target is real and `recall` is out of compliance, or the target has moved
-and the rule should be restated. M32 declines to decide this by flipping a
-switch.
+**Two correctness items, neither urgent.** `RecallTrace` should capture the pool *before*
+selection as well as after, so `mean_emitted_rank` is readable on selecting cells — more pressing
+since M32, because the shipped `investigate` configuration is now a selecting one. And E1's n = 40
+makes G3 a one-attack gate with a 19.9% upper bound — widen the attack set or accept the point
+estimate, but **do not revise the adjudicator prompt again**: M15 allowed one revision, M23 spent
+it, and a fourth aimed at the one surviving form (form 7, negating redirect) would be fitting the
+prompt to the test set.
 
-**Still outside all of it: LME-V2**, where M16/M22 measured S = 7.4% / 12.1%.
-No per-turn gold, so `ablate --width` and `coverage` both refuse it, and
-"retrieval-limited" stands exactly where it was measured and nowhere else.
+**`lafs_gain` needs a decision, not a run.** It stays `stale-config` because `lafs_unrecorded`
+unions over every pair feeding the frontier and the superseded M22 arms predate the M23/M24 keys.
+Either re-run those arms on this code, or decide that superseded exploratory arms are not
+submission points and separate them from `runs/`. That is a question about what "our submission"
+means and it should be answered deliberately.
+
+**Still outside all of it:** LME-V2 has no per-turn gold, so `ablate --width` and `coverage` both
+refuse it, and M16/M22's S = 7.4% / 12.1% stands exactly where it was measured and nowhere else.
+M33's 38.36 is an end-to-end accuracy, not a retrieval diagnosis.

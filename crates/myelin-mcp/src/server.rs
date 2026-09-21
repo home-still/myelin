@@ -176,6 +176,20 @@ pub struct RecallTraceJson {
     pub total_ms: u64,
     pub top_score: Option<f32>,
     pub abstained: bool,
+    /// What the sufficiency selector did, when it ran.
+    ///
+    /// On the wire because the LongMemEval-V2 harness path is the one
+    /// `bench` was before M32: it drives retrieval over MCP and had no way
+    /// to tell a working selector from a silent fallback to rank order. A
+    /// fully degraded selecting arm emits the unselected arm's evidence
+    /// set, so it reads as a clean null for a mechanism that never ran
+    /// ([`myelin_core::pipeline::select::Degradation`]). `investigate`
+    /// already returns its whole [`InvestigateTrace`], which carries this;
+    /// `recall` reported everything about the fusion and nothing about the
+    /// one stage that can silently do nothing.
+    pub selected: usize,
+    pub select_ms: u64,
+    pub select_degraded: myelin_core::pipeline::select::Degradation,
 }
 
 impl From<RecallTrace> for RecallTraceJson {
@@ -192,6 +206,9 @@ impl From<RecallTrace> for RecallTraceJson {
             total_ms: t.total_ms as u64,
             top_score: t.top_score,
             abstained: t.abstained,
+            selected: t.selected,
+            select_ms: t.select_ms as u64,
+            select_degraded: t.select_degraded,
         }
     }
 }

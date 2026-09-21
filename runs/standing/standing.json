@@ -1,6 +1,6 @@
 {
-  "commit": "f1e92d64eade524d431446b314b11b9a9e646281-dirty",
-  "generated_at": "2026-09-21T11:25:20.356646Z",
+  "commit": "f9f48f4804ed6cdab53eff88ce5d013e244fd1a3-dirty",
+  "generated_at": "2026-09-21T14:32:33.397562Z",
   "rows": [
     {
       "registry_id": "locomo.judge.mempro15.gpt4omini",
@@ -1004,23 +1004,24 @@
       "metric": "lme_v2_small.overall_full_set.combined",
       "system": "AgentRunbook-C",
       "theirs": 74.9,
-      "ours": 36.58536585365854,
+      "ours": 38.35920177383592,
       "ours_n": 451,
-      "gap": null,
+      "gap": -36.540798226164085,
       "verdict": {
-        "verdict": "stale_config",
-        "detail": "artifact does not record pool_rerank, premise, typed_probes, decompose; re-measure on this code before quoting it"
+        "verdict": "caveat_judge",
+        "ours": "open_weights_local",
+        "theirs": "frontier_api"
       },
       "claim_allowed": false,
       "gate": true,
-      "run": "runs/m22_base_web",
+      "run": "runs/m33_web",
       "source_doi": "10.48550/arXiv.2605.12493",
       "caveat": "G1's accuracy bar (PLAN.md 11.5). Two facts make this the cleanest comparison in the registry and one makes it dirtier. Clean: the reader is Qwen3.5-9B (L518, L525, L952) - the same open-weights model we serve - and the population is the same 451 questions we run (L77, Table 1 #Q L299), abstention and gotchas included. Dirty: the coding-agent family's controller is Codex + GPT-5.4-mini at xhigh reasoning (L656), where ours is the local reader, and free-form answers are graded by GPT-5.2 at medium reasoning (L974) where ours are graded by Qwen3.5-9B. The paper prints 0.749; recorded here on the pct_0_100 scale. The 240 web / 211 enterprise split is our harness's, not the paper's - it pools domains per tier (L1195).",
-      "detail": "question-weighted mean of m22_base_web (40.42 over 240) and m22_base_ent (32.23 over 211); mode=\"investigate\" k=25 budget_tokens=10000 max_steps=2 prefetch_limit=null rerank_depth=null select=false dated=true pool_rerank=null premise=null typed_probes=null decompose=null",
+      "detail": "question-weighted mean of m33_web (42.50 over 240) and m33_ent (33.65 over 211); mode=\"investigate\" k=25 budget_tokens=10000 max_steps=2 prefetch_limit=null rerank_depth=null select=true dated=false pool_rerank=false premise=false typed_probes=false decompose=null",
       "candidates": [
         {
-          "run": "runs/m22_base_web",
-          "value": 36.58536585365854
+          "run": "runs/m33_web",
+          "value": 38.35920177383592
         },
         {
           "run": "runs/m22_nodate_web",
@@ -1029,6 +1030,10 @@
         {
           "run": "runs/m22_sel_web",
           "value": 37.91574279379157
+        },
+        {
+          "run": "runs/m22_base_web",
+          "value": 36.58536585365854
         },
         {
           "run": "runs/myelin_inv2_web_small",
@@ -1045,23 +1050,24 @@
       "metric": "lme_v2_small.overall_full_set.combined",
       "system": "AgentRunbook-R",
       "theirs": 58.6,
-      "ours": 36.58536585365854,
+      "ours": 38.35920177383592,
       "ours_n": 451,
-      "gap": null,
+      "gap": -20.24079822616408,
       "verdict": {
-        "verdict": "stale_config",
-        "detail": "artifact does not record pool_rerank, premise, typed_probes, decompose; re-measure on this code before quoting it"
+        "verdict": "caveat_judge",
+        "ours": "open_weights_local",
+        "theirs": "frontier_api"
       },
       "claim_allowed": false,
       "gate": false,
-      "run": "runs/m22_base_web",
+      "run": "runs/m33_web",
       "source_doi": "10.48550/arXiv.2605.12493",
       "caveat": "The RAG-family ceiling, and the closest published system to ours in kind: Qwen3.5-9B as both memory controller and reader with Qwen3-Embedding-8B for retrieval (L518). Only the judge differs from our protocol. 26.9 s per query.",
-      "detail": "question-weighted mean of m22_base_web (40.42 over 240) and m22_base_ent (32.23 over 211); mode=\"investigate\" k=25 budget_tokens=10000 max_steps=2 prefetch_limit=null rerank_depth=null select=false dated=true pool_rerank=null premise=null typed_probes=null decompose=null",
+      "detail": "question-weighted mean of m33_web (42.50 over 240) and m33_ent (33.65 over 211); mode=\"investigate\" k=25 budget_tokens=10000 max_steps=2 prefetch_limit=null rerank_depth=null select=true dated=false pool_rerank=false premise=false typed_probes=false decompose=null",
       "candidates": [
         {
-          "run": "runs/m22_base_web",
-          "value": 36.58536585365854
+          "run": "runs/m33_web",
+          "value": 38.35920177383592
         },
         {
           "run": "runs/m22_nodate_web",
@@ -1070,6 +1076,10 @@
         {
           "run": "runs/m22_sel_web",
           "value": 37.91574279379157
+        },
+        {
+          "run": "runs/m22_base_web",
+          "value": 36.58536585365854
         },
         {
           "run": "runs/myelin_inv2_web_small",
@@ -1086,23 +1096,24 @@
       "metric": "lme_v2_small.overall_full_set.combined",
       "system": "Codex (vanilla)",
       "theirs": 69.9,
-      "ours": 36.58536585365854,
+      "ours": 38.35920177383592,
       "ours_n": 451,
-      "gap": null,
+      "gap": -31.540798226164085,
       "verdict": {
-        "verdict": "stale_config",
-        "detail": "artifact does not record pool_rerank, premise, typed_probes, decompose; re-measure on this code before quoting it"
+        "verdict": "caveat_judge",
+        "ours": "open_weights_local",
+        "theirs": "frontier_api"
       },
       "claim_allowed": false,
       "gate": false,
-      "run": "runs/m22_base_web",
+      "run": "runs/m33_web",
       "source_doi": "10.48550/arXiv.2605.12493",
       "caveat": "PLAN.md 11.5 recorded 69.3 at about 182 s/query, which is the abstract's tier-unspecific figure (L311); Table 2's tier-small row is 0.699 at 177.2 s and the medium row is 0.687 at 185.8 s (L659-671). The tier-small number is the comparable one and is what this row carries.",
-      "detail": "question-weighted mean of m22_base_web (40.42 over 240) and m22_base_ent (32.23 over 211); mode=\"investigate\" k=25 budget_tokens=10000 max_steps=2 prefetch_limit=null rerank_depth=null select=false dated=true pool_rerank=null premise=null typed_probes=null decompose=null",
+      "detail": "question-weighted mean of m33_web (42.50 over 240) and m33_ent (33.65 over 211); mode=\"investigate\" k=25 budget_tokens=10000 max_steps=2 prefetch_limit=null rerank_depth=null select=true dated=false pool_rerank=false premise=false typed_probes=false decompose=null",
       "candidates": [
         {
-          "run": "runs/m22_base_web",
-          "value": 36.58536585365854
+          "run": "runs/m33_web",
+          "value": 38.35920177383592
         },
         {
           "run": "runs/m22_nodate_web",
@@ -1111,6 +1122,10 @@
         {
           "run": "runs/m22_sel_web",
           "value": 37.91574279379157
+        },
+        {
+          "run": "runs/m22_base_web",
+          "value": 36.58536585365854
         },
         {
           "run": "runs/myelin_inv2_web_small",
@@ -1127,23 +1142,24 @@
       "metric": "lme_v2_small.overall_full_set.combined",
       "system": "RAG slice+notes",
       "theirs": 51.0,
-      "ours": 36.58536585365854,
+      "ours": 38.35920177383592,
       "ours_n": 451,
-      "gap": null,
+      "gap": -12.64079822616408,
       "verdict": {
-        "verdict": "stale_config",
-        "detail": "artifact does not record pool_rerank, premise, typed_probes, decompose; re-measure on this code before quoting it"
+        "verdict": "caveat_judge",
+        "ours": "open_weights_local",
+        "theirs": "frontier_api"
       },
       "claim_allowed": false,
       "gate": false,
-      "run": "runs/m22_base_web",
+      "run": "runs/m33_web",
       "source_doi": "10.48550/arXiv.2605.12493",
       "caveat": "The LAFS break-even bar: this is the reference frontier's fastest point (51.0 at 0.2 s), so any submission slower than 0.2 s must beat 51.0 to move the frontier at all (docs/EVALUATION.md 3.3). Our 45.0 at 11.06 s sits below it, which is why the LAFS gain is exactly 0.",
-      "detail": "question-weighted mean of m22_base_web (40.42 over 240) and m22_base_ent (32.23 over 211); mode=\"investigate\" k=25 budget_tokens=10000 max_steps=2 prefetch_limit=null rerank_depth=null select=false dated=true pool_rerank=null premise=null typed_probes=null decompose=null",
+      "detail": "question-weighted mean of m33_web (42.50 over 240) and m33_ent (33.65 over 211); mode=\"investigate\" k=25 budget_tokens=10000 max_steps=2 prefetch_limit=null rerank_depth=null select=true dated=false pool_rerank=false premise=false typed_probes=false decompose=null",
       "candidates": [
         {
-          "run": "runs/m22_base_web",
-          "value": 36.58536585365854
+          "run": "runs/m33_web",
+          "value": 38.35920177383592
         },
         {
           "run": "runs/m22_nodate_web",
@@ -1152,6 +1168,10 @@
         {
           "run": "runs/m22_sel_web",
           "value": 37.91574279379157
+        },
+        {
+          "run": "runs/m22_base_web",
+          "value": 36.58536585365854
         },
         {
           "run": "runs/myelin_inv2_web_small",
@@ -1180,7 +1200,7 @@
       "run": "runs/m22_base_web",
       "source_doi": "10.48550/arXiv.2605.12493",
       "caveat": "G1's primary gate. The number to beat is a GAIN, so the bar is strict: 0.0 is what a dominated submission scores, and `bar: greater_than` is what stops a tie from passing. The reference frontier is hard-coded in the released tool (leaderboard/compute_lafs.py `fixed_frontier_points['small']` = 51.0@0.2s, 58.6@26.9s, 74.9@108.3s, 69.9@177.2s) and computes to reference_lafs 55.76484693638005, matching PLAN.md 11.5's 55.765.",
-      "detail": "adapters/lafs_point.py over 5 submission point(s): m22_base_web+m22_base_ent 36.59@18.31s, m22_nodate_web+m22_nodate_ent 39.02@10.95s, m22_sel_web+m22_sel_ent 37.92@14.45s, myelin_inv2_web_small+myelin_inv2_enterprise_small 39.91@12.76s, myelin_k25_web_small+myelin_k25_enterprise_small 35.70@1.97s",
+      "detail": "adapters/lafs_point.py over 6 submission point(s): m22_base_web+m22_base_ent 36.59@18.31s, m22_nodate_web+m22_nodate_ent 39.02@10.95s, m22_sel_web+m22_sel_ent 37.92@14.45s, m33_web+m33_ent 38.36@17.18s, myelin_inv2_web_small+myelin_inv2_enterprise_small 39.91@12.76s, myelin_k25_web_small+myelin_k25_enterprise_small 35.70@1.97s",
       "candidates": [
         {
           "run": "runs/m22_base_web",
@@ -1928,7 +1948,7 @@
   "gated_failures": [
     "locomo.judge.mempro15.qwen3_30b [locomo.judge_score.n1540] behind by 7.98 (ours 69.87, gate needs >= 77.85)",
     "longmemeval_s.judge.mempro15.qwen3_30b [longmemeval_s.judge_score.n500] behind by 18.80 (ours 62.00, gate needs >= 80.80)",
-    "lme_v2_small.agentrunbook_c [lme_v2_small.overall_full_set.combined] artifact predates today's operating point (artifact does not record pool_rerank, premise, typed_probes, decompose; re-measure on this code before quoting it)",
+    "lme_v2_small.agentrunbook_c [lme_v2_small.overall_full_set.combined] behind by 36.54 (ours 38.36, gate needs >= 74.90)",
     "lme_v2_small.lafs_gain.frontier [lme_v2_small.lafs_gain.small] artifact predates today's operating point (artifact does not record mode, max_steps, prefetch_limit, rerank_depth, select, dated, pool_rerank, premise, typed_probes, decompose; re-measure on this code before quoting it)"
   ],
   "ours": [
@@ -1940,7 +1960,7 @@
       "judge_class": "open_weights_local",
       "backbone_class": "open_weights",
       "run": "runs/m22_base_web",
-      "detail": "adapters/lafs_point.py over 5 submission point(s): m22_base_web+m22_base_ent 36.59@18.31s, m22_nodate_web+m22_nodate_ent 39.02@10.95s, m22_sel_web+m22_sel_ent 37.92@14.45s, myelin_inv2_web_small+myelin_inv2_enterprise_small 39.91@12.76s, myelin_k25_web_small+myelin_k25_enterprise_small 35.70@1.97s",
+      "detail": "adapters/lafs_point.py over 6 submission point(s): m22_base_web+m22_base_ent 36.59@18.31s, m22_nodate_web+m22_nodate_ent 39.02@10.95s, m22_sel_web+m22_sel_ent 37.92@14.45s, m33_web+m33_ent 38.36@17.18s, myelin_inv2_web_small+myelin_inv2_enterprise_small 39.91@12.76s, myelin_k25_web_small+myelin_k25_enterprise_small 35.70@1.97s",
       "incomplete": null,
       "arm": true,
       "unrecorded": [
@@ -1964,25 +1984,20 @@
     },
     {
       "metric": "lme_v2_small.memory_query_avg_seconds.enterprise",
-      "value": 23.060961017346504,
+      "value": 19.022569845762145,
       "unit": "seconds",
       "n": 211,
       "judge_class": "none",
       "backbone_class": "open_weights",
-      "run": "runs/m22_base_ent",
+      "run": "runs/m33_ent",
       "detail": "memory_query.avg_seconds over 211 questions",
       "incomplete": null,
-      "arm": false,
-      "unrecorded": [
-        "pool_rerank",
-        "premise",
-        "typed_probes",
-        "decompose"
-      ],
+      "arm": true,
+      "unrecorded": [],
       "candidates": [
         {
-          "run": "runs/m22_base_ent",
-          "value": 23.060961017346504
+          "run": "runs/m33_ent",
+          "value": 19.022569845762145
         },
         {
           "run": "runs/m22_nodate_ent",
@@ -1991,6 +2006,10 @@
         {
           "run": "runs/m22_sel_ent",
           "value": 14.673792037900736
+        },
+        {
+          "run": "runs/m22_base_ent",
+          "value": 23.060961017346504
         },
         {
           "run": "runs/myelin_inv2_enterprise_small",
@@ -2004,37 +2023,36 @@
     },
     {
       "metric": "lme_v2_small.memory_query_avg_seconds.web",
-      "value": 14.139020609409153,
+      "value": 15.552689079500366,
       "unit": "seconds",
       "n": 240,
       "judge_class": "none",
       "backbone_class": "open_weights",
-      "run": "runs/m22_base_web",
+      "run": "runs/m33_web",
       "detail": "memory_query.avg_seconds over 240 questions",
       "incomplete": null,
-      "arm": false,
-      "unrecorded": [
-        "pool_rerank",
-        "premise",
-        "typed_probes",
-        "decompose"
-      ],
+      "arm": true,
+      "unrecorded": [],
       "candidates": [
         {
-          "run": "runs/m22_base_web",
-          "value": 14.139020609409153
-        },
-        {
-          "run": "runs/m22_pilot_base",
-          "value": 13.569880828152236
+          "run": "runs/m33_web",
+          "value": 15.552689079500366
         },
         {
           "run": "runs/m22_nodate_web",
           "value": 10.995170539757964
         },
         {
+          "run": "runs/m22_base_web",
+          "value": 14.139020609409153
+        },
+        {
           "run": "runs/m22_sel_web",
           "value": 14.2584205737597
+        },
+        {
+          "run": "runs/m22_pilot_base",
+          "value": 13.569880828152236
         },
         {
           "run": "runs/m22_pilot_nodate",
@@ -2060,25 +2078,20 @@
     },
     {
       "metric": "lme_v2_small.overall_full_set.combined",
-      "value": 36.58536585365854,
+      "value": 38.35920177383592,
       "unit": "pct_0_100",
       "n": 451,
       "judge_class": "open_weights_local",
       "backbone_class": "open_weights",
-      "run": "runs/m22_base_web",
-      "detail": "question-weighted mean of m22_base_web (40.42 over 240) and m22_base_ent (32.23 over 211); mode=\"investigate\" k=25 budget_tokens=10000 max_steps=2 prefetch_limit=null rerank_depth=null select=false dated=true pool_rerank=null premise=null typed_probes=null decompose=null",
+      "run": "runs/m33_web",
+      "detail": "question-weighted mean of m33_web (42.50 over 240) and m33_ent (33.65 over 211); mode=\"investigate\" k=25 budget_tokens=10000 max_steps=2 prefetch_limit=null rerank_depth=null select=true dated=false pool_rerank=false premise=false typed_probes=false decompose=null",
       "incomplete": null,
-      "arm": false,
-      "unrecorded": [
-        "pool_rerank",
-        "premise",
-        "typed_probes",
-        "decompose"
-      ],
+      "arm": true,
+      "unrecorded": [],
       "candidates": [
         {
-          "run": "runs/m22_base_web",
-          "value": 36.58536585365854
+          "run": "runs/m33_web",
+          "value": 38.35920177383592
         },
         {
           "run": "runs/m22_nodate_web",
@@ -2087,6 +2100,10 @@
         {
           "run": "runs/m22_sel_web",
           "value": 37.91574279379157
+        },
+        {
+          "run": "runs/m22_base_web",
+          "value": 36.58536585365854
         },
         {
           "run": "runs/myelin_inv2_web_small",
@@ -2100,25 +2117,20 @@
     },
     {
       "metric": "lme_v2_small.overall_full_set.enterprise",
-      "value": 32.22748815165877,
+      "value": 33.649289099526065,
       "unit": "pct_0_100",
       "n": 211,
       "judge_class": "open_weights_local",
       "backbone_class": "open_weights",
-      "run": "runs/m22_base_ent",
+      "run": "runs/m33_ent",
       "detail": "overall.overall_full_set x 100 over 211 questions, evaluator Qwen/Qwen3.5-9B",
       "incomplete": null,
-      "arm": false,
-      "unrecorded": [
-        "pool_rerank",
-        "premise",
-        "typed_probes",
-        "decompose"
-      ],
+      "arm": true,
+      "unrecorded": [],
       "candidates": [
         {
-          "run": "runs/m22_base_ent",
-          "value": 32.22748815165877
+          "run": "runs/m33_ent",
+          "value": 33.649289099526065
         },
         {
           "run": "runs/m22_sel_ent",
@@ -2127,6 +2139,10 @@
         {
           "run": "runs/m22_nodate_ent",
           "value": 34.12322274881517
+        },
+        {
+          "run": "runs/m22_base_ent",
+          "value": 32.22748815165877
         },
         {
           "run": "runs/myelin_inv2_enterprise_small",
@@ -2140,33 +2156,28 @@
     },
     {
       "metric": "lme_v2_small.overall_full_set.web",
-      "value": 40.416666666666664,
+      "value": 42.5,
       "unit": "pct_0_100",
       "n": 240,
       "judge_class": "open_weights_local",
       "backbone_class": "open_weights",
-      "run": "runs/m22_base_web",
+      "run": "runs/m33_web",
       "detail": "overall.overall_full_set x 100 over 240 questions, evaluator Qwen/Qwen3.5-9B",
       "incomplete": null,
-      "arm": false,
-      "unrecorded": [
-        "pool_rerank",
-        "premise",
-        "typed_probes",
-        "decompose"
-      ],
+      "arm": true,
+      "unrecorded": [],
       "candidates": [
         {
-          "run": "runs/m22_base_web",
-          "value": 40.416666666666664
-        },
-        {
-          "run": "runs/m22_pilot_base",
-          "value": 40.0
+          "run": "runs/m33_web",
+          "value": 42.5
         },
         {
           "run": "runs/m22_nodate_web",
           "value": 43.333333333333336
+        },
+        {
+          "run": "runs/m22_base_web",
+          "value": 40.416666666666664
         },
         {
           "run": "runs/m22_sel_web",
@@ -2179,6 +2190,10 @@
         {
           "run": "runs/m22_pilot_nodate",
           "value": 45.0
+        },
+        {
+          "run": "runs/m22_pilot_base",
+          "value": 40.0
         },
         {
           "run": "runs/myelin_inv2_web_small",
