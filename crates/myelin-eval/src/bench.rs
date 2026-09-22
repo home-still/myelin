@@ -433,6 +433,12 @@ pub struct BenchRun {
     /// M42's decline-recovery second pass.
     #[serde(default)]
     pub commit_answer: bool,
+    /// Rows inherited from an earlier attempt by `bench --resume`. Non-zero
+    /// means the run's two halves may have been served by differently
+    /// configured readers (slots, context): a greedy answer does not depend
+    /// on either, but the fact is recorded rather than hidden.
+    #[serde(default)]
+    pub resumed_rows: usize,
     /// M45: how many samples the second pass drew and the agreement it
     /// required, when it was the consensus variant. Absent on M42's arm.
     #[serde(default)]
@@ -1425,6 +1431,10 @@ fn percentile(sorted: &[f64], q: f64) -> f64 {
 struct RowSink {
     file: std::io::BufWriter<std::fs::File>,
     rows: Vec<ScoredQuestion>,
+    /// Question ids already on disk, for the resume path's skip.
+    done: std::collections::HashSet<String>,
+    /// How many rows were inherited from an earlier attempt.
+    resumed: usize,
 }
 
 impl RowSink {
@@ -1438,7 +1448,65 @@ impl RowSink {
         Ok(Self {
             file: std::io::BufWriter::new(file),
             rows: Vec::new(),
+            done: std::collections::HashSet::new(),
+            resumed: 0,
         })
+    }
+
+    /// Reopens `per_question.jsonl` for appending, keeping every row an
+    /// earlier attempt finished.
+    ///
+    /// On 2026-09-22 the reader on `big` was killed by an external
+    /// interrupt 249 rows into a 500-row arm; the wrapper re-served it and
+    /// `bench` started over, because this type truncated on open. A row
+    /// is a pure function of its question and the operating point, so a
+    /// finished row is as good after a restart as before it — the count of
+    /// inherited rows is recorded on the run (`BenchRun::resumed_rows`) so
+    /// a reader restart between halves is visible, not hidden. A missing
+    /// file resumes nothing and is not an error.
+    fn resume(out_dir: &Path) -> Result<Self> {
+        std::fs::create_dir_all(out_dir)
+            .with_context(|| format!("create {}", out_dir.display()))?;
+        let path = out_dir.join("per_question.jsonl");
+        let mut rows: Vec<ScoredQuestion> = Vec::new();
+        if path.exists() {
+            let text = std::fs::read_to_string(&path)
+                .with_context(|| format!("read {}", path.display()))?;
+            for line in text.lines().filter(|l| !l.trim().is_empty()) {
+                rows.push(
+                    serde_json::from_str(line)
+                        .with_context(|| format!("parse a row of {}", path.display()))?,
+                );
+            }
+        }
+        let file = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&path)
+            .with_context(|| format!("open {} for append", path.display()))?;
+        let done = rows.iter().map(|r| r.question_id.clone()).collect();
+        let resumed = rows.len();
+        Ok(Self {
+            file: std::io::BufWriter::new(file),
+            rows,
+            done,
+            resumed,
+        })
+    }
+
+    /// Is this question already scored (by an earlier attempt)?
+    fn contains(&self, question_id: &str) -> bool {
+        self.done.contains(question_id)
+    }
+
+    /// The inherited rows' query latencies, so the run's percentiles cover
+    /// every row it reports.
+    fn latencies(&self) -> Vec<f64> {
+        self.rows.iter().map(|r| r.memory_query_duration_seconds).collect()
+    }
+
+    fn resumed(&self) -> usize {
+        self.resumed
     }
 
     /// Writes the row, flushes it, then keeps it. Flushing per row is the
@@ -1450,6 +1518,7 @@ impl RowSink {
         serde_json::to_writer(&mut self.file, &row)?;
         self.file.write_all(b"\n")?;
         self.file.flush().context("flush per_question.jsonl")?;
+        self.done.insert(row.question_id.clone());
         self.rows.push(row);
         Ok(())
     }
@@ -1511,6 +1580,7 @@ pub async fn bench_locomo(
     switches: &BenchSwitches,
     scorer: Scorer,
     out_dir: &Path,
+    resume: bool,
 ) -> Result<BenchRun> {
     let cfg = MyelinConfig::load().context("load myelin config")?;
     let conversations = locomo::load(path).context("load locomo")?;
@@ -1583,9 +1653,16 @@ pub async fn bench_locomo(
     let investigate_cfg = investigate_config(switches);
 
     // Opened before the first reader call so an interrupted run keeps every
-    // question it finished (see `RowSink`).
-    let mut scored = RowSink::create(out_dir)?;
-    let mut latencies: Vec<f64> = Vec::new();
+    // question it finished (see `RowSink`); `resume` reopens instead.
+    let mut scored = if resume {
+        RowSink::resume(out_dir)?
+    } else {
+        RowSink::create(out_dir)?
+    };
+    if scored.resumed() > 0 {
+        eprintln!("  resuming: {} rows inherited from an earlier attempt", scored.resumed());
+    }
+    let mut latencies: Vec<f64> = scored.latencies();
     let mut degradation = DegradationGuard::default();
     // Arm B rides on `READER_SYSTEM` rather than replacing it: the arm is the
     // clause, and swapping the whole prompt would confound it with the
@@ -1625,6 +1702,10 @@ pub async fn bench_locomo(
             // questions it skips. `question_id` keeps the *unfiltered* index
             // `i`, so `paired_ci.py` pairs a stratum run against a full run.
             if !switches.wants(qa.category) {
+                continue;
+            }
+            // Already scored by the attempt this one resumes.
+            if scored.contains(&format!("{}#{i}", conv.sample_id)) {
                 continue;
             }
             if let Some(n) = limit {
@@ -1750,7 +1831,7 @@ pub async fn bench_locomo(
             scorer,
             rescored_from: None,
         },
-        scored.into_rows(),
+        scored,
         latencies,
         out_dir,
     )
@@ -1784,6 +1865,7 @@ pub async fn bench_longmemeval_s(
     switches: &BenchSwitches,
     scorer: Scorer,
     out_dir: &Path,
+    resume: bool,
 ) -> Result<BenchRun> {
     let cfg = MyelinConfig::load().context("load myelin config")?;
     let mut items = longmemeval::load(dataset).context("load longmemeval_s")?;
@@ -1843,9 +1925,16 @@ pub async fn bench_longmemeval_s(
     let investigate_cfg = investigate_config(switches);
 
     // Opened before the first reader call so an interrupted run keeps every
-    // question it finished (see `RowSink`).
-    let mut scored = RowSink::create(out_dir)?;
-    let mut latencies: Vec<f64> = Vec::new();
+    // question it finished (see `RowSink`); `resume` reopens instead.
+    let mut scored = if resume {
+        RowSink::resume(out_dir)?
+    } else {
+        RowSink::create(out_dir)?
+    };
+    if scored.resumed() > 0 {
+        eprintln!("  resuming: {} rows inherited from an earlier attempt", scored.resumed());
+    }
+    let mut latencies: Vec<f64> = scored.latencies();
     let mut degradation = DegradationGuard::default();
     let mut commits = CommitTally::default();
     // See `bench_locomo`: the clause is appended, not substituted.
@@ -1857,6 +1946,10 @@ pub async fn bench_longmemeval_s(
     let system = system.as_str();
 
     for item in &items {
+        // Already scored by the attempt this one resumes.
+        if scored.contains(&item.question_id) {
+            continue;
+        }
         let adversarial = item.is_abstention();
         let gold = item.answer_text();
         let query = Recall {
@@ -1982,7 +2075,7 @@ pub async fn bench_longmemeval_s(
             scorer,
             rescored_from: None,
         },
-        scored.into_rows(),
+        scored,
         latencies,
         out_dir,
     )
@@ -2032,10 +2125,12 @@ pub struct RunSpec {
 /// is fixed for both, and so `adapters/paired_ci.py` reads one row shape.
 fn finish_run(
     spec: &RunSpec,
-    scored: Vec<ScoredQuestion>,
+    scored: RowSink,
     latencies: Vec<f64>,
     out_dir: &Path,
 ) -> Result<BenchRun> {
+    let resumed = scored.resumed();
+    let scored = scored.into_rows();
     let answerable: Vec<&ScoredQuestion> =
         scored.iter().filter(|s| !s.is_abstention_problem).collect();
     let adversarial: Vec<&ScoredQuestion> =
@@ -2123,6 +2218,7 @@ fn finish_run(
         // run did not start; so a thinking artifact always carries it.
         reader_thinking_budget: spec.switches.reader_thinking.then_some(THINKING_BUDGET_TOKENS),
         commit_answer: spec.switches.commit_answer,
+        resumed_rows: resumed,
         commit_samples: None,
         commit_agree: None,
         untrusted_max: spec.switches.untrusted_max,
@@ -2326,7 +2422,7 @@ pub fn rescore_run(source: &Path, out_dir: &Path, scorer: Scorer) -> Result<Benc
     };
     // Row order is preserved, so `paired_ci.py`'s id intersection pairs a
     // rescored run against its source or another rescored run unchanged.
-    finish_run(&spec, scored.into_rows(), latencies, out_dir)
+    finish_run(&spec, scored, latencies, out_dir)
 }
 
 /// Load `<run>/judge_verdicts.json`, naming the command that writes it.
@@ -2666,6 +2762,57 @@ mod tests {
         let again = RowSink::create(&out).unwrap();
         assert_eq!(again.len(), 0);
         assert_eq!(std::fs::read_to_string(&path).unwrap(), "");
+    }
+
+    /// Resume keeps every row an earlier attempt finished, appends after
+    /// them, and knows which questions are done; `create` still truncates.
+    #[test]
+    fn a_row_sink_resumes_after_the_rows_it_inherited() {
+        let tmp = tempfile::tempdir().unwrap();
+        let out = tmp.path().join("run");
+        let row = |id: &str| ScoredQuestion {
+            question_id: id.into(),
+            tenant: "t".into(),
+            category: 1,
+            question_text: "q".into(),
+            answer_gold: "g".into(),
+            response_raw: "g".into(),
+            score: 1.0,
+            exact_match: 1.0,
+            score_token_f1: 1.0,
+            score_temporal: 1.0,
+            temporal_kind: "none".into(),
+            is_abstention_problem: false,
+            retrieved_items: 1,
+            evidence: vec![],
+            commit_samples: None,
+            commit_agreement: None,
+            reader_trace: None,
+            memory_query_duration_seconds: 0.5,
+            selected: 0,
+            select_degraded: Degradation::ModelDeclined,
+        };
+        let mut first = RowSink::create(&out).unwrap();
+        first.push(row("a")).unwrap();
+        first.push(row("b")).unwrap();
+        drop(first);
+
+        let mut again = RowSink::resume(&out).unwrap();
+        assert_eq!((again.len(), again.resumed()), (2, 2));
+        assert!(again.contains("a") && again.contains("b") && !again.contains("c"));
+        assert_eq!(again.latencies(), vec![0.5, 0.5]);
+        again.push(row("c")).unwrap();
+        drop(again);
+
+        let lines: Vec<String> = std::fs::read_to_string(out.join("per_question.jsonl"))
+            .unwrap()
+            .lines()
+            .map(|l| serde_json::from_str::<ScoredQuestion>(l).unwrap().question_id)
+            .collect();
+        assert_eq!(lines, vec!["a", "b", "c"]);
+
+        let fresh = RowSink::resume(&tmp.path().join("nothing-yet")).unwrap();
+        assert_eq!((fresh.len(), fresh.resumed()), (0, 0), "no file resumes nothing");
     }
 
     /// An answered row the judge never saw is a hard error, not a zero:

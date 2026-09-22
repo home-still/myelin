@@ -300,11 +300,34 @@ population it reports.
   recovery; the prevention is `QDRANT__SERVICE__API_KEY` +
   `QDRANT__SERVICE__READ_ONLY_API_KEY`, or our own instance on a separate
   port. Snapshot after every `build` either way.
+- **The LME-V2 index was 95% missing until 2026-09-22.** M41's `reindex`
+  recovered `myelin_longmemeval_s` (162,181 of 162,181) and nothing else:
+  `myelin_lme_v2_small` held **4,608 points against 85,979 live records** —
+  every LME-V2 read since the deletion incident, including the standing
+  row's own candidates, ran against a twentieth of the store. Found while
+  snapshotting; `reindex --corpus lme-v2-small` rebuilt it (ids preserved).
+  `myelin_locomo` (4,875) and `myelin_lme_s_pref` (13,536) were verified
+  complete against their ledgers' *live* counts — the `record` table's total
+  (5,040 / 13,687) includes rows `count_live` excludes, so compare against
+  the reindex header, not `select count(*)`. Snapshots of all four
+  collections now exist on `big` (`…-2026-09-22-19-15-*.snapshot`); a
+  Qdrant point count should be checked against the ledger's live count
+  before any arm is launched.
 - **GPU tenancy on `big`.** M44 R2 and M45's N-sample decode need more of the
   card than any arm so far. No-sudo levers: `-ctk q8_0 -ctv q8_0` with
   `-fa on`; two server profiles (LongMemEval_S at k=6/4,096 plus a 1,024-token
   thinking budget fits 8k per slot; only LME-V2 needs the large window); `n`
   parallel samples off one prefill for M45.
+- **The reader can be killed from outside mid-arm, and `bench` did not
+  resume.** 2026-09-22 15:0x: `/tmp/myelin-reader.log` on `big` ended with
+  *"Received second interrupt, terminating immediately"* — two SIGINTs from
+  something other than this loop, `tenant=none` throughout — 249 rows into
+  the M46 arm. `run-with-reader.sh` re-served the reader (1 slot, 16k) and
+  retried, and `bench` truncated `per_question.jsonl` and started over.
+  `bench --resume` now keeps the finished rows (recorded as `resumed_rows`
+  on the run) and the wrapper passes it on every retry. Who sends the
+  interrupts is unknown; `serve-models.sh` is the only thing on this side
+  that retires the port, and it was not run.
 - **A partially-offloaded reader is a different measurement, not a slower
   one.** When the card is full the reader falls back to CPU layers and
   throughput drops ~5× (2.9 → 14.5 s/row). Such runs should be recorded
