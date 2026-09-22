@@ -213,10 +213,12 @@ One enum instead of a bool; same forcing, same field order. CoN's cost warning
 also transfers: their inference went 0.61 s → 12.02 s per query (19.7×)
 because notes are per-item calls. Ours is one call. Keep it that way.
 
-**Conditional on M44.** The digest ships on since M43 (+5.80). If a reasoning
-reader composes facts itself, the digest's marginal on top of it may shrink —
-measure the digest's marginal over the M44 winner before spending a run on
-its label.
+**Conditional on M44 — resolved.** R1 shipped off (null, veto), so the
+digest stays the mechanism and its label is worth a run. *Implemented and
+pre-registered* — `docs/measurements/m48-three-way-digest-label.md`:
+`InvestigateConfig::digest_role` (off), `--digest-role`, `digest_role` on the
+MCP tool; `digest_label` refuses stacking it with `digest_relevance`. Arm
+queued behind M46 and M44 R2 on the reader.
 
 **Cost.** Minutes.
 

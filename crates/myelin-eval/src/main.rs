@@ -616,6 +616,13 @@ enum Command {
         /// with none gained +4.1.
         #[arg(long)]
         digest_relevance: bool,
+        /// Type each digest entry `answers` / `context` / `irrelevant` and
+        /// drop only the last (M48). Chain-of-Note's three types; M43's
+        /// boolean collapsed the first two and lost 245 rows their note.
+        /// An alternative to `--digest-relevance`. Inert without
+        /// `--item-digest`; no extra call.
+        #[arg(long, conflicts_with = "digest_relevance")]
+        digest_role: bool,
         /// Let the reader reason before answering (M44 R1): a
         /// `{reasoning, answer, evidence_absent}` schema in that field order,
         /// with the completion ceiling raised from 160 to 480.
@@ -1063,6 +1070,7 @@ async fn main() -> anyhow::Result<()> {
             digest_dates,
             commit_answer,
             digest_relevance,
+            digest_role,
             reader_reasoning,
             reader_thinking,
             reader_seed,
@@ -1102,6 +1110,7 @@ async fn main() -> anyhow::Result<()> {
                     digest_dates,
                     commit_answer,
                     digest_relevance,
+                    digest_role,
                     reader_reasoning,
                     reader_thinking,
                     reader_seed,

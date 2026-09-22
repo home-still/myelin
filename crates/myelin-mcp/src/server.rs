@@ -353,6 +353,18 @@ impl MyelinServer {
         // switch — the exact class of failure M12, M14 and M20 each lost a
         // run to.
         let premise = params.premise.unwrap_or(false);
+        // M48: the two digest labels are alternative arms. Refused at the
+        // wire with the library's own rule, so the caller learns which
+        // switch to drop rather than seeing an internal error mid-query.
+        myelin_core::pipeline::investigate::digest_label(
+            params
+                .digest_relevance
+                .unwrap_or(InvestigateConfig::default().digest_relevance),
+            params
+                .digest_role
+                .unwrap_or(InvestigateConfig::default().digest_role),
+        )
+        .map_err(|e| ErrorData::invalid_params(e.to_string(), None))?;
         let cfg = InvestigateConfig {
             select_sufficient: params
                 .select
@@ -372,6 +384,9 @@ impl MyelinServer {
             digest_relevance: params
                 .digest_relevance
                 .unwrap_or(InvestigateConfig::default().digest_relevance),
+            digest_role: params
+                .digest_role
+                .unwrap_or(InvestigateConfig::default().digest_role),
             rerank_pool: params.pool_rerank.unwrap_or(false),
             premise_analysis: premise,
             abstain_on_insufficient: premise,
@@ -897,6 +912,11 @@ pub struct InvestigateParams {
     /// question (M43). Inert unless `item_digest` is on; no extra model call.
     #[serde(default)]
     pub digest_relevance: Option<bool>,
+    /// Type each digest entry `answers` / `context` / `irrelevant` and drop
+    /// only the last (M48). An alternative to `digest_relevance`; both
+    /// together is refused. Inert unless `item_digest` is on.
+    #[serde(default)]
+    pub digest_role: Option<bool>,
     /// Split each probe into at most N sub-queries and retrieve for each
     /// (M24). One model call per step, on top of the reflect gate's.
     #[serde(default)]
