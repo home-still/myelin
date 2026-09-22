@@ -139,6 +139,18 @@ pub struct InvestigateConfig {
     /// `m21-evidence-selection.md` (per-probe), `m22-g1-selection.md`
     /// (pool-level mechanism).
     pub select_sufficient: bool,
+    /// Ask the sufficiency selector for **every** needed memory instead of
+    /// the fewest ([`crate::pipeline::select::SELECT_SYSTEM_COVERAGE`]).
+    ///
+    /// Inert unless [`Self::select_sufficient`] is on — it changes that
+    /// selector's prompt and nothing else.
+    ///
+    /// M38 measured the shipped "FEWEST" instruction costing **−5.3 points
+    /// of complete gold-session coverage on `multi-session` and −4.5 on
+    /// `temporal-reasoning`, and exactly −0.0 on all three single-gold
+    /// categories** — and those two are 76% of LongMemEval_S's errors.
+    /// Off until an arm says otherwise.
+    pub select_coverage: bool,
     /// Rerank the WHOLE accumulated pool against the **original question**
     /// once, after the last step and before selection/compose (M23 A2).
     ///
@@ -283,6 +295,7 @@ impl Default for InvestigateConfig {
             max_pool: 60,
             abstain_on_insufficient: false,
             select_sufficient: true,
+            select_coverage: false,
             rerank_pool: false,
             premise_analysis: false,
             answerability_gate: false,
@@ -620,6 +633,7 @@ async fn select_pool(
     question: &str,
     ranked: &mut Vec<Ranked>,
     k: usize,
+    coverage: bool,
 ) -> Result<Selected> {
     if ranked.is_empty() {
         return Ok(Selected {
@@ -628,7 +642,10 @@ async fn select_pool(
         });
     }
     let docs: Vec<String> = ranked.iter().map(|r| r.record.text.clone()).collect();
-    let keep = Selector::new(llm).select(question, &docs, k).await?;
+    let keep = Selector::new(llm)
+        .with_coverage(coverage)
+        .select(question, &docs, k)
+        .await?;
 
     let mut slots: Vec<Option<Ranked>> = std::mem::take(ranked).into_iter().map(Some).collect();
     let mut front = Vec::with_capacity(slots.len());
@@ -943,7 +960,14 @@ impl<'a> Investigator<'a> {
 
         if self.config.select_sufficient {
             let t = std::time::Instant::now();
-            let keep = select_pool(self.llm, &query.text, &mut ranked, query.budget.k).await?;
+            let keep = select_pool(
+                self.llm,
+                &query.text,
+                &mut ranked,
+                query.budget.k,
+                self.config.select_coverage,
+            )
+            .await?;
             trace.selected = keep.keep.len();
             trace.select_degraded = keep.degraded;
             trace.select_ms = t.elapsed().as_millis();
@@ -1456,7 +1480,7 @@ mod tests {
         // picked nothing usable, must not move anything either.
         let llm = Canned::text("not json at all");
         let mut ranked = pool(&texts);
-        let kept = select_pool(&llm, "q", &mut ranked, 3).await.unwrap();
+        let kept = select_pool(&llm, "q", &mut ranked, 3, false).await.unwrap();
         assert_eq!(
             kept.keep.len(),
             3,
@@ -1481,7 +1505,7 @@ mod tests {
     async fn selection_promotes_the_models_choice_across_the_whole_pool() {
         let llm = Canned::text(r#"{"keep":[2,0]}"#);
         let mut ranked = pool(&["alpha", "bravo", "charlie", "delta"]);
-        let kept = select_pool(&llm, "who shipped it", &mut ranked, 2)
+        let kept = select_pool(&llm, "who shipped it", &mut ranked, 2, false)
             .await
             .unwrap();
 
@@ -1504,7 +1528,7 @@ mod tests {
     async fn a_narrow_selection_keeps_every_record_behind_it() {
         let llm = Canned::text(r#"{"keep":[3]}"#);
         let mut ranked = pool(&["alpha", "bravo", "charlie", "delta"]);
-        let kept = select_pool(&llm, "q", &mut ranked, 4).await.unwrap();
+        let kept = select_pool(&llm, "q", &mut ranked, 4, false).await.unwrap();
 
         assert_eq!(kept.keep.len(), 1);
         assert_eq!(kept.degraded, Degradation::None);
@@ -1520,7 +1544,7 @@ mod tests {
         // `Canned` yields an error once exhausted, so a call here would fail.
         let llm = Canned(std::sync::Mutex::new(Vec::new()));
         let mut ranked: Vec<Ranked> = Vec::new();
-        let kept = select_pool(&llm, "q", &mut ranked, 6).await.unwrap();
+        let kept = select_pool(&llm, "q", &mut ranked, 6, false).await.unwrap();
         assert_eq!(kept.keep.len(), 0);
         assert_eq!(
             kept.degraded,

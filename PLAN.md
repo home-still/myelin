@@ -805,6 +805,7 @@ Each milestone ends with a runnable command and a number, not a description.
 | M35 | **two more allocation nulls, and the diagnosis that redirects the project** | Set out to measure the two mechanisms M34's null pointed at; both are nulls or worse, and the diagnostic is the result. **`typed_probes`: −2.92 (95% CI [−8.33, +2.50], p = 0.3778), web n = 240** — its first measurement ever, since before M34 minted the pools a tagged probe had nothing to aim at. Why it does nothing is in the emitted mix, which barely moves (episodic 66.7→68.1%, procedural 22.7→21.2%, semantic 10.6→10.7%): tagging changes which candidates enter the pool, and the pool is unioned across steps and re-composed by one fused ranking that puts back the same mix — **M21's per-probe null in a second location, same structural cause**. Stopped after web on arithmetic, published with the number that determines it: at 53.2% of the set, enterprise would need **+9.73** to clear the pre-registered +3.0. **`premise_analysis`: −8.75 (95% CI [−15.00, −2.92], p = 0.0072)** — the first significantly NEGATIVE arm here. It is aimed correctly, and that is the point: abstention goes 25.00 → **30.56**, exactly what §D.1 credits AgentRunbook-C's premise flagging with, but it charges 52.98 → **38.10** on the answerable 72% to get it. The failure is selectivity, and it is measurable — declines go 8.3% → **26.8%** on answerable and only 29.2% → 37.5% on abstention, so the gate fires **3.2× harder where it should stay silent** and 1.3× where it should speak. **THE DIAGNOSIS.** LME-V2 splits 323 answerable / **128 abstention (28%)**, and we score **46.75% / 17.97%** — we answer when we should decline **82%** of the time. Abstention merely matching our own answerable rate is worth **+8.17 points, 41% of the whole gap to AgentRunbook-R's 58.60**, and no allocation mechanism touches it. Read against our own record — M25–M31 width/budget/MMR ≈ 0, **M32 selector +5.8**, M34 pools +0.22, M35 typed −2.92 — every mechanism that re-ranks or re-allocates existing candidates is a null, and the only one that moved a number put a model decision in the loop. **Built but unmeasured: `ComposeConfig::kind_quota`**, AgentRunbook-R's top-6 events / top-3 notes against our measured 10.6% events vs their 31.6%. A reordering and never a filter (reserved → raw → overflow, each in incoming rank order, nothing dropped, `k_bound`/`dropped_for_tokens` intact), not tunable from the wire so the allocation under test stays the paper's, wired MCP → adapter → runner where `untrusted_max` is `bench`-only and could never have been measured on this path. Five tests pin it; one caught a fixture of mine where eight identical texts collapsed under dedup so the test measured dedup, not allocation. Deprioritised, not refuted — its pre-registered rule stands. 292 Rust + 6 Python tests, clippy clean, ratchet green under `--strict`. `docs/measurements/m35-abstention-is-the-gap.md`. |
 | M36 | **no recorded signal discriminates abstention, so build one that decides** | M35 named the abstention gap; M36 measures the trigger and finds it worthless. `abstain_on_insufficient` fires on `stopped_because != "sufficient"`, and as a "should decline" classifier over all 451 that is **recall 86.7%, precision 32.8% against a 28.4% base rate — lift 1.16×**, firing on **70% of questions that have an answer**. So M35's −8.75 was never the premise prose: `premise_analysis` only runs *after* that gate fires, and it made a bad decline persuasive on two-thirds of the answerable set. Every other recorded signal is worse — the selector's own decline is **0.85×, below base rate** — and every numeric trace field is flat between strata (selected 7.26 vs 6.75, pool 15.20 vs 14.69, steps 1.87 vs 1.70). `abstained` is **0.000 on both strata**: the insufficiency gate never fires in the shipped configuration at all. **The decision has to be made, not recovered.** Built: `InvestigateConfig::answerability_gate`, which judges the *composed* evidence — what the reader will actually see — on CRAG's three-way action trigger (2401.15884 §4.3), whose ablation names M35's failure exactly: *"employing only the Correct and Incorrect actions … was easily affected by the accuracy of the retrieval evaluator … the Ambiguous action significantly helps to mitigate the dependence"*. `Supported` emits the evidence **byte-identical** to the gate-off arm, so a question classified correctly cannot be harmed and an arm measures evaluator error rather than prompt contamination — the property `premise_analysis` lacked. `Ambiguous` adds one line of *permission*, not instruction. `Unsupported` must name the missing fact or it is demoted to `Ambiguous`, enforced in code because a schema cannot stop an empty string. Fail-open on any refused or unparseable call, so a server hiccup cannot silently abstain. Six tests, 298 total. **Two pilot findings.** (1) A 600-char evidence head — copying the selector — produced a **67% false-refusal rate** (6 of 9 answerable called `unsupported`), because LME-V2 records are page dumps of median 1,642 chars and the head kept 39.4%. General rule: **selection may truncate, judgement may not** — selection is relative and a head suffices, answerability is absolute and a head manufactures a "no". (2) Untruncated is correct and unaffordable: ~10k tokens per query at k=25, a 20-question pilot exceeded 1,000 s at one reader slot and lost everything to the M17 in-memory-generations trap. `EVIDENCE_CHARS = 2000` sits above p90; its effect on verdict quality is **unmeasured** and said so. Ships off; the pre-registered rule is unchanged and the arm is not run. `docs/measurements/m36-answerability-gate.md`. |
 | M37 | **widening is exhausted; the representation is the bottleneck** | Three independent ways of looking at more candidates, all measured, all null. **`rerank_factor` 1 → 4: +0.78 recall, 95% CI [−3.14, +4.71]**, 14 rows gained and 12 lost, n = 255 answerable LME-V2 rows — against a pre-registered bar of +3.0, so the default stays 1. It repairs a real degeneracy first: `depth = max(rerank_depth, k)` with both at 25 handed the cross-encoder *exactly the set it would emit*, so it could reorder but never exclude, and ~54–75 fused candidates were dropped on RRF rank alone without ever being scored. That is why **`prefetch_limit` 50 → 400 measured +0.6 / +0.0 / +0.8** at k = 25/50/100 — the extra candidates were truncated away before the reranker saw them. Fixing it and handing the reranker 4× the candidates, while emitting **42% more evidence** (16.8 → 23.9 items; `factor = 1` could not even fill the requested k = 25), still buys +0.78. The third knob, **k 25 → 100, buys +9.1** (52.9% → 66.7%) at 4× the reader's context, which Shuster et al. 2021 price in hallucination. The diagnosis behind all three: a new retrieval-only instrument (`adapters/recall_sweep.py`, no reader, no judge) puts shipped emitted-evidence recall at **59.2%** against a **corpus ceiling of 88.2%**, and the index explains the gap — **98.5% of the web tenant is raw AXTree page dumps** (bid numbers, ARIA roles, private-use icon glyphs) and **all 37,731 carry exactly one entity, the literal token `page`**. More candidates cannot help when the candidates are indistinguishable. The direction that is not a widening knob is already in the store and unused: ranking the 100 natural-language `goal:` records against each question puts the gold trajectory at **median rank 3, top-10 76.8%**. Also kills `answerability_gate` on its own calibration pilot (**0 `supported` verdicts in 14 questions; 6 of 11 answerable refused, 54.5% false-refusal**) and fixes a test that had been failing on `main` since M35. |
+| M38 | **on LongMemEval retrieval is solved; the gap is reading** | Two pre-registered premises refuted before any GPU time, one client bug found, and the 18.8-point LongMemEval_S gap localised. **Both M38 premises were dead on inspection.** Fixing entity extraction changes no retrieved record: `entity_ids` is written to the payload and indexed, and **never read** — its only consumer is `phrases::incidence_rows`, feeding the graph channel that ships off and M12 measured as a loss. And trajectory routing is **worse than flat** — dense recall@25 of 51.4% flat vs 44.8/45.7/49.5/54.3% routed@5/10/20/50, simulated offline against vectors already in Qdrant in 66 seconds, so the re-ingest M37 budgeted would have bought a regression. **Retrieval is not the gap.** Scored against LongMemEval's own `answer_session_ids` — exact, not M37's string proxy — the shipped path delivers **any gold session 93.8%, every gold session 88.6%, mean coverage 91.9%** at 12.6 items, and the 23.9-item pool scores the same 93.8% any-recall: **first independent confirmation that M32's selector halves the evidence without losing recall**. Against 62.00 judged, ~32 points sit in reading. The per-category split localises it: `temporal-reasoning` **39.4%** (n=127) and `multi-session` **44.6%** (n=121) are **76% of all errors**, while every category needing exactly one gold session scores 90.6–96.4%. Complete-coverage per category rules out the obvious story — the selector costs −5.3 points on `multi-session`, −4.5 on `temporal-reasoning`, −1.3 on `knowledge-update` and **−0.0 on all three single-gold categories** — yet retrieval still delivers *all* gold 88.6% of the time, so the reader fails with the evidence in hand. **`select_coverage` (M21's redundancy story, third location): null, and the null refutes the diagnosis.** Rewriting `SELECT_SYSTEM`'s "FEWEST memories" clause to ask for EVERY needed memory left **500 of 500 rows byte-identical** on gold hits, completeness and item count. Verified live at the wire (`MYELIN_LLM__URL` → recording proxy; call 0 `FEWEST`, call 1 `EVERY`) because an identical result is what an inert switch produces: the prompt changed, the selection did not. The 9B selector ignores the clause entirely, so the coverage loss is not instruction-following and blaming the wording was an inference, now refuted. **Transport bug fixed.** `adapters/myelin.py` framed SSE with `str.splitlines()`, which breaks on U+2028 — present in LongMemEval's ShareGPT conversations. Measured: 89,126 raw bytes decoded as 12,470 characters, unparseable JSON, six retries with backoff, row lost. Fixed to frame on `\r\n\|\r\|\n` per spec; the row that failed at index 277 now completes, 290/290 clean. Its first regression test **passed against the unfixed decoder** because `json.dumps` escapes U+2028 by default while `serde_json` emits it raw — the fixture only became evidence at `ensure_ascii=False`. 306 Rust + 10 Python tests, clippy clean on both feature sets, ratchet green under `--strict`. `docs/measurements/m38-retrieval-is-not-the-gap.md`. |
 
 M0 and M5 are not ceremony. M0 pins the four probe findings in §5 — exactly the kind of thing a Qdrant point
 release changes underneath us. M5 pins the benchmark's own privacy test against our adapter, which is the
@@ -857,11 +858,42 @@ floor under our own numbers is `docs/sota/progression.json` + `myelin-eval ratch
 | └ vs AgentRunbook-**R**, same reader | 38.58 | 58.60 | **−20.02** |
 | `lme_v2_small.lafs_gain.small` | 0.00 | >0.00 | stale-config |
 
-**M38 — stop widening the search and fix what is being searched.**
+**M39 — the reader fails with the evidence in hand. Attack that.**
 
-M37 ran the free calibration check and it killed one of the two items below; the other is
-unchanged. What replaces them is a write-path milestone, because M37's three nulls agree on
-where the ceiling is.
+M38 settled where the LongMemEval_S gap is, and it is not retrieval: every
+gold session reaches the reader **88.6%** of the time and we score **62.00**.
+`temporal-reasoning` (39.4%, n=127) and `multi-session` (44.6%, n=121) are
+**76% of all errors**; every category needing one gold session scores
+90.6–96.4%. The failure is aggregation across sessions.
+
+Two things M38 rules out, so they are not the plan: prompt surgery on the
+selector (the 9B model ignores its constraint clause — 500/500 identical),
+and anything that widens or re-ranks candidates (M25–M37, uniformly null).
+
+What is left is structural, cheap-first:
+
+1. **Budget-aware selection.** `compose` cuts at 10,000 tokens; the selector
+   cannot see that ceiling, so it cannot know that ranking a needed record
+   twelfth is the same as discarding it. Worth ~4.7 points of complete
+   coverage on the multi-gold categories, measurable with `recall_sweep.py`
+   and no reader.
+2. **Per-unit selection.** One selector call over 25 candidates spanning
+   several sessions fails exactly where the answer is distributed across
+   them. Ask per session, then merge.
+3. **Give the reader the aggregation it is failing.** The only mechanism that
+   ever moved a number here was a model decision in the loop (M32, +5.8).
+   Temporal reasoning is the biggest single category and M19 already showed
+   that *resolving* dates for the reader is worth 3× telling it to resolve
+   them itself (+42.8 vs +14.3 on LoCoMo cat 2). The same asymmetry should be
+   tested for multi-session aggregation: compute the joined fact rather than
+   asking the reader to join.
+
+**Pre-register coverage first, judged second.** Coverage is necessary and not
+sufficient — M38's central result is that the reader already fails with the
+evidence present, so a coverage win need not convert. Anything claiming the
+32-point reading gap must show a judged number.
+
+Carried over, with M38's verdicts applied:
 
 1. **~~`answerability_gate` (M36)~~ — dead.** The 14-question pilot returned **zero
    `supported` verdicts** and refused 6 of 11 answerable questions (54.5% false-refusal, vs
@@ -873,22 +905,17 @@ where the ceiling is.
    judgement over 25 AXTree page dumps is not the instrument.
 2. **`kind_quota` (M35)** — unchanged, still one run from an answer, same pre-registered bar.
    Cheap: no extra model call, it is a reordering.
-3. **Give the index something to match against (M38).** This is the one M37 argues for.
-   Emitted-evidence recall is **59.2%** against an **88.2% corpus ceiling**, and none of
-   `prefetch_limit`, `k` or `rerank_factor` recovers the gap, because **98.5% of the web tenant
-   is raw AXTree page dumps** whose entity extraction yields the single token `page` for all
-   37,731 records. Two write-path changes, both measurable with `recall_sweep.py` before any
-   reader time is spent:
-   - **Set `record.scope.session` to the trajectory id.** It is already an indexed, filterable
-     payload field and the LME-V2 build left it empty, so trajectory-scoped retrieval is
-     unavailable today. Question → `goal:` routing puts the gold trajectory at **median rank 3,
-     top-10 76.8%** out of 100, which is the session-level-vs-turn-level granularity axis, not
-     an LME-V2 quirk. Scope is immutable under I1, so this costs a re-ingest rather than a
-     payload backfill — budget it.
-   - **Extract real entities from structured records.** `page` for 37,731 records is an
-     extractor that silently no-ops on its majority input.
-   **Pre-register recall, not judged accuracy.** The mechanism's target quantity is recall; a
-   judged arm only earns GPU time once `recall_sweep.py` shows the gap closing.
+3. **~~`select_coverage` (M38)~~ — null, and the null refuted its own rationale.** 500/500
+   rows byte-identical, switch verified live at the wire. The 9B selector ignores the
+   parsimony clause, so the −5.3-point coverage loss on `multi-session` is not an
+   instruction-following effect. Kept off as the control prompt a structural attempt will
+   need.
+4. **~~The LME-V2 write-path milestone M37 argued for~~ — refuted before it was built.**
+   Fixing entity extraction changes no retrieved record (`entity_ids` is written and indexed
+   but never read; its only consumer is the graph channel, which ships off). And trajectory
+   routing is *worse* than flat retrieval — dense recall@25 51.4% flat vs 45.7% routed@10 —
+   so the re-ingest it needed would have bought a regression. Simulated offline in 66 seconds
+   against vectors already in Qdrant. **This is the milestone the free premise check saved.**
 
 **Deprioritised, not refuted.** `ComposeConfig::kind_quota` is implemented, tested and wired, with
 its pre-registered rule intact: AgentRunbook-R's top-6 events / top-3 notes against our measured

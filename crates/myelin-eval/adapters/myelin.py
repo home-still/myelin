@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 import threading
 import time
@@ -57,16 +58,39 @@ def _decode(raw: bytes, content_type: str) -> dict[str, Any] | None:
     `json_response`, yet rmcp still answers `initialize` as `text/event-stream`.
     Rather than depend on a server flag, decode what the spec allows — a JSON
     object, or `data:` lines carrying one.
+
+    **Line splitting is `\\r\\n | \\r | \\n` and nothing else.** This used to be
+    `str.splitlines()`, which also breaks on VT, FF, FS, GS, RS, NEL, U+2028
+    and U+2029. Those are ordinary characters inside a JSON string, and one of
+    them — U+2028 LINE SEPARATOR — occurs in LongMemEval's ShareGPT-derived
+    conversations. A record containing it split the single `data:` line into
+    fragments, only the first of which kept the prefix, and the rest were
+    dropped on the floor: an 88,984-character payload decoded as 12,473
+    characters, failed to parse, and burned six retries before failing the
+    row. Silent truncation of a *correct* server response, in the client.
     """
     text = raw.decode("utf-8", "replace")
     if "text/event-stream" not in content_type:
         return _loads(text)
-    payload = "".join(
-        line[len("data:") :].strip()
-        for line in text.splitlines()
-        if line.startswith("data:")
-    )
+    payload = "\n".join(
+        _data_field(line) for line in _sse_lines(text) if line.startswith("data:")
+    ).strip()
     return _loads(payload) if payload else None
+
+
+def _sse_lines(text: str) -> list[str]:
+    """Split an SSE stream into lines the way the spec defines them."""
+    return re.split(r"\r\n|\r|\n", text)
+
+
+def _data_field(line: str) -> str:
+    """The value of a `data:` field: strip the name and *one* optional space.
+
+    `.strip()` would also eat significant leading whitespace inside the
+    payload; the spec removes exactly one space.
+    """
+    value = line[len("data:") :]
+    return value[1:] if value.startswith(" ") else value
 
 
 def _loads(text: str) -> dict[str, Any]:
@@ -353,6 +377,7 @@ class MyelinMemory(Memory):
         self.kind_quota = params.get("kind_quota")
         # M36: graded answerability gate. investigate-only.
         self.answerability_gate = params.get("answerability_gate")
+        self.select_coverage = params.get("select_coverage")
         # The last query's retrieval trace, per worker thread.
         #
         # THREAD-LOCAL, not an attribute, for the reason the base class's own
@@ -465,6 +490,8 @@ class MyelinMemory(Memory):
                 arguments["typed_probes"] = bool(self.typed_probes)
             if self.answerability_gate is not None:
                 arguments["answerability_gate"] = bool(self.answerability_gate)
+            if self.select_coverage is not None:
+                arguments["select_coverage"] = bool(self.select_coverage)
         # `query_image` is accepted and ignored for now: the dense channel is
         # text-only (bge-m3), so forwarding a path the server cannot embed
         # would be a lie in the trace. 29 of 451 questions carry one; they are

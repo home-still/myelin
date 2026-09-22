@@ -347,6 +347,9 @@ impl MyelinServer {
             select_sufficient: params
                 .select
                 .unwrap_or(InvestigateConfig::default().select_sufficient),
+            select_coverage: params
+                .select_coverage
+                .unwrap_or(InvestigateConfig::default().select_coverage),
             rerank_pool: params.pool_rerank.unwrap_or(false),
             premise_analysis: premise,
             abstain_on_insufficient: premise,
@@ -820,6 +823,12 @@ pub struct InvestigateParams {
     /// abstention trigger; `supported` leaves the evidence untouched.
     #[serde(default)]
     pub answerability_gate: Option<bool>,
+    /// Ask the sufficiency selector for every needed memory instead of the
+    /// fewest (M38). Inert unless `select` is on. The shipped "FEWEST"
+    /// instruction costs −5.3 points of complete gold-session coverage on
+    /// LongMemEval `multi-session` and −0.0 on every single-gold category.
+    #[serde(default)]
+    pub select_coverage: Option<bool>,
     /// Split each probe into at most N sub-queries and retrieve for each
     /// (M24). One model call per step, on top of the reflect gate's.
     #[serde(default)]
