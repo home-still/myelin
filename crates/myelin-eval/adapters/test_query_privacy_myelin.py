@@ -302,5 +302,68 @@ class MyelinTraceReportingTest(unittest.TestCase):
         )
 
 
+class SseDecodingTest(unittest.TestCase):
+    """The transport must not lose bytes to Unicode line boundaries.
+
+    SSE frames lines on CR LF, LF or CR. Python's `str.splitlines()` also
+    breaks on VT, FF, FS, GS, RS, NEL, U+2028 and U+2029, which are ordinary
+    characters inside a JSON string. U+2028 occurs in LongMemEval's
+    ShareGPT-derived conversations, and decoding with `splitlines()` turned an
+    88,984-character payload into 12,473 characters of unparseable JSON — a
+    *correct* server response truncated by the client, then retried six times
+    before the row was lost.
+    """
+
+    def _frame(self, obj: Any) -> bytes:
+        """One SSE frame carrying `obj`, encoded the way the server encodes it.
+
+        `ensure_ascii=False` is load-bearing. Python's default escapes U+2028
+        to a six-character `\\u2028`, which no line splitter can break on — a
+        fixture built that way passes against the very bug this asserts.
+        `serde_json` writes the raw UTF-8 character, so the fixture must too.
+        """
+        payload = myelin.json.dumps(obj, ensure_ascii=False)
+        return f"event: message\ndata: {payload}\n\n".encode()
+
+    def test_a_unicode_line_separator_in_a_memory_survives_decoding(self) -> None:
+        """Only characters that can appear *raw* in JSON are listed.
+
+        VT and FF also break `str.splitlines()`, but JSON requires control
+        characters to be escaped, so they can never reach the decoder raw and
+        a subtest for them could not fail. These three are not control
+        characters: `serde_json` emits them verbatim.
+        """
+        for name, ch in [
+            ("U+2028 line separator", "\u2028"),
+            ("U+2029 paragraph separator", "\u2029"),
+            ("U+0085 next line", "\u0085"),
+        ]:
+            with self.subTest(name):
+                text = f"I enjoy my work.{ch} I find it meaningful."
+                body = self._frame({"result": {"text": text}})
+                got = myelin._decode(body, "text/event-stream")
+                self.assertEqual(
+                    got["result"]["text"],
+                    text,
+                    f"{name} truncated the payload; SSE frames on \\r\\n|\\r|\\n only",
+                )
+
+    def test_a_keepalive_frame_before_the_payload_is_ignored(self) -> None:
+        """rmcp emits an empty `data:` frame before the real one."""
+        body = b"data: \nid: 0/0\nretry: 3000\n\n" + self._frame({"result": {"ok": True}})
+        self.assertEqual(myelin._decode(body, "text/event-stream"), {"result": {"ok": True}})
+
+    def test_leading_whitespace_inside_the_payload_is_preserved(self) -> None:
+        """The spec strips one space after `data:`, not every space."""
+        text = "   indented value"
+        body = self._frame({"v": text})
+        self.assertEqual(myelin._decode(body, "text/event-stream")["v"], text)
+
+    def test_crlf_framing_decodes(self) -> None:
+        payload = myelin.json.dumps({"result": 1})
+        body = f"event: message\r\ndata: {payload}\r\n\r\n".encode()
+        self.assertEqual(myelin._decode(body, "text/event-stream"), {"result": 1})
+
+
 if __name__ == "__main__":
     unittest.main()
