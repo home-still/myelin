@@ -99,6 +99,15 @@ pub struct CompletionRequest {
     /// `enable_thinking` does. Verified against the live server.
     #[serde(default)]
     pub thinking: bool,
+    /// Nucleus and top-k sampling, and a seed, for the one arm that samples
+    /// (M44 R2). `None` leaves the server's default in place, so every
+    /// temperature-0 call is byte-identical to before these fields existed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub top_p: Option<f32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub top_k: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub seed: Option<u64>,
 }
 
 impl CompletionRequest {
@@ -112,6 +121,9 @@ impl CompletionRequest {
             max_tokens: None,
             json_schema: None,
             thinking: false,
+            top_p: None,
+            top_k: None,
+            seed: None,
         }
     }
 
@@ -132,6 +144,23 @@ impl CompletionRequest {
 
     pub fn with_max_tokens(mut self, n: u32) -> Self {
         self.max_tokens = Some(n);
+        self
+    }
+
+    /// Sample instead of decoding greedily. The one caller is M44 R2's
+    /// thinking reader, at the Qwen3 Technical Report's thinking-mode
+    /// setting (`10.48550/arxiv.2505.09388`: temperature 0.6, top-p 0.95,
+    /// top-k 20). A sampled run must also carry a [`Self::with_seed`] or its
+    /// number cannot be reproduced.
+    pub fn with_sampling(mut self, temperature: f32, top_p: f32, top_k: u32) -> Self {
+        self.temperature = temperature;
+        self.top_p = Some(top_p);
+        self.top_k = Some(top_k);
+        self
+    }
+
+    pub fn with_seed(mut self, seed: u64) -> Self {
+        self.seed = Some(seed);
         self
     }
 }
@@ -305,6 +334,20 @@ mod tests {
     fn thinking_is_off_by_default() {
         assert!(!CompletionRequest::new(vec![]).thinking);
         assert!(CompletionRequest::new(vec![]).with_thinking(true).thinking);
+    }
+
+    /// Sampling is opt-in and explicit: a default request is greedy with no
+    /// sampling keys at all, so the wire body of every temperature-0 call is
+    /// unchanged by the fields M44 R2 added.
+    #[test]
+    fn sampling_is_unset_by_default_and_set_together_by_the_builder() {
+        let plain = CompletionRequest::new(vec![]);
+        assert_eq!((plain.temperature, plain.top_p, plain.top_k, plain.seed), (0.0, None, None, None));
+        let sampled = CompletionRequest::new(vec![]).with_sampling(0.6, 0.95, 20).with_seed(7);
+        assert_eq!(
+            (sampled.temperature, sampled.top_p, sampled.top_k, sampled.seed),
+            (0.6, Some(0.95), Some(20), Some(7))
+        );
     }
 
     /// A tool call legitimately carries empty content; rejecting it would

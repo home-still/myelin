@@ -53,6 +53,7 @@ log paths if any server fails to come up. Two switches:
 |---|---|---|
 | `MYELIN_EMBEDDER` | `bge` | `qwen` also serves the 8B embedder on :5811 |
 | `MYELIN_RERANK` | `1` | `0` skips the cross-encoder on :5813 |
+| `MYELIN_READER_THINK_BUDGET` | `-1` | `--reasoning-budget` for the reader: `-1` unrestricted (every run before M44), `N` closes a thinking trace at N tokens. M44 R2 runs at `1024`; `bench --reader-thinking` probes it before the first row |
 
 ### The firewall makes a tunnel mandatory
 

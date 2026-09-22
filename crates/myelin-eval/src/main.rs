@@ -619,6 +619,17 @@ enum Command {
         /// published comparator uses.
         #[arg(long)]
         reader_reasoning: bool,
+        /// Let the reader think natively (M44 R2): `enable_thinking: true`
+        /// under the server's `--reasoning-budget` (1,024 tokens, verified
+        /// by a probe before the run), sampled at the Qwen3 report's
+        /// thinking-mode setting. An alternative to `--reader-reasoning`,
+        /// and it needs `--reader-seed`.
+        #[arg(long, conflicts_with = "reader_reasoning")]
+        reader_thinking: bool,
+        /// The sampling seed for `--reader-thinking`, recorded on the run.
+        /// Two seeds make one arm: the CI must carry sampling noise.
+        #[arg(long, requires = "reader_thinking")]
+        reader_seed: Option<u64>,
         /// Cap how many `Untrusted` records the composed set may contain
         /// (M23 B1). A ceiling, not an exclusion: the quota never drops
         /// untrusted evidence to zero and never drops a trusted record.
@@ -1046,6 +1057,8 @@ async fn main() -> anyhow::Result<()> {
             commit_answer,
             digest_relevance,
             reader_reasoning,
+            reader_thinking,
+            reader_seed,
             untrusted_max,
             decompose,
             ref categories,
@@ -1082,6 +1095,8 @@ async fn main() -> anyhow::Result<()> {
                     commit_answer,
                     digest_relevance,
                     reader_reasoning,
+                    reader_thinking,
+                    reader_seed,
                     untrusted_max,
                     decompose,
                     categories: categories.clone().unwrap_or_default(),

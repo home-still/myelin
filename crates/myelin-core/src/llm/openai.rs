@@ -69,6 +69,17 @@ impl OpenAiLlm {
         if let Some(n) = req.max_tokens {
             body["max_tokens"] = json!(n);
         }
+        // Sampling keys ride only when set (M44 R2), so a greedy request's
+        // body carries none of them.
+        if let Some(p) = req.top_p {
+            body["top_p"] = json!(p);
+        }
+        if let Some(k) = req.top_k {
+            body["top_k"] = json!(k);
+        }
+        if let Some(s) = req.seed {
+            body["seed"] = json!(s);
+        }
         if !req.tools.is_empty() {
             body["tools"] = json!(req
                 .tools
@@ -206,5 +217,45 @@ impl Llm for OpenAiLlm {
                 })
                 .unwrap_or_default(),
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::llm::Message;
+
+    fn client() -> OpenAiLlm {
+        OpenAiLlm::new("http://127.0.0.1:1", "m").expect("client")
+    }
+
+    /// The wire body of a default request carries no sampling key and pins
+    /// thinking off; a sampled, seeded, thinking request carries all of
+    /// them. Every myelin number before M44 R2 was produced by the first
+    /// shape, and the second must not leak into it.
+    #[test]
+    fn sampling_and_thinking_reach_the_wire_only_when_asked_for() {
+        let plain = client().body(&CompletionRequest::new(vec![Message::user("q")]));
+        assert_eq!(plain["temperature"], 0.0);
+        assert_eq!(plain["chat_template_kwargs"]["enable_thinking"], false);
+        for key in ["top_p", "top_k", "seed", "max_tokens"] {
+            assert!(plain.get(key).is_none(), "{key} must be absent by default");
+        }
+
+        let sampled = client().body(
+            &CompletionRequest::new(vec![Message::user("q")])
+                .with_thinking(true)
+                .with_sampling(0.6, 0.95, 20)
+                .with_seed(7)
+                .with_max_tokens(1184),
+        );
+        assert_eq!(sampled["chat_template_kwargs"]["enable_thinking"], true);
+        // f32 on the request, f64 in the JSON tree: compare with tolerance.
+        let close = |v: &serde_json::Value, want: f64| (v.as_f64().unwrap() - want).abs() < 1e-6;
+        assert!(close(&sampled["temperature"], 0.6), "{}", sampled["temperature"]);
+        assert!(close(&sampled["top_p"], 0.95), "{}", sampled["top_p"]);
+        assert_eq!(sampled["top_k"], 20);
+        assert_eq!(sampled["seed"], 7);
+        assert_eq!(sampled["max_tokens"], 1184);
     }
 }

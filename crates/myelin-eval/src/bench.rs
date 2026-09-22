@@ -424,6 +424,16 @@ pub struct BenchRun {
     /// M44 R1's structured reasoning field.
     #[serde(default)]
     pub reader_reasoning: bool,
+    /// M44 R2's thinking reader, with the seed it sampled under and the
+    /// thinking budget `verify_thinking_budget` measured on the server
+    /// before the run started. A thinking run without all three recorded
+    /// cannot be reproduced and is not quotable.
+    #[serde(default)]
+    pub reader_thinking: bool,
+    #[serde(default)]
+    pub reader_seed: Option<u64>,
+    #[serde(default)]
+    pub reader_thinking_budget: Option<u32>,
     /// M24's sub-query decomposition cap, mirroring
     /// `RetrieveConfig::decompose`. Ships off; absent on every run before
     /// M24.
@@ -539,6 +549,13 @@ pub struct BenchSwitches {
     /// Let the reader reason before answering, under a schema that puts
     /// `reasoning` before `answer` — M44 R1, `read_answer`.
     pub reader_reasoning: bool,
+    /// Let the reader think natively (`enable_thinking: true`) under a
+    /// server-enforced budget — M44 R2, `read_answer`. Samples, so it needs
+    /// [`Self::reader_seed`]; mutually exclusive with `reader_reasoning`.
+    pub reader_thinking: bool,
+    /// The sampling seed for a thinking run. Required with
+    /// [`Self::reader_thinking`], so the artifact always records it.
+    pub reader_seed: Option<u64>,
     /// Cap untrusted occupancy in the composed set — M23 B1,
     /// `ComposeConfig::untrusted_max`.
     ///
@@ -948,37 +965,146 @@ struct ReasonedAnswer {
     evidence_absent: bool,
 }
 
-/// Ask the reader for one answer, optionally letting it reason first.
+/// M44 R2's thinking budget in tokens, enforced by the reader server's
+/// `--reasoning-budget` (`ops/big/serve-models.sh`,
+/// `MYELIN_READER_THINK_BUDGET`). 1,024 first, per the pre-registration. The
+/// harness cannot read the server's setting back — `/props` does not carry
+/// it — so [`verify_thinking_budget`] measures it before a run and the run
+/// refuses to start if it is not enforced.
+pub const THINKING_BUDGET_TOKENS: u32 = 1024;
+/// The answer's own ceiling, unchanged since M9: a name, a date, a phrase.
+const READER_ANSWER_TOKENS: u32 = 160;
+/// R1's ceiling: a 600-character trace plus the answer.
+const READER_REASONING_TOKENS: u32 = 480;
+/// Qwen3 Technical Report (`10.48550/arxiv.2505.09388`), thinking mode:
+/// "temperature of 0.6, a top-p value of 0.95, and a top-k value of 20".
+/// Greedy decoding of a thinking model is what the report warns against —
+/// it loops — so R2 samples, and carries a seed.
+const THINKING_TEMPERATURE: f32 = 0.6;
+const THINKING_TOP_P: f32 = 0.95;
+const THINKING_TOP_K: u32 = 20;
+
+/// How the reader is asked (M44).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReaderMode {
+    /// Every milestone before M44: thinking off, 160 tokens, "Do not explain."
+    Plain,
+    /// R1: `{reasoning, answer, evidence_absent}`, thinking still off, temp 0.
+    Reasoning,
+    /// R2: native thinking under the server's budget, sampled under `seed`.
+    Thinking { seed: u64 },
+}
+
+impl BenchSwitches {
+    /// The reader mode these switches name, or a refusal: the two arms are
+    /// alternatives, and a sampled run without a seed cannot be reproduced.
+    pub fn reader_mode(&self) -> Result<ReaderMode> {
+        match (self.reader_reasoning, self.reader_thinking, self.reader_seed) {
+            (true, true, _) => anyhow::bail!(
+                "--reader-reasoning and --reader-thinking are alternative arms; pick one"
+            ),
+            (true, false, _) => Ok(ReaderMode::Reasoning),
+            (false, true, Some(seed)) => Ok(ReaderMode::Thinking { seed }),
+            (false, true, None) => anyhow::bail!(
+                "--reader-thinking samples and must record its seed: pass --reader-seed <n>"
+            ),
+            (false, false, _) => Ok(ReaderMode::Plain),
+        }
+    }
+}
+
+/// Prove the reader server enforces a thinking budget of `budget` tokens
+/// before spending a run on it.
 ///
-/// Fail-open in every direction: an unparseable response is returned verbatim
-/// so the scorer grades what the model actually said, and `evidence_absent`
-/// becomes the decline string `is_abstention` already recognises, so the
-/// abstention contract is unchanged and the M42 veto still applies.
+/// The budget is a server flag the harness cannot read back, and a thinking
+/// run under an unenforced budget does not fail — it spends the whole
+/// completion on `reasoning_content`, returns nothing, and the row scores a
+/// decline. That is the M20/M43 inert-switch failure with the sign flipped,
+/// so the check is an independent measurement rather than a config echo: a
+/// prompt that makes the model think far past the budget, with room after
+/// it for only an answer. Enforced, the trace is cut at `budget`, the answer
+/// follows, and the completion stops on its own. Unenforced, the trace runs
+/// into the ceiling and the completion is empty with `finish_reason:
+/// length`, which `Llm::complete` reports as `BudgetExhausted`.
+pub(crate) async fn verify_thinking_budget(llm: &dyn Llm, budget: u32) -> Result<()> {
+    let request = CompletionRequest::new(vec![
+        Message::system("Answer with a number only."),
+        Message::user(
+            "Before answering, list every prime number below 5000 in your reasoning, one \
+             per line, checking each by trial division. Then answer: what is the 300th prime?",
+        ),
+    ])
+    .with_thinking(true)
+    .with_sampling(THINKING_TEMPERATURE, THINKING_TOP_P, THINKING_TOP_K)
+    .with_seed(0)
+    .with_max_tokens(budget + READER_ANSWER_TOKENS);
+    match llm.complete(&request).await {
+        Ok(c) => {
+            let used = c.usage.completion_tokens;
+            // Enforced means the trace was cut near the budget, not that the
+            // model happened to stop early: a probe that thought for a tenth
+            // of the budget proves nothing about the ceiling.
+            if used < budget / 2 {
+                anyhow::bail!(
+                    "thinking-budget probe finished after only {used} completion tokens against \
+                     a {budget}-token budget; the probe did not exercise the ceiling"
+                );
+            }
+            Ok(())
+        }
+        Err(myelin_core::error::MyelinError::BudgetExhausted { .. }) => anyhow::bail!(
+            "the reader server is not enforcing a {budget}-token thinking budget: the probe \
+             spent its whole completion thinking and returned no answer. Restart it with \
+             MYELIN_READER_THINK_BUDGET={budget} (ops/big/serve-models.sh)"
+        ),
+        Err(e) => Err(e).context("thinking-budget probe"),
+    }
+}
+
+/// Ask the reader for one answer, in the mode the arm names.
+///
+/// Fail-open in every direction: an unparseable R1 response is returned
+/// verbatim so the scorer grades what the model actually said, and
+/// `evidence_absent` becomes the decline string `is_abstention` already
+/// recognises, so the abstention contract is unchanged and the M42 veto
+/// still applies. R2 sends the same prompt every milestone used, with
+/// thinking on and the Qwen3 report's sampling, and grades the content —
+/// the trace is the server's `reasoning_content` and never reaches the
+/// scorer.
 pub(crate) async fn read_answer(
     llm: &dyn Llm,
     system: &str,
     user: &str,
-    reasoning: bool,
+    mode: ReaderMode,
 ) -> Result<String> {
-    let request = if reasoning {
-        CompletionRequest::new(vec![
+    let request = match mode {
+        ReaderMode::Reasoning => CompletionRequest::new(vec![
             Message::system(READER_REASONING_SYSTEM),
             Message::user(user.to_string()),
         ])
         // Room for a 600-character trace plus a short answer. A ceiling that
         // truncates mid-trace yields no answer at all.
-        .with_max_tokens(480)
-        .with_schema(reader_schema())
-    } else {
-        CompletionRequest::new(vec![
+        .with_max_tokens(READER_REASONING_TOKENS)
+        .with_schema(reader_schema()),
+        ReaderMode::Plain => CompletionRequest::new(vec![
             Message::system(system),
             Message::user(user.to_string()),
         ])
-        .with_max_tokens(160)
+        .with_max_tokens(READER_ANSWER_TOKENS),
+        ReaderMode::Thinking { seed } => CompletionRequest::new(vec![
+            Message::system(system),
+            Message::user(user.to_string()),
+        ])
+        .with_thinking(true)
+        .with_sampling(THINKING_TEMPERATURE, THINKING_TOP_P, THINKING_TOP_K)
+        .with_seed(seed)
+        // The server cuts the trace at the budget; what remains is the
+        // answer's own ceiling.
+        .with_max_tokens(THINKING_BUDGET_TOKENS + READER_ANSWER_TOKENS),
     };
 
     let text = llm.complete(&request).await?.text;
-    if !reasoning {
+    if mode != ReaderMode::Reasoning {
         return Ok(text);
     }
     let Ok(parsed) = serde_json::from_str::<ReasonedAnswer>(&text) else {
@@ -1116,6 +1242,12 @@ pub async fn bench_locomo(
     let conversations = locomo::load(path).context("load locomo")?;
 
     let llm = OpenAiLlm::new(&cfg.llm.url, &cfg.llm.model).context("reader client")?;
+    // M44's reader modes are wired into the LongMemEval_S reader only. A
+    // switch that sets a flag, prints it, records it and changes nothing is
+    // the failure M43's pilot caught; refuse rather than run inert.
+    if switches.reader_mode()? != ReaderMode::Plain {
+        anyhow::bail!("--reader-reasoning / --reader-thinking are measured on longmemeval-s only");
+    }
     let embedder = RemoteEmbedder::new(&cfg.embed.url, &cfg.embed.model, cfg.embed.dim)
         .context("embedder client")?;
     let mut qdrant_cfg = cfg.qdrant.clone();
@@ -1386,6 +1518,13 @@ pub async fn bench_longmemeval_s(
     }
 
     let llm = OpenAiLlm::new(&cfg.llm.url, &cfg.llm.model).context("reader client")?;
+    // M44. The mode is resolved once, and a thinking run proves the server's
+    // budget before it spends a row on it.
+    let reader_mode = switches.reader_mode()?;
+    if let ReaderMode::Thinking { .. } = reader_mode {
+        verify_thinking_budget(&llm, THINKING_BUDGET_TOKENS).await?;
+        eprintln!("reader: thinking budget of {THINKING_BUDGET_TOKENS} tokens verified on the server");
+    }
     let embedder = RemoteEmbedder::new(&cfg.embed.url, &cfg.embed.model, cfg.embed.dim)
         .context("embedder client")?;
     let mut qdrant_cfg = cfg.qdrant.clone();
@@ -1495,7 +1634,7 @@ pub async fn bench_longmemeval_s(
             "<memories>\n{context}\n</memories>\n<today>\n{}\n</today>\n<question>\n{}\n</question>",
             item.question_date, item.question
         );
-        let response = read_answer(&llm, system, &user, switches.reader_reasoning)
+        let response = read_answer(&llm, system, &user, reader_mode)
             .await
             .with_context(|| format!("reader {}", item.question_id))?;
         // M42: only a declining row pays for a second call. With the switch
@@ -1695,6 +1834,11 @@ fn finish_run(
         digest_dates: spec.switches.digest_dates,
         digest_relevance: spec.switches.digest_relevance,
         reader_reasoning: spec.switches.reader_reasoning,
+        reader_thinking: spec.switches.reader_thinking,
+        reader_seed: spec.switches.reader_seed,
+        // Measured by `verify_thinking_budget` before the first row, or the
+        // run did not start; so a thinking artifact always carries it.
+        reader_thinking_budget: spec.switches.reader_thinking.then_some(THINKING_BUDGET_TOKENS),
         commit_answer: spec.switches.commit_answer,
         untrusted_max: spec.switches.untrusted_max,
         decompose: spec.switches.decompose,
@@ -1868,6 +2012,8 @@ pub fn rescore_run(source: &Path, out_dir: &Path, scorer: Scorer) -> Result<Benc
             digest_dates: flag("digest_dates"),
             digest_relevance: flag("digest_relevance"),
             reader_reasoning: flag("reader_reasoning"),
+            reader_thinking: flag("reader_thinking"),
+            reader_seed: metrics.get("reader_seed").and_then(|v| v.as_u64()),
             commit_answer: flag("commit_answer"),
             untrusted_max: metrics
                 .get("untrusted_max")
@@ -2490,7 +2636,7 @@ mod reader_tests {
     /// schema, no parsing.
     #[tokio::test]
     async fn the_switch_off_returns_the_readers_text_verbatim() {
-        let out = read_answer(&Says("Instant Pot"), "sys", "user", false)
+        let out = read_answer(&Says("Instant Pot"), "sys", "user", ReaderMode::Plain)
             .await
             .expect("reader");
         assert_eq!(out, "Instant Pot");
@@ -2498,7 +2644,7 @@ mod reader_tests {
         // Even JSON-looking text is passed through untouched when off, so an
         // off run cannot accidentally take the on path's parsing.
         let json = r#"{"reasoning":"x","answer":"y","evidence_absent":false}"#;
-        let out = read_answer(&Says(json), "sys", "user", false)
+        let out = read_answer(&Says(json), "sys", "user", ReaderMode::Plain)
             .await
             .expect("reader");
         assert_eq!(out, json);
@@ -2508,7 +2654,7 @@ mod reader_tests {
     #[tokio::test]
     async fn reasoning_is_worked_through_and_only_the_answer_is_scored() {
         let body = r#"{"reasoning":"Memory 2 says Air Fryer bought yesterday; memory 5 names the Instant Pot earlier.","answer":"Instant Pot","evidence_absent":false}"#;
-        let out = read_answer(&Says(body), "sys", "user", true)
+        let out = read_answer(&Says(body), "sys", "user", ReaderMode::Reasoning)
             .await
             .expect("reader");
         assert_eq!(
@@ -2523,7 +2669,7 @@ mod reader_tests {
     #[tokio::test]
     async fn an_asserted_absence_becomes_a_recognised_decline() {
         let body = r#"{"reasoning":"No memory mentions the premise.","answer":"probably Tuesday","evidence_absent":true}"#;
-        let out = read_answer(&Says(body), "sys", "user", true)
+        let out = read_answer(&Says(body), "sys", "user", ReaderMode::Reasoning)
             .await
             .expect("reader");
         assert!(
@@ -2535,7 +2681,7 @@ mod reader_tests {
         // A blank answer is also a decline rather than an empty string.
         let blank = r#"{"reasoning":"...","answer":"   ","evidence_absent":false}"#;
         assert!(is_abstention(
-            &read_answer(&Says(blank), "sys", "user", true)
+            &read_answer(&Says(blank), "sys", "user", ReaderMode::Reasoning)
                 .await
                 .expect("reader")
         ));
@@ -2544,7 +2690,7 @@ mod reader_tests {
     /// Fail-open: an unparseable response is graded as what the model said.
     #[tokio::test]
     async fn an_unparseable_response_is_returned_rather_than_dropped() {
-        let out = read_answer(&Says("I think it was Tuesday"), "sys", "user", true)
+        let out = read_answer(&Says("I think it was Tuesday"), "sys", "user", ReaderMode::Reasoning)
             .await
             .expect("reader");
         assert_eq!(out, "I think it was Tuesday");
@@ -2570,5 +2716,126 @@ mod reader_tests {
         // answer — the documented failure that disabled thinking originally.
         assert_eq!(schema["properties"]["reasoning"]["maxLength"], 600);
         assert_eq!(schema["additionalProperties"], serde_json::json!(false));
+    }
+
+    /// Records the request it was given and answers `42`.
+    struct Captures(std::sync::Mutex<Option<CompletionRequest>>);
+
+    #[async_trait::async_trait]
+    impl Llm for Captures {
+        fn id(&self) -> &str {
+            "captures"
+        }
+        async fn raw_complete(
+            &self,
+            r: &CompletionRequest,
+        ) -> myelin_core::error::Result<Completion> {
+            *self.0.lock().unwrap() = Some(r.clone());
+            Ok(Completion {
+                text: "42".to_string(),
+                tool_calls: vec![],
+                finish_reason: Some("stop".into()),
+                usage: Usage::default(),
+            })
+        }
+    }
+
+    /// R2 is the same prompt every milestone used — the mechanism is the
+    /// thinking, not a rewording — with thinking on, the Qwen3 report's
+    /// sampling, the seed recorded, no schema, and a ceiling that leaves the
+    /// answer room after the server has cut the trace.
+    #[tokio::test]
+    async fn the_thinking_reader_sends_the_plain_prompt_with_thinking_on_and_a_seed() {
+        let llm = Captures(std::sync::Mutex::new(None));
+        let out = read_answer(&llm, "sys", "user", ReaderMode::Thinking { seed: 7 })
+            .await
+            .expect("reader");
+        assert_eq!(out, "42", "the content is the answer; the trace never reaches the scorer");
+        let req = llm.0.lock().unwrap().clone().expect("request captured");
+        assert!(req.thinking);
+        assert_eq!(req.temperature, THINKING_TEMPERATURE);
+        assert_eq!((req.top_p, req.top_k, req.seed), (Some(THINKING_TOP_P), Some(THINKING_TOP_K), Some(7)));
+        assert_eq!(req.max_tokens, Some(THINKING_BUDGET_TOKENS + READER_ANSWER_TOKENS));
+        assert!(req.json_schema.is_none(), "R2 has no schema; R1 does");
+        assert_eq!(req.messages[0].content, "sys", "the caller's prompt, unchanged");
+
+        // And the plain path is still exactly the pre-M44 request.
+        let llm = Captures(std::sync::Mutex::new(None));
+        read_answer(&llm, "sys", "user", ReaderMode::Plain).await.expect("reader");
+        let req = llm.0.lock().unwrap().clone().expect("request captured");
+        assert!(!req.thinking);
+        assert_eq!((req.temperature, req.top_p, req.seed), (0.0, None, None));
+        assert_eq!(req.max_tokens, Some(READER_ANSWER_TOKENS));
+    }
+
+    /// The two arms are alternatives, and a sampled run must name its seed.
+    #[test]
+    fn the_reader_mode_refuses_both_arms_at_once_and_a_seedless_sample() {
+        let both = BenchSwitches {
+            reader_reasoning: true,
+            reader_thinking: true,
+            reader_seed: Some(1),
+            ..Default::default()
+        };
+        assert!(both.reader_mode().is_err());
+        let seedless = BenchSwitches {
+            reader_thinking: true,
+            ..Default::default()
+        };
+        assert!(seedless.reader_mode().is_err());
+        let r2 = BenchSwitches {
+            reader_thinking: true,
+            reader_seed: Some(2),
+            ..Default::default()
+        };
+        assert_eq!(r2.reader_mode().unwrap(), ReaderMode::Thinking { seed: 2 });
+        assert_eq!(BenchSwitches::default().reader_mode().unwrap(), ReaderMode::Plain);
+    }
+
+    /// The probe refuses a server that lets the trace run into the ceiling,
+    /// and refuses a probe that never exercised it.
+    #[tokio::test]
+    async fn the_budget_probe_refuses_an_unenforced_budget() {
+        struct Exhausted;
+        #[async_trait::async_trait]
+        impl Llm for Exhausted {
+            fn id(&self) -> &str {
+                "exhausted"
+            }
+            async fn raw_complete(
+                &self,
+                _r: &CompletionRequest,
+            ) -> myelin_core::error::Result<Completion> {
+                Ok(Completion {
+                    text: String::new(),
+                    tool_calls: vec![],
+                    finish_reason: Some("length".into()),
+                    usage: Usage { prompt_tokens: 0, completion_tokens: 1184 },
+                })
+            }
+        }
+        let err = verify_thinking_budget(&Exhausted, 1024).await.unwrap_err();
+        assert!(err.to_string().contains("not enforcing"), "{err}");
+
+        struct Short;
+        #[async_trait::async_trait]
+        impl Llm for Short {
+            fn id(&self) -> &str {
+                "short"
+            }
+            async fn raw_complete(
+                &self,
+                _r: &CompletionRequest,
+            ) -> myelin_core::error::Result<Completion> {
+                Ok(Completion {
+                    text: "1987".into(),
+                    tool_calls: vec![],
+                    finish_reason: Some("stop".into()),
+                    usage: Usage { prompt_tokens: 0, completion_tokens: 40 },
+                })
+            }
+        }
+        let err = verify_thinking_budget(&Short, 1024).await.unwrap_err();
+        assert!(err.to_string().contains("did not exercise"), "{err}");
     }
 }

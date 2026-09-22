@@ -57,11 +57,19 @@ what the model said.
 This is the third application of the ordering rule M42 (`answer` before
 `evidence_absent`) and M43 (`says` before `bears_on_question`) each used.
 
-**R2 — thinking on.** `enable_thinking: true` per request, bounded thinking
-budget, sampling per the Qwen3 Technical Report (`2505.09388`: temperature
-0.6, top-p 0.95, top-k 20), two seeds so the CI carries sampling noise. Not in
-this document's first pass; it runs after R1 lands so the two can be read
-against each other.
+**R2 — thinking on.** `BenchSwitches::reader_thinking`: the same
+`READER_SYSTEM` prompt every milestone used, `enable_thinking: true` per
+request, sampled at the Qwen3 Technical Report's thinking-mode setting
+(`10.48550/arxiv.2505.09388`: temperature 0.6, top-p 0.95, top-k 20) under a
+recorded `--reader-seed`; two seeds so the CI carries sampling noise. The
+thinking budget is **1,024 tokens**, enforced by the reader server's
+`--reasoning-budget` (`MYELIN_READER_THINK_BUDGET`), which the harness cannot
+read back — so `verify_thinking_budget` measures it before the first row with
+a prompt that thinks far past the budget, and the run refuses to start if the
+trace runs into the ceiling instead of being cut. The scorer sees `content`
+only; the trace stays in `reasoning_content`. R2 runs after R1 lands so the
+two can be read against each other, and it needs the reader restarted with
+the budget between them.
 
 ## Pre-registration
 
