@@ -455,6 +455,20 @@ enum Command {
         #[arg(long)]
         limit: Option<usize>,
     },
+    /// Apply M42's decline-recovery pass to a finished run, writing a new
+    /// one. The mechanism is a pure function of the first response, so rows
+    /// that answered come back byte-identical and the non-firing control is
+    /// exact by construction rather than empirical.
+    CommitArm {
+        /// The base run to pair against.
+        #[arg(long)]
+        run: String,
+        /// LongMemEval_S dataset, for each question's `<today>`.
+        #[arg(long, default_value = "data/longmemeval_s.json")]
+        dataset: String,
+        #[arg(long)]
+        out: String,
+    },
     /// Score LoCoMo end-to-end: retrieve, read, and grade the answer with
     /// a deterministic scorer (no LLM judge). See `bench.rs`.
     Bench {
@@ -564,6 +578,17 @@ enum Command {
         /// M40 measured omitting it at -4.2 on `knowledge-update`.
         #[arg(long)]
         digest_dates: bool,
+        /// When the reader declines, ask once more with the two decisions
+        /// split into separate schema fields, so it must write a candidate
+        /// answer before it may assert the evidence is absent (M42).
+        ///
+        /// Measured motivation: the reader declines on 63 questions that are
+        /// not abstention problems and scores zero on all of them; on 48 the
+        /// evidence contained every gold session. Costs one extra call on the
+        /// ~20% of rows that decline. Abstention stays reachable — the model
+        /// keeps its own `evidence_absent` escape hatch.
+        #[arg(long)]
+        commit_answer: bool,
         /// Cap how many `Untrusted` records the composed set may contain
         /// (M23 B1). A ceiling, not an exclusion: the quota never drops
         /// untrusted evidence to zero and never drops a trusted record.
@@ -680,6 +705,16 @@ enum Command {
         category: Option<u8>,
         #[arg(long)]
         limit: Option<usize>,
+        /// Reuse verdicts from another run for rows whose answer is
+        /// byte-identical to that run's.
+        ///
+        /// A verdict is a function of the answer, so re-grading an unchanged
+        /// answer can only introduce disagreement. M42 measured it: 469 of 500
+        /// responses were identical to the base and re-judging flipped two,
+        /// moving the control that should be exactly zero to −0.43 against a
+        /// +1.80 effect. Seeding from the base makes the control exact.
+        #[arg(long)]
+        seed: Option<String>,
     },
     /// Audit a vendored LongMemEval-V2 run: for every answerable question the
     /// harness scored wrong, was the answer in the evidence? (M16). Reader only.
@@ -756,6 +791,7 @@ impl Command {
             Command::Build { .. } => "build",
             Command::Phrases { .. } => "phrases",
             Command::Reindex { .. } => "reindex",
+            Command::CommitArm { .. } => "commit-arm",
             Command::Bench { .. } => "bench",
             Command::Attack { .. } => "attack",
             Command::AdjudicateProbe { .. } => "adjudicate-probe",
@@ -851,6 +887,32 @@ async fn main() -> anyhow::Result<()> {
                 "incomplete rebuild: {} of {} live records reached the index",
                 report.indexed,
                 report.expected
+            );
+            Ok(())
+        }
+        Command::CommitArm {
+            ref run,
+            ref dataset,
+            ref out,
+        } => {
+            let cfg = MyelinConfig::load().context("load myelin config")?;
+            let report = myelin_eval::commit_arm::run(
+                &cfg,
+                Path::new(run),
+                Path::new(dataset),
+                Path::new(out),
+            )
+            .await?;
+            println!(
+                "commit-arm {out}: {} rows, {} declined, {} committed, {} untouched",
+                report.rows, report.fired, report.committed, report.untouched
+            );
+            anyhow::ensure!(
+                report.is_consistent(),
+                "arm is inconsistent: {} untouched + {} committed != {} rows",
+                report.untouched,
+                report.committed,
+                report.rows
             );
             Ok(())
         }
@@ -950,6 +1012,7 @@ async fn main() -> anyhow::Result<()> {
             self_ask,
             item_digest,
             digest_dates,
+            commit_answer,
             untrusted_max,
             decompose,
             ref categories,
@@ -982,6 +1045,7 @@ async fn main() -> anyhow::Result<()> {
                     self_ask,
                     item_digest,
                     digest_dates,
+                    commit_answer,
                     untrusted_max,
                     decompose,
                     categories: categories.clone().unwrap_or_default(),
@@ -996,10 +1060,11 @@ async fn main() -> anyhow::Result<()> {
             ref out,
         } => rescore_cmd(run, scorer, out.as_deref()),
         Command::Judge {
+            ref seed,
             ref run,
             category,
             limit,
-        } => judge_cmd(run, category, limit).await,
+        } => judge_cmd(run, category, limit, seed.as_deref()).await,
         Command::EvidenceAudit { ref run, limit } => evidence_audit_cmd(run, limit).await,
         Command::Coverage {
             ref run,
@@ -1508,9 +1573,15 @@ fn rescore_cmd(
 ///
 /// Reader-only, so the GPU window this needs is a fraction of a bench run's:
 /// no embedder, no reranker, no store, no ledger.
-async fn judge_cmd(run: &str, category: Option<u8>, limit: Option<usize>) -> anyhow::Result<()> {
+async fn judge_cmd(
+    run: &str,
+    category: Option<u8>,
+    limit: Option<usize>,
+    seed: Option<&str>,
+) -> anyhow::Result<()> {
     let dir = Path::new(run);
-    let (file, stats) = myelin_eval::judge::judge_run(dir, category, limit).await?;
+    let seed = seed.map(Path::new);
+    let (file, stats) = myelin_eval::judge::judge_run(dir, category, limit, seed).await?;
     let total = stats.judged + stats.cached;
     println!();
     println!("  judge {} over {run}", file.model);

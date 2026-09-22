@@ -15,6 +15,7 @@ pub mod attack;
 pub mod attack_live;
 pub mod bench;
 pub mod build;
+pub mod commit_arm;
 pub mod coverage;
 pub mod datasets;
 pub mod evidence_audit;

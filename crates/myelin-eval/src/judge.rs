@@ -42,6 +42,24 @@ pub struct JudgeFile {
     pub model: String,
     /// `question_id` -> 1 correct, 0 incorrect.
     pub verdicts: BTreeMap<String, u8>,
+    /// The answer each verdict was given for (M42).
+    ///
+    /// A verdict is a function of the **answer**, not of the row id. Keying
+    /// the cache on `question_id` alone is sound within one run, where the
+    /// answer cannot change, and unsound across runs — which is exactly where
+    /// a paired arm lives.
+    ///
+    /// M42 measured the cost. Its arm left 469 of 500 responses byte-identical
+    /// to the base, and re-judging them flipped **2**, moving the control off
+    /// zero by −0.43 points. The mechanism under test was worth +1.80, so a
+    /// quarter of the headline was the grader disagreeing with itself. Without
+    /// this map there is no way to tell those apart.
+    ///
+    /// Absent on caches written before M42; those are trusted in place,
+    /// because a verdict file inside a run directory was written for that
+    /// run's answers.
+    #[serde(default)]
+    pub answers: BTreeMap<String, String>,
 }
 
 /// The grading rubric, verbatim and pinned.
@@ -78,6 +96,7 @@ pub async fn judge_run(
     run: &Path,
     category: Option<u8>,
     limit: Option<usize>,
+    seed: Option<&Path>,
 ) -> Result<(JudgeFile, JudgeStats)> {
     let rows_path = run.join("per_question.jsonl");
     let text = std::fs::read_to_string(&rows_path)
@@ -110,24 +129,64 @@ pub async fn judge_run(
 
     let cache_path = run.join("judge_verdicts.json");
     let mut verdicts: BTreeMap<String, u8> = BTreeMap::new();
-    if cache_path.exists() {
+    let mut answers: BTreeMap<String, String> = BTreeMap::new();
+    for path in seed.iter().map(|s| s.join("judge_verdicts.json")).chain([
+        cache_path.clone(),
+    ]) {
+        if !path.exists() {
+            continue;
+        }
         let existing: JudgeFile = serde_json::from_str(
-            &std::fs::read_to_string(&cache_path)
-                .with_context(|| format!("read {}", cache_path.display()))?,
+            &std::fs::read_to_string(&path)
+                .with_context(|| format!("read {}", path.display()))?,
         )
-        .with_context(|| format!("parse {}", cache_path.display()))?;
+        .with_context(|| format!("parse {}", path.display()))?;
         anyhow::ensure!(
             existing.model == model,
             "{} was written by judge {:?} but the configured judge is {:?}; \
              mixing two judges' verdicts into one agreement number is not a \
              measurement — delete the file or point the config back at {:?}",
-            cache_path.display(),
+            path.display(),
             existing.model,
             model,
             existing.model
         );
-        verdicts = existing.verdicts;
+        // A seeded verdict is only reusable if it was given for the answer
+        // this run actually holds. Own cache without an `answers` map predates
+        // M42 and is trusted in place; a *seed* without one is refused, because
+        // there is nothing to check it against.
+        let is_seed = path != cache_path;
+        anyhow::ensure!(
+            !is_seed || !existing.answers.is_empty(),
+            "{} has no `answers` map, so its verdicts cannot be matched to \
+             this run's responses; re-judge that run before seeding from it",
+            path.display()
+        );
+        for (id, verdict) in existing.verdicts {
+            match existing.answers.get(&id) {
+                Some(answer) => {
+                    verdicts.insert(id.clone(), verdict);
+                    answers.insert(id, answer.clone());
+                }
+                None if !is_seed => {
+                    verdicts.insert(id, verdict);
+                }
+                None => {}
+            }
+        }
     }
+    // Drop anything whose answer has since changed — the whole point.
+    let current: BTreeMap<&str, &str> = docket
+        .iter()
+        .map(|r| (r.question_id.as_str(), r.response_raw.as_str()))
+        .collect();
+    verdicts.retain(|id, _| match (answers.get(id), current.get(id.as_str())) {
+        (Some(cached), Some(now)) => cached == now,
+        // No recorded answer: a pre-M42 own cache, trusted as before.
+        (None, _) => true,
+        // Judged row no longer in the docket; harmless, keep it.
+        (_, None) => true,
+    });
 
     let cached = docket
         .iter()
@@ -136,6 +195,7 @@ pub async fn judge_run(
     let mut judged = 0usize;
     for row in &docket {
         if verdicts.contains_key(&row.question_id) {
+            answers.insert(row.question_id.clone(), row.response_raw.clone());
             continue;
         }
         let user = format!(
@@ -169,10 +229,15 @@ pub async fn judge_run(
                 )
             })?;
         verdicts.insert(row.question_id.clone(), verdict);
+        answers.insert(row.question_id.clone(), row.response_raw.clone());
         judged += 1;
     }
 
-    let file = JudgeFile { model, verdicts };
+    let file = JudgeFile {
+        model,
+        verdicts,
+        answers,
+    };
     std::fs::write(&cache_path, serde_json::to_string_pretty(&file)?)
         .with_context(|| format!("write {}", cache_path.display()))?;
 
@@ -188,4 +253,76 @@ pub async fn judge_run(
             correct,
         },
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn file(pairs: &[(&str, u8, &str)]) -> JudgeFile {
+        JudgeFile {
+            model: "qwen3.5-9b".into(),
+            verdicts: pairs.iter().map(|(i, v, _)| (i.to_string(), *v)).collect(),
+            answers: pairs
+                .iter()
+                .map(|(i, _, a)| (i.to_string(), a.to_string()))
+                .collect(),
+        }
+    }
+
+    /// The map a seeded verdict is matched on must survive a round trip, or
+    /// every seeded run silently falls back to re-judging.
+    #[test]
+    fn answers_round_trip_through_the_verdict_file() {
+        let f = file(&[("q1", 1, "Instant Pot"), ("q2", 0, "I don't know.")]);
+        let text = serde_json::to_string(&f).expect("serialise");
+        let back: JudgeFile = serde_json::from_str(&text).expect("parse");
+        assert_eq!(back.answers.get("q1").map(String::as_str), Some("Instant Pot"));
+        assert_eq!(back.verdicts.get("q2"), Some(&0));
+    }
+
+    /// A cache written before M42 has no `answers` map and must still load —
+    /// every judged run on disk predates this field.
+    #[test]
+    fn a_pre_m42_verdict_file_still_loads() {
+        let legacy = r#"{"model":"qwen3.5-9b","verdicts":{"q1":1}}"#;
+        let back: JudgeFile = serde_json::from_str(legacy).expect("legacy cache must load");
+        assert_eq!(back.verdicts.get("q1"), Some(&1));
+        assert!(
+            back.answers.is_empty(),
+            "an absent map must read as empty, not fail"
+        );
+    }
+
+    /// The retention rule, which is the whole mechanism: a verdict survives
+    /// only while the answer it was given for is still the answer.
+    #[test]
+    fn a_verdict_is_dropped_when_its_answer_changed() {
+        let seeded = file(&[
+            ("unchanged", 1, "Instant Pot"),
+            ("changed", 0, "I don't know."),
+        ]);
+        // What the arm now holds: one row was rewritten by the second pass.
+        let current: BTreeMap<&str, &str> = [
+            ("unchanged", "Instant Pot"),
+            ("changed", "fixing the fence"),
+        ]
+        .into_iter()
+        .collect();
+
+        let mut verdicts = seeded.verdicts.clone();
+        verdicts.retain(
+            |id, _| match (seeded.answers.get(id), current.get(id.as_str())) {
+                (Some(cached), Some(now)) => cached == now,
+                _ => true,
+            },
+        );
+
+        assert_eq!(verdicts.get("unchanged"), Some(&1), "reused, never re-graded");
+        assert!(
+            !verdicts.contains_key("changed"),
+            "a rewritten answer must be judged afresh, or the arm grades the \
+             base's response"
+        );
+    }
 }
