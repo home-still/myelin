@@ -468,6 +468,19 @@ enum Command {
         dataset: String,
         #[arg(long)]
         out: String,
+        /// M45: draw this many seeded samples per declining row instead of
+        /// M42's one greedy pass, cluster them by meaning, and commit only
+        /// the majority. Omit for M42's arm exactly.
+        #[arg(long, requires = "agree")]
+        samples: Option<usize>,
+        /// First seed; sample i uses seed + i. Recorded on the artifact.
+        #[arg(long, default_value_t = 0)]
+        seed: u64,
+        /// Share of samples the majority cluster must hold to commit.
+        /// **Calibrated on a split that is not the reported population**,
+        /// never tuned; the samples are recorded so it can be re-applied.
+        #[arg(long, requires = "samples")]
+        agree: Option<f64>,
     },
     /// Score LoCoMo end-to-end: retrieve, read, and grade the answer with
     /// a deterministic scorer (no LLM judge). See `bench.rs`.
@@ -948,13 +961,21 @@ async fn main() -> anyhow::Result<()> {
             ref run,
             ref dataset,
             ref out,
+            samples,
+            seed,
+            agree,
         } => {
             let cfg = MyelinConfig::load().context("load myelin config")?;
+            let consensus = match (samples, agree) {
+                (Some(n), Some(a)) => Some(myelin_eval::bench::Consensus::new(n, seed, a)?),
+                _ => None,
+            };
             let report = myelin_eval::commit_arm::run(
                 &cfg,
                 Path::new(run),
                 Path::new(dataset),
                 Path::new(out),
+                consensus,
             )
             .await?;
             println!(
