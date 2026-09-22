@@ -196,6 +196,34 @@ pub struct ComposeConfig {
     /// [`crate::pipeline::retrieve::Retriever::recall`], because `compose`
     /// never sees the question.
     pub timeline: bool,
+    /// Anchor every `[timeline]` entry to the day the question is asked —
+    /// `2023-03-04 +19d (28 days ago; 4 weeks) · …` — when [`Self::as_of`]
+    /// is known (M46). Inert without [`Self::timeline`] or without an anchor.
+    ///
+    /// **Default off, pending its arm.** The failure it is aimed at, read
+    /// off M43's rows: on the 62 LongMemEval_S questions of the shape *how
+    /// many weeks/months ago …* / *how long since …* the shipped reader
+    /// scores 56.5% with 14 outright declines, and the wrong answers are
+    /// arithmetic — asked how many weeks ago it met an aunt (28 days) it
+    /// declined; asked how many months since a museum visit (154 days) it
+    /// said 2 for 5. Day-level *ago* questions mostly succeed; the failures
+    /// begin where a unit conversion joins the subtraction. Test of Time
+    /// (Fatemi et al., `10.48550/arxiv.2406.09170`) measures that shape at
+    /// the frontier: GPT-4 at 16% on duration arithmetic, off-by-one in
+    /// roughly a fifth of responses — so a 9B is not going to do it, and the
+    /// asymmetry M19 measured (dates resolved *for* the reader +37.6, the
+    /// reader told to resolve them +14.3) says do it here. Allen
+    /// (`10.1145/182.358434`, §VII.2) is the older statement of the same
+    /// idea: on a date line the relation between two dated events is a
+    /// cheap comparison, and it should be computed, not searched for.
+    pub timeline_ago: bool,
+    /// The day the question is asked, copied from [`crate::model::query::Recall::as_of`]
+    /// by the read path for this one call. Not configuration — it is
+    /// per-query context riding on the per-call config the way `timeline`
+    /// is narrowed per query in `recall` — so it is never read from a
+    /// config file.
+    #[serde(skip)]
+    pub as_of: Option<chrono::NaiveDate>,
     /// Prepend one synthetic `[profile]` item stating what the user is known
     /// to prefer, fetched by scope rather than by relevance.
     ///
@@ -266,6 +294,8 @@ impl Default for ComposeConfig {
             chronological: false,
             resolve_relative: true,
             timeline: true,
+            timeline_ago: false,
+            as_of: None,
             profile: false,
             mmr_lambda: None,
             untrusted_max: None,
@@ -578,7 +608,7 @@ pub fn compose(ranked: Vec<Ranked>, profile: &[MemoryRecord], cfg: &ComposeConfi
     //    strongest actual memory. Fewer than two dated records is not a
     //    timeline, it is a restatement of the one item above it.
     if cfg.timeline && items.len() >= 2 {
-        let item = timeline_item(&ordered);
+        let item = timeline_item(&ordered, cfg.as_of.filter(|_| cfg.timeline_ago));
         tokens += approx_tokens(&item.value);
         items.push(item);
     }
@@ -618,7 +648,13 @@ const TIMELINE_GIST_CHARS: usize = 60;
 /// `record_id` into the ledger must not find a record that was never written.
 /// Its trust is the **weakest** tier among the records it summarises — a
 /// synthetic view of untrusted material must not launder it upward.
-fn timeline_item(selected: &[Ranked]) -> EvidenceItem {
+///
+/// With an `anchor` (M46, `ComposeConfig::timeline_ago`) each entry also
+/// states its distance from that day, and the header names the day, so the
+/// arithmetic a duration question needs is on the page rather than left to
+/// the reader. The `+Nd` offsets M19 measured are kept unchanged: with the
+/// anchor absent the item is byte-identical to the M19 form.
+fn timeline_item(selected: &[Ranked], anchor: Option<chrono::NaiveDate>) -> EvidenceItem {
     let mut by_time: Vec<&Ranked> = selected.iter().collect();
     by_time.sort_by_key(|r| r.record.validity.t_valid);
     let day = |r: &Ranked| r.record.validity.t_valid.date_naive();
@@ -629,13 +665,25 @@ fn timeline_item(selected: &[Ranked]) -> EvidenceItem {
         .map(|r| {
             let d = day(r);
             let gist: String = r.record.text.chars().take(TIMELINE_GIST_CHARS).collect();
-            format!("{d} +{}d · {}", (d - first).num_days(), gist.trim_end())
+            match anchor {
+                Some(today) => format!(
+                    "{d} +{}d ({}) · {}",
+                    (d - first).num_days(),
+                    crate::time::ago_phrase(d, today),
+                    gist.trim_end()
+                ),
+                None => format!("{d} +{}d · {}", (d - first).num_days(), gist.trim_end()),
+            }
         })
         .collect();
+    let header = match anchor {
+        Some(today) => format!("[timeline] as of {today}: "),
+        None => "[timeline] ".to_string(),
+    };
     EvidenceItem {
         kind: EvidenceKind::Text,
         value: format!(
-            "[timeline] {}  (span {} days)",
+            "{header}{}  (span {} days)",
             entries.join("; "),
             (last - first).num_days()
         ),
@@ -1413,6 +1461,73 @@ mod tests {
         );
         assert_eq!(off.items.len(), 3);
         assert!(set.tokens > off.tokens, "{} vs {}", set.tokens, off.tokens);
+    }
+
+    /// M46: with the question's day known and the switch on, every entry
+    /// states its distance from that day in each unit a question might ask
+    /// in, and the header names the day. The `+Nd` offsets M19 measured are
+    /// untouched. Off, or with no anchor, the item is byte-identical to the
+    /// M19 form — which is what keeps every run since M19 reproducible.
+    #[test]
+    fn the_anchored_timeline_states_each_entrys_distance_from_today() {
+        use chrono::TimeZone;
+        let input = || {
+            [
+                (2023, 5, 6, "rug delivered from the store"),
+                (2023, 5, 13, "rearranged the living room"),
+                (2023, 6, 3, "sold the old couch"),
+            ]
+            .into_iter()
+            .enumerate()
+            .map(|(i, (y, m, d, text))| {
+                let mut r = record(text);
+                r.validity.t_valid = Utc.with_ymd_and_hms(y, m, d, 0, 0, 0).unwrap();
+                Ranked {
+                    record: r,
+                    score: 1.0 - i as f32 * 0.1,
+                    vector: None,
+                }
+            })
+            .collect::<Vec<_>>()
+        };
+        let today = chrono::NaiveDate::from_ymd_opt(2023, 6, 10).unwrap();
+
+        let on = compose(
+            input(),
+            &[],
+            &ComposeConfig {
+                timeline_ago: true,
+                as_of: Some(today),
+                ..Default::default()
+            },
+        );
+        assert_eq!(
+            on.items.last().unwrap().value,
+            "[timeline] as of 2023-06-10: 2023-05-06 +0d (35 days ago; 5 weeks; 1 month) · rug delivered from the store; 2023-05-13 +7d (28 days ago; 4 weeks) · rearranged the living room; 2023-06-03 +28d (7 days ago; 1 week) · sold the old couch  (span 28 days)"
+        );
+
+        let m19 = "[timeline] 2023-05-06 +0d · rug delivered from the store; 2023-05-13 +7d · rearranged the living room; 2023-06-03 +28d · sold the old couch  (span 28 days)";
+        for (why, cfg) in [
+            (
+                "switch off",
+                ComposeConfig {
+                    timeline_ago: false,
+                    as_of: Some(today),
+                    ..Default::default()
+                },
+            ),
+            (
+                "no anchor",
+                ComposeConfig {
+                    timeline_ago: true,
+                    as_of: None,
+                    ..Default::default()
+                },
+            ),
+        ] {
+            let set = compose(input(), &[], &cfg);
+            assert_eq!(set.items.last().unwrap().value, m19, "{why}");
+        }
     }
 
     /// One record is not a timeline: it would restate the item above it and

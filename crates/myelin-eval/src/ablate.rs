@@ -446,6 +446,7 @@ pub async fn ablate_locomo(
                 },
                 mode: Mode::Recall,
                 kinds: None,
+                as_of: None,
             };
             let (evidence, trace) = retriever
                 .recall(&query)
@@ -751,6 +752,7 @@ pub async fn width_sweep(
                 budget: Budget { k, tokens: budget_tokens, ..Default::default() },
                 mode: Mode::Recall,
                 kinds: None,
+                as_of: None,
             };
             let (evidence, trace) = retriever
                 .recall(&query)
@@ -1382,6 +1384,7 @@ pub async fn investigate_curve(
                 },
                 mode: Mode::Investigate,
                 kinds: None,
+                as_of: None,
             };
             let (evidence, trace) = Investigator::new(&llm, &retriever)
                 .with_config(InvestigateConfig {

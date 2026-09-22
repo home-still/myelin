@@ -516,6 +516,12 @@ enum Command {
         /// interleave.
         #[arg(long)]
         chronological: bool,
+        /// State each `[timeline]` entry's distance from the question's day
+        /// — `28 days ago; 4 weeks` — so a duration question is a lookup
+        /// rather than a subtraction the reader does itself (M46). Zero
+        /// model calls; inert on questions that get no timeline.
+        #[arg(long)]
+        timeline_ago: bool,
         /// Give the reader a `<today>` reference date. LongMemEval_S always
         /// carries one; this adds LoCoMo's last session date.
         #[arg(long)]
@@ -1026,6 +1032,7 @@ async fn main() -> anyhow::Result<()> {
             graph,
             chronological,
             question_date,
+            timeline_ago,
             profile,
             profile_clause,
             mmr,
@@ -1061,6 +1068,7 @@ async fn main() -> anyhow::Result<()> {
                     graph,
                     chronological,
                     question_date,
+                    timeline_ago,
                     profile,
                     profile_clause,
                     mmr,

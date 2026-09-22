@@ -107,6 +107,21 @@ pub struct Recall {
     pub mode: Mode,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub kinds: Option<Vec<RecordKind>>,
+    /// The day the question is asked, when the caller knows it (M46).
+    ///
+    /// `compose` anchors every `[timeline]` entry to this date — "28 days
+    /// ago (4 weeks)" — so a question of the shape *how many weeks ago did
+    /// I …?* is a lookup rather than a subtraction the reader has to do
+    /// itself. M19 measured that asymmetry on this codebase: resolving dates
+    /// *for* the reader was worth +37.6, telling it to resolve them +14.3.
+    ///
+    /// Deliberately not defaulted to the wall clock: a benchmark question
+    /// is asked on the day its corpus says it is, and a memory backend that
+    /// silently substituted "now" would produce offsets that are wrong by
+    /// exactly the age of the dataset. Absent means no anchor, and the
+    /// timeline then carries only its own internal offsets.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub as_of: Option<chrono::NaiveDate>,
 }
 
 impl Recall {
@@ -117,6 +132,7 @@ impl Recall {
             budget: Budget::default(),
             mode: Mode::Recall,
             kinds: None,
+            as_of: None,
         }
     }
 }

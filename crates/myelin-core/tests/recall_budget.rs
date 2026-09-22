@@ -38,6 +38,7 @@ fn ask(k: usize, tokens: usize, text: &str) -> Recall {
         },
         mode: Mode::Recall,
         kinds: None,
+        as_of: None,
     }
 }
 
