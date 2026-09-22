@@ -46,11 +46,13 @@ for attempt in $(seq 1 "$ATTEMPTS"); do
   # A retried `bench` resumes the rows the failed attempt finished, instead
   # of scoring them again: on 2026-09-22 a reader kill 249 rows into a
   # 500-row arm cost the whole 249 because the retry started over.
+  # `${extra[@]+"${extra[@]}"}`: an empty array is "unbound" under `set -u`
+  # on macOS's bash 3.2, and this script runs from the Mac.
   extra=()
   if [ "$attempt" -gt 1 ] && [ "${1:-}" = bench ]; then
     extra=(--resume)
   fi
-  if "$BIN" "$@" "${extra[@]}"; then
+  if "$BIN" "$@" ${extra[@]+"${extra[@]}"}; then
     exit 0
   fi
   echo "run-with-reader: attempt $attempt failed" >&2

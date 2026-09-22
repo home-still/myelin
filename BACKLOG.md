@@ -21,7 +21,9 @@ See [`BACKLOG_DONE.md`](BACKLOG_DONE.md#sota-standing) for the full table and
 its history. Short version: **one gate closed** (MINJA 7.50% ≤ 10%), one
 claimable row (LoCoMo beats Mem0's published 66.88 by +2.99), and three open
 gaps — LoCoMo −7.98, LongMemEval_S **−13.00** (M43 closed 5.80 of it),
-LME-V2 −20.02 at a pre-M43 configuration.
+LME-V2 −20.02 at a pre-M43 configuration. M44 R1 and M46 both measured null
+with the abstention veto firing; the reader answers whatever number is on
+the page.
 
 ---
 
@@ -134,40 +136,6 @@ offline. **Open decision for the user — the calibration set:** (a) LME-V2's
 defaults plus a `ScoredQuestion` export from the harness), or (b) LoCoMo
 category 5's 446 silence-shaped rows already on disk. The sampling run is
 written at a provisional τ = 0.6 and labelled uncalibrated until then.
-
----
-
-## M46 — temporal arithmetic belongs in `compose`
-
-`temporal-reasoning` is 133 rows at 42.1. Part is composition (M44's problem);
-part is arithmetic the reader cannot do.
-
-*Test of Time* (Fatemi et al., `2406.09170`) puts **GPT-4 at 16.00%** on
-duration arithmetic (Claude-3-Sonnet 15.00, Gemini 1.5 Pro 13.50), with
-off-by-one in ~21–25% of responses. A 9B will not beat that. The same paper
-shows fact *ordering* alone moving Claude-3-Sonnet **45.71 → 73.57** when the
-target and start time come first.
-
-`ComposeConfig::timeline_deltas`: emit signed day-deltas between stamped
-events when the question carries a duration cue, and order `[timeline]`
-target-event-first. **Zero model calls**, deterministic, I1-safe because it is
-a view. M19 already proved the asymmetry on this codebase: computing dates
-*for* the reader +37.6 vs telling it to compute +14.3.
-
-**Predicted.** The "how many days" subset moves; the rest of the stratum is
-M44's problem and should not. Report the subsets separately so a null on the
-arithmetic subset is legible.
-
-**Cost.** Minutes.
-
-**Status.** *Implemented and pre-registered* —
-`docs/measurements/m46-anchored-timeline.md`. Reading the rows changed the
-mechanism: the failures are not pairwise deltas but distance from **the
-question's own day** (weeks/months *ago*, *since*), which the M19 view never
-stated. `Recall::as_of` + `ComposeConfig::timeline_ago` (off) anchor every
-timeline entry to that day in every unit a question might ask in; zero
-model calls; byte-identical off. Numerator: the 62 anchored rows at 56.5%
-with 14 declines. Arm queued behind M44 R1 on the reader.
 
 ---
 
@@ -318,6 +286,14 @@ population it reports.
   `-fa on`; two server profiles (LongMemEval_S at k=6/4,096 plus a 1,024-token
   thinking budget fits 8k per slot; only LME-V2 needs the large window); `n`
   parallel samples off one prefill for M45.
+- **`investigate` never narrows `[timeline]` to interval questions.** Only
+  `recall` applies `is_interval_question`; `investigate` composes with the
+  view on every row. Every judged number since M19 was measured that way, so
+  it is the operating point, not a bug to fix silently — but the switch that
+  was meant to be question-conditioned is unconditional on the path that
+  scores everything, and M46's control (rows with no timeline) did not exist
+  because of it. Decide whether to narrow it (an arm, since it changes the
+  evidence on ~380 rows) or document it as the default.
 - **The reader can be killed from outside mid-arm, and `bench` did not
   resume.** 2026-09-22 15:0x: `/tmp/myelin-reader.log` on `big` ended with
   *"Received second interrupt, terminating immediately"* — two SIGINTs from

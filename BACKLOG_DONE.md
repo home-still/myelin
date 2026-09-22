@@ -49,6 +49,35 @@ first arm to question the measurement apparatus rather than the mechanism.
 
 ---
 
+## M46 — the timeline never said how long ago
+
+**Commit** PR #38 · `docs/measurements/m46-anchored-timeline.md` ·
+`runs/m46_ago`, `runs/m46_ago_judged`
+
+**Number: −0.4 (95% CI [−2.2, +1.4]), null; abstention 90.0 → 83.3, veto
+fires. Shipped off.**
+
+`ComposeConfig::timeline_ago` anchored every `[timeline]` entry to the
+question's day in every unit a question might ask in (zero model calls,
+byte-identical off). The pre-registered numerator — 62 rows anchored to the
+question's day — moved **exactly +0.0**, as the sum of two opposite moves:
+**weeks/months/years +13.0 [+0.0, +26.1]** (n = 23: `5 months` for `2`,
+`4 weeks` for a decline) and **days −11.1** (n = 18: `44` for `18`, `43` for
+`17`). With every entry saying *N days ago* the reader stopped subtracting
+and started choosing, and on day-level questions it chose the wrong entry.
+Two abstention rows were lost to numbers on the page (`Three months.`,
+`Zero.`). The arithmetic was the right fix for a third of the subset and
+the wrong page for the rest: the next temporal arm is *which entry leads*
+(Test of Time's ordering result), not what each entry says.
+
+**Also found.** `investigate` never narrows the timeline to interval
+questions — only `recall` does — so every judged row since M19 carries the
+dated index and no timeline-free control exists. Recorded under operational
+debt. And the run is the first to resume across a reader restart
+(`resumed_rows: 180`; the kill came from outside, `tenant=none`).
+
+---
+
 ## M44 — the reader has never been allowed to reason *(in flight)*
 
 **R1 measured** · `docs/measurements/m44-let-the-reader-reason.md` ·
