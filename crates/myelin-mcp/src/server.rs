@@ -375,6 +375,9 @@ impl MyelinServer {
             rerank_pool: params.pool_rerank.unwrap_or(false),
             premise_analysis: premise,
             abstain_on_insufficient: premise,
+            premise_check: params
+                .premise_check
+                .unwrap_or(InvestigateConfig::default().premise_check),
             answerability_gate: params
                 .answerability_gate
                 .unwrap_or(InvestigateConfig::default().answerability_gate),
@@ -855,6 +858,11 @@ pub struct InvestigateParams {
     /// analyse.
     #[serde(default)]
     pub premise: Option<bool>,
+    /// Verify what the question assumes against the composed memories and
+    /// append a `[premise]` line only when a memory contradicts it (M47).
+    /// Silence appends nothing. One model call per query.
+    #[serde(default)]
+    pub premise_check: Option<bool>,
     /// Let the reflect gate aim each probe at a pool: `raw` | `event` |
     /// `note` (M23 D2). Meaningless until the typed pools exist in the
     /// store; off by default.

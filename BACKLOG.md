@@ -171,6 +171,16 @@ found, and an NLI model should do it instead of the 9B.
 
 **Cost.** ~1 hour.
 
+**Status.** *Implemented and pre-registered* —
+`docs/measurements/m47-presupposition-contradiction.md`.
+`InvestigateConfig::premise_check` (off), `--premise-check` on `bench` and
+`run_myelin.py`, `premise_check` on the MCP `investigate` tool. Field order
+`claim → evidence_index → status`; only a contradiction naming a real memory
+emits the `[premise]` item; the view carries the weakest trust it cites. The
+arm needs an LME-V2 base at the shipped defaults first (none exists since
+M43 flipped the digest on), so it is two LME-V2 pairs, queued behind M44 R1
+and M46 on the reader.
+
 ---
 
 ## M48 — three-way digest label *(conditional on M44)*
@@ -211,6 +221,17 @@ We already own both halves: `prov_source.doc` links records to sessions, and
 
 > JustMem's full text was rate-limited; §6 of the guidance rests on the
 > abstract. Read it via `markdown_read` once home-still's scribe is back up.
+
+**Checked 2026-09-22 (measured):** the `link` table of
+`data/longmemeval_s.ledger` is **empty** — 0 rows over 162,181 records — so
+there are no `supersedes` edges to route on for this corpus; the write path's
+`update` verdict never minted one here. On the M43 base `knowledge-update`
+delivers every gold session on 65 of 72 annotated rows and still scores 0.800
+on them (the reader answers the *older* value with the newer one in hand:
+three sessions for five, 1250 followers for 1300, 8:30 for 7:30). The slot
+signal has to come from somewhere other than links — same-tenant records
+ordered by date with a "latest" marker, or a write-time slot label — before
+this arm can be built.
 
 ---
 

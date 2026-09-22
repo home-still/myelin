@@ -557,6 +557,12 @@ enum Command {
         /// insufficiency gate, because the analysis is what the gate emits.
         #[arg(long)]
         premise: bool,
+        /// Verify what the question assumes against the composed memories
+        /// and append a `[premise]` line only when a memory contradicts it
+        /// (M47). Silence appends nothing — the one rule that separates it
+        /// from `--premise`, which M35 measured at −8.75. One model call.
+        #[arg(long)]
+        premise_check: bool,
         /// Let the reflect gate aim its next probe at a record kind:
         /// raw | event | note (M23 D2). Inert against a store with no typed
         /// pools — build one with `build --pools`.
@@ -1050,6 +1056,7 @@ async fn main() -> anyhow::Result<()> {
             select_sufficient,
             rerank_pool,
             premise,
+            premise_check,
             typed_probes,
             self_ask,
             item_digest,
@@ -1088,6 +1095,7 @@ async fn main() -> anyhow::Result<()> {
                     select_sufficient,
                     rerank_pool,
                     premise,
+                    premise_check,
                     typed_probes,
                     self_ask,
                     item_digest,

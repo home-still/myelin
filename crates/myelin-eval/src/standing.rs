@@ -964,7 +964,9 @@ fn bench_metrics(dir: &Path, agg_text: &str) -> Result<Vec<Ours>> {
         || run.digest_relevance
         // M44 R1's reasoning reader, and R2's thinking reader.
         || run.reader_reasoning
-        || run.reader_thinking;
+        || run.reader_thinking
+        // M47's presupposition check.
+        || run.premise_check;
 
     // Does this run record its own operating point? Every key below defines
     // part of what the system does per query today. An artifact that does
@@ -1449,7 +1451,7 @@ fn unrecorded_pair_keys(dir: &Path) -> Result<Vec<&'static str>> {
 /// §7.1 keeps it off for `recall` — so it cannot be a constant here. It is
 /// tested separately in [`harness_arm`] against
 /// [`shipped_select_sufficient`], which reads the library defaults.
-const PAIR_SWITCH_DEFAULTS: [(&str, bool); 11] = [
+const PAIR_SWITCH_DEFAULTS: [(&str, bool); 12] = [
     ("dated", true),
     ("timeline_ago", false),
     ("pool_rerank", false),
@@ -1467,6 +1469,7 @@ const PAIR_SWITCH_DEFAULTS: [(&str, bool); 11] = [
     ("digest_relevance", false),
     ("reader_reasoning", false),
     ("reader_thinking", false),
+    ("premise_check", false),
     // `item_digest` and `digest_dates` are deliberately **absent**: M43
     // shipped both on for `investigate` only, so — like `select` — their
     // shipped value depends on the mode and they are tested in
@@ -3379,6 +3382,7 @@ mod tests {
             serde_json::json!({"digest_relevance": true}),
             serde_json::json!({"reader_reasoning": true}),
             serde_json::json!({"reader_thinking": true}),
+            serde_json::json!({"premise_check": true}),
             serde_json::json!({"timeline_ago": true}),
         ] {
             let tmp = tempfile::tempdir().unwrap();
