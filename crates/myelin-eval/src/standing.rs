@@ -917,7 +917,9 @@ fn bench_metrics(dir: &Path, agg_text: &str) -> Result<Vec<Ours>> {
         || run.typed_probes
         || run.untrusted_max.is_some()
         // M24's sub-query decomposition.
-        || run.decompose.is_some();
+        || run.decompose.is_some()
+        // M39's self-ask decomposition, shipping off pending its arm.
+        || run.self_ask;
 
     // Does this run record its own operating point? Every key below defines
     // part of what the system does per query today. An artifact that does
@@ -1402,11 +1404,19 @@ fn unrecorded_pair_keys(dir: &Path) -> Result<Vec<&'static str>> {
 /// §7.1 keeps it off for `recall` — so it cannot be a constant here. It is
 /// tested separately in [`harness_arm`] against
 /// [`shipped_select_sufficient`], which reads the library defaults.
-const PAIR_SWITCH_DEFAULTS: [(&str, bool); 4] = [
+const PAIR_SWITCH_DEFAULTS: [(&str, bool); 6] = [
     ("dated", true),
     ("pool_rerank", false),
     ("premise", false),
     ("typed_probes", false),
+    // M38 and M39. Both ship off, and both are listed here rather than in
+    // `PAIR_KEYS` on purpose: an artifact written before the switch existed
+    // definitively ran without it, so absence must read as the shipped
+    // default and not as "nobody can check". Adding them to `PAIR_KEYS`
+    // would retroactively make every earlier run unquotable for a value
+    // that is in fact known.
+    ("select_coverage", false),
+    ("self_ask", false),
 ];
 
 /// Does this harness artifact record an operating point the server's
@@ -3199,6 +3209,10 @@ mod tests {
             serde_json::json!({"premise": true}),
             serde_json::json!({"typed_probes": true}),
             serde_json::json!({"untrusted_max": 2}),
+            // M39. A switch that changes what the reader sees and is not in
+            // this list gets published as "where we stand" — the M21 defect,
+            // which is why the list is a test and not a comment.
+            serde_json::json!({"self_ask": true}),
         ] {
             let tmp = tempfile::tempdir().unwrap();
             let dir = tmp.path().join("runs/arm");

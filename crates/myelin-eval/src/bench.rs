@@ -396,6 +396,11 @@ pub struct BenchRun {
     pub premise: bool,
     #[serde(default)]
     pub typed_probes: bool,
+    /// M39's self-ask decomposition. `serde(default)` because every run
+    /// written before M39 predates the field, and `standing` reads these
+    /// back to decide whether a run is an arm or the shipped default.
+    #[serde(default)]
+    pub self_ask: bool,
     #[serde(default)]
     pub untrusted_max: Option<usize>,
     /// M24's sub-query decomposition cap, mirroring
@@ -488,6 +493,10 @@ pub struct BenchSwitches {
     /// `InvestigateConfig::typed_probes`. Meaningless until a store carries
     /// the typed pools `build --pools` mints.
     pub typed_probes: bool,
+    /// Decompose the question and answer each part from the composed
+    /// evidence, appended as one additive `[notes]` item — M39,
+    /// `InvestigateConfig::self_ask`. One model call per query.
+    pub self_ask: bool,
     /// Cap untrusted occupancy in the composed set — M23 B1,
     /// `ComposeConfig::untrusted_max`.
     ///
@@ -854,6 +863,7 @@ pub async fn bench_locomo(
         // measures nothing.
         abstain_on_insufficient: switches.premise,
         typed_probes: switches.typed_probes,
+        self_ask: switches.self_ask,
         ..Default::default()
     };
 
@@ -1107,6 +1117,7 @@ pub async fn bench_longmemeval_s(
         premise_analysis: switches.premise,
         abstain_on_insufficient: switches.premise,
         typed_probes: switches.typed_probes,
+        self_ask: switches.self_ask,
         ..Default::default()
     };
 
@@ -1349,6 +1360,7 @@ fn finish_run(
         rerank_pool: spec.switches.rerank_pool,
         premise: spec.switches.premise,
         typed_probes: spec.switches.typed_probes,
+        self_ask: spec.switches.self_ask,
         untrusted_max: spec.switches.untrusted_max,
         decompose: spec.switches.decompose,
         categories: spec.switches.categories.clone(),
@@ -1515,6 +1527,7 @@ pub fn rescore_run(source: &Path, out_dir: &Path, scorer: Scorer) -> Result<Benc
             rerank_pool: flag("rerank_pool"),
             premise: flag("premise"),
             typed_probes: flag("typed_probes"),
+            self_ask: flag("self_ask"),
             untrusted_max: metrics
                 .get("untrusted_max")
                 .and_then(serde_json::Value::as_u64)

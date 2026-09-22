@@ -523,6 +523,14 @@ enum Command {
         /// pools — build one with `build --pools`.
         #[arg(long)]
         typed_probes: bool,
+        /// Decompose the question into follow-ups, answer each from the
+        /// composed evidence, and append them as one additive `[notes]`
+        /// item (M39, self-ask). One model call per query;
+        /// investigate-only. Aimed at the measured compositionality gap:
+        /// with every gold session retrieved, accuracy is 79.3% when one
+        /// fact answers the question and 54.3% when two must be combined.
+        #[arg(long)]
+        self_ask: bool,
         /// Cap how many `Untrusted` records the composed set may contain
         /// (M23 B1). A ceiling, not an exclusion: the quota never drops
         /// untrusted evidence to zero and never drops a trusted record.
@@ -880,6 +888,7 @@ async fn main() -> anyhow::Result<()> {
             rerank_pool,
             premise,
             typed_probes,
+            self_ask,
             untrusted_max,
             decompose,
             ref categories,
@@ -909,6 +918,7 @@ async fn main() -> anyhow::Result<()> {
                     rerank_pool,
                     premise,
                     typed_probes,
+                    self_ask,
                     untrusted_max,
                     decompose,
                     categories: categories.clone().unwrap_or_default(),

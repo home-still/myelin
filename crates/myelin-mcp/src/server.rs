@@ -350,6 +350,9 @@ impl MyelinServer {
             select_coverage: params
                 .select_coverage
                 .unwrap_or(InvestigateConfig::default().select_coverage),
+            self_ask: params
+                .self_ask
+                .unwrap_or(InvestigateConfig::default().self_ask),
             rerank_pool: params.pool_rerank.unwrap_or(false),
             premise_analysis: premise,
             abstain_on_insufficient: premise,
@@ -829,6 +832,11 @@ pub struct InvestigateParams {
     /// LongMemEval `multi-session` and −0.0 on every single-gold category.
     #[serde(default)]
     pub select_coverage: Option<bool>,
+    /// Decompose the question into follow-ups, answer each from the composed
+    /// evidence, and append them as one additive `[notes]` item (M39).
+    /// One model call per query; investigate-only.
+    #[serde(default)]
+    pub self_ask: Option<bool>,
     /// Split each probe into at most N sub-queries and retrieve for each
     /// (M24). One model call per step, on top of the reflect gate's.
     #[serde(default)]
