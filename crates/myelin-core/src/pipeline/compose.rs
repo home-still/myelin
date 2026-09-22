@@ -651,7 +651,13 @@ fn timeline_item(selected: &[Ranked]) -> EvidenceItem {
 /// Spelled out rather than `Ord` on [`TrustTier`]: the enum's declaration
 /// order runs most-trusted first, so a derived `min` would return `Verified`
 /// for a set containing poison — the exact inversion this guards against.
-fn weakest_trust(tiers: impl Iterator<Item = TrustTier>) -> TrustTier {
+///
+/// `pub(crate)` because every synthetic evidence item owes the same
+/// guarantee: a *view* of other items must carry the weakest trust among
+/// them, or a poisoned memory's claim gets restated at `Verified` and the
+/// M11 attack suite gets a free promotion. `[timeline]` here and `[notes]`
+/// in [`super::investigate`] are both views.
+pub(crate) fn weakest_trust(tiers: impl Iterator<Item = TrustTier>) -> TrustTier {
     let rank = |t: TrustTier| match t {
         TrustTier::Verified => 0u8,
         TrustTier::Asserted => 1,
