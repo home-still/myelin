@@ -521,6 +521,11 @@ enum Command {
         limit: Option<usize>,
         #[arg(long)]
         out: Option<String>,
+        /// Keep the rows an earlier attempt wrote to `--out` and score only
+        /// the questions it did not reach. The inherited count is recorded
+        /// on the run as `resumed_rows`.
+        #[arg(long)]
+        resume: bool,
         /// Fuse the PPR channel over the phrase↔record graph (`--corpus`'s
         /// ledger must have been through `myelin-eval phrases`).
         #[arg(long)]
@@ -1073,6 +1078,7 @@ async fn main() -> anyhow::Result<()> {
             ref mode,
             max_steps,
             limit,
+            resume,
             ref out,
             graph,
             chronological,
@@ -1113,6 +1119,7 @@ async fn main() -> anyhow::Result<()> {
                 max_steps,
                 limit,
                 out.as_deref(),
+                resume,
                 myelin_eval::bench::BenchSwitches {
                     graph,
                     chronological,
@@ -1491,6 +1498,7 @@ async fn bench_cmd(
     max_steps: usize,
     limit: Option<usize>,
     out: Option<&str>,
+    resume: bool,
     switches: myelin_eval::bench::BenchSwitches,
     scorer: Option<myelin_eval::bench::Scorer>,
 ) -> anyhow::Result<()> {
@@ -1560,6 +1568,7 @@ async fn bench_cmd(
                 &switches,
                 scorer,
                 Path::new(out),
+                resume,
             )
             .await?
         }
@@ -1580,6 +1589,7 @@ async fn bench_cmd(
                 &switches,
                 scorer,
                 Path::new(out),
+                resume,
             )
             .await?
         }

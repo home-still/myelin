@@ -42,7 +42,14 @@ for attempt in $(seq 1 "$ATTEMPTS"); do
     serve
     sleep 5
   fi
-  if "$BIN" "$@"; then
+  # A retried `bench` resumes the rows the failed attempt finished, instead
+  # of scoring them again: on 2026-09-22 a reader kill 249 rows into a
+  # 500-row arm cost the whole 249 because the retry started over.
+  extra=()
+  if [ "$attempt" -gt 1 ] && [ "${1:-}" = bench ]; then
+    extra=(--resume)
+  fi
+  if "$BIN" "$@" "${extra[@]}"; then
     exit 0
   fi
   echo "run-with-reader: attempt $attempt failed" >&2
