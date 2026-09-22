@@ -118,4 +118,64 @@ computation.
 
 ## Results
 
-*(pending — queued behind M44 R1 on the reader)*
+**Run.** `runs/m46_ago` on the shipped M43 stack (M44 R1 had shipped off),
+judged with `--seed runs/m43_dated` (65 judged, 359 reused) →
+`runs/m46_ago_judged`. 500 rows, 7.9 s/row; 180 of them inherited across a
+reader restart (`resumed_rows: 180`, an external kill on `big`), the rest
+after it. 429 answers byte-identical to the base (85.8%).
+
+**Headline: −0.4 (95% CI [−2.2, +1.4], p = 0.76). Null. The abstention
+veto fires: 90.0 → 83.3 on the 30 rows. `timeline_ago` ships off.**
+
+| stratum | n | base | arm | delta | 95% CI | p |
+| --- | --- | --- | --- | --- | --- | --- |
+| **overall** | 500 | 67.8 | 67.4 | −0.4 | [−2.2, +1.4] | 0.762 |
+| answerable | 470 | 66.4 | 66.4 | +0.0 | [−1.9, +1.9] | 1.000 |
+| **abstention** | 30 | 90.0 | 83.3 | **−6.7** | [−16.7, +0.0] | 0.248 |
+| `temporal-reasoning` | 133 | 48.1 | 50.4 | +2.3 | [−3.0, +7.5] | 0.474 |
+| `multi-session` | 133 | 59.4 | 57.1 | −2.3 | [−6.0, +0.8] | 0.247 |
+| **anchored subset** (numerator) | 62 | 56.5 | 56.5 | **+0.0** | [−8.1, +9.7] | 1.000 |
+| └ weeks / months / years | 23 | 30.4 | **43.5** | **+13.0** | [+0.0, +26.1] | 0.077 |
+| └ days | 18 | 77.8 | 66.7 | **−11.1** | [−33.3, +11.1] | 0.441 |
+| └ relative lookup (*what did I … ago*) | 8 | 62.5 | 62.5 | +0.0 | [+0.0, +0.0] | 1.000 |
+
+### What the predictions did
+
+1. **The numerator moved exactly +0.0 — as a sum of two opposite moves.**
+   The weeks/months rows, the ones the mechanism was read off, went
+   30.4 → 43.5: `5 months` for a base `2`, `4 weeks` where the base declined,
+   `3 months` for `2 months`. The day-level rows, which the doc predicted
+   would move ~0 because they were already right, went 77.8 → 66.7: `44` for
+   a base `18`, `43` for `17`, `17 days ago` for `7 days ago`. With every
+   entry annotated *N days ago*, the reader stopped subtracting and started
+   **choosing** — and on a day-level question it chose the wrong entry.
+   The arithmetic was fixed; the event selection got worse.
+2. **The control could not be tested.** Every `investigate` row carries a
+   `[timeline]`: `is_interval_question` narrows the view only on the
+   `recall` path, and `investigate` builds its compose config without it.
+   So there were no timeline-free rows to serve as the +0.0 control, on this
+   arm or on M19's. Recorded as its own item below.
+3. **Abstention fell.** Two rows: `Three months.` of collecting vintage
+   *films* (the anchor put "3 months" on a vintage-*cameras* session) and
+   `Zero.` Italian restaurants. Both are the failure the veto exists for:
+   a number on the page that the reader takes as the answer.
+
+### Verdict
+
+`timeline_ago` ships **off**. Null on the headline, veto on abstention, and
+a numerator that cancels. The falsifier is half-triggered: on weeks/months
+the reader *was* arithmetic-limited and the page fixed it (+13.0, CI
+touching zero at n = 23); on days it is **selection**-limited — it had the
+right event and the anchor lured it to another. That is the ordering
+finding from Test of Time (target event first, 45.71 → 73.57 for
+Claude-3-Sonnet), and it says the next temporal arm is *which entry leads
+the timeline*, not what each entry says. It also says an anchor should be
+put only on the entry the question is about — which requires knowing which
+that is, which is the same problem.
+
+**Found on the way.** `investigate` never narrows the timeline to interval
+questions (only `recall` does), so every `investigate` row since M19 has
+carried the dated index whether or not the question asked for a duration.
+Not a regression — it is the configuration M32 and M43 were measured at —
+but a switch that was meant to be question-conditioned has been
+unconditional on the path that scores every judged number.
