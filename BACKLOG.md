@@ -260,9 +260,3 @@ population it reports.
   `Degraded`, as `WidthVerdict` already does.
 - **home-still scribe is down**, so the 22 papers catalogued on 2026-09-22 are
   not yet converted or indexed; `distill_search` will not surface them.
-- **`standing` quotes an arm without saying so when no shipped run exists.**
-  `prefer` ranks shipped before arm, but a metric whose every candidate is an
-  arm is still quoted — the LME-V2 row is `runs/m34_pools_*` (`dated: false`,
-  no digest) with nothing in the table marking it. Render `(arm)` on the run,
-  or refuse the row, so "where we stand" cannot silently mean "where an arm
-  stood". Found while shipping M43.

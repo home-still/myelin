@@ -422,6 +422,15 @@ pub struct StandingRow {
     pub verdict: Verdict,
     pub claim_allowed: bool,
     pub gate: bool,
+    /// The quoted run is an **arm** — a switch flipped away from the shipped
+    /// defaults — because no run at the shipped configuration exists for
+    /// this metric. `prefer` ranks shipped before arm, but when every
+    /// candidate is an arm the best arm was quoted with nothing saying so:
+    /// the LME-V2 row read `runs/m34_pools_*` (`dated: false`, no digest)
+    /// as "where we stand" for four milestones. Now it is rendered, it
+    /// blocks `claim_allowed`, and it fails a gate — an arm answers "what
+    /// could this code do", never "where do we stand".
+    pub arm: bool,
     pub run: Option<PathBuf>,
     pub source_doi: String,
     /// `RegistryRow::caveat`, carried through for the report.
@@ -1844,14 +1853,17 @@ pub fn compare(reg: &Registry, ours: &BTreeMap<String, Ours>) -> StandingReport 
             Some(m) => converted(m, row.unit).ok(),
             None => None,
         };
-        let claim_allowed = verdict == Verdict::Comparable && gap.is_some_and(|g| g > 0.0);
+        let arm = mine.is_some_and(|m| m.arm);
+        let claim_allowed = verdict == Verdict::Comparable && gap.is_some_and(|g| g > 0.0) && !arm;
         if row.gate {
             // `Comparable`, not `quantified()`: a caveated comparison is a
             // number whose protocol differs from the paper's, and a gate is
             // a claim that we beat the paper. `claim_allowed` directly above
             // already draws that line; a gate must not be laxer than the
-            // claim it licenses.
+            // claim it licenses. And never an arm: a gate is closed by the
+            // shipped configuration or it is open.
             let ok = verdict == Verdict::Comparable
+                && !arm
                 && gap.is_some_and(|g| match row.bar {
                     Bar::AtLeast => g >= 0.0,
                     Bar::GreaterThan => g > 0.0,
@@ -1871,6 +1883,7 @@ pub fn compare(reg: &Registry, ours: &BTreeMap<String, Ours>) -> StandingReport 
             verdict,
             claim_allowed,
             gate: row.gate,
+            arm,
             run: mine.map(|m| m.run.clone()),
             source_doi: row.source.doi.clone(),
             caveat: row.caveat.clone(),
@@ -2062,7 +2075,7 @@ pub fn render_markdown(report: &StandingReport) -> String {
             if row.claim_allowed { "yes" } else { "no" },
             row.run
                 .as_ref()
-                .map(|p| format!("`{}`", p.display()))
+                .map(|p| format!("`{}`{}", p.display(), if row.arm { " **(arm)**" } else { "" }))
                 .unwrap_or_else(|| "—".into()),
         ));
     }
@@ -2161,7 +2174,7 @@ pub fn print(report: &StandingReport) {
     );
     for row in &report.rows {
         println!(
-            "  {:<44} {:<16} {:>8.2} {:>8} {:>8}  {}{}",
+            "  {:<44} {:<16} {:>8.2} {:>8} {:>8}  {}{}{}",
             row.metric,
             truncate(&row.system, 16),
             row.theirs,
@@ -2173,6 +2186,7 @@ pub fn print(report: &StandingReport) {
                 .unwrap_or_else(|| "-".into()),
             row.verdict.slug(),
             if row.gate { "  [GATE]" } else { "" },
+            if row.arm { "  [ARM: no run at the shipped defaults]" } else { "" },
         );
     }
     if !report.gated_failures.is_empty() {
@@ -2425,6 +2439,35 @@ mod tests {
         let got = one(reg, vec![ours]);
         assert!((got.gap.unwrap() + 0.7).abs() < 1e-9, "{:?}", got.gap);
         assert!(!got.claim_allowed);
+    }
+
+    /// An arm is quoted only when nothing at the shipped defaults exists,
+    /// and then it must say so everywhere a reader could mistake it for
+    /// where we stand: the row, the claim, the gate. Found while shipping
+    /// M43, when the LME-V2 gate row quoted `runs/m34_pools_*` (`dated:
+    /// false`, no digest) with nothing marking it.
+    #[test]
+    fn an_arm_backed_row_is_marked_and_licenses_neither_a_claim_nor_a_gate() {
+        let mut reg = row("locomo.judge_score.n1540", 60.0, 1540);
+        reg.gate = true;
+        let mut ours = mine("locomo.judge_score.n1540", 70.0, 1540);
+        ours.arm = true;
+        let got = one(reg, vec![ours]);
+        assert!(got.arm);
+        assert!(got.gap.is_some_and(|g| g > 0.0), "ahead on the number …");
+        assert!(!got.claim_allowed, "… and still no claim off an arm");
+
+        let report = StandingReport {
+            commit: "test".into(),
+            generated_at: Utc::now(),
+            rows: vec![got],
+            gated_failures: Vec::new(),
+            ours: Vec::new(),
+        };
+        assert!(
+            render_markdown(&report).contains("**(arm)**"),
+            "the table must say the run is an arm"
+        );
     }
 
     #[test]
