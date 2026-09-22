@@ -941,6 +941,7 @@ mod tests {
                 _r: &CompletionRequest,
             ) -> myelin_core::error::Result<myelin_core::llm::Completion> {
                 Ok(myelin_core::llm::Completion {
+                    reasoning: None,
                     text: self.0.to_string(),
                     tool_calls: vec![],
                     finish_reason: None,

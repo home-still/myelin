@@ -174,6 +174,12 @@ pub struct Usage {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Completion {
     pub text: String,
+    /// The model's thinking trace, when the server returned one
+    /// (`reasoning_content` under llama.cpp's `--reasoning-format`). Never
+    /// part of the answer: callers that grade or parse `text` must not see
+    /// it, and callers that diagnose a wrong answer must (M44 R2).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reasoning: Option<String>,
     #[serde(default)]
     pub tool_calls: Vec<ToolCall>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -277,6 +283,7 @@ mod tests {
 
     fn completion(text: &str, tool_calls: Vec<ToolCall>) -> Completion {
         Completion {
+            reasoning: None,
             text: text.into(),
             tool_calls,
             finish_reason: None,
@@ -311,6 +318,7 @@ mod tests {
     #[tokio::test]
     async fn a_truncated_reasoning_trace_is_not_reported_as_a_dead_model() {
         let llm = Canned(Completion {
+            reasoning: None,
             text: String::new(),
             tool_calls: vec![],
             finish_reason: Some("length".into()),

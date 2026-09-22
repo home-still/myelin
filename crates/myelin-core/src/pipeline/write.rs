@@ -990,6 +990,7 @@ mod tests {
         }
         async fn raw_complete(&self, _r: &CompletionRequest) -> Result<Completion> {
             Ok(Completion {
+                reasoning: None,
                 text: self.0.to_string(),
                 tool_calls: vec![],
                 finish_reason: None,
@@ -1207,6 +1208,7 @@ mod tests {
         async fn raw_complete(&self, _r: &CompletionRequest) -> Result<Completion> {
             self.0.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
             Ok(Completion {
+                reasoning: None,
                 text: r#"{"candidates":[]}"#.into(),
                 tool_calls: vec![],
                 finish_reason: None,

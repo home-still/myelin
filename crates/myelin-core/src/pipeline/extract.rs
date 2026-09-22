@@ -286,6 +286,7 @@ mod tests {
     impl Canned {
         fn text(body: &str) -> Self {
             Self(std::sync::Mutex::new(vec![Ok(Completion {
+                reasoning: None,
                 text: body.into(),
                 tool_calls: vec![],
                 finish_reason: None,
@@ -395,6 +396,7 @@ mod tests {
     #[tokio::test]
     async fn an_empty_completion_aborts_rather_than_extracting_nothing() {
         let llm = Canned(std::sync::Mutex::new(vec![Ok(Completion {
+            reasoning: None,
             text: String::new(),
             tool_calls: vec![],
             finish_reason: None,

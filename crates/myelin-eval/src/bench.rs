@@ -164,6 +164,12 @@ pub struct ScoredQuestion {
     /// run artifacts `standing` reads still parse.
     #[serde(default)]
     pub evidence: Vec<String>,
+    /// What a reasoning or thinking reader thought before answering (M44).
+    /// Absent for the plain reader and on every run before M44. Recorded
+    /// so a wrong answer can be read back to the step that produced it;
+    /// never scored.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reader_trace: Option<String>,
     pub memory_query_duration_seconds: f64,
     /// What the sufficiency selector did on this row, when it was on: how
     /// many candidates it kept, and — if it fell back to rank order — why.
@@ -968,8 +974,19 @@ fn reader_schema() -> serde_json::Value {
 
 #[derive(Debug, Deserialize)]
 struct ReasonedAnswer {
+    #[serde(default)]
+    reasoning: String,
     answer: String,
     evidence_absent: bool,
+}
+
+/// What the reader said, and — for a reasoning or thinking reader — what
+/// it thought on the way. The trace is recorded on the row for diagnosis
+/// and never scored.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReadAnswer {
+    pub answer: String,
+    pub trace: Option<String>,
 }
 
 /// M44 R2's thinking budget in tokens, enforced by the reader server's
@@ -1083,7 +1100,7 @@ pub(crate) async fn read_answer(
     system: &str,
     user: &str,
     mode: ReaderMode,
-) -> Result<String> {
+) -> Result<ReadAnswer> {
     let request = match mode {
         ReaderMode::Reasoning => CompletionRequest::new(vec![
             Message::system(READER_REASONING_SYSTEM),
@@ -1110,20 +1127,30 @@ pub(crate) async fn read_answer(
         .with_max_tokens(THINKING_BUDGET_TOKENS + READER_ANSWER_TOKENS),
     };
 
-    let text = llm.complete(&request).await?.text;
+    let completion = llm.complete(&request).await?;
+    let text = completion.text;
     if mode != ReaderMode::Reasoning {
-        return Ok(text);
+        // R2's trace is the server's `reasoning_content`; Plain has none.
+        return Ok(ReadAnswer {
+            answer: text,
+            trace: completion.reasoning,
+        });
     }
     let Ok(parsed) = serde_json::from_str::<ReasonedAnswer>(&text) else {
-        return Ok(text);
+        return Ok(ReadAnswer {
+            answer: text,
+            trace: None,
+        });
     };
-    Ok(
-        if parsed.evidence_absent || parsed.answer.trim().is_empty() {
+    let trace = Some(parsed.reasoning).filter(|r| !r.trim().is_empty());
+    Ok(ReadAnswer {
+        answer: if parsed.evidence_absent || parsed.answer.trim().is_empty() {
             DECLINE.to_string()
         } else {
             parsed.answer
         },
-    )
+        trace,
+    })
 }
 
 /// Flatten LoCoMo's `answer` field — or an LME-V2 harness row's
@@ -1460,6 +1487,7 @@ pub async fn bench_locomo(
                 is_abstention_problem: adversarial,
                 retrieved_items: evidence.items.len(),
                 evidence: evidence.items.iter().map(|i| i.value.clone()).collect(),
+                reader_trace: None,
                 memory_query_duration_seconds: elapsed,
                 selected: selection.0,
                 select_degraded: selection.1,
@@ -1642,9 +1670,10 @@ pub async fn bench_longmemeval_s(
             "<memories>\n{context}\n</memories>\n<today>\n{}\n</today>\n<question>\n{}\n</question>",
             item.question_date, item.question
         );
-        let response = read_answer(&llm, system, &user, reader_mode)
+        let read = read_answer(&llm, system, &user, reader_mode)
             .await
             .with_context(|| format!("reader {}", item.question_id))?;
+        let response = read.answer;
         // M42: only a declining row pays for a second call. With the switch
         // off the decline is still counted, so every run records the base
         // rate the arm is measured against.
@@ -1679,6 +1708,7 @@ pub async fn bench_longmemeval_s(
             is_abstention_problem: adversarial,
             retrieved_items: evidence.items.len(),
             evidence: evidence.items.iter().map(|i| i.value.clone()).collect(),
+            reader_trace: read.trace,
             memory_query_duration_seconds: elapsed,
             selected: selection.0,
             select_degraded: selection.1,
@@ -2363,6 +2393,7 @@ mod tests {
             is_abstention_problem: false,
             retrieved_items: 6,
             evidence: vec!["e".into()],
+            reader_trace: None,
             memory_query_duration_seconds: 1.0,
             selected: 4,
             select_degraded: Degradation::ModelDeclined,
@@ -2431,6 +2462,7 @@ mod commit_tests {
             _r: &CompletionRequest,
         ) -> myelin_core::error::Result<Completion> {
             Ok(Completion {
+                reasoning: None,
                 text: self.0.to_string(),
                 tool_calls: vec![],
                 finish_reason: None,
@@ -2637,6 +2669,7 @@ mod reader_tests {
             _r: &CompletionRequest,
         ) -> myelin_core::error::Result<Completion> {
             Ok(Completion {
+                reasoning: None,
                 text: self.0.to_string(),
                 tool_calls: vec![],
                 finish_reason: None,
@@ -2652,7 +2685,8 @@ mod reader_tests {
         let out = read_answer(&Says("Instant Pot"), "sys", "user", ReaderMode::Plain)
             .await
             .expect("reader");
-        assert_eq!(out, "Instant Pot");
+        assert_eq!(out.answer, "Instant Pot");
+        assert_eq!(out.trace, None, "the plain reader has no trace");
 
         // Even JSON-looking text is passed through untouched when off, so an
         // off run cannot accidentally take the on path's parsing.
@@ -2660,7 +2694,7 @@ mod reader_tests {
         let out = read_answer(&Says(json), "sys", "user", ReaderMode::Plain)
             .await
             .expect("reader");
-        assert_eq!(out, json);
+        assert_eq!(out.answer, json);
     }
 
     /// On, the scorer sees the answer and never the trace.
@@ -2671,9 +2705,14 @@ mod reader_tests {
             .await
             .expect("reader");
         assert_eq!(
-            out, "Instant Pot",
+            out.answer, "Instant Pot",
             "the trace is the mechanism, not the answer; scoring it would \
              reward verbosity"
+        );
+        assert_eq!(
+            out.trace.as_deref(),
+            Some("Memory 2 says Air Fryer bought yesterday; memory 5 names the Instant Pot earlier."),
+            "and it is kept for diagnosis"
         );
     }
 
@@ -2686,7 +2725,7 @@ mod reader_tests {
             .await
             .expect("reader");
         assert!(
-            is_abstention(&out),
+            is_abstention(&out.answer),
             "a declared absence must score as an abstention, not as the \
              answer it was told to ignore: {out:?}"
         );
@@ -2697,6 +2736,7 @@ mod reader_tests {
             &read_answer(&Says(blank), "sys", "user", ReaderMode::Reasoning)
                 .await
                 .expect("reader")
+                .answer
         ));
     }
 
@@ -2706,7 +2746,7 @@ mod reader_tests {
         let out = read_answer(&Says("I think it was Tuesday"), "sys", "user", ReaderMode::Reasoning)
             .await
             .expect("reader");
-        assert_eq!(out, "I think it was Tuesday");
+        assert_eq!(out.answer, "I think it was Tuesday");
     }
 
     /// Field order is the mechanism, not presentation. A strict schema is
@@ -2745,6 +2785,7 @@ mod reader_tests {
         ) -> myelin_core::error::Result<Completion> {
             *self.0.lock().unwrap() = Some(r.clone());
             Ok(Completion {
+                reasoning: Some("let me think".into()),
                 text: "42".to_string(),
                 tool_calls: vec![],
                 finish_reason: Some("stop".into()),
@@ -2763,7 +2804,8 @@ mod reader_tests {
         let out = read_answer(&llm, "sys", "user", ReaderMode::Thinking { seed: 7 })
             .await
             .expect("reader");
-        assert_eq!(out, "42", "the content is the answer; the trace never reaches the scorer");
+        assert_eq!(out.answer, "42", "the content is the answer; the trace never reaches the scorer");
+        assert_eq!(out.trace.as_deref(), Some("let me think"), "and the server's trace is kept");
         let req = llm.0.lock().unwrap().clone().expect("request captured");
         assert!(req.thinking);
         assert_eq!(req.temperature, THINKING_TEMPERATURE);
@@ -2820,6 +2862,7 @@ mod reader_tests {
                 _r: &CompletionRequest,
             ) -> myelin_core::error::Result<Completion> {
                 Ok(Completion {
+                    reasoning: None,
                     text: String::new(),
                     tool_calls: vec![],
                     finish_reason: Some("length".into()),
@@ -2841,6 +2884,7 @@ mod reader_tests {
                 _r: &CompletionRequest,
             ) -> myelin_core::error::Result<Completion> {
                 Ok(Completion {
+                    reasoning: None,
                     text: "1987".into(),
                     tool_calls: vec![],
                     finish_reason: Some("stop".into()),

@@ -41,6 +41,7 @@ impl Llm for FixedSplit {
     }
     async fn raw_complete(&self, _req: &CompletionRequest) -> Result<Completion> {
         Ok(Completion {
+            reasoning: None,
             text: serde_json::json!({ "queries": self.0 }).to_string(),
             tool_calls: vec![],
             finish_reason: None,

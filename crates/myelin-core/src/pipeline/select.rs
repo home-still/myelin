@@ -336,6 +336,7 @@ mod tests {
     impl Canned {
         fn text(body: &str) -> Self {
             Self(std::sync::Mutex::new(vec![Ok(Completion {
+                reasoning: None,
                 text: body.into(),
                 tool_calls: vec![],
                 finish_reason: None,
@@ -407,6 +408,7 @@ mod tests {
                 .unwrap_or_default();
             let _ = self.system.set(system);
             Ok(Completion {
+                reasoning: None,
                 text: self.body.clone(),
                 tool_calls: vec![],
                 finish_reason: None,
