@@ -96,7 +96,8 @@ negation filter `digest_relevance` measured −4.4 and stays off.
 | `dated` | bool | no | true | Whether records carry real timestamps |
 | `as_of` | string | no | none | The day the question is asked, `YYYY-MM-DD`; anchors the `[timeline]` view when `timeline_ago` is on (M46). Malformed dates are refused |
 | `pool_rerank` | bool | no | false | Rerank accumulated pool against original question |
-| `premise` | bool | no | false | Emit premise analysis when loop stops unsatisfied |
+| `premise` | bool | no | false | Emit premise analysis when loop stops unsatisfied (measured −8.75, M35) |
+| `premise_check` | bool | no | false | Append a `[premise]` line only when a memory contradicts what the question assumes; silence appends nothing (M47) |
 | `typed_probes` | bool | no | false | Let reflect gate aim probes at record kinds |
 | `decompose` | usize | no | none | Split each probe into N sub-queries |
 

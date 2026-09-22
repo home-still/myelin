@@ -424,6 +424,9 @@ pub struct BenchRun {
     /// M44 R1's structured reasoning field.
     #[serde(default)]
     pub reader_reasoning: bool,
+    /// M47's presupposition check.
+    #[serde(default)]
+    pub premise_check: bool,
     /// M44 R2's thinking reader, with the seed it sampled under and the
     /// thinking budget `verify_thinking_budget` measured on the server
     /// before the run started. A thinking run without all three recorded
@@ -549,6 +552,10 @@ pub struct BenchSwitches {
     /// Let the reader reason before answering, under a schema that puts
     /// `reasoning` before `answer` — M44 R1, `read_answer`.
     pub reader_reasoning: bool,
+    /// Append a `[premise]` line only when a memory contradicts what the
+    /// question assumes — M47, `InvestigateConfig::premise_check`. One
+    /// model call per query.
+    pub premise_check: bool,
     /// Let the reader think natively (`enable_thinking: true`) under a
     /// server-enforced budget — M44 R2, `read_answer`. Samples, so it needs
     /// [`Self::reader_seed`]; mutually exclusive with `reader_reasoning`.
@@ -1217,6 +1224,7 @@ fn investigate_config(
         item_digest: switches.item_digest,
         digest_dates: switches.digest_dates,
         digest_relevance: switches.digest_relevance,
+        premise_check: switches.premise_check,
         ..Default::default()
     }
 }
@@ -1834,6 +1842,7 @@ fn finish_run(
         digest_dates: spec.switches.digest_dates,
         digest_relevance: spec.switches.digest_relevance,
         reader_reasoning: spec.switches.reader_reasoning,
+        premise_check: spec.switches.premise_check,
         reader_thinking: spec.switches.reader_thinking,
         reader_seed: spec.switches.reader_seed,
         // Measured by `verify_thinking_budget` before the first row, or the
@@ -2012,6 +2021,7 @@ pub fn rescore_run(source: &Path, out_dir: &Path, scorer: Scorer) -> Result<Benc
             digest_dates: flag("digest_dates"),
             digest_relevance: flag("digest_relevance"),
             reader_reasoning: flag("reader_reasoning"),
+            premise_check: flag("premise_check"),
             reader_thinking: flag("reader_thinking"),
             reader_seed: metrics.get("reader_seed").and_then(|v| v.as_u64()),
             commit_answer: flag("commit_answer"),
@@ -2578,6 +2588,7 @@ mod config_tests {
             item_digest: true,
             digest_dates: true,
             digest_relevance: true,
+            premise_check: true,
             ..Default::default()
         };
         let cfg = investigate_config(&all_on);
@@ -2591,6 +2602,7 @@ mod config_tests {
         assert!(cfg.item_digest, "item_digest");
         assert!(cfg.digest_dates, "digest_dates");
         assert!(cfg.digest_relevance, "digest_relevance");
+        assert!(cfg.premise_check, "premise_check");
     }
 
     /// The all-off arm really is all off, so a run that names no switch is
@@ -2604,6 +2616,7 @@ mod config_tests {
         assert!(!cfg.digest_relevance);
         assert!(!cfg.self_ask);
         assert!(!cfg.premise_analysis);
+        assert!(!cfg.premise_check);
     }
 }
 

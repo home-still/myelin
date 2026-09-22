@@ -133,6 +133,13 @@ def parse_args() -> argparse.Namespace:
         "Implies the insufficiency gate. investigate-only.",
     )
     parser.add_argument(
+        "--premise-check",
+        action="store_true",
+        help="Verify what the question assumes against the composed memories and append "
+        "a [premise] line only when a memory contradicts it (M47). Silence appends "
+        "nothing, which is the one rule that separates it from --premise. investigate-only.",
+    )
+    parser.add_argument(
         "--typed-probes",
         action="store_true",
         help="Let the reflect gate aim each investigate probe at a pool: "
@@ -322,6 +329,8 @@ def main() -> None:
             # would misdescribe its own run.
             "kind_quota": args.kind_quota,
             "answerability_gate": args.answerability_gate,
+            # M47, unconditional for the same reason.
+            "premise_check": args.premise_check,
         },
     }
     memory_config_path = runtime_dir / "memory_config.json"

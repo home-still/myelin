@@ -378,6 +378,8 @@ class MyelinMemory(Memory):
         # M36: graded answerability gate. investigate-only.
         self.answerability_gate = params.get("answerability_gate")
         self.select_coverage = params.get("select_coverage")
+        # M47: presupposition check, contradiction only. investigate-only.
+        self.premise_check = params.get("premise_check")
         # The last query's retrieval trace, per worker thread.
         #
         # THREAD-LOCAL, not an attribute, for the reason the base class's own
@@ -492,6 +494,8 @@ class MyelinMemory(Memory):
                 arguments["answerability_gate"] = bool(self.answerability_gate)
             if self.select_coverage is not None:
                 arguments["select_coverage"] = bool(self.select_coverage)
+            if self.premise_check is not None:
+                arguments["premise_check"] = bool(self.premise_check)
         # `query_image` is accepted and ignored for now: the dense channel is
         # text-only (bge-m3), so forwarding a path the server cannot embed
         # would be a lie in the trace. 29 of 451 questions carry one; they are
