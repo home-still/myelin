@@ -1,0 +1,73 @@
+{
+  "corpus": "longmemeval_s",
+  "collection": "myelin_longmemeval_s",
+  "mode": "investigate",
+  "k": 6,
+  "max_steps": 2,
+  "graph": false,
+  "chronological": false,
+  "question_date": false,
+  "resolve_dates": true,
+  "timeline": true,
+  "profile": false,
+  "profile_clause": false,
+  "mmr": null,
+  "select_sufficient": true,
+  "select_call_failed_rate": 0.0,
+  "select_declined_rate": 0.026,
+  "budget_tokens": 4096,
+  "prefetch_limit": null,
+  "rerank_depth": null,
+  "rerank_pool": false,
+  "premise": false,
+  "typed_probes": false,
+  "self_ask": false,
+  "untrusted_max": null,
+  "item_digest": true,
+  "digest_dates": true,
+  "commit_answer": false,
+  "digest_relevance": false,
+  "reader_reasoning": true,
+  "decompose": null,
+  "categories": [],
+  "scorer": "token_f1",
+  "rescored_from": null,
+  "questions": 500,
+  "f1_answerable": 0.5560987079350979,
+  "em_answerable": 0.4106382978723404,
+  "abstention_accuracy": 0.43333333333333335,
+  "by_category": [
+    {
+      "category": 1,
+      "count": 70,
+      "mean_score": 0.8576190476190475
+    },
+    {
+      "category": 2,
+      "count": 56,
+      "mean_score": 0.799003367689429
+    },
+    {
+      "category": 3,
+      "count": 30,
+      "mean_score": 0.10261564254001994
+    },
+    {
+      "category": 4,
+      "count": 133,
+      "mean_score": 0.49841823369023713
+    },
+    {
+      "category": 5,
+      "count": 133,
+      "mean_score": 0.3761201068319314
+    },
+    {
+      "category": 6,
+      "count": 78,
+      "mean_score": 0.6435487466654575
+    }
+  ],
+  "query_p50_seconds": 8.215884083,
+  "query_avg_seconds": 9.553629085010009
+}
