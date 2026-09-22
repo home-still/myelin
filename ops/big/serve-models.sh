@@ -77,6 +77,16 @@ READER_CTX="${MYELIN_READER_CTX:-32768}"
 # `myelin-eval bench --reader-thinking` probes it before the first row and
 # refuses to run against an unenforced budget.
 READER_THINK_BUDGET="${MYELIN_READER_THINK_BUDGET:--1}"
+# The gpu-tenant v2 lease this serving runs under (deployed 2026-09-22:
+# queued, expiring leases, and a reaper that flags unclaimed GPU use). The
+# lease is taken by the caller — `gpu-tenant claim coding --who "$WHO"
+# --ttl 8h` — and this script refuses to put a model on the card without
+# it, so a wrapper retry can never re-serve an unclaimed reader.
+GPU_WHO="${MYELIN_GPU_WHO:-myelin@mac_air}"
+if ! gpu-tenant check --who "$GPU_WHO"; then
+  echo "serve-models: no GPU lease for $GPU_WHO; run: gpu-tenant claim coding --who $GPU_WHO --ttl 8h" >&2
+  exit 1
+fi
 EMBED_CTX="${MYELIN_EMBED_CTX:-4096}"
 
 # mmproj is ON by default. It costs ~920 MiB, and 29 of LongMemEval-V2's 451

@@ -33,7 +33,10 @@ There is no checkout on `big`; pipe the scripts in from this repo. This is the
 exact invocation that was verified:
 
 ```bash
-ssh big gpu-tenant claim coding          # see the caveat below — this is not enough
+# gpu-tenant v2 (2026-09-22): every call names the tenant, leases expire,
+# and a reaper flags anything on the card without one. serve-models.sh
+# refuses to start without this lease (MYELIN_GPU_WHO, default myelin@mac_air).
+ssh big gpu-tenant claim coding --who myelin@mac_air --ttl 8h --note "myelin arms"
 ssh big bash -s < ops/big/serve-models.sh
 # Overrides MUST be set on the REMOTE side; `ssh` does not forward the
 # environment, so `MYELIN_READER_CTX=65536 ssh big bash -s < ...` silently
@@ -42,8 +45,14 @@ ssh big "MYELIN_READER_CTX=65536 bash -s" < ops/big/serve-models.sh
 ssh -N -L 5810:127.0.0.1:5810 -L 5813:127.0.0.1:5813 big &   # see "firewall"
 # ... work ...
 ssh big bash -s < ops/big/stop-models.sh
-ssh big gpu-tenant release
+ssh big gpu-tenant release --who myelin@mac_air
 ```
+
+`gpu-tenant wait coding --who myelin@mac_air --ttl 8h` queues FIFO behind a
+holder instead of exiting 1; `renew --who … --ttl 4h` extends a lease that
+would expire mid-arm. A lease only pauses the three units the tool manages;
+check `status` for unclaimed foreign use (ollama, olmocr) before claiming,
+because a claim does not evict it and the card may not fit the reader.
 
 `serve-models.sh` blocks until every enabled `/health` answers 200 and then
 prints the ports and card occupancy, so it is safe to chain. It exits 1 with the
