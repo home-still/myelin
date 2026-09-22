@@ -70,6 +70,13 @@ RERANK_PORT="${MYELIN_RERANK_PORT:-5813}"
 # the measurement is not a defence.
 READER_SLOTS="${MYELIN_READER_SLOTS:-2}"
 READER_CTX="${MYELIN_READER_CTX:-32768}"
+# Thinking budget in tokens for requests that turn thinking ON per call
+# (M44 R2): llama.cpp closes the trace at N tokens and the answer follows.
+# -1 is unrestricted, which is what every run before M44 was served with.
+# The harness cannot read this back (`/props` does not carry it), so
+# `myelin-eval bench --reader-thinking` probes it before the first row and
+# refuses to run against an unenforced budget.
+READER_THINK_BUDGET="${MYELIN_READER_THINK_BUDGET:--1}"
 EMBED_CTX="${MYELIN_EMBED_CTX:-4096}"
 
 # mmproj is ON by default. It costs ~920 MiB, and 29 of LongMemEval-V2's 451
@@ -131,6 +138,7 @@ nohup "$LC/llama-server" \
   --cache-type-k q8_0 --cache-type-v q8_0 \
   -np "$READER_SLOTS" -cb \
   --jinja --chat-template-kwargs "$TEMPLATE_KWARGS" \
+  --reasoning-budget "$READER_THINK_BUDGET" \
   > /tmp/myelin-reader.log 2>&1 &
 echo $! > /tmp/myelin-reader.pid
 
