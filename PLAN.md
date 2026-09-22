@@ -807,6 +807,7 @@ Each milestone ends with a runnable command and a number, not a description.
 | M37 | **widening is exhausted; the representation is the bottleneck** | Three independent ways of looking at more candidates, all measured, all null. **`rerank_factor` 1 → 4: +0.78 recall, 95% CI [−3.14, +4.71]**, 14 rows gained and 12 lost, n = 255 answerable LME-V2 rows — against a pre-registered bar of +3.0, so the default stays 1. It repairs a real degeneracy first: `depth = max(rerank_depth, k)` with both at 25 handed the cross-encoder *exactly the set it would emit*, so it could reorder but never exclude, and ~54–75 fused candidates were dropped on RRF rank alone without ever being scored. That is why **`prefetch_limit` 50 → 400 measured +0.6 / +0.0 / +0.8** at k = 25/50/100 — the extra candidates were truncated away before the reranker saw them. Fixing it and handing the reranker 4× the candidates, while emitting **42% more evidence** (16.8 → 23.9 items; `factor = 1` could not even fill the requested k = 25), still buys +0.78. The third knob, **k 25 → 100, buys +9.1** (52.9% → 66.7%) at 4× the reader's context, which Shuster et al. 2021 price in hallucination. The diagnosis behind all three: a new retrieval-only instrument (`adapters/recall_sweep.py`, no reader, no judge) puts shipped emitted-evidence recall at **59.2%** against a **corpus ceiling of 88.2%**, and the index explains the gap — **98.5% of the web tenant is raw AXTree page dumps** (bid numbers, ARIA roles, private-use icon glyphs) and **all 37,731 carry exactly one entity, the literal token `page`**. More candidates cannot help when the candidates are indistinguishable. The direction that is not a widening knob is already in the store and unused: ranking the 100 natural-language `goal:` records against each question puts the gold trajectory at **median rank 3, top-10 76.8%**. Also kills `answerability_gate` on its own calibration pilot (**0 `supported` verdicts in 14 questions; 6 of 11 answerable refused, 54.5% false-refusal**) and fixes a test that had been failing on `main` since M35. |
 | M38 | **on LongMemEval retrieval is solved; the gap is reading** | Two pre-registered premises refuted before any GPU time, one client bug found, and the 18.8-point LongMemEval_S gap localised. **Both M38 premises were dead on inspection.** Fixing entity extraction changes no retrieved record: `entity_ids` is written to the payload and indexed, and **never read** — its only consumer is `phrases::incidence_rows`, feeding the graph channel that ships off and M12 measured as a loss. And trajectory routing is **worse than flat** — dense recall@25 of 51.4% flat vs 44.8/45.7/49.5/54.3% routed@5/10/20/50, simulated offline against vectors already in Qdrant in 66 seconds, so the re-ingest M37 budgeted would have bought a regression. **Retrieval is not the gap.** Scored against LongMemEval's own `answer_session_ids` — exact, not M37's string proxy — the shipped path delivers **any gold session 93.8%, every gold session 88.6%, mean coverage 91.9%** at 12.6 items, and the 23.9-item pool scores the same 93.8% any-recall: **first independent confirmation that M32's selector halves the evidence without losing recall**. Against 62.00 judged, ~32 points sit in reading. The per-category split localises it: `temporal-reasoning` **39.4%** (n=127) and `multi-session` **44.6%** (n=121) are **76% of all errors**, while every category needing exactly one gold session scores 90.6–96.4%. Complete-coverage per category rules out the obvious story — the selector costs −5.3 points on `multi-session`, −4.5 on `temporal-reasoning`, −1.3 on `knowledge-update` and **−0.0 on all three single-gold categories** — yet retrieval still delivers *all* gold 88.6% of the time, so the reader fails with the evidence in hand. **`select_coverage` (M21's redundancy story, third location): null, and the null refutes the diagnosis.** Rewriting `SELECT_SYSTEM`'s "FEWEST memories" clause to ask for EVERY needed memory left **500 of 500 rows byte-identical** on gold hits, completeness and item count. Verified live at the wire (`MYELIN_LLM__URL` → recording proxy; call 0 `FEWEST`, call 1 `EVERY`) because an identical result is what an inert switch produces: the prompt changed, the selection did not. The 9B selector ignores the clause entirely, so the coverage loss is not instruction-following and blaming the wording was an inference, now refuted. **Transport bug fixed.** `adapters/myelin.py` framed SSE with `str.splitlines()`, which breaks on U+2028 — present in LongMemEval's ShareGPT conversations. Measured: 89,126 raw bytes decoded as 12,470 characters, unparseable JSON, six retries with backoff, row lost. Fixed to frame on `\r\n\|\r\|\n` per spec; the row that failed at index 277 now completes, 290/290 clean. Its first regression test **passed against the unfixed decoder** because `json.dumps` escapes U+2028 by default while `serde_json` emits it raw — the fixture only became evidence at `ensure_ascii=False`. 306 Rust + 10 Python tests, clippy clean on both feature sets, ratchet green under `--strict`. `docs/measurements/m38-retrieval-is-not-the-gap.md`. |
 | M39 | **the compositionality gap: measured, attacked, and the reader does not take instruction** | M38 put the LongMemEval_S gap in reading; M39 measures its shape and attacks it. **At the operating point that actually scored 62.00** (k=6, 4,096 tokens — re-measured, because the first version of this table joined M38's k=25 coverage sweep against M32's k=6 judged rows and would have filtered on a configuration the reader never ran), coverage is any 93.0% / **complete 83.4%** / mean 89.2%, and among the 417 rows where retrieval delivered **every** gold session accuracy collapses with the number of facts to combine: **1 → 79.9% (n=169), 2 → 56.7% (n=217), 3 → 40.0% (n=25)**. Incomplete-coverage rows score 0.0% at one and two facts, which is the coverage metric's own sanity check. Two framings rejected first: it is **not arithmetic** (aggregation questions score 37.1% vs 41.5% within `temporal-reasoning` and *better* within `multi-session`, 45.5% vs 40.0%) and **not M19's switches being off** (`resolve_relative`, `timeline`, `stamp_valid_time` all default true). Press et al. (2210.03350) name the quantity — the **compositionality gap** — and report it *does not shrink with model size*, so a bigger reader is not the fix; their remedy is self-ask. Built `InvestigateConfig::self_ask`: one call decomposes the question into ≤4 follow-ups, answers each from the composed evidence, appends them as one additive `[notes]` item. Done in the memory layer because M19 measured that asymmetry here (resolving dates *for* the reader +37.6 vs +14.3 for telling it to). Additive and never destructive, unresolved follow-ups dropped rather than shown, and the note is a **view** carrying the weakest trust it saw (`compose::weakest_trust` made `pub(crate)`) so restating an `Untrusted` claim at `Verified` cannot hand M11 a free promotion. **Arm: 62.00 → 62.80, +0.80 (95% CI [−1.60, +3.20])**, 20 gained / 16 lost, against a pre-registered +3.0 — null, default stays off. The mechanism ran (286/500 rows carry a note), so this is a null for self-ask and not for an inert switch. **The pre-registered split contradicts the prediction**: the largest multi-fact stratum (gold=2, complete, n=217) moved **exactly +0.00 [−4.15, +4.15]** and `multi-session` went **−2.26**, while the gains sat on `temporal-reasoning` (+3.76 [−0.75, +9.02]) and preference (+6.67, n=30). **Why it is flat**: splitting that stratum by steps actually produced, **≥2 steps → +10.8 [+1.5, +21.5] (n=65)** and **<2 steps → −4.6 [−8.6, −1.3] (n=152)**, cancelling to zero — a one-step note is a confident *partial* answer in the evidence channel, `premise_analysis`'s failure shape. The split is conditioned on the mechanism's own output and the groups differ at baseline (67.7% vs 52.0%), so it is descriptive, not causal, and licenses only refusing the harmful note: `MIN_STEPS_EMITTED = 2`, itself unmeasured. **On a two-fact question the decomposer asked two or more follow-ups only 30% of the time** (mean 1.08). Read with M38, where the same model ignored a parsimony instruction and returned 500/500 identical selections: two milestones, two prompts, one finding — **this reader does not change behaviour on instruction, so assume any such mechanism inert until verified at the wire**. 315 Rust + 10 Python tests, clippy clean on both feature sets, ratchet green under `--strict`. `docs/measurements/m39-compositionality-gap.md`. |
+| M40 | **take the count away from the model: the prediction holds, the bar does not** | M39 showed self-ask helps when it decomposes and hurts when it half-decomposes, and that the binding constraint was **the model's choice of how much to produce** — two or more follow-ups on only 30% of two-fact questions while holding 7 or 8 memories. M40 removes the choice. `InvestigateConfig::item_digest` states what **every** composed memory contributes, with `digest_schema`'s `minItems == maxItems == n`: eight memories, eight entries, or the response does not parse. Everything else is M39's and re-tested — additive, one call, fail-open, entries bound **by index** so a reordered response cannot misattribute, and the note is a view carrying the weakest trust it saw. `view_item` now factors those invariants into one constructor. **Firing rate 20.4% → 86.4%.** **Arm: 62.00 → 64.40, +2.40 (95% CI [−0.60, +5.60])**, 38 gained / 26 lost — the largest effect since M32 and still short of the +3.0 bar with an interval spanning zero, so **the default stays off; a near miss is what a pre-registered rule is for**. **The pre-registered prediction holds for the first time since M32**: gold=2 (n=217) **+6.0 [+0.9, +11.1]**, gold≥3 +9.7, `multi-session` **+9.1 [+0.0, +18.2]**, and no regression on single-fact rows (−1.2 [−5.3, +3.0]) — where M39's same stratum sat at +0.00 and `multi-session` went −2.26. The control is exact: on the **68 rows where the digest did not fire the delta is +0.0 [+0.0, +0.0]**, byte-identical, so the arm measures the mechanism and not prompt contamination — and M39's conditional +10.8 was therefore not pure selection. **Why the headline trails the stratum**: `knowledge-update` pays **−4.2** because the digest flattens a dated evidence set into an undated fact list — asked which lens was bought *most recently*, the reader answers from the first line — discarding exactly the signal M19 measured at +37.6. Not patched before publishing, so `runs/m40_digest` stays reproducible from this code; dating the lines is M41, pre-registered with its own falsifier. **A free 24-question pilot paid for itself twice**: it caught the digest digesting `compose`'s own `[timeline]` view (one fact restated three times) and exact-duplicate contributions from a user turn and the assistant's reply. Dedup is **exact-match only** — a similarity penalty here would be aimed at co-evidence, which M21 measured destroying gold recall 0.658 → 0.550. 325 Rust + 10 Python tests, clippy clean on both feature sets, ratchet green under `--strict`. `docs/measurements/m40-forced-digest.md`. |
 
 M0 and M5 are not ceremony. M0 pins the four probe findings in §5 — exactly the kind of thing a Qdrant point
 release changes underneath us. M5 pins the benchmark's own privacy test against our adapter, which is the
@@ -859,36 +860,39 @@ floor under our own numbers is `docs/sota/progression.json` + `myelin-eval ratch
 | └ vs AgentRunbook-**R**, same reader | 38.58 | 58.60 | **−20.02** |
 | `lme_v2_small.lafs_gain.small` | 0.00 | >0.00 | stale-config |
 
-**M40 — stop asking the reader to do things; do them.**
+**M41 — date the digest's lines.**
 
-M38 and M39 agree on one mechanical fact, from two independent prompts:
-**this reader does not change behaviour on instruction.** M38 rewrote the
-selector's parsimony clause and got 500/500 byte-identical selections. M39
-asked it to decompose a two-fact question and it produced two or more
-follow-ups on 30% of them. Both switches were verified live at the wire, so
-neither is an inert-flag artefact.
+M40 removed the model's choice of how much to produce (firing rate 20.4% →
+86.4%) and the pre-registered prediction held for the first time since M32:
+**gold=2 +6.0 [+0.9, +11.1]**, `multi-session` +9.1, no single-fact
+regression. The headline was **+2.40 [−0.60, +5.60]** — short of the +3.0
+bar, so the switch stays off — and the gap between the stratum and the
+headline has one identified cause.
 
-That rules out a whole class of mechanism, and it is most of what M25–M39
-tried. What remains:
+**`knowledge-update` pays −4.2 because the digest flattens a dated evidence
+set into an undated fact list.** Asked which camera lens was bought *most
+recently*, the reader answers from the first line of the note. The composed
+items already carry `[YYYY-MM-DD]` (`stamp_valid_time` ships on); the digest
+drops it, discarding exactly the signal M19 measured at +37.6 on LoCoMo
+category 2.
 
-1. **Compute the composition instead of requesting it.** M39's `[notes]`
-   helped when it existed (≥2 steps, +10.8 [+1.5, +21.5], descriptive) and
-   the binding constraint was the model declining to produce it. A
-   *deterministic* decomposition — one probe per gold-bearing session, each
-   answered separately, then joined — removes the decision from the model.
-   Cost is k model calls per query instead of one, so pre-register the
-   latency budget alongside the score.
-2. **Measure `MIN_STEPS_EMITTED = 2`.** M39 shipped it on the strength of a
-   split conditioned on the mechanism's own output. That is enough to refuse
-   a measured harm and not enough to claim a gain; the clean arm is
-   `self_ask` with the threshold against base.
+1. **Carry each contribution's date into its line.** Cheap — the prefix is
+   already on the item. Predicted: `knowledge-update` recovers, the
+   multi-fact gain is unchanged because those questions do not turn on
+   recency. **Falsifier:** if dating does not move `knowledge-update`, the
+   regression is the digest's confident phrasing rather than its missing
+   dates, and the next attempt is about hedging.
+2. **Then re-read the bar.** M40 at +2.40 and a dated variant recovering most
+   of `knowledge-update`'s −4.2 would clear +3.0 on arithmetic alone. That is
+   a prediction, not a result, and it needs its own run.
 3. **`kind_quota` (M35)** — still one run from an answer, same bar.
 
-**Pre-register judged, per stratum, with the step count.** M39's headline
-null and its +10.8 sub-result came from the same run; only the
-pre-registered split told them apart.
+**Pre-register judged, per stratum, with the contribution count.** M40's
+headline and its +6.0 stratum came from the same run, and only the
+pre-registered split distinguished them. The 68 non-firing rows moving
++0.0 [+0.0, +0.0] is the control that makes the rest readable.
 
-Carried over, with M38's and M39's verdicts applied:
+Carried over, with M38's, M39's and M40's verdicts applied:
 
 1. **~~`answerability_gate` (M36)~~ — dead.** The 14-question pilot returned **zero
    `supported` verdicts** and refused 6 of 11 answerable questions (54.5% false-refusal, vs
@@ -917,6 +921,10 @@ Carried over, with M38's and M39's verdicts applied:
    follow-ups (+10.8 [+1.5, +21.5], descriptive only) and cost 4.6 points on the 70% where
    it did not. `MIN_STEPS_EMITTED = 2` now refuses the harmful one-step note and is itself
    unmeasured.
+6. **`item_digest` (M40)** — the live one, and `self_ask` with the count taken away from the
+   model. +2.40 [−0.60, +5.60] overall misses the bar, but **+6.0 [+0.9, +11.1] on its
+   target stratum** with no single-fact regression and an exact +0.0 [+0.0, +0.0] on the 68
+   rows where it did not fire. Off pending M41's dated variant.
 
 **Deprioritised, not refuted.** `ComposeConfig::kind_quota` is implemented, tested and wired, with
 its pre-registered rule intact: AgentRunbook-R's top-6 events / top-3 notes against our measured

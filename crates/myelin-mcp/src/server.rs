@@ -353,6 +353,9 @@ impl MyelinServer {
             self_ask: params
                 .self_ask
                 .unwrap_or(InvestigateConfig::default().self_ask),
+            item_digest: params
+                .item_digest
+                .unwrap_or(InvestigateConfig::default().item_digest),
             rerank_pool: params.pool_rerank.unwrap_or(false),
             premise_analysis: premise,
             abstain_on_insufficient: premise,
@@ -837,6 +840,11 @@ pub struct InvestigateParams {
     /// One model call per query; investigate-only.
     #[serde(default)]
     pub self_ask: Option<bool>,
+    /// State what every composed memory contributes to the question and
+    /// append the contributions as one additive `[notes]` item (M40).
+    /// `self_ask` with the entry count fixed by schema. investigate-only.
+    #[serde(default)]
+    pub item_digest: Option<bool>,
     /// Split each probe into at most N sub-queries and retrieve for each
     /// (M24). One model call per step, on top of the reflect gate's.
     #[serde(default)]
