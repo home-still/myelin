@@ -407,6 +407,9 @@ pub struct BenchRun {
     /// one: runs written earlier predate the field.
     #[serde(default)]
     pub item_digest: bool,
+    /// M41's dated digest lines.
+    #[serde(default)]
+    pub digest_dates: bool,
     /// M24's sub-query decomposition cap, mirroring
     /// `RetrieveConfig::decompose`. Ships off; absent on every run before
     /// M24.
@@ -505,6 +508,9 @@ pub struct BenchSwitches {
     /// additive `[notes]` item — M40, `InvestigateConfig::item_digest`.
     /// `self_ask` with the entry count fixed by schema.
     pub item_digest: bool,
+    /// Prefix each digest line with the date of its memory — M41,
+    /// `InvestigateConfig::digest_dates`. Inert without `item_digest`.
+    pub digest_dates: bool,
     /// Cap untrusted occupancy in the composed set — M23 B1,
     /// `ComposeConfig::untrusted_max`.
     ///
@@ -873,6 +879,7 @@ pub async fn bench_locomo(
         typed_probes: switches.typed_probes,
         self_ask: switches.self_ask,
         item_digest: switches.item_digest,
+        digest_dates: switches.digest_dates,
         ..Default::default()
     };
 
@@ -1128,6 +1135,7 @@ pub async fn bench_longmemeval_s(
         typed_probes: switches.typed_probes,
         self_ask: switches.self_ask,
         item_digest: switches.item_digest,
+        digest_dates: switches.digest_dates,
         ..Default::default()
     };
 
@@ -1372,6 +1380,7 @@ fn finish_run(
         typed_probes: spec.switches.typed_probes,
         self_ask: spec.switches.self_ask,
         item_digest: spec.switches.item_digest,
+        digest_dates: spec.switches.digest_dates,
         untrusted_max: spec.switches.untrusted_max,
         decompose: spec.switches.decompose,
         categories: spec.switches.categories.clone(),
@@ -1540,6 +1549,7 @@ pub fn rescore_run(source: &Path, out_dir: &Path, scorer: Scorer) -> Result<Benc
             typed_probes: flag("typed_probes"),
             self_ask: flag("self_ask"),
             item_digest: flag("item_digest"),
+            digest_dates: flag("digest_dates"),
             untrusted_max: metrics
                 .get("untrusted_max")
                 .and_then(serde_json::Value::as_u64)

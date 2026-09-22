@@ -137,19 +137,12 @@ impl RemoteEmbedder {
             "input": texts,
         });
 
-        let response = self
-            .client
-            .post(&url)
-            .json(&body)
-            .send()
-            .await
-            .map_err(|e| MyelinError::Store(format!("{}: request to {url} failed: {e}", self.model)))?;
-
-        let status = response.status();
-        let body_text = response
-            .text()
-            .await
-            .map_err(|e| MyelinError::Store(format!("{}: reading body: {e}", self.model)))?;
+        let (status, body_text) = crate::net::send_retrying(
+            || self.client.post(&url).json(&body),
+            &self.model,
+            &format!("request to {url}"),
+        )
+        .await?;
 
         // R7, transport half: an empty 200 is a model-load failure, not
         // malformed JSON.

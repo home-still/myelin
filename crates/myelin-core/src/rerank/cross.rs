@@ -95,24 +95,19 @@ impl Reranker for CrossEncoder {
             return Ok(Vec::new());
         }
 
-        let response = self
-            .client
-            .post(&self.url)
-            .json(&json!({
-                "model": self.model,
-                "query": query,
-                "documents": documents,
-                "top_n": documents.len(),
-            }))
-            .send()
-            .await
-            .map_err(|e| MyelinError::Store(format!("{}: rerank request: {e}", self.model)))?;
-
-        let status = response.status();
-        let body = response
-            .text()
-            .await
-            .map_err(|e| MyelinError::Store(format!("{}: reading body: {e}", self.model)))?;
+        let (status, body) = crate::net::send_retrying(
+            || {
+                self.client.post(&self.url).json(&json!({
+                    "model": self.model,
+                    "query": query,
+                    "documents": documents,
+                    "top_n": documents.len(),
+                }))
+            },
+            &self.model,
+            "rerank request",
+        )
+        .await?;
 
         // Same ordering as the LLM client and for the same reason: an empty
         // 200 is a model-load failure, and parsing first misdiagnoses it as

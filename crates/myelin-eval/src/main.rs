@@ -9,6 +9,7 @@ use std::path::Path;
 use anyhow::Context;
 use clap::{Parser, Subcommand};
 
+use myelin_core::config::MyelinConfig;
 use myelin_core::model::query::Mode;
 use myelin_eval::build::build_locomo;
 use myelin_eval::datasets::{self, locomo, longmemeval};
@@ -436,6 +437,24 @@ enum Command {
         #[arg(long)]
         limit: Option<usize>,
     },
+    /// Rebuild a Qdrant collection from the ledger. Embed-only: no reader,
+    /// no extraction, and every record id is preserved, so runs measured
+    /// before the rebuild stay comparable after it. This is the way back from
+    /// a deleted or stale collection — `build` is not, because its resume
+    /// guard lives in the ledger and would skip every unit.
+    Reindex {
+        #[arg(long, value_enum, default_value_t = Corpus::Locomo)]
+        corpus: Corpus,
+        /// Defaults to data/<slug>.ledger.
+        #[arg(long)]
+        ledger: Option<String>,
+        /// Defaults to the corpus's own collection.
+        #[arg(long)]
+        collection: Option<String>,
+        /// Stop after N records, for a throughput probe.
+        #[arg(long)]
+        limit: Option<usize>,
+    },
     /// Score LoCoMo end-to-end: retrieve, read, and grade the answer with
     /// a deterministic scorer (no LLM judge). See `bench.rs`.
     Bench {
@@ -539,6 +558,12 @@ enum Command {
         /// holding 7 or 8 memories. One model call per query.
         #[arg(long)]
         item_digest: bool,
+        /// Prefix each digest line with the `(YYYY-MM-DD)` of the memory it
+        /// came from (M41). Inert without `--item-digest`; costs no extra
+        /// model call, since the stamp is already on the composed item.
+        /// M40 measured omitting it at -4.2 on `knowledge-update`.
+        #[arg(long)]
+        digest_dates: bool,
         /// Cap how many `Untrusted` records the composed set may contain
         /// (M23 B1). A ceiling, not an exclusion: the quota never drops
         /// untrusted evidence to zero and never drops a trusted record.
@@ -730,6 +755,7 @@ impl Command {
             Command::Fetch => "fetch",
             Command::Build { .. } => "build",
             Command::Phrases { .. } => "phrases",
+            Command::Reindex { .. } => "reindex",
             Command::Bench { .. } => "bench",
             Command::Attack { .. } => "attack",
             Command::AdjudicateProbe { .. } => "adjudicate-probe",
@@ -800,6 +826,31 @@ async fn main() -> anyhow::Result<()> {
                 stats.records,
                 stats.edges,
                 stats.distinct_phrases
+            );
+            Ok(())
+        }
+        Command::Reindex {
+            corpus,
+            ref ledger,
+            ref collection,
+            limit,
+        } => {
+            let cfg = MyelinConfig::load().context("load myelin config")?;
+            let path = ledger.clone().unwrap_or_else(|| corpus.ledger());
+            let collection = collection.clone().unwrap_or_else(|| corpus.collection());
+            let report =
+                myelin_eval::reindex::reindex(&cfg, Path::new(&path), &collection, limit).await?;
+            println!(
+                "reindex {collection}: {} of {} live records indexed",
+                report.indexed, report.expected
+            );
+            // A rebuild that quietly indexed nothing must not exit 0: that is
+            // the exact shape of the `build`-against-a-surviving-ledger trap.
+            anyhow::ensure!(
+                limit.is_some() || report.is_complete(),
+                "incomplete rebuild: {} of {} live records reached the index",
+                report.indexed,
+                report.expected
             );
             Ok(())
         }
@@ -898,6 +949,7 @@ async fn main() -> anyhow::Result<()> {
             typed_probes,
             self_ask,
             item_digest,
+            digest_dates,
             untrusted_max,
             decompose,
             ref categories,
@@ -929,6 +981,7 @@ async fn main() -> anyhow::Result<()> {
                     typed_probes,
                     self_ask,
                     item_digest,
+                    digest_dates,
                     untrusted_max,
                     decompose,
                     categories: categories.clone().unwrap_or_default(),

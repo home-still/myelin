@@ -8,6 +8,7 @@ pub mod embed;
 pub mod error;
 pub mod llm;
 pub mod model;
+mod net;
 pub mod pipeline;
 pub mod rerank;
 pub mod store;
