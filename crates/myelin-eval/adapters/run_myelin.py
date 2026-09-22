@@ -132,6 +132,25 @@ def parse_args() -> argparse.Namespace:
         "statement with an explicit premise analysis in the evidence channel (M23 A3). "
         "Implies the insufficiency gate. investigate-only.",
     )
+    # M43 shipped the dated digest ON for `investigate`. The adapter records
+    # both switches unconditionally, as it does `select`: `standing` reads an
+    # artifact that lacks the keys as a pre-M43 run — which ran without the
+    # digest and is therefore an arm of today's defaults — so a run at the
+    # shipped configuration must say so or it cannot be quoted.
+    parser.add_argument(
+        "--no-item-digest",
+        dest="item_digest",
+        action="store_false",
+        help="Turn the per-memory digest off (M40/M43; shipped ON). investigate-only.",
+    )
+    parser.add_argument(
+        "--no-digest-dates",
+        dest="digest_dates",
+        action="store_false",
+        help="Leave the digest's lines undated (M41/M43; shipped ON). Inert on an undated "
+        "corpus, where no line carries a stamp to copy. investigate-only.",
+    )
+    parser.set_defaults(item_digest=True, digest_dates=True)
     parser.add_argument(
         "--premise-check",
         action="store_true",
@@ -331,6 +350,9 @@ def main() -> None:
             "answerability_gate": args.answerability_gate,
             # M47, unconditional for the same reason.
             "premise_check": args.premise_check,
+            # M43's shipped digest, unconditional: absence reads as pre-M43.
+            "item_digest": args.item_digest,
+            "digest_dates": args.digest_dates,
         },
     }
     memory_config_path = runtime_dir / "memory_config.json"
