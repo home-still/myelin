@@ -1,4 +1,4 @@
-# `myelin-eval standing` — commit `5e1c037a72652642af77e531657e93713e87cb9b-dirty`, generated 2026-09-22T17:24:37Z
+# `myelin-eval standing` — commit `6ff15af08cb91c3ca489141bf7ce3c8ee6ba8166-dirty`, generated 2026-09-22T17:42:38Z
 
 | metric | system | theirs | ours | gap | verdict | claim | run |
 |---|---|---|---|---|---|---|---|
@@ -16,11 +16,11 @@
 | longmemeval_s.judge_score.n500 | Zep | 71.20 | 67.80 | -3.40 | caveat-judge(open_weights_local vs frontier_api) | no | `runs/m43_dated` |
 | dmr.accuracy.n500 | Zep | 98.20 | — | — | missing-artifact | no | — |
 | dmr.accuracy.n500 | Zep (gpt-4-turbo) | 94.80 | — | — | missing-artifact | no | — |
-| lme_v2_small.overall_full_set.combined | AgentRunbook-C **(gate)** | 74.90 | 38.58 | -36.32 | caveat-judge(open_weights_local vs frontier_api) | no | `runs/m34_pools_web` |
-| lme_v2_small.overall_full_set.combined | AgentRunbook-R | 58.60 | 38.58 | -20.02 | caveat-judge(open_weights_local vs frontier_api) | no | `runs/m34_pools_web` |
-| lme_v2_small.overall_full_set.combined | Codex (vanilla) | 69.90 | 38.58 | -31.32 | caveat-judge(open_weights_local vs frontier_api) | no | `runs/m34_pools_web` |
-| lme_v2_small.overall_full_set.combined | RAG slice+notes | 51.00 | 38.58 | -12.42 | caveat-judge(open_weights_local vs frontier_api) | no | `runs/m34_pools_web` |
-| lme_v2_small.lafs_gain.small | LME-V2 reference frontier **(gate)** | 0.00 | 0.00 | — | stale-config(artifact does not record mode, max_steps, prefetch_limit, rerank_depth, select, dated, pool_rerank, premise, typed_probes, decompose; re-measure on this code before quoting it) | no | `runs/m22_base_web` |
+| lme_v2_small.overall_full_set.combined | AgentRunbook-C **(gate)** | 74.90 | 38.58 | -36.32 | caveat-judge(open_weights_local vs frontier_api) | no | `runs/m34_pools_web` **(arm)** |
+| lme_v2_small.overall_full_set.combined | AgentRunbook-R | 58.60 | 38.58 | -20.02 | caveat-judge(open_weights_local vs frontier_api) | no | `runs/m34_pools_web` **(arm)** |
+| lme_v2_small.overall_full_set.combined | Codex (vanilla) | 69.90 | 38.58 | -31.32 | caveat-judge(open_weights_local vs frontier_api) | no | `runs/m34_pools_web` **(arm)** |
+| lme_v2_small.overall_full_set.combined | RAG slice+notes | 51.00 | 38.58 | -12.42 | caveat-judge(open_weights_local vs frontier_api) | no | `runs/m34_pools_web` **(arm)** |
+| lme_v2_small.lafs_gain.small | LME-V2 reference frontier **(gate)** | 0.00 | 0.00 | — | stale-config(artifact does not record mode, max_steps, prefetch_limit, rerank_depth, select, dated, pool_rerank, premise, typed_probes, decompose; re-measure on this code before quoting it) | no | `runs/m22_base_web` **(arm)** |
 | longmemeval_s.judge_score.n500 | NEMORI | 74.60 | 67.80 | -6.80 | caveat-judge(open_weights_local vs frontier_api) | no | `runs/m43_dated` |
 | locomo.judge_score.n1540 | NEMORI | 80.80 | 69.87 | -10.93 | caveat-judge(open_weights_local vs frontier_api) | no | `runs/m19_locomo_full` |
 | minja.asr.k6_prepopulated | MINJA | 76.80 | 77.50 | -0.70 | caveat-backbone(open_weights vs frontier_api) | no | `runs/attack_live_m18` |
