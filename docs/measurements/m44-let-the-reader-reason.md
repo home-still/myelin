@@ -119,6 +119,87 @@ bounded field; if R2 ≫ R1 the gain is deliberation and needs the GPU window.
 **Cost.** R1: one ~60-minute run at ~7 s/row, no re-ingest. R2: 2–6
 GPU-hours.
 
-## Results
+## Results — R1
 
-*(pending — the arm is running)*
+**Run.** `runs/m44_r1` (raw, `judge_verdicts.json` seeded from
+`runs/m43_dated`: 204 judged, 244 reused) → `runs/m44_r1_judged`. 500 rows,
+8.2 s/row against the base's 7.1. The control is exact: **273 byte-identical
+answers, delta 0.0**.
+
+**Headline: −0.8 (95% CI [−3.8, +2.2], p = 0.65). Null. The abstention veto
+fires: 90.0 → 43.3 on the 30 rows, −46.7 [−63.3, −30.0]. `reader_reasoning`
+ships off.**
+
+| stratum | n | base | R1 | delta | 95% CI | p |
+| --- | --- | --- | --- | --- | --- | --- |
+| **overall** | 500 | 67.8 | 67.0 | −0.8 | [−3.8, +2.2] | 0.647 |
+| answerable | 470 | 66.4 | 68.5 | +2.1 | [−0.6, +4.9] | 0.159 |
+| **abstention** | 30 | 90.0 | 43.3 | **−46.7** | [−63.3, −30.0] | <0.0001 |
+| gold = 1 | 170 | 82.4 | 84.1 | +1.8 | [−1.8, +5.9] | 0.451 |
+| **gold = 2** | 229 | 62.9 | 65.9 | +3.1 | [−0.4, +7.0] | 0.127 |
+| gold ≥ 3 | 71 | 39.4 | 39.4 | +0.0 | [−11.3, +11.3] | 1.000 |
+| base declined | 76 | 46.1 | 35.5 | −10.5 | [−22.4, +1.3] | 0.100 |
+| base answered | 424 | 71.7 | 72.6 | +0.9 | [−1.9, +3.8] | 0.576 |
+| `multi-session` | 133 | 59.4 | 59.4 | +0.0 | [−6.8, +6.8] | 1.000 |
+| `temporal-reasoning` | 133 | 48.1 | 51.1 | +3.0 | [−3.8, +9.8] | 0.442 |
+| `knowledge-update` | 78 | 80.8 | 74.4 | −6.4 | [−12.8, −1.3] | 0.011 |
+| `single-session-user` | 70 | 94.3 | 91.4 | −2.9 | [−8.6, +2.9] | 0.444 |
+| `single-session-preference` | 30 | 40.0 | 36.7 | −3.3 | [−20.0, +13.3] | 0.852 |
+| `single-session-assistant` | 56 | 98.2 | 98.2 | +0.0 | [+0.0, +0.0] | 1.000 |
+
+### What the predictions did
+
+1. **gold = 2 leaned and did not move**: +3.1 [−0.4, +7.0]. `multi-session`,
+   the stratum M43's digest moved +11.3, moved **exactly +0.0** — 11 gained,
+   11 lost. `temporal-reasoning` +3.0, not significant. The mechanism's own
+   target did not respond to the mechanism.
+2. **gold = 1 did not regress** (+1.8). The prediction held; it was the easy
+   one.
+3. **Abstention fell by half.** Predicted not to fall; fell 27 → 13 of 30.
+   Seven of the fourteen answers turn absence into a quantity — `0`,
+   `0 days`, `0 minutes`, `Never`, `Nothing` — and the rest borrow a
+   neighbour's fact (`three months` of vintage *films* from the vintage
+   *cameras* question) or invent one (`Harvard University`, `15` fish). The
+   `evidence_absent` field, written *after* `reasoning` and `answer`, held
+   on 13 rows and gave way on 14. It is M42's hatch with a longer run-up.
+4. **`knowledge-update` −6.4 is the veto, not a `knowledge-update`
+   regression**: all five rows lost there are abstention rows whose
+   question happens to carry that type. On the 73 answerable
+   `knowledge-update` rows the arm is unchanged.
+
+### Declines, and what replaced them
+
+Declines fell **76 → 35**, and every one of the 421 answerable rows the base
+answered is still answered. On the **49 answerable rows the base declined**,
+R1 answers 27 and is right on **11 (40.7%)** — the same conversion rate M42's
+forced commit measured on its 31 committed rows (41.9%). Two mechanisms, two
+prompts, one number: when this reader is made to answer instead of decline,
+it is right two times in five, and on the adversarial rows it is made to
+answer just as readily.
+
+What R1 does add that M42 did not is **arithmetic**: the rows it gains are
+`31` days for a base `19`, `$65` for a base `$15`, `43` years older, `3`
+days in December — the reasoning field is where the subtraction happens.
+That is M46's numerator, and it says the computation is worth having; M46
+puts it in the evidence instead of in a field that also talks the reader out
+of refusing.
+
+### Verdict
+
+`reader_reasoning` ships **off**. It is the third mechanism in this project
+(M35, M42, M44 R1) whose gain on answerable rows is bought with the reader's
+licence to refuse, and the bill is the same each time: ~40% of the
+newly-answered rows are right, ~50% of the adversarial rows are lost. The
+discriminator has to come from somewhere other than the model's own say-so —
+that is M45's premise, and this result is its second data point.
+
+**On the falsifier.** R1 did not move gold = 2 significantly. The
+pre-registration says the theory is refuted only if **neither** arm does;
+R2 — native thinking under a 1,024-token budget, sampled, two seeds — is the
+remaining test, and it runs next with the trace recorded per row
+(`ScoredQuestion::reader_trace`, absent on this arm, which predates it).
+
+## Results — R2
+
+*(pending — needs the reader restarted with `MYELIN_READER_THINK_BUDGET=1024`
+after the M46 arm releases it)*

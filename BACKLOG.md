@@ -56,11 +56,18 @@ Two consequences:
 - **R1 — structured reasoning, thinking off.** `{reasoning, answer,
   evidence_absent}`, field order is the mechanism (third application of M42's
   and M43's rule). Ceiling 160 → 480. Temperature 0 stays, isolating "let it
-  reason" from "sample". *Implemented; pre-registered against the M43 base
-  (67.80) in `docs/measurements/m44-let-the-reader-reason.md`; arm running.*
+  reason" from "sample". **Measured 2026-09-22: −0.8 [−3.8, +2.2], null;
+  abstention 90.0 → 43.3, veto fires; gold=2 +3.1 [−0.4, +7.0];
+  `multi-session` exactly +0.0. Ships off.** 273 byte-identical rows, control
+  exact. On the 49 answerable rows the base declined it answers 27 and is
+  right on 11 (40.7%) — M42's conversion rate to the point. Seven of the 14
+  lost abstention rows turn absence into `0` / `Never` / `Nothing`.
 - **R2 — thinking on.** `enable_thinking: true`, bounded thinking budget
   (1,024 tokens first), temp 0.6 / top_p 0.95 / top_k 20 per the Qwen3
   Technical Report (`2505.09388`), two seeds so the CI carries sampling noise.
+  *Implemented (`--reader-thinking --reader-seed`, PR #26); the run records
+  the trace per row. Needs the reader restarted with
+  `MYELIN_READER_THINK_BUDGET=1024`; next on the GPU after M46.*
 - **LME-V2 corollary.** Re-run the shipped operating point at the harness's
   own default. Not a mechanism arm — it is the *comparable* number.
 
@@ -100,6 +107,16 @@ error-rate guarantee from ~100 calibration rows.
 **Calibrate, never tune.** τ comes from a split that is **not** the reported
 population — the 30 `_abs` rows are too few; LME-V2's 128 abstention rows are
 the calibration set.
+
+**Measured 2026-09-22:** the reader server caps `n` at its slot count —
+`Field 'n': Value must be between 1 <= value <= 2` at `-np 2` — so "N=5 off
+one prefill" is not one request. Either serve `-np 5` for the arm (65,536 ÷
+5 ≈ 13k per slot, enough for LongMemEval_S at k=6/4,096 but not LME-V2's
+window) or send five seeded requests and let llama.cpp's prompt cache make
+each one decode-only. M44 R1's interim rows sharpen the need: a reader with
+room to reason answers "0" / "Nothing" / "0 minutes" for what the store
+never mentions, so the discriminator has to come from agreement, not from
+the model's own `evidence_absent` hatch.
 
 **Predicted.** Commits fall from 31 to ~15–20; accuracy on committed rows rises
 above 41.9; the two adversarial rows do not flip, because an absent premise

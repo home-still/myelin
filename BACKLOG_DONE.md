@@ -49,6 +49,23 @@ first arm to question the measurement apparatus rather than the mechanism.
 
 ---
 
+## M44 — the reader has never been allowed to reason *(in flight)*
+
+**R1 measured** · `docs/measurements/m44-let-the-reader-reason.md` ·
+`runs/m44_r1`, `runs/m44_r1_judged`
+
+**R1: −0.8 (95% CI [−3.8, +2.2]), null; abstention 90.0 → 43.3 (−46.7),
+veto fires. Ships off.** gold=2 +3.1 [−0.4, +7.0], `multi-session` exactly
++0.0, control exact on 273 byte-identical rows. Declines 76 → 35; on the 49
+answerable rows the base declined it answers 27 and is right on 11 (40.7%),
+M42's conversion rate. Seven of the 14 lost abstention rows turn absence into
+a quantity (`0`, `0 days`, `Never`). The gains it does have are arithmetic
+(`31` days for `19`, `$65` for `$15`), which is M46's numerator. R2 (native
+thinking, budgeted, two seeds) and the LME-V2 corollary remain; the entry is
+completed when they land.
+
+---
+
 ## M43 — the digest argues against itself
 
 **Commit** [`1c36a03`](../../commit/1c36a03) · PR #23 ·
