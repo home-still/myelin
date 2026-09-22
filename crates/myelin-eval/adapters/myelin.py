@@ -380,6 +380,10 @@ class MyelinMemory(Memory):
         self.select_coverage = params.get("select_coverage")
         # M47: presupposition check, contradiction only. investigate-only.
         self.premise_check = params.get("premise_check")
+        # M43's shipped digest. Forwarded explicitly so the artifact and the
+        # call agree; `None` (a pre-M43 config) leaves the server's default.
+        self.item_digest = params.get("item_digest")
+        self.digest_dates = params.get("digest_dates")
         # The last query's retrieval trace, per worker thread.
         #
         # THREAD-LOCAL, not an attribute, for the reason the base class's own
@@ -496,6 +500,10 @@ class MyelinMemory(Memory):
                 arguments["select_coverage"] = bool(self.select_coverage)
             if self.premise_check is not None:
                 arguments["premise_check"] = bool(self.premise_check)
+            if self.item_digest is not None:
+                arguments["item_digest"] = bool(self.item_digest)
+            if self.digest_dates is not None:
+                arguments["digest_dates"] = bool(self.digest_dates)
         # `query_image` is accepted and ignored for now: the dense channel is
         # text-only (bge-m3), so forwarding a path the server cannot embed
         # would be a lie in the trace. 29 of 451 questions carry one; they are
