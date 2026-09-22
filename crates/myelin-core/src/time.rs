@@ -1124,8 +1124,93 @@ fn month_slice(y: i32, m: u32, ord: u32, unit: WeekUnit) -> Option<DayRange> {
     }
 }
 
+// ------------------------------------------------------------ distance to a day
+
+/// Days in a week, for the week count in [`ago_phrase`].
+const DAYS_PER_WEEK: i64 = 7;
+/// A week count is stated from one full week; below that "N days ago" is
+/// the whole answer and "0 weeks" would be noise.
+const AGO_WEEKS_FROM_DAYS: i64 = DAYS_PER_WEEK;
+
+/// Whole calendar months from `from` to `to` (`to >= from`), the way a
+/// person counts them: 2022-10-22 → 2023-03-25 is 5 months, and 2023-01-31 →
+/// 2023-02-28 is 0 because the 28th is before the 31st.
+fn whole_months_between(from: NaiveDate, to: NaiveDate) -> i64 {
+    let months = (i64::from(to.year()) - i64::from(from.year())) * 12
+        + (i64::from(to.month()) - i64::from(from.month()));
+    if to.day() < from.day() {
+        months - 1
+    } else {
+        months
+    }
+}
+
+/// How far `day` lies from `today`, stated so a duration question is a
+/// lookup: `today`, `3 days ago`, `28 days ago; 4 weeks`, `154 days ago;
+/// 22 weeks; 5 months`, or `in 9 days` for a day still ahead (M46).
+/// Pinned by `ago_phrase_states_every_unit_a_question_might_ask_in`.
+///
+/// Every unit the question might ask in is stated, and every one is the
+/// *floor* — "how many weeks ago" wants 4 for 30 days, not 4.3 — which is
+/// also how LongMemEval's gold counts them. The day count is exclusive of
+/// both ends; the corpus's gold accepts either convention ("10 days ago. 11
+/// days (inclusive)") and Test of Time (`10.48550/arxiv.2406.09170`) found
+/// off-by-one to be the dominant error class in model-side arithmetic, so
+/// the convention is fixed here once and never left to the reader.
+pub fn ago_phrase(day: NaiveDate, today: NaiveDate) -> String {
+    let days = (today - day).num_days();
+    if days == 0 {
+        return "today".to_string();
+    }
+    if days < 0 {
+        return format!("in {}", counted(-days, "day"));
+    }
+    let mut out = format!("{} ago", counted(days, "day"));
+    if days >= AGO_WEEKS_FROM_DAYS {
+        out.push_str(&format!("; {}", counted(days / DAYS_PER_WEEK, "week")));
+    }
+    let months = whole_months_between(day, today);
+    if months >= 1 {
+        out.push_str(&format!("; {}", counted(months, "month")));
+    }
+    out
+}
+
+/// `1 week`, `4 weeks`.
+fn counted(n: i64, unit: &str) -> String {
+    if n == 1 {
+        format!("1 {unit}")
+    } else {
+        format!("{n} {unit}s")
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    /// M46. Each case is a LongMemEval_S question the shipped reader got
+    /// wrong by doing the arithmetic itself: 28 days → "4 weeks" (declined),
+    /// 154 days → "5 months" (it said 2).
+    #[test]
+    fn ago_phrase_states_every_unit_a_question_might_ask_in() {
+        let d = |y, m, dd| chrono::NaiveDate::from_ymd_opt(y, m, dd).unwrap();
+        assert_eq!(super::ago_phrase(d(2023, 3, 4), d(2023, 4, 1)), "28 days ago; 4 weeks");
+        assert_eq!(
+            super::ago_phrase(d(2022, 10, 22), d(2023, 3, 25)),
+            "154 days ago; 22 weeks; 5 months"
+        );
+        assert_eq!(super::ago_phrase(d(2023, 4, 1), d(2023, 4, 1)), "today");
+        assert_eq!(super::ago_phrase(d(2023, 3, 31), d(2023, 4, 1)), "1 day ago");
+        assert_eq!(super::ago_phrase(d(2023, 3, 25), d(2023, 4, 1)), "7 days ago; 1 week");
+        assert_eq!(super::ago_phrase(d(2023, 4, 10), d(2023, 4, 1)), "in 9 days");
+        // Whole months are counted the way a person counts them: the 28th
+        // is before the 31st, so no month has passed.
+        assert_eq!(super::ago_phrase(d(2023, 1, 31), d(2023, 2, 28)), "28 days ago; 4 weeks");
+        assert_eq!(
+            super::ago_phrase(d(2023, 1, 31), d(2023, 3, 3)),
+            "31 days ago; 4 weeks; 1 month"
+        );
+    }
+
     use super::*;
 
     fn ymd(y: i32, m: u32, d: u32) -> NaiveDate {

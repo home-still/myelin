@@ -132,6 +132,15 @@ arithmetic subset is legible.
 
 **Cost.** Minutes.
 
+**Status.** *Implemented and pre-registered* —
+`docs/measurements/m46-anchored-timeline.md`. Reading the rows changed the
+mechanism: the failures are not pairwise deltas but distance from **the
+question's own day** (weeks/months *ago*, *since*), which the M19 view never
+stated. `Recall::as_of` + `ComposeConfig::timeline_ago` (off) anchor every
+timeline entry to that day in every unit a question might ask in; zero
+model calls; byte-identical off. Numerator: the 62 anchored rows at 56.5%
+with 14 declines. Arm queued behind M44 R1 on the reader.
+
 ---
 
 ## M47 — presupposition verification, contradiction only

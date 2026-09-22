@@ -141,6 +141,14 @@ pub struct RecallParams {
     /// resolve against a meaningless anchor.
     #[serde(default)]
     pub dated: Option<bool>,
+    /// The day the question is asked, `YYYY-MM-DD` (M46). When set, every
+    /// `[timeline]` entry also states its distance from this day — "28 days
+    /// ago (4 weeks)" — so *how many weeks ago …?* is a lookup rather than
+    /// a subtraction. No default: a backend that substituted the wall clock
+    /// would emit offsets wrong by the age of the memory. A malformed date
+    /// is refused, never ignored.
+    #[serde(default)]
+    pub as_of: Option<String>,
     /// Allocate `k`'s slots per record kind instead of handing them to one
     /// fused ranking: AgentRunbook-R's published **top-6 events, top-3
     /// notes**, raw states taking the rest
@@ -279,6 +287,7 @@ impl MyelinServer {
             },
             mode: Mode::Recall,
             kinds,
+            as_of: parse_as_of(params.as_of.as_deref())?,
         };
 
         let mut retriever = self.retriever();
@@ -325,6 +334,7 @@ impl MyelinServer {
             },
             mode: Mode::Investigate,
             kinds: None,
+            as_of: parse_as_of(params.as_of.as_deref())?,
         };
 
         // `select` reaches `InvestigateConfig`, never `RetrieveConfig`: this
@@ -742,6 +752,18 @@ impl MyelinServer {
     }
 }
 
+/// `as_of` from the wire, or an `invalid_params` error. `None` stays `None`:
+/// absence is "no anchor", not "today" (see [`Recall::as_of`]). Pinned by
+/// `a_malformed_as_of_is_refused_and_an_absent_one_is_no_anchor`.
+fn parse_as_of(raw: Option<&str>) -> Result<Option<chrono::NaiveDate>, ErrorData> {
+    raw.map(|s| {
+        chrono::NaiveDate::parse_from_str(s.trim(), "%Y-%m-%d").map_err(|e| {
+            ErrorData::invalid_params(format!("as_of must be YYYY-MM-DD, got {s:?}: {e}"), None)
+        })
+    })
+    .transpose()
+}
+
 /// Apply the query-time operating-point overrides to a retrieval config.
 ///
 /// One function, called from both tools, so `recall` and `investigate` cannot
@@ -802,6 +824,14 @@ pub struct InvestigateParams {
     /// [`RecallParams::dated`].
     #[serde(default)]
     pub dated: Option<bool>,
+    /// The day the question is asked, `YYYY-MM-DD` (M46). When set, every
+    /// `[timeline]` entry also states its distance from this day — "28 days
+    /// ago (4 weeks)" — so *how many weeks ago …?* is a lookup rather than
+    /// a subtraction. No default: a backend that substituted the wall clock
+    /// would emit offsets wrong by the age of the memory. A malformed date
+    /// is refused, never ignored.
+    #[serde(default)]
+    pub as_of: Option<String>,
     /// Allocate `k`'s slots per record kind instead of handing them to one
     /// fused ranking: AgentRunbook-R's published **top-6 events, top-3
     /// notes**, raw states taking the rest
@@ -1198,6 +1228,20 @@ pub struct QuarantineResult {
 
 #[cfg(test)]
 mod tests {
+    /// M46. A date the backend cannot parse is refused with the error
+    /// naming the format; it is never silently dropped, because a dropped
+    /// anchor produces a timeline that reads as if the caller sent none.
+    #[test]
+    fn a_malformed_as_of_is_refused_and_an_absent_one_is_no_anchor() {
+        assert_eq!(
+            super::parse_as_of(Some("2023-04-01")).unwrap(),
+            chrono::NaiveDate::from_ymd_opt(2023, 4, 1)
+        );
+        assert_eq!(super::parse_as_of(None).unwrap(), None);
+        let err = super::parse_as_of(Some("04/01/2023")).unwrap_err();
+        assert!(err.message.contains("YYYY-MM-DD"), "{}", err.message);
+    }
+
     use super::*;
 
     /// `dated: false` is the whole of the undated-corpus gate, and it has to

@@ -1618,6 +1618,8 @@ impl<'a> Investigator<'a> {
         let compose_cfg = ComposeConfig {
             k: query.budget.k,
             max_tokens: query.budget.tokens,
+            // The question's own day, for the anchored timeline (M46).
+            as_of: query.as_of,
             ..self.retriever.config.compose.clone()
         };
         // Dispositions, by scope — the same block `recall` composes, so an

@@ -47,7 +47,7 @@ first arm to question the measurement apparatus rather than the mechanism.
 
 ## M43 — the digest argues against itself
 
-**Commit** PR #23 (hash recorded by the next milestone) ·
+**Commit** [`1c36a03`](../../commit/1c36a03) · PR #23 ·
 `docs/measurements/m43-the-digest-argues-against-itself.md`
 
 **Numbers: arm A (`item_digest` + `digest_dates`) +5.80 (95% CI [+2.8, +8.8],

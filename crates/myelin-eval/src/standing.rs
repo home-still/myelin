@@ -925,6 +925,8 @@ fn bench_metrics(dir: &Path, agg_text: &str) -> Result<Vec<Ours>> {
     let arm = run.graph
         || run.chronological
         || run.question_date
+        // M46's anchored timeline, shipping off pending its arm.
+        || run.timeline_ago
         || run.profile
         || run.profile_clause
         || run.mmr.is_some()
@@ -1437,8 +1439,9 @@ fn unrecorded_pair_keys(dir: &Path) -> Result<Vec<&'static str>> {
 /// §7.1 keeps it off for `recall` — so it cannot be a constant here. It is
 /// tested separately in [`harness_arm`] against
 /// [`shipped_select_sufficient`], which reads the library defaults.
-const PAIR_SWITCH_DEFAULTS: [(&str, bool); 9] = [
+const PAIR_SWITCH_DEFAULTS: [(&str, bool); 10] = [
     ("dated", true),
+    ("timeline_ago", false),
     ("pool_rerank", false),
     ("premise", false),
     ("typed_probes", false),
@@ -3330,6 +3333,7 @@ mod tests {
             serde_json::json!({"commit_answer": true}),
             serde_json::json!({"digest_relevance": true}),
             serde_json::json!({"reader_reasoning": true}),
+            serde_json::json!({"timeline_ago": true}),
         ] {
             let tmp = tempfile::tempdir().unwrap();
             let dir = tmp.path().join("runs/arm");

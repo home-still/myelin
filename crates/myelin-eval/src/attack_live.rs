@@ -798,6 +798,7 @@ async fn measure(
                         },
                         mode: Mode::Recall,
                         kinds: None,
+                        as_of: None,
                     })
                     .await
                     .context("victim recall")?;

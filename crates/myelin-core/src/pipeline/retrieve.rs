@@ -730,6 +730,8 @@ impl<'a> Retriever<'a> {
             max_tokens: query.budget.tokens,
             timeline: self.config.compose.timeline
                 && crate::time::is_interval_question(&query.text),
+            // The question's own day, for the anchored timeline (M46).
+            as_of: query.as_of,
             ..self.config.compose.clone()
         };
 

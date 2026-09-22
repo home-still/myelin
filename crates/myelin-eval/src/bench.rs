@@ -330,6 +330,11 @@ pub struct BenchRun {
     pub chronological: bool,
     #[serde(default)]
     pub question_date: bool,
+    /// M46's anchored timeline, mirroring `ComposeConfig::timeline_ago`.
+    /// `serde(default)`: every run before M46 predates the field and ran
+    /// without it.
+    #[serde(default)]
+    pub timeline_ago: bool,
     /// M19's mechanisms, mirroring `ComposeConfig::resolve_relative` and
     /// `ComposeConfig::timeline`. **Both ship on**, and both are recorded on
     /// every run so a future flip is visible in the artifact rather than only
@@ -469,6 +474,9 @@ pub struct BenchSwitches {
     pub chronological: bool,
     /// Give LoCoMo's reader a `<today>` reference date (M13).
     pub question_date: bool,
+    /// State each `[timeline]` entry's distance from the question's day —
+    /// M46, `ComposeConfig::timeline_ago`. Zero model calls.
+    pub timeline_ago: bool,
     /// Compose the `[profile]` block — M20 arm A, `ComposeConfig::profile`.
     pub profile: bool,
     /// Append [`READER_PREFERENCE_CLAUSE`] to the reader prompt — M20 arm B.
@@ -1141,6 +1149,7 @@ pub async fn bench_locomo(
         // treatment `stamp_valid_time` has had since M13.
         compose: myelin_core::pipeline::compose::ComposeConfig {
             chronological: switches.chronological,
+            timeline_ago: switches.timeline_ago,
             profile: switches.profile,
             mmr_lambda: switches.mmr,
             untrusted_max: switches.untrusted_max,
@@ -1230,6 +1239,9 @@ pub async fn bench_locomo(
                 },
                 mode,
                 kinds: None,
+                // LoCoMo asks after the last session; that is the only
+                // "today" the corpus defines (M13's `<today>` uses it too).
+                as_of: today.map(|t| t.date_naive()),
             };
 
             let started = std::time::Instant::now();
@@ -1394,6 +1406,7 @@ pub async fn bench_longmemeval_s(
         rerank_depth: rerank_depth.unwrap_or(RetrieveConfig::default().rerank_depth),
         compose: myelin_core::pipeline::compose::ComposeConfig {
             chronological: switches.chronological,
+            timeline_ago: switches.timeline_ago,
             profile: switches.profile,
             mmr_lambda: switches.mmr,
             untrusted_max: switches.untrusted_max,
@@ -1441,6 +1454,10 @@ pub async fn bench_longmemeval_s(
             },
             mode,
             kinds: None,
+            // The question's own date, the same one the reader is shown in
+            // `<today>`; the two must agree or the anchor argues with the
+            // prompt. Fails closed: an unparseable date is no anchor.
+            as_of: crate::build::parse_session_time(&item.question_date).map(|t| t.date_naive()),
         };
 
         let started = std::time::Instant::now();
@@ -1651,6 +1668,7 @@ fn finish_run(
         graph: spec.switches.graph,
         chronological: spec.switches.chronological,
         question_date: spec.switches.question_date,
+        timeline_ago: spec.switches.timeline_ago,
         // Read off the shipped defaults rather than switches: `bench` no
         // longer overrides either, so this is what the run actually used.
         resolve_dates: myelin_core::pipeline::compose::ComposeConfig::default().resolve_relative,
@@ -1834,6 +1852,7 @@ pub fn rescore_run(source: &Path, out_dir: &Path, scorer: Scorer) -> Result<Benc
             graph: flag("graph"),
             chronological: flag("chronological"),
             question_date: flag("question_date"),
+            timeline_ago: flag("timeline_ago"),
             profile: flag("profile"),
             profile_clause: flag("profile_clause"),
             mmr: metrics

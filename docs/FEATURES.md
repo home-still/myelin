@@ -32,6 +32,7 @@ in the loop** — this is the fast path, pinned at "no LLM" by design (PLAN.md
 | `tau_abstain` | f32 | no | none | Withhold evidence when top score below this |
 | `select` | bool | no | false | LLM selects jointly-answering candidates (operating point, never a `recall` default) |
 | `dated` | bool | no | true | Whether records carry real timestamps |
+| `as_of` | string | no | none | The day the question is asked, `YYYY-MM-DD`; anchors the `[timeline]` view when `timeline_ago` is on (M46). Malformed dates are refused |
 | `decompose` | usize | no | none | Split into N sub-queries, fuse into same RRF call |
 
 **Returns:** `RecallResult` — `items` (R1 wire shape `{type, value}`),
@@ -93,6 +94,7 @@ negation filter `digest_relevance` measured −4.4 and stays off.
 | `digest_dates` | bool | no | true | Prefix each digest line with its memory's date (default ON, M43; inert without `item_digest`) |
 | `digest_relevance` | bool | no | false | Let the digest drop memories it marks as not bearing on the question (measured −4.4, M43) |
 | `dated` | bool | no | true | Whether records carry real timestamps |
+| `as_of` | string | no | none | The day the question is asked, `YYYY-MM-DD`; anchors the `[timeline]` view when `timeline_ago` is on (M46). Malformed dates are refused |
 | `pool_rerank` | bool | no | false | Rerank accumulated pool against original question |
 | `premise` | bool | no | false | Emit premise analysis when loop stops unsatisfied |
 | `typed_probes` | bool | no | false | Let reflect gate aim probes at record kinds |
@@ -379,6 +381,11 @@ MARCO MRR@10 goes 18.7 → 36.5 with a cross-encoder over BM25.
   on LoCoMo temporal)
 - **`timeline`** (default ON): append a synthetic `[timeline]` item for
   duration/interval questions
+- **`timeline_ago`** (default OFF, pending its arm — M46): when the query carries
+  `as_of`, each `[timeline]` entry also states its distance from that day in
+  every unit a question might ask in — `28 days ago; 4 weeks` — so *how many
+  weeks ago …?* is a lookup rather than a subtraction. Zero model calls;
+  byte-identical to the M19 view when off or unanchored.
 - **`bookend`** ordering: relevance-interleaved, not chronological
 
 ---
