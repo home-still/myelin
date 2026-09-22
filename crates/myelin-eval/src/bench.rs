@@ -427,6 +427,9 @@ pub struct BenchRun {
     /// M43's relevance filter on digest lines.
     #[serde(default)]
     pub digest_relevance: bool,
+    /// M48's three-way digest label.
+    #[serde(default)]
+    pub digest_role: bool,
     /// M44 R1's structured reasoning field.
     #[serde(default)]
     pub reader_reasoning: bool,
@@ -555,6 +558,10 @@ pub struct BenchSwitches {
     /// M43, `InvestigateConfig::digest_relevance`. Inert without
     /// `item_digest`.
     pub digest_relevance: bool,
+    /// Type each digest entry `answers` / `context` / `irrelevant` and drop
+    /// only the last — M48, `InvestigateConfig::digest_role`. An alternative
+    /// to `digest_relevance`, never stacked with it.
+    pub digest_role: bool,
     /// Let the reader reason before answering, under a schema that puts
     /// `reasoning` before `answer` — M44 R1, `read_answer`.
     pub reader_reasoning: bool,
@@ -1251,6 +1258,7 @@ fn investigate_config(
         item_digest: switches.item_digest,
         digest_dates: switches.digest_dates,
         digest_relevance: switches.digest_relevance,
+        digest_role: switches.digest_role,
         premise_check: switches.premise_check,
         ..Default::default()
     }
@@ -1871,6 +1879,7 @@ fn finish_run(
         item_digest: spec.switches.item_digest,
         digest_dates: spec.switches.digest_dates,
         digest_relevance: spec.switches.digest_relevance,
+        digest_role: spec.switches.digest_role,
         reader_reasoning: spec.switches.reader_reasoning,
         premise_check: spec.switches.premise_check,
         reader_thinking: spec.switches.reader_thinking,
@@ -2050,6 +2059,7 @@ pub fn rescore_run(source: &Path, out_dir: &Path, scorer: Scorer) -> Result<Benc
             item_digest: flag("item_digest"),
             digest_dates: flag("digest_dates"),
             digest_relevance: flag("digest_relevance"),
+            digest_role: flag("digest_role"),
             reader_reasoning: flag("reader_reasoning"),
             premise_check: flag("premise_check"),
             reader_thinking: flag("reader_thinking"),
@@ -2620,6 +2630,7 @@ mod config_tests {
             item_digest: true,
             digest_dates: true,
             digest_relevance: true,
+            digest_role: true,
             premise_check: true,
             ..Default::default()
         };
@@ -2634,6 +2645,7 @@ mod config_tests {
         assert!(cfg.item_digest, "item_digest");
         assert!(cfg.digest_dates, "digest_dates");
         assert!(cfg.digest_relevance, "digest_relevance");
+        assert!(cfg.digest_role, "digest_role");
         assert!(cfg.premise_check, "premise_check");
     }
 
@@ -2646,6 +2658,7 @@ mod config_tests {
         assert!(!cfg.item_digest);
         assert!(!cfg.digest_dates);
         assert!(!cfg.digest_relevance);
+        assert!(!cfg.digest_role);
         assert!(!cfg.self_ask);
         assert!(!cfg.premise_analysis);
         assert!(!cfg.premise_check);

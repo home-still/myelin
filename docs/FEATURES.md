@@ -93,6 +93,7 @@ negation filter `digest_relevance` measured −4.4 and stays off.
 | `item_digest` | bool | no | true | State what every composed memory contributes, as one `[notes]` view (default ON, M43) |
 | `digest_dates` | bool | no | true | Prefix each digest line with its memory's date (default ON, M43; inert without `item_digest`) |
 | `digest_relevance` | bool | no | false | Let the digest drop memories it marks as not bearing on the question (measured −4.4, M43) |
+| `digest_role` | bool | no | false | Type each digest entry `answers` / `context` / `irrelevant` and drop only the last (M48); alternative to `digest_relevance`, both together is refused |
 | `dated` | bool | no | true | Whether records carry real timestamps |
 | `as_of` | string | no | none | The day the question is asked, `YYYY-MM-DD`; anchors the `[timeline]` view when `timeline_ago` is on (M46). Malformed dates are refused |
 | `pool_rerank` | bool | no | false | Rerank accumulated pool against original question |
