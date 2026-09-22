@@ -69,6 +69,15 @@ defaults on — `recall` stays at "no LLM in the loop." Measured on
 LongMemEval_S, all 500 questions: 56.2 → 62.0 judged (+5.8, 95% CI [+2.8,
 +8.8], p = 0.0001), cost +2.04 s/query.
 
+**`item_digest` + `digest_dates` default ON for `investigate`** (M43): one
+more model call states, for *every* composed memory, the part that bears on
+the question — entry count fixed by the JSON schema, not chosen by the model
+(M40) — and prefixes each line with the memory's `(YYYY-MM-DD)` (M41). The
+contributions are appended as one additive `[notes]` view; no record is
+altered. Measured on LongMemEval_S, all 500 questions: 62.0 → 67.8 judged
+(+5.8, 95% CI [+2.8, +8.8], p = 0.0001), `multi-session` +11.3. The
+negation filter `digest_relevance` measured −4.4 and stays off.
+
 **Parameters:**
 
 | Parameter | Type | Required | Default | Description |
@@ -80,6 +89,9 @@ LongMemEval_S, all 500 questions: 56.2 → 62.0 judged (+5.8, 95% CI [+2.8,
 | `budget_tokens` | usize | no | 2048 | Token ceiling |
 | `max_steps` | usize | no | 2 | Iteration cap (model calls in the gate) |
 | `select` | bool | no | true | Select sufficient records from the pool (default ON) |
+| `item_digest` | bool | no | true | State what every composed memory contributes, as one `[notes]` view (default ON, M43) |
+| `digest_dates` | bool | no | true | Prefix each digest line with its memory's date (default ON, M43; inert without `item_digest`) |
+| `digest_relevance` | bool | no | false | Let the digest drop memories it marks as not bearing on the question (measured −4.4, M43) |
 | `dated` | bool | no | true | Whether records carry real timestamps |
 | `pool_rerank` | bool | no | false | Rerank accumulated pool against original question |
 | `premise` | bool | no | false | Emit premise analysis when loop stops unsatisfied |
@@ -269,7 +281,9 @@ generates a new probe query and searches again, up to `max_steps` (default 2).
 After the loop, `select_sufficient` (default ON) asks the LLM which of the
 accumulated pool's records jointly answer the question, and puts those first
 before `compose` truncates to `k`. This is the mechanism that earned +5.8
-judged points on LongMemEval_S (56.2 → 62.0).
+judged points on LongMemEval_S (56.2 → 62.0). Then `item_digest` (default
+ON since M43) states what each selected memory contributes, dated, as one
+additive `[notes]` view — another +5.8 (62.0 → 67.8).
 
 **When to use:** the question is complex, multi-hop, or you are not sure the
 first retrieval will find everything. Cost: ~2 s/query extra over `recall`.

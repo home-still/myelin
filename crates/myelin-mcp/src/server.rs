@@ -359,6 +359,9 @@ impl MyelinServer {
             digest_dates: params
                 .digest_dates
                 .unwrap_or(InvestigateConfig::default().digest_dates),
+            digest_relevance: params
+                .digest_relevance
+                .unwrap_or(InvestigateConfig::default().digest_relevance),
             rerank_pool: params.pool_rerank.unwrap_or(false),
             premise_analysis: premise,
             abstain_on_insufficient: premise,
@@ -852,6 +855,10 @@ pub struct InvestigateParams {
     /// (M41). Inert unless `item_digest` is on; costs no extra model call.
     #[serde(default)]
     pub digest_dates: Option<bool>,
+    /// Drop digest lines for memories the model says do not bear on the
+    /// question (M43). Inert unless `item_digest` is on; no extra model call.
+    #[serde(default)]
+    pub digest_relevance: Option<bool>,
     /// Split each probe into at most N sub-queries and retrieve for each
     /// (M24). One model call per step, on top of the reflect gate's.
     #[serde(default)]

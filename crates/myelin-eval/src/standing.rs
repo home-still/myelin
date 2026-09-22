@@ -877,6 +877,24 @@ fn shipped_select_sufficient(mode: &str) -> bool {
     }
 }
 
+/// M43 made `item_digest` the `investigate` default — **+5.80 judged
+/// (95% CI [+2.8, +8.8], n = 500)** together with [`shipped_digest_dates`].
+/// The digest is an `investigate` mechanism with no `recall` counterpart, so
+/// on that path the shipped value is `false` and no `recall` run can be an
+/// arm on this axis. Read from the library default for the reason
+/// [`shipped_select_sufficient`] is.
+fn shipped_item_digest(mode: &str) -> bool {
+    mode == "investigate"
+        && myelin_core::pipeline::investigate::InvestigateConfig::default().item_digest
+}
+
+/// M41's dated digest lines, shipped on with the digest by M43: its own
+/// marginal over the undated digest is **+3.40 [+1.2, +5.8]**.
+fn shipped_digest_dates(mode: &str) -> bool {
+    mode == "investigate"
+        && myelin_core::pipeline::investigate::InvestigateConfig::default().digest_dates
+}
+
 /// Every metric a `bench` run directory supports.
 ///
 /// Subsets are computed from `per_question.jsonl`, never from a pre-aggregated
@@ -920,12 +938,21 @@ fn bench_metrics(dir: &Path, agg_text: &str) -> Result<Vec<Ours>> {
         || run.decompose.is_some()
         // M39's self-ask decomposition, shipping off pending its arm.
         || run.self_ask
-        // M40's per-item digest, shipping off pending its arm.
-        || run.item_digest
-        // M41's dated digest lines.
-        || run.digest_dates
+        // M40's per-item digest and M41's dated lines. Both ship ON inside
+        // `investigate` since M43 (+5.80 judged, n = 500), so — exactly
+        // like `select_sufficient` — an arm is a run that differs from the
+        // default *for its own mode*. A run written before the field
+        // existed deserialises `false`, which is what it actually ran with,
+        // so every pre-M43 `investigate` run reads as an off-arm of today's
+        // configuration rather than as "where we stand".
+        || run.item_digest != shipped_item_digest(&run.mode)
+        || run.digest_dates != shipped_digest_dates(&run.mode)
         // M42's decline-recovery second pass.
-        || run.commit_answer;
+        || run.commit_answer
+        // M43's digest relevance filter.
+        || run.digest_relevance
+        // M44 R1's reasoning reader.
+        || run.reader_reasoning;
 
     // Does this run record its own operating point? Every key below defines
     // part of what the system does per query today. An artifact that does
@@ -1423,9 +1450,14 @@ const PAIR_SWITCH_DEFAULTS: [(&str, bool); 9] = [
     // that is in fact known.
     ("select_coverage", false),
     ("self_ask", false),
-    ("item_digest", false),
-    ("digest_dates", false),
     ("commit_answer", false),
+    ("digest_relevance", false),
+    ("reader_reasoning", false),
+    // `item_digest` and `digest_dates` are deliberately **absent**: M43
+    // shipped both on for `investigate` only, so — like `select` — their
+    // shipped value depends on the mode and they are tested in
+    // [`harness_arm`] against [`shipped_item_digest`] and
+    // [`shipped_digest_dates`].
 ];
 
 /// Does this harness artifact record an operating point the server's
@@ -1471,10 +1503,25 @@ fn harness_arm(dir: &Path) -> Result<bool> {
         .is_some_and(|set| set != shipped_select_sufficient(mode));
     // Width is an arm whenever it is stated: `RetrieveConfig::default()`
     // supplies both, so any recorded number is an override of it.
+    // M43's shipped digest, against the default for this run's mode. Here
+    // absence reads as `false`, not as the shipped default: no adapter
+    // artifact before M43 wrote the key, and every one of them ran without
+    // the digest, so a pre-M43 `investigate` pair is an off-arm of today's
+    // configuration and must not be published as "where we stand". That is
+    // the M22 defect — quoting a number the shipped defaults no longer
+    // produce — refused mechanically.
+    let digest_switched = [
+        ("item_digest", shipped_item_digest(mode)),
+        ("digest_dates", shipped_digest_dates(mode)),
+    ]
+    .iter()
+    .any(|(key, shipped)| {
+        params.get(key).and_then(Value::as_bool).unwrap_or(false) != *shipped
+    });
     let widened = ["prefetch_limit", "rerank_depth"]
         .iter()
         .any(|key| params.get(key).is_some_and(|v| !v.is_null()));
-    Ok(switched || select_switched || widened)
+    Ok(switched || select_switched || digest_switched || widened)
 }
 
 fn read_json(path: &Path) -> Result<Value> {
@@ -2922,7 +2969,10 @@ mod tests {
             "prefetch_limit": null, "rerank_depth": null,
             "select": true, "dated": true,
             "pool_rerank": false, "premise": false, "typed_probes": false,
-            "decompose": null
+            "decompose": null,
+            // M43's shipped digest, written explicitly: an artifact without
+            // these keys ran before M43 and reads as an off-arm.
+            "item_digest": true, "digest_dates": true
         })
     }
 
@@ -3061,6 +3111,9 @@ mod tests {
             let mut params = full_params();
             params["mode"] = serde_json::json!(mode);
             params["select"] = serde_json::json!(select);
+            // The digest at its own mode's shipped value (M43).
+            params["item_digest"] = serde_json::json!(mode == "investigate");
+            params["digest_dates"] = serde_json::json!(mode == "investigate");
             harness_run(&runs, "web", "web", 240, 0.40, params.clone());
             harness_run(&runs, "ent", "enterprise", 211, 0.40, params);
 
@@ -3069,6 +3122,50 @@ mod tests {
             assert_eq!(
                 combined.arm, expect_arm,
                 "{mode} + select={select} is {why}"
+            );
+        }
+    }
+
+    /// M43's digest on the LME-V2 path. Same shape as `select`, with one
+    /// extra corner: **an artifact that does not carry the key at all ran
+    /// before M43, without the digest**, and must read as an off-arm rather
+    /// than as the shipped default — otherwise `runs/m34_pools_*`, measured
+    /// at the pre-M43 operating point, would be published as where the
+    /// shipped configuration stands. That is the M22 defect by another
+    /// route, and it is why absence here is `false` and not "unrecorded".
+    #[test]
+    fn harness_digest_is_an_arm_only_against_its_own_modes_default() {
+        for (mode, digest, expect_arm, why) in [
+            ("investigate", Some(true), false, "the shipped investigate default"),
+            ("investigate", Some(false), true, "investigate with the digest turned OFF"),
+            ("investigate", None, true, "a pre-M43 artifact: ran without the digest"),
+            ("recall", Some(false), false, "the shipped recall default"),
+            ("recall", None, false, "a pre-M43 recall artifact: never had a digest"),
+            ("recall", Some(true), true, "recall with a mechanism it does not have"),
+        ] {
+            let tmp = tempfile::tempdir().unwrap();
+            let runs = tmp.path().join("runs");
+            let mut params = full_params();
+            params["mode"] = serde_json::json!(mode);
+            params["select"] = serde_json::json!(mode == "investigate");
+            match digest {
+                Some(on) => {
+                    params["item_digest"] = serde_json::json!(on);
+                    params["digest_dates"] = serde_json::json!(on);
+                }
+                None => {
+                    params.as_object_mut().unwrap().remove("item_digest");
+                    params.as_object_mut().unwrap().remove("digest_dates");
+                }
+            }
+            harness_run(&runs, "web", "web", 240, 0.40, params.clone());
+            harness_run(&runs, "ent", "enterprise", 211, 0.40, params);
+
+            let ours = collect(&runs, "/nonexistent/python").unwrap();
+            let combined = &ours["lme_v2_small.overall_full_set.combined"];
+            assert_eq!(
+                combined.arm, expect_arm,
+                "{mode} + item_digest={digest:?} is {why}"
             );
         }
     }
@@ -3206,10 +3303,14 @@ mod tests {
     /// hand-maintained and a switch left out of it is silently publishable.
     #[test]
     fn a_bench_run_carrying_an_m23_switch_is_an_arm() {
+        // The shipped `investigate` configuration as of M43 carries the
+        // dated digest, so a base without it would be an arm already and
+        // every assertion below would pass for the wrong reason.
         let base = serde_json::json!({
             "corpus": "locomo", "collection": "c", "mode": "investigate", "k": 6,
             "max_steps": 2, "scorer": "temporal",
             "resolve_dates": true, "timeline": true,
+            "select_sufficient": true, "item_digest": true, "digest_dates": true,
             "questions": 1, "f1_answerable": 0.5, "em_answerable": 0.1,
             "abstention_accuracy": 0.0, "by_category": [],
             "query_p50_seconds": 0.2, "query_avg_seconds": 0.2
@@ -3223,9 +3324,12 @@ mod tests {
             // this list gets published as "where we stand" — the M21 defect,
             // which is why the list is a test and not a comment.
             serde_json::json!({"self_ask": true}),
-            serde_json::json!({"item_digest": true}),
-            serde_json::json!({"digest_dates": true}),
+            // M43 shipped both ON, so turning either OFF is the arm.
+            serde_json::json!({"item_digest": false}),
+            serde_json::json!({"digest_dates": false}),
             serde_json::json!({"commit_answer": true}),
+            serde_json::json!({"digest_relevance": true}),
+            serde_json::json!({"reader_reasoning": true}),
         ] {
             let tmp = tempfile::tempdir().unwrap();
             let dir = tmp.path().join("runs/arm");
@@ -3290,11 +3394,15 @@ mod tests {
             let tmp = tempfile::tempdir().unwrap();
             let dir = tmp.path().join("runs/r");
             std::fs::create_dir_all(&dir).unwrap();
+            // The digest at its own mode's shipped value (M43), so only
+            // `select_sufficient` is under test here.
+            let digest = mode == "investigate";
             let agg = serde_json::json!({
                 "corpus": "locomo", "collection": "c", "mode": mode, "k": 6,
                 "max_steps": 2, "scorer": "temporal",
                 "resolve_dates": true, "timeline": true,
                 "select_sufficient": select,
+                "item_digest": digest, "digest_dates": digest,
                 "questions": 1, "f1_answerable": 0.5, "em_answerable": 0.1,
                 "abstention_accuracy": 0.0, "by_category": [],
                 "query_p50_seconds": 0.2, "query_avg_seconds": 0.2
@@ -3306,6 +3414,56 @@ mod tests {
             assert_eq!(
                 ours["locomo.temporal.n1540"].arm, expect_arm,
                 "{mode} + select_sufficient={select} is {why}"
+            );
+        }
+    }
+
+    /// M43 shipped the dated digest on for `investigate` and it has no
+    /// `recall` counterpart, so — as with `select_sufficient` — an arm is a
+    /// run that differs from the default *for its own mode*. Testing the
+    /// raw value would flag the shipped configuration as an arm and publish
+    /// the *undigested* run as "where we stand", which is the M23 defect
+    /// one switch later. A run written before M40 deserialises `false`,
+    /// which is exactly what it ran with, so it reads as an off-arm.
+    #[test]
+    fn item_digest_is_an_arm_only_against_its_own_modes_default() {
+        let row = serde_json::json!({
+            "question_id": "q", "tenant": "t", "category": 2,
+            "question_text": "when?", "answer_gold": "g",
+            "response_raw": "g", "score": 1.0, "exact_match": 1.0,
+            "is_abstention_problem": false, "retrieved_items": 6,
+            "memory_query_duration_seconds": 0.1
+        })
+        .to_string();
+
+        // (mode, item_digest, digest_dates) -> is this an arm?
+        for (mode, digest, dates, expect_arm, why) in [
+            ("investigate", true, true, false, "the shipped investigate default"),
+            ("investigate", false, false, true, "investigate without the digest — every pre-M43 run"),
+            ("investigate", true, false, true, "the undated digest, M40's arm"),
+            ("recall", false, false, false, "the shipped recall default"),
+            ("recall", true, true, true, "recall with a mechanism it does not have"),
+        ] {
+            let tmp = tempfile::tempdir().unwrap();
+            let dir = tmp.path().join("runs/r");
+            std::fs::create_dir_all(&dir).unwrap();
+            let agg = serde_json::json!({
+                "corpus": "locomo", "collection": "c", "mode": mode, "k": 6,
+                "max_steps": 2, "scorer": "temporal",
+                "resolve_dates": true, "timeline": true,
+                "select_sufficient": mode == "investigate",
+                "item_digest": digest, "digest_dates": dates,
+                "questions": 1, "f1_answerable": 0.5, "em_answerable": 0.1,
+                "abstention_accuracy": 0.0, "by_category": [],
+                "query_p50_seconds": 0.2, "query_avg_seconds": 0.2
+            });
+            std::fs::write(dir.join("per_question.jsonl"), &row).unwrap();
+            std::fs::write(dir.join("aggregated_metrics.json"), agg.to_string()).unwrap();
+
+            let ours = collect(&tmp.path().join("runs"), "/nonexistent/python").unwrap();
+            assert_eq!(
+                ours["locomo.temporal.n1540"].arm, expect_arm,
+                "{mode} + item_digest={digest} + digest_dates={dates} is {why}"
             );
         }
     }
