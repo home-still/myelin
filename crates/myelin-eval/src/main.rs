@@ -570,12 +570,18 @@ enum Command {
         /// chosen by the model: M39 measured that on two-fact questions the
         /// model produced fewer than two follow-ups 70% of the time while
         /// holding 7 or 8 memories. One model call per query.
+        ///
+        /// Ships **on** for `investigate` since M43 (+5.80 judged with
+        /// `--digest-dates`). The bench CLI still defaults every switch off
+        /// so an arm names exactly what it runs: pass
+        /// `--item-digest --digest-dates` for the shipped configuration.
         #[arg(long)]
         item_digest: bool,
         /// Prefix each digest line with the `(YYYY-MM-DD)` of the memory it
         /// came from (M41). Inert without `--item-digest`; costs no extra
         /// model call, since the stamp is already on the composed item.
-        /// M40 measured omitting it at -4.2 on `knowledge-update`.
+        /// M40 measured omitting it at -4.2 on `knowledge-update`; M43
+        /// measured its marginal at +3.40 [+1.2, +5.8] and shipped it on.
         #[arg(long)]
         digest_dates: bool,
         /// When the reader declines, ask once more with the two decisions
@@ -589,6 +595,24 @@ enum Command {
         /// keeps its own `evidence_absent` escape hatch.
         #[arg(long)]
         commit_answer: bool,
+        /// Let the digest mark a memory as not bearing on the question and
+        /// drop its line (M43). Inert without `--item-digest`; no extra call.
+        ///
+        /// M40's arm emitted 265 prose negations across 2,355 digest lines —
+        /// 11.3%, on 26% of noted rows — despite being told to write the
+        /// literal `nothing`. Rows whose note carries one gained −0.9; rows
+        /// with none gained +4.1.
+        #[arg(long)]
+        digest_relevance: bool,
+        /// Let the reader reason before answering (M44 R1): a
+        /// `{reasoning, answer, evidence_absent}` schema in that field order,
+        /// with the completion ceiling raised from 160 to 480.
+        ///
+        /// Until this exists every myelin number was produced by a reader
+        /// told "Do not explain." with thinking off — a configuration no
+        /// published comparator uses.
+        #[arg(long)]
+        reader_reasoning: bool,
         /// Cap how many `Untrusted` records the composed set may contain
         /// (M23 B1). A ceiling, not an exclusion: the quota never drops
         /// untrusted evidence to zero and never drops a trusted record.
@@ -1013,6 +1037,8 @@ async fn main() -> anyhow::Result<()> {
             item_digest,
             digest_dates,
             commit_answer,
+            digest_relevance,
+            reader_reasoning,
             untrusted_max,
             decompose,
             ref categories,
@@ -1046,6 +1072,8 @@ async fn main() -> anyhow::Result<()> {
                     item_digest,
                     digest_dates,
                     commit_answer,
+                    digest_relevance,
+                    reader_reasoning,
                     untrusted_max,
                     decompose,
                     categories: categories.clone().unwrap_or_default(),

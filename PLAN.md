@@ -810,6 +810,7 @@ Each milestone ends with a runnable command and a number, not a description.
 | M40 | **take the count away from the model: the prediction holds, the bar does not** | M39 showed self-ask helps when it decomposes and hurts when it half-decomposes, and that the binding constraint was **the model's choice of how much to produce** — two or more follow-ups on only 30% of two-fact questions while holding 7 or 8 memories. M40 removes the choice. `InvestigateConfig::item_digest` states what **every** composed memory contributes, with `digest_schema`'s `minItems == maxItems == n`: eight memories, eight entries, or the response does not parse. Everything else is M39's and re-tested — additive, one call, fail-open, entries bound **by index** so a reordered response cannot misattribute, and the note is a view carrying the weakest trust it saw. `view_item` now factors those invariants into one constructor. **Firing rate 20.4% → 86.4%.** **Arm: 62.00 → 64.40, +2.40 (95% CI [−0.60, +5.60])**, 38 gained / 26 lost — the largest effect since M32 and still short of the +3.0 bar with an interval spanning zero, so **the default stays off; a near miss is what a pre-registered rule is for**. **The pre-registered prediction holds for the first time since M32**: gold=2 (n=217) **+6.0 [+0.9, +11.1]**, gold≥3 +9.7, `multi-session` **+9.1 [+0.0, +18.2]**, and no regression on single-fact rows (−1.2 [−5.3, +3.0]) — where M39's same stratum sat at +0.00 and `multi-session` went −2.26. The control is exact: on the **68 rows where the digest did not fire the delta is +0.0 [+0.0, +0.0]**, byte-identical, so the arm measures the mechanism and not prompt contamination — and M39's conditional +10.8 was therefore not pure selection. **Why the headline trails the stratum**: `knowledge-update` pays **−4.2** because the digest flattens a dated evidence set into an undated fact list — asked which lens was bought *most recently*, the reader answers from the first line — discarding exactly the signal M19 measured at +37.6. Not patched before publishing, so `runs/m40_digest` stays reproducible from this code; dating the lines is M41, pre-registered with its own falsifier. **A free 24-question pilot paid for itself twice**: it caught the digest digesting `compose`'s own `[timeline]` view (one fact restated three times) and exact-duplicate contributions from a user turn and the assistant's reply. Dedup is **exact-match only** — a similarity penalty here would be aimed at co-evidence, which M21 measured destroying gold recall 0.658 → 0.550. 325 Rust + 10 Python tests, clippy clean on both feature sets, ratchet green under `--strict`. `docs/measurements/m40-forced-digest.md`. |
 | M41 | **a derived cache you cannot rebuild is not a cache** | The dated-digest arm never ran; two attempts died mid-flight and each exposed a defect worth more than the switch. **One dropped socket discarded a whole run**: every outbound call in `myelin-core` went to a model service and none retried, so a tunnel exiting 255 at row 424/500 was indistinguishable from a wrong answer — fifty minutes of GPU lost to a few hundred milliseconds of network, with all three services answering 200 a minute later. `net::send_retrying` now backs all three clients, retrying transport failures and `429`/`5xx` — llama-swap's model-loading signal — over 0.5/2/8 s, while failing `4xx` on the **first** attempt, because `exceed_context_size_error` will be a 400 every time and retrying it turns one wasted call into four. Sound only because these three calls are **pure**; nothing on this path writes. Tests drive a raw `tokio` listener that actually drops connections, not a mock that pretends to. Then the re-run died at row 18 against `Collection myelin_longmemeval_s doesn't exist` — the Qdrant log shows all five `myelin_*` collections deleted by hand through the web dashboard over twenty-three seconds (`Referer: …/dashboard`, `qdrant-js/1.15.1`), the benchmark's failing query landing between the fourth and fifth. **The ledgers were untouched — 162,181 live LongMemEval_S records, integrity ok — and there was no way back.** `build` is not the way and fails *silently*: its resume guard reads the `unit_complete` event **from the ledger**, so against a surviving one it skips every unit, prints "already ingested" 500 times, exits 0, and leaves an empty collection; deleting the ledger to force a real rebuild is worse, since extraction is nondeterministic and would mint different records, breaking comparability with every number this project has published. `myelin-eval reindex` is the missing path — embed-only, no reader, ids preserved exactly, **38 records/s** — with `ReindexReport::is_complete` making the silent-empty rebuild exit non-zero, and `Ledger::live_records_page` keyset-paginated on `rowid` (`OFFSET` re-walks every skipped row) under a property test that it selects exactly what `count_live` audits, across live, quarantined and not-yet-valid rows. **Rule: any future index ships with its rebuild path or it does not ship.** `digest_dates` is built, off, and pinned byte-identical to M40's arm by `the_dating_switch_off_reproduces_the_undated_digest`; its measurement is M42's first job. 339 Rust + 10 Python tests, clippy clean on both feature sets. `docs/measurements/m41-durability.md`. |
 | M42 | **the reader refuses with the answer in hand, and forcing it costs abstention** | M38 put the gap in reading and M39 measured its shape; neither asked what the wrong answers *say*. They mostly say `I don't know.` Over all 500 rows the reader declines on **63 questions that are not abstention problems and scores zero on every one — 12.6 points** — and on **48 of them the composed evidence contained every gold session** (9.6 points refused with the answer in hand); M40's digest recovers 22 and introduces 10, leaving 36. `single-session-preference`, the **worst category in the benchmark at 33.3%**, declines on 30% of its rows and is wrong on all nine: asked to *suggest accessories* there is no literal answer in any memory, only the dispositions from which one is built. **M20 aimed a clause at exactly this and could not have measured it** — n = 30 needs ~+13 points, four questions, to exclude zero, and the phenomenon is not preference-specific (21 of the 48 are `multi-session`, 17 `temporal-reasoning`). `commit_answer` re-asks a declining row under a strict schema with the two decisions **split and ordered** — `{answer, evidence_absent}` — so the model writes the best answer the memories support *before* it may assert there is none; the same structural lever that moved M40 (20.4% → 86.4%) where M38's and M39's instructions did nothing. **Arm: 62.00 → 64.20, +2.20 (95% CI [+0.8, +3.8], p = 0.0033)**, fired on **91 rows** (predicted ~90), committed on 31, and on those 31 rows accuracy went **6.5 → 41.9, +35.5** — 13 forced answers judged correct where a decline scores zero by definition. `multi-session` **+8.3 [+3.8, +13.5]**, the largest single-category effect measured in this project. **It ships off on both counts**: +2.20 misses the +3.0 bar, and the **pre-registered abstention veto fired** — two of the 30 adversarial rows were talked out of refusing (`fixing the fence`, `4`), because a mechanism that makes declining expensive makes it expensive precisely where declining is right. The `evidence_absent` hatch held 60 of 91 times and failed where it mattered; MINJA-defended ASR of 7.50% rests on a reader that can still refuse, and that is not tradeable against 2.2 points. **The control is exact — +0.0000 over all 469 untouched rows** — because the arm is computed over the base's own rows (`commit-arm`) instead of re-running the pipeline. Getting it exact found a defect in the method itself: re-judging flipped **2 of 469 byte-identical responses**, putting the control at −0.43 and a quarter of the headline into the grader disagreeing with itself. `JudgeFile::answers` now records the answer each verdict was given for and `judge --seed <run>` reuses a verdict only while that answer still stands — 29 judged, 407 reused, control zero, headline +2.20. **Every future paired arm gets this for free**; without it judge noise is indistinguishable from an effect the size this project keeps measuring. Also diagnosed, not patched: the forced digest emits *negations* for non-contributing memories (`No information about market attendance`) which outvote facts present in the same note — M35's `premise_analysis` shape in a third location, pre-registered as M43. 351 Rust + 10 Python tests, clippy clean on both feature sets, ratchet green under `--strict`. `docs/measurements/m42-false-declines.md`. |
+| M43 | **the digest argues against itself: date it and ship it; do not let it judge** | Two arms, opposite signs. **Arm A, `item_digest` + `digest_dates`: 62.00 → 67.80, +5.80 (95% CI [+2.8, +8.8], p = 0.0001)** — clears the bar and is **the first default flipped since M32**. Dating's own marginal over M40's undated digest is +3.40 [+1.2, +5.8] with abstention exactly +0.0, so M40's +2.40 plus dating's +3.40 is the +5.80 M41 predicted on arithmetic. The stratum prediction did **not** hold: `knowledge-update`, which M40 cost −4.2 and dating was supposed to recover, moved +1.3; the gain landed on `multi-session` (**+11.3 [+3.8, +18.8]**), which does not turn on recency. The mechanism is right, the story about *why* was wrong, and the doc says so. One abstention row is lost (`Ferrari model`, 93.3 → 90.0) and it is not dating's doing — `runs/m40_digest` answers the same — so the cost belongs to `item_digest`, measured before M42's veto existed; recorded rather than argued away, with MINJA's live gate unchanged. **Arm B, `digest_relevance`: −4.40 [−7.2, −1.6] over A, shipped off.** Told to write the literal `nothing` for a non-contributing memory, the model wrote **265 prose negations across 2,355 digest lines (11.3%)** — the fifth confirmation that this reader ignores instructions and obeys structure. A schema field `bears_on_question` (written *after* `says`, M42's ordering) cut negations 11.3% → 0.5% and cost −4.4, because dropping lines pushed notes under `MIN_STEPS_EMITTED` and **245 rows lost their note entirely** (−8.2 on those rows; **+0.0 exactly** on the 70 rows with no note in either arm). A boolean is the wrong label: Chain-of-Note (`2311.09210`) types notes *answers / useful context / irrelevant* and the bool collapses the first two — that is M48. **A free 24-row pilot caught an inert arm**: `digest_relevance` was threaded into the LoCoMo constructor and not the LongMemEval one; `investigate_config` is now the one place `BenchSwitches` becomes an `InvestigateConfig`, tested field by field. `standing` and `ratchet` treat the dated digest as the `investigate` default, so every pre-M43 `investigate` run reads as an off-arm; the LME-V2 pair `runs/m34_pools_*` is quoted only because no run at the shipped configuration exists yet (M44's corollary). Ratchet: judge **62.00 → 67.80**, token F1 48.89 → 52.64, nothing regressed under `--strict`. `docs/measurements/m43-the-digest-argues-against-itself.md`. |
 
 M0 and M5 are not ceremony. M0 pins the four probe findings in §5 — exactly the kind of thing a Qdrant point
 release changes underneath us. M5 pins the benchmark's own privacy test against our adapter, which is the
@@ -847,7 +848,7 @@ web UI — the MCP surface and the eval report are the interfaces.
 
 ## 15. Immediate next step
 
-M0–M36 are done and committed. `docs/measurements/` carries one file per milestone; the standing
+M0–M43 are done and committed. `docs/measurements/` carries one file per milestone; the standing
 table against the published literature is `docs/sota/registry.json` + `runs/standing/`, and the
 floor under our own numbers is `docs/sota/progression.json` + `myelin-eval ratchet`.
 
@@ -857,104 +858,88 @@ floor under our own numbers is `docs/sota/progression.json` + `myelin-eval ratch
 |---|---|---|---|
 | `minja.asr.k6_prepopulated_defended` | **7.50%** | ≤10% | **+2.50 — CLOSED** |
 | `locomo.judge_score.n1540` | 69.87 | 77.85 | −7.98 |
-| `longmemeval_s.judge_score.n500` | **62.00** | 80.80 | −18.80 |
-| `lme_v2_small.overall_full_set.combined` | **38.58** | 74.90 | −36.32 |
-| └ vs AgentRunbook-**R**, same reader | 38.58 | 58.60 | **−20.02** |
+| `longmemeval_s.judge_score.n500` | **67.80** | 80.80 | −13.00 |
+| `lme_v2_small.overall_full_set.combined` | **38.58** | 74.90 | −36.32 — pre-M43 configuration (no digest, `dated: false`); no run at the shipped default exists yet |
+| └ vs AgentRunbook-**R** | 38.58 | 58.60 | −20.02 — **not a same-reader row, see M44** |
 | `lme_v2_small.lafs_gain.small` | 0.00 | >0.00 | stale-config |
 
-**M41 — date the digest's lines.**
+### 15.1 The finding that reorders the backlog
 
-M40 removed the model's choice of how much to produce (firing rate 20.4% →
-86.4%) and the pre-registered prediction held for the first time since M32:
-**gold=2 +6.0 [+0.9, +11.1]**, `multi-session` +9.1, no single-fact
-regression. The headline was **+2.40 [−0.60, +5.60]** — short of the +3.0
-bar, so the switch stays off — and the gap between the stratum and the
-headline has one identified cause.
+`docs/sota/2026-09-22-agentic-memory-sota-guidance.md` §1 makes a claim about this repo that is
+cheap to check and, checked, holds in every particular:
 
-**`knowledge-update` pays −4.2 because the digest flattens a dated evidence
-set into an undated fact list.** Asked which camera lens was bought *most
-recently*, the reader answers from the first line of the note. The composed
-items already carry `[YYYY-MM-DD]` (`stamp_valid_time` ships on); the digest
-drops it, discarding exactly the signal M19 measured at +37.6 on LoCoMo
-category 2.
+| claim | verified |
+| --- | --- |
+| `with_thinking(true)` is never called in production | `grep` finds exactly two hits: the setter's definition and one unit test |
+| the server disables thinking globally | `ops/big/serve-models.sh:93` `TEMPLATE_KWARGS='{"enable_thinking":false}'` |
+| the reader is capped and told not to explain | `.with_max_tokens(160)`; `READER_SYSTEM` — "Answer in as few words as possible … Do not explain." |
+| the vendored harness defaults the opposite way | `vendor/longmemeval-v2/evaluation/harness.py:186` `set_defaults(reader_enable_thinking=True)` |
+| our adapter silently deviates | `adapters/run_myelin.py:201` `default=False` |
 
-1. **Carry each contribution's date into its line.** Cheap — the prefix is
-   already on the item. Predicted: `knowledge-update` recovers, the
-   multi-fact gain is unchanged because those questions do not turn on
-   recency. **Falsifier:** if dating does not move `knowledge-update`, the
-   regression is the digest's confident phrasing rather than its missing
-   dates, and the next attempt is about hedging.
-2. **Then re-read the bar.** M40 at +2.40 and a dated variant recovering most
-   of `knowledge-update`'s −4.2 would clear +3.0 on arithmetic alone. That is
-   a prediction, not a result, and it needs its own run.
-3. **`kind_quota` (M35)** — still one run from an answer, same bar.
+**The reader has never been allowed to reason, in any milestone.** Two consequences.
 
-**Pre-register judged, per stratum, with the contribution count.** M40's
-headline and its +6.0 stratum came from the same run, and only the
-pre-registered split distinguished them. The 68 non-firing rows moving
-+0.0 [+0.0, +0.0] is the control that makes the rest readable.
+The first is a correctness problem in the standing table. AgentRunbook-R's 58.60 was produced by a
+*thinking* Qwen3.5-9B with a 20,000-token completion budget; our 38.58 by the same weights with
+thinking off, temperature 0, and 160 tokens. The row is labelled "same reader" and is not one. Until
+an equal-configuration number exists it must carry `caveat-reader-mode`, and the −20.02 is not
+attributable to memory.
 
-Carried over, with M38's, M39's and M40's verdicts applied:
+The second is that every diagnosis since M38 was taken under that configuration. The 2-fact collapse
+(79.9 → 56.7 → 40.0), the instruction-ignoring (M38 500/500 identical, M39 30% compliance, M40's
+count forcing, M43's 265 prose negations), and the 63 false declines are all the documented
+behaviour of a small model denied reasoning tokens. Tam et al.
+(`10.18653/v1/2024.emnlp-industry.91`) measure the mechanism directly: JSON mode put the answer key
+before the reason key in **100%** of responses, producing direct answering instead of
+chain-of-thought, and LLaMA-3-8B loses **38.15%** on Last Letter under it. `READER_SYSTEM` is that
+failure mode with no reason field at all.
 
-1. **~~`answerability_gate` (M36)~~ — dead.** The 14-question pilot returned **zero
-   `supported` verdicts** and refused 6 of 11 answerable questions (54.5% false-refusal, vs
-   67% at a 600-char head). `Supported` was the branch that made an arm safe — it emits the
-   evidence byte-identical, so a correctly classified question cannot be harmed — and a gate
-   that never returns it modifies every prompt, which is the shape that cost `premise_analysis`
-   −8.75. Switch kept and defaulted off with the measurement in its doc comment, the way
-   `tau_abstain` is. Do not re-run the arm; a prompted 9B evaluator asked for an absolute
-   judgement over 25 AXTree page dumps is not the instrument.
-2. **`kind_quota` (M35)** — unchanged, still one run from an answer, same pre-registered bar.
-   Cheap: no extra model call, it is a reordering.
-3. **~~`select_coverage` (M38)~~ — null, and the null refuted its own rationale.** 500/500
-   rows byte-identical, switch verified live at the wire. The 9B selector ignores the
-   parsimony clause, so the −5.3-point coverage loss on `multi-session` is not an
-   instruction-following effect. Kept off as the control prompt a structural attempt will
-   need.
-4. **~~The LME-V2 write-path milestone M37 argued for~~ — refuted before it was built.**
-   Fixing entity extraction changes no retrieved record (`entity_ids` is written and indexed
-   but never read; its only consumer is the graph channel, which ships off). And trajectory
-   routing is *worse* than flat retrieval — dense recall@25 51.4% flat vs 45.7% routed@10 —
-   so the re-ingest it needed would have bought a regression. Simulated offline in 66 seconds
-   against vectors already in Qdrant. **This is the milestone the free premise check saved.**
-5. **`self_ask` (M39)** — null on the headline (+0.80 [−1.60, +3.20]) and **exactly +0.00
-   [−4.15, +4.15]** on its own target stratum, so it stays off. Not refuted the way the two
-   above are: it helped on the 30% of rows where the model actually produced two or more
-   follow-ups (+10.8 [+1.5, +21.5], descriptive only) and cost 4.6 points on the 70% where
-   it did not. `MIN_STEPS_EMITTED = 2` now refuses the harmful one-step note and is itself
-   unmeasured.
-6. **`item_digest` (M40)** — the live one, and `self_ask` with the count taken away from the
-   model. +2.40 [−0.60, +5.60] overall misses the bar, but **+6.0 [+0.9, +11.1] on its
-   target stratum** with no single-fact regression and an exact +0.0 [+0.0, +0.0] on the 68
-   rows where it did not fire. Off pending M41's dated variant.
+M39/M40/M42/M43 moved reasoning into the memory layer because the reader was forbidden to do it.
+Those are partial workarounds for a constraint we imposed on ourselves and never measured.
 
-**Deprioritised, not refuted.** `ComposeConfig::kind_quota` is implemented, tested and wired, with
-its pre-registered rule intact: AgentRunbook-R's top-6 events / top-3 notes against our measured
-10.6% events vs their 31.6%. It was shelved when §1 showed 41% of the gap sitting elsewhere, and
-it is one run from an answer whenever the GPU is free.
+**So M44 goes first, and it is not a mechanism arm — it resets the denominator every later arm is
+measured against.**
 
-**§7.1 is an architectural question, not a measurement one.** The rule forbids an LLM in `recall`
-to protect **p95 < 100 ms**; plain `recall` measures **0.42 s** today, so the constraint is
-already violated 4× without an LLM, and it is what keeps a measured +3.8 off that path. Either the
-target is real and `recall` is out of compliance, or it has moved and the rule should be restated.
-M32 through M35 all declined to decide this by flipping a switch.
+### 15.2 Backlog, ranked by answers ÷ cost
 
-**What stays demoted.** Question-aware compression: M29 showed freeing budget is what costs the
-0.06, M31 showed the selector already collects that loss whatever the budget, and M32 shipped the
-selector. It must now beat a shipped mechanism, not a budget.
+Each row ships on its own pre-registered bar (≥ +3.0 on the reported population, paired 95% CI
+excluding zero) with M42's abstention veto intact: **any** drop on the abstention stratum ships it
+off whatever the headline says.
 
-**Two correctness items, neither urgent.** `RecallTrace` should capture the pool *before* selection
-as well as after, so `mean_emitted_rank` is readable on selecting cells — more pressing since M32
-made the shipped `investigate` configuration a selecting one. And E1's n = 40 makes G3 a
-one-attack gate with a 19.9% upper bound — widen the attack set or accept the point estimate, but
-**do not revise the adjudicator prompt again**: M15 allowed one revision, M23 spent it, and a
-fourth aimed at the one surviving form would be fitting the prompt to the test set.
+| # | mechanism | cost | numerator |
+|---|---|---|---|
+| **M44** | **reader mode.** R1: `{reasoning, answer, evidence_absent}` schema, field order is the mechanism, thinking still off, temp 0. R2: `enable_thinking: true` with a bounded thinking budget (1,024 tokens first), temp 0.6 / top_p 0.95 / top_k 20 per the Qwen3 report, two seeds so the CI carries sampling noise. Plus the LME-V2 re-run at the harness's own default, and `caveat-reader-mode` on the registry row until it exists. | R1 minutes; R2 2–6 GPU-h; LME-V2 hours | the 2-fact stratum (n=217, 56.7%) and gold≥3 (n=31, 35.5%); LME-V2's 128 abstention rows |
+| **M45** | **consensus-gated commit.** M42's forced commit is worth +35.5 on the rows it changes and ships off over 2 adversarial rows. Replace the model's single `evidence_absent` hatch with agreement across N=5 samples at temp 0.6, clustered by meaning, committing only above a threshold **calibrated** by conformal risk control — never tuned on the reported population. Semantic entropy is 0.78–0.81 AUROC from 7B to 70B (Farquhar et al., Nature 2024) and its discrete variant needs no logprobs, which is what llama.cpp's shim can give us. | minutes + decode on ~20% of rows | up to the 48 wrong-with-gold declines, minus whatever M44 recovers |
+| **M46** | **temporal arithmetic in `compose`.** `ComposeConfig::timeline_deltas`: emit signed day-deltas between stamped events when the question carries a duration cue, and order the `[timeline]` view target-event-first. Deterministic, **zero model calls**, I1-safe because it is a view. Test of Time (`2406.09170`) puts GPT-4 at 16% on duration arithmetic and measures fact ordering alone moving Claude-3-Sonnet 45.71 → 73.57. M19 already proved the asymmetry here: computing for the reader +37.6 vs telling it to compute +14.3. | minutes | the duration subset of `temporal-reasoning` (133) and LoCoMo temporal (321), reported separately from the rest |
+| **M47** | **presupposition verification, contradiction-only.** M35's `premise_analysis` was anti-selective because it fired on *unsupported*; silence is not a false premise. Schema-forced `{claim, status: supported\|contradicted\|absent, evidence_index}`, `status` after `claim`; emit a `[premise]` line **only** on `contradicted`, and nothing at all on `absent` — that one line is the whole difference from M35, and it makes M35's damage unreachable by construction. | ~1 h | LME-V2 abstention stratum, 128 rows at 17.97% |
+| **M48** | **three-way digest label.** Only if the digest is still off after M44. Chain-of-Note (`2311.09210`) types each note *answers* / *useful context* / *irrelevant*; M43's boolean collapses the first two, and M42's failure rows are context entries phrased as negations. One enum instead of a bool, same forcing, same field order. | minutes | the 113 negation-bearing rows |
+| **M49** | **REPLAY and supersedes routing, as read-path views.** JustMem's REPLAY recovers the source turn for fidelity-sensitive questions; RD-Forget routes current-state questions to newest-in-slot and historical ones to the full archive. We already have both halves — `prov_source.doc` links records to sessions and `supersedes` edges exist — so this is a compose-time view, not a re-ingest. | minutes | `knowledge-update` (78) and temporal |
+| **M50** | **one `build` with Chronos-style event tuples.** The only write-path arm worth the GPU window; Chronos attributes 58.9% of its gain to the events calendar, unknown at 9B. One re-ingest, not three. | one ~57-min re-ingest + arms | temporal |
 
-**`lafs_gain` needs a decision, not a run.** It stays `stale-config` because `lafs_unrecorded`
-unions over every pair feeding the frontier and the superseded M22 arms predate the M23/M24 keys.
-Either re-run those arms on this code, or decide that superseded exploratory arms are not
-submission points. That is a question about what "our submission" means.
+**Ordering rule.** M44 first because every number after it is measured against the reader it uses.
+M48 is explicitly conditional on M44 — if a reasoning reader composes facts itself, the digest may
+be unnecessary rather than merely sub-bar.
 
-**Still outside all of it:** LME-V2 has no per-turn gold, so `ablate --width` and `coverage` both
-refuse it, and M16/M22's S = 7.4% / 12.1% stands exactly where it was measured and nowhere else.
-M34's 38.58 is an end-to-end accuracy, not a retrieval diagnosis.
+### 15.3 Do not re-run
+
+`typed_probes`; `premise_analysis` as built (M35, −8.75); `select_coverage` (M38, 500/500
+byte-identical); `answerability_gate` (M36, zero `supported` verdicts on the pilot); trajectory
+routing (M38, worse than flat); entity-extraction repair (`entity_ids` is written, indexed, and
+never read); one-step `self_ask` (M39, −4.6); MMR or any model-free diversity term over the
+reranked pool (M21, gold recall 0.658 → 0.550 — co-evidence resembles itself 1.60× more than the
+rest of the set, so every such term is aimed at the answer); widening (M37, three nulls). Do not
+revise the adjudicator prompt (M15/M23). Do not tune M45's threshold on the population it reports.
+
+### 15.4 Operational debt
+
+- **Qdrant is shared and unprotected.** All five `myelin_*` collections were deleted through the
+  dashboard mid-run on 2026-09-22. M41's `reindex` is the recovery; the prevention is
+  `QDRANT__SERVICE__API_KEY` + `QDRANT__SERVICE__READ_ONLY_API_KEY`, or our own instance on a
+  separate port. Snapshot after every `build` either way.
+- **GPU tenancy.** M44's R2 and M45's N-sample decode need more of the card than any arm so far.
+  Levers that need no sudo: `-ctk q8_0 -ctv q8_0` with `-fa on`; two server profiles, because
+  LongMemEval_S at k=6/4,096 plus a 1,024-token thinking budget fits in 8k per slot and only LME-V2
+  needs the large window; and `n` parallel samples off one prefill for M45.
+- **A partially-offloaded reader is a different measurement, not a slower one.** When the card is
+  full the reader falls back to CPU layers and throughput drops ~5× (2.9 → 14.5 s/row). Runs taken
+  that way should be recorded `Degraded`, the way `WidthVerdict` already does.
+
