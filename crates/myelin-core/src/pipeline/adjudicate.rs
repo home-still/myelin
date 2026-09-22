@@ -188,6 +188,7 @@ mod tests {
         }
         async fn raw_complete(&self, _r: &CompletionRequest) -> Result<Completion> {
             Ok(Completion {
+                reasoning: None,
                 text: self.0.to_string(),
                 tool_calls: vec![],
                 finish_reason: None,

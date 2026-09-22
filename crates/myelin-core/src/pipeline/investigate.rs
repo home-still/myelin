@@ -2266,6 +2266,7 @@ mod tests {
     impl Canned {
         fn text(body: &str) -> Self {
             Self(std::sync::Mutex::new(vec![Ok(crate::llm::Completion {
+                reasoning: None,
                 text: body.into(),
                 tool_calls: vec![],
                 finish_reason: None,

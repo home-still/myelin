@@ -124,6 +124,9 @@ struct Choice {
 struct ChoiceMessage {
     #[serde(default)]
     content: Option<String>,
+    /// llama.cpp's thinking trace, split out of `content` by the server.
+    #[serde(default)]
+    reasoning_content: Option<String>,
     #[serde(default)]
     tool_calls: Vec<ApiToolCall>,
 }
@@ -197,6 +200,7 @@ impl Llm for OpenAiLlm {
         })?;
 
         Ok(Completion {
+            reasoning: choice.message.reasoning_content.filter(|r| !r.trim().is_empty()),
             text: choice.message.content.unwrap_or_default(),
             tool_calls: choice
                 .message
