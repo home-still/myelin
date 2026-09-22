@@ -32,7 +32,9 @@ use anyhow::{Context, Result};
 use myelin_core::config::MyelinConfig;
 use myelin_core::llm::openai::OpenAiLlm;
 
-use crate::bench::{commit_answer, is_abstention, ScoredQuestion, READER_SYSTEM};
+use crate::bench::{
+    commit_answer, commit_consensus, is_abstention, Consensus, ScoredQuestion, READER_SYSTEM,
+};
 use crate::datasets::longmemeval;
 
 /// What the arm did.
@@ -56,12 +58,20 @@ impl CommitArmReport {
     }
 }
 
-/// Apply M42's second pass to every row of `base`, writing `out`.
+/// Apply M42's second pass — or, with `consensus`, M45's sampled one — to
+/// every row of `base`, writing `out`.
+///
+/// `None` is M42's arm byte for byte: one greedy call, no sampling keys.
+/// `Some` draws `samples` seeded answers per declining row, clusters them
+/// by meaning in one structured call, and commits the majority only at or
+/// above `agree`; every sample and the agreement land on the row so the
+/// threshold can be re-applied offline against a calibration set.
 pub async fn run(
     cfg: &MyelinConfig,
     base: &Path,
     dataset: &Path,
     out: &Path,
+    consensus: Option<Consensus>,
 ) -> Result<CommitArmReport> {
     anyhow::ensure!(
         base != out,
@@ -110,16 +120,24 @@ pub async fn run(
             row.question_text
         );
 
-        let (response, outcome) = commit_answer(
-            &llm,
-            READER_SYSTEM,
-            &user,
-            std::mem::take(&mut row.response_raw),
-        )
-        .await;
-        report.fired += usize::from(outcome.fired);
-        report.committed += usize::from(outcome.committed);
-        if !outcome.committed {
+        let first = std::mem::take(&mut row.response_raw);
+        let (response, fired, committed) = match consensus {
+            None => {
+                let (response, outcome) = commit_answer(&llm, READER_SYSTEM, &user, first).await;
+                (response, outcome.fired, outcome.committed)
+            }
+            Some(c) => {
+                let (response, outcome) =
+                    commit_consensus(&llm, READER_SYSTEM, &user, &row.question_text, first, c)
+                        .await;
+                row.commit_samples = Some(outcome.samples.clone());
+                row.commit_agreement = Some(outcome.agreement);
+                (response, outcome.fired, outcome.committed)
+            }
+        };
+        report.fired += usize::from(fired);
+        report.committed += usize::from(committed);
+        if !committed {
             report.untouched += 1;
         }
         if report.fired % 10 == 0 {
@@ -133,7 +151,7 @@ pub async fn run(
         out_rows.push(row);
     }
 
-    write_arm(base, out, &out_rows)?;
+    write_arm(base, out, &out_rows, consensus)?;
     Ok(report)
 }
 
@@ -143,7 +161,12 @@ pub async fn run(
 /// The metrics file is the base's with `commit_answer` set, which is what
 /// `standing::Ours::arm` and `rescore_run`'s `RunSpec` reconstruction read. A
 /// run that did not record its own switches cannot be paired later.
-fn write_arm(base: &Path, out: &Path, rows: &[ScoredQuestion]) -> Result<()> {
+fn write_arm(
+    base: &Path,
+    out: &Path,
+    rows: &[ScoredQuestion],
+    consensus: Option<Consensus>,
+) -> Result<()> {
     std::fs::create_dir_all(out).with_context(|| format!("create {}", out.display()))?;
 
     let lines: Vec<String> = rows
@@ -165,6 +188,13 @@ fn write_arm(base: &Path, out: &Path, rows: &[ScoredQuestion]) -> Result<()> {
             "derived_from".into(),
             serde_json::Value::String(base.display().to_string()),
         );
+        // M45's parameters, or nothing: an artifact without them is M42's
+        // arm, and `standing` reads either as an arm of the defaults.
+        if let Some(c) = consensus {
+            obj.insert("commit_samples".into(), serde_json::json!(c.samples));
+            obj.insert("commit_seed".into(), serde_json::json!(c.seed));
+            obj.insert("commit_agree".into(), serde_json::json!(c.agree));
+        }
     }
     std::fs::write(
         out.join("aggregated_metrics.json"),

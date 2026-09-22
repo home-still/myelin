@@ -124,6 +124,17 @@ produces *disagreement*. Non-firing rows +0.0 exactly.
 
 **Cost.** Minutes plus decode on ~20% of rows.
 
+**Status.** *Implemented and pre-registered* —
+`docs/measurements/m45-consensus-gated-commit.md`. `commit-arm --samples N
+--seed S --agree τ`: N seeded samples under M42's schema (Qwen3 non-thinking
+sampling), one forced `same_as` clustering call, commit the majority iff its
+share ≥ τ; samples and agreement recorded per row so τ is re-applied
+offline. **Open decision for the user — the calibration set:** (a) LME-V2's
+128 wrong-premise rows as pre-registered (needs the LME-V2 base at shipped
+defaults plus a `ScoredQuestion` export from the harness), or (b) LoCoMo
+category 5's 446 silence-shaped rows already on disk. The sampling run is
+written at a provisional τ = 0.6 and labelled uncalibrated until then.
+
 ---
 
 ## M46 — temporal arithmetic belongs in `compose`
