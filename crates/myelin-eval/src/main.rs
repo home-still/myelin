@@ -531,6 +531,14 @@ enum Command {
         /// fact answers the question and 54.3% when two must be combined.
         #[arg(long)]
         self_ask: bool,
+        /// State what EVERY composed memory contributes to the question and
+        /// append the contributions as one additive `[notes]` item (M40).
+        /// `--self-ask` with the entry count fixed by the schema instead of
+        /// chosen by the model: M39 measured that on two-fact questions the
+        /// model produced fewer than two follow-ups 70% of the time while
+        /// holding 7 or 8 memories. One model call per query.
+        #[arg(long)]
+        item_digest: bool,
         /// Cap how many `Untrusted` records the composed set may contain
         /// (M23 B1). A ceiling, not an exclusion: the quota never drops
         /// untrusted evidence to zero and never drops a trusted record.
@@ -889,6 +897,7 @@ async fn main() -> anyhow::Result<()> {
             premise,
             typed_probes,
             self_ask,
+            item_digest,
             untrusted_max,
             decompose,
             ref categories,
@@ -919,6 +928,7 @@ async fn main() -> anyhow::Result<()> {
                     premise,
                     typed_probes,
                     self_ask,
+                    item_digest,
                     untrusted_max,
                     decompose,
                     categories: categories.clone().unwrap_or_default(),

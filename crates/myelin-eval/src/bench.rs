@@ -403,6 +403,10 @@ pub struct BenchRun {
     pub self_ask: bool,
     #[serde(default)]
     pub untrusted_max: Option<usize>,
+    /// M40's per-item digest. `serde(default)` for the reason `self_ask` has
+    /// one: runs written earlier predate the field.
+    #[serde(default)]
+    pub item_digest: bool,
     /// M24's sub-query decomposition cap, mirroring
     /// `RetrieveConfig::decompose`. Ships off; absent on every run before
     /// M24.
@@ -497,6 +501,10 @@ pub struct BenchSwitches {
     /// evidence, appended as one additive `[notes]` item — M39,
     /// `InvestigateConfig::self_ask`. One model call per query.
     pub self_ask: bool,
+    /// State what every composed memory contributes and append it as one
+    /// additive `[notes]` item — M40, `InvestigateConfig::item_digest`.
+    /// `self_ask` with the entry count fixed by schema.
+    pub item_digest: bool,
     /// Cap untrusted occupancy in the composed set — M23 B1,
     /// `ComposeConfig::untrusted_max`.
     ///
@@ -864,6 +872,7 @@ pub async fn bench_locomo(
         abstain_on_insufficient: switches.premise,
         typed_probes: switches.typed_probes,
         self_ask: switches.self_ask,
+        item_digest: switches.item_digest,
         ..Default::default()
     };
 
@@ -1118,6 +1127,7 @@ pub async fn bench_longmemeval_s(
         abstain_on_insufficient: switches.premise,
         typed_probes: switches.typed_probes,
         self_ask: switches.self_ask,
+        item_digest: switches.item_digest,
         ..Default::default()
     };
 
@@ -1361,6 +1371,7 @@ fn finish_run(
         premise: spec.switches.premise,
         typed_probes: spec.switches.typed_probes,
         self_ask: spec.switches.self_ask,
+        item_digest: spec.switches.item_digest,
         untrusted_max: spec.switches.untrusted_max,
         decompose: spec.switches.decompose,
         categories: spec.switches.categories.clone(),
@@ -1528,6 +1539,7 @@ pub fn rescore_run(source: &Path, out_dir: &Path, scorer: Scorer) -> Result<Benc
             premise: flag("premise"),
             typed_probes: flag("typed_probes"),
             self_ask: flag("self_ask"),
+            item_digest: flag("item_digest"),
             untrusted_max: metrics
                 .get("untrusted_max")
                 .and_then(serde_json::Value::as_u64)

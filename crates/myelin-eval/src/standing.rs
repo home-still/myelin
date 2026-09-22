@@ -919,7 +919,9 @@ fn bench_metrics(dir: &Path, agg_text: &str) -> Result<Vec<Ours>> {
         // M24's sub-query decomposition.
         || run.decompose.is_some()
         // M39's self-ask decomposition, shipping off pending its arm.
-        || run.self_ask;
+        || run.self_ask
+        // M40's per-item digest, shipping off pending its arm.
+        || run.item_digest;
 
     // Does this run record its own operating point? Every key below defines
     // part of what the system does per query today. An artifact that does
@@ -1404,7 +1406,7 @@ fn unrecorded_pair_keys(dir: &Path) -> Result<Vec<&'static str>> {
 /// §7.1 keeps it off for `recall` — so it cannot be a constant here. It is
 /// tested separately in [`harness_arm`] against
 /// [`shipped_select_sufficient`], which reads the library defaults.
-const PAIR_SWITCH_DEFAULTS: [(&str, bool); 6] = [
+const PAIR_SWITCH_DEFAULTS: [(&str, bool); 7] = [
     ("dated", true),
     ("pool_rerank", false),
     ("premise", false),
@@ -1417,6 +1419,7 @@ const PAIR_SWITCH_DEFAULTS: [(&str, bool); 6] = [
     // that is in fact known.
     ("select_coverage", false),
     ("self_ask", false),
+    ("item_digest", false),
 ];
 
 /// Does this harness artifact record an operating point the server's
@@ -3213,6 +3216,7 @@ mod tests {
             // this list gets published as "where we stand" — the M21 defect,
             // which is why the list is a test and not a comment.
             serde_json::json!({"self_ask": true}),
+            serde_json::json!({"item_digest": true}),
         ] {
             let tmp = tempfile::tempdir().unwrap();
             let dir = tmp.path().join("runs/arm");
