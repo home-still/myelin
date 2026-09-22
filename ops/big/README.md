@@ -33,26 +33,20 @@ There is no checkout on `big`; pipe the scripts in from this repo. This is the
 exact invocation that was verified:
 
 ```bash
-# gpu-tenant v2 (2026-09-22): every call names the tenant, leases expire,
-# and a reaper flags anything on the card without one. serve-models.sh
-# refuses to start without this lease (MYELIN_GPU_WHO, default myelin@mac_air).
-ssh big gpu-tenant claim coding --who myelin@mac_air --ttl 8h --note "myelin arms"
+ssh big gpu-tenant wait coding --who myelin@workstation --ttl 4h   # see the caveat below — this is not enough
 ssh big bash -s < ops/big/serve-models.sh
 # Overrides MUST be set on the REMOTE side; `ssh` does not forward the
 # environment, so `MYELIN_READER_CTX=65536 ssh big bash -s < ...` silently
 # uses the default and gives each slot 4096 tokens:
 ssh big "MYELIN_READER_CTX=65536 bash -s" < ops/big/serve-models.sh
+# serve-models.sh refuses to start unless MYELIN_TENANT_WHO (default
+# myelin@workstation) holds the lease; set it remote-side like the others.
 ssh -N -L 5810:127.0.0.1:5810 -L 5813:127.0.0.1:5813 big &   # see "firewall"
 # ... work ...
+# long runs: ssh big gpu-tenant renew --who myelin@workstation --ttl 4h
 ssh big bash -s < ops/big/stop-models.sh
-ssh big gpu-tenant release --who myelin@mac_air
+ssh big gpu-tenant release --who myelin@workstation
 ```
-
-`gpu-tenant wait coding --who myelin@mac_air --ttl 8h` queues FIFO behind a
-holder instead of exiting 1; `renew --who … --ttl 4h` extends a lease that
-would expire mid-arm. A lease only pauses the three units the tool manages;
-check `status` for unclaimed foreign use (ollama, olmocr) before claiming,
-because a claim does not evict it and the card may not fit the reader.
 
 `serve-models.sh` blocks until every enabled `/health` answers 200 and then
 prints the ports and card occupancy, so it is safe to chain. It exits 1 with the
@@ -76,13 +70,11 @@ the LAN just because the firewall would have to be asked nicely.
 Qdrant (6334) and ollama (11434) need no tunnel, which is a second reason the
 default dense embedder is bge-m3 through ollama.
 
-## `gpu-tenant claim` does not free the card
+## A `gpu-tenant` lease does not free the card
 
-This is the thing that will bite you. `gpu-tenant` pauses exactly three units:
-
-```
-hs-serve-distill.service  llama-swap.service  trellis2-mcp.service
-```
+This is the thing that will bite you. A grant evicts every llama-swap model
+and stops no service; the distill embedder (`hs-serve-distill`, ~5.4 GB) stays
+resident by design.
 
 It does **not** manage `ollama`, and it does **not** manage `voice-serve` (the
 household voice assistant, another agent's process). Both stay resident through
@@ -103,10 +95,11 @@ Evict an idle ollama model with `keep_alive: 0`; it reloads on demand:
 ssh big 'curl -s http://localhost:11434/api/generate -d "{\"model\":\"qwen3:8b\",\"keep_alive\":0}"'
 ```
 
-**Coordinate before claiming.** `big:/tmp/agent_chat` is the shared append-only
-log; other agents run latency-sensitive gates and a live voice assistant that
-OOMs if someone sizes a model against the wrong free-VRAM number. Announce the
-window, then release and say so.
+**Coordinate before claiming.** `ssh big gpu-tenant board` is the shared
+persistent board; post with `gpu-tenant say --who myelin@workstation …`. Other
+agents run latency-sensitive gates and a live voice assistant that OOMs if
+someone sizes a model against the wrong free-VRAM number. Announce the window,
+then release and say so.
 
 ## Measured, 2026-09-14
 

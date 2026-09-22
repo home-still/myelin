@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Bring up the myelin reader + embedder on `big`, co-resident.
 #
-# Run this FROM `big` (or via `ssh big "bash -lc '...'"`). It assumes the GPU
-# is already claimed — see ops/big/README.md for why the claim alone is not
-# sufficient to free the card.
+# Run this FROM `big` (or via `ssh big "bash -lc '...'"`). It refuses to start
+# unless `$MYELIN_TENANT_WHO` (default myelin@workstation) holds the gpu-tenant
+# lease — see ops/big/README.md for why the lease alone does not free the card.
 #
 # Deliberately NOT wired into llama-swap. llama-swap runs strict swap (mutual
 # exclusion, one model resident at a time — see the header of
@@ -15,6 +15,12 @@
 # Build: cuda-ece963 (build 1498, commit ece963f4). Verified to carry the
 # `qwen35` arch; the older 434b2a1 install does not and cannot load the reader.
 set -euo pipefail
+
+TENANT_WHO="${MYELIN_TENANT_WHO:-myelin@workstation}"
+if ! "$HOME/.local/bin/gpu-tenant" check --who "$TENANT_WHO"; then
+  echo "serve-models: claim first: ssh big gpu-tenant wait coding --who $TENANT_WHO" >&2
+  exit 1
+fi
 
 LC=/home/ladvien/.local/llama.cpp/cuda-ece963
 export LD_LIBRARY_PATH="$LC"
@@ -77,16 +83,6 @@ READER_CTX="${MYELIN_READER_CTX:-32768}"
 # `myelin-eval bench --reader-thinking` probes it before the first row and
 # refuses to run against an unenforced budget.
 READER_THINK_BUDGET="${MYELIN_READER_THINK_BUDGET:--1}"
-# The gpu-tenant v2 lease this serving runs under (deployed 2026-09-22:
-# queued, expiring leases, and a reaper that flags unclaimed GPU use). The
-# lease is taken by the caller — `gpu-tenant claim coding --who "$WHO"
-# --ttl 8h` — and this script refuses to put a model on the card without
-# it, so a wrapper retry can never re-serve an unclaimed reader.
-GPU_WHO="${MYELIN_GPU_WHO:-myelin@mac_air}"
-if ! gpu-tenant check --who "$GPU_WHO"; then
-  echo "serve-models: no GPU lease for $GPU_WHO; run: gpu-tenant claim coding --who $GPU_WHO --ttl 8h" >&2
-  exit 1
-fi
 EMBED_CTX="${MYELIN_EMBED_CTX:-4096}"
 
 # mmproj is ON by default. It costs ~920 MiB, and 29 of LongMemEval-V2's 451
