@@ -95,7 +95,7 @@ use crate::temporal;
 /// part of the prompt rather than as a switch. Both mechanisms are needed:
 /// the annotation is worth +28.4 ([+23.4, +33.7]) on top of the clause.
 /// `docs/measurements/m19-temporal-resolution.md`.
-const READER_SYSTEM: &str = "You answer questions using only the supplied memories. \
+pub(crate) const READER_SYSTEM: &str = "You answer questions using only the supplied memories. \
 Answer in as few words as possible — a name, a date, a short phrase. \
 Do not explain. Do not restate the question. \
 If the memories do not contain the answer, reply exactly: I don't know. \
@@ -410,6 +410,9 @@ pub struct BenchRun {
     /// M41's dated digest lines.
     #[serde(default)]
     pub digest_dates: bool,
+    /// M42's decline-recovery second pass.
+    #[serde(default)]
+    pub commit_answer: bool,
     /// M24's sub-query decomposition cap, mirroring
     /// `RetrieveConfig::decompose`. Ships off; absent on every run before
     /// M24.
@@ -511,6 +514,10 @@ pub struct BenchSwitches {
     /// Prefix each digest line with the date of its memory — M41,
     /// `InvestigateConfig::digest_dates`. Inert without `item_digest`.
     pub digest_dates: bool,
+    /// Re-ask when the reader declines, with the two decisions split into
+    /// separate schema fields — M42, `commit_answer`. Costs one extra model
+    /// call on the ~20% of rows that decline, and nothing on the rest.
+    pub commit_answer: bool,
     /// Cap untrusted occupancy in the composed set — M23 B1,
     /// `ComposeConfig::untrusted_max`.
     ///
@@ -716,6 +723,143 @@ pub fn is_abstention(response: &str) -> bool {
         || n.starts_with("i can t determine")
         || n.starts_with("there is no information")
         || n.starts_with("no information")
+}
+
+/// M42. Asked again, with the decline made expensive.
+///
+/// Measured on `runs/m32_inv_sel_certified_judged`: the reader declines on 63
+/// questions that are not abstention problems and scores zero on every one.
+/// On **48** of them the composed evidence contained *every* gold session —
+/// 9.6 points of the benchmark refused with the answer in hand. M40's digest
+/// recovers 22 and introduces 10, leaving **36 rows, 7.2 points**.
+///
+/// The cause is visible in the preference stratum, the worst category in the
+/// benchmark at 33.3%: asked *"can you suggest some accessories that would
+/// complement my current photography setup?"* the reader answers `I don't
+/// know.` — correctly, under `READER_SYSTEM`, because no memory literally
+/// contains a list of accessories. It is being asked to decide *whether* the
+/// memories answer and *what* the answer is in a single emission, and it
+/// resolves the conflict by declining.
+///
+/// So the two decisions are split into two fields and ordered. The schema
+/// makes the model write a candidate answer **before** it may assert
+/// absence — M38, M39 and M40 all found that this reader ignores
+/// instructions but obeys structure.
+const READER_COMMIT_SYSTEM: &str = "You are re-reading memories you just \
+declined to answer from. Answer in as few words as possible — a name, a date, \
+a short phrase. First write the best answer the memories support, combining \
+facts across memories and stating what the user themselves said they prefer. \
+Only then decide `evidence_absent`: set it true if and only if the memories \
+genuinely do not support any answer.";
+
+/// `{ answer, evidence_absent }`, in that order.
+///
+/// Order is the mechanism, not presentation: a strict schema is emitted
+/// field-by-field, so `answer` is generated while `evidence_absent` is still
+/// open. Reversing them would let the model decline first and then fill in a
+/// perfunctory answer it has already disowned.
+fn commit_schema() -> serde_json::Value {
+    serde_json::json!({
+        "type": "object",
+        "properties": {
+            "answer": { "type": "string" },
+            "evidence_absent": { "type": "boolean" }
+        },
+        "required": ["answer", "evidence_absent"],
+        "additionalProperties": false
+    })
+}
+
+#[derive(Debug, Deserialize)]
+struct CommitAnswer {
+    answer: String,
+    evidence_absent: bool,
+}
+
+/// What the second pass did, for the non-firing control M40 established.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct CommitOutcome {
+    /// The first response was a decline, so the second pass ran.
+    pub fired: bool,
+    /// The second pass produced an answer that replaced the decline.
+    pub committed: bool,
+}
+
+/// Tally of the second pass across a run.
+///
+/// Reported because M40 established the control that makes an arm readable:
+/// the rows where a mechanism did **not** fire must move by exactly zero, and
+/// that can only be checked if the run says which rows those were.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct CommitTally {
+    pub fired: usize,
+    pub committed: usize,
+}
+
+impl CommitTally {
+    pub fn observe(&mut self, outcome: CommitOutcome) {
+        self.fired += usize::from(outcome.fired);
+        self.committed += usize::from(outcome.committed);
+    }
+}
+
+/// Re-ask when the first response declined.
+///
+/// Returns the response to score. Fail-open in every direction: a model error,
+/// an unparseable response, an asserted absence, or a blank answer all leave
+/// the original decline exactly as it was. **Abstention is the safe default
+/// and must stay reachable** — the 30 `_abs` rows require declining, and the
+/// MINJA posture measured at 7.50% ASR depends on a reader that can still
+/// refuse.
+pub(crate) async fn commit_answer(
+    llm: &dyn Llm,
+    system: &str,
+    user: &str,
+    response: String,
+) -> (String, CommitOutcome) {
+    if !is_abstention(&response) {
+        return (response, CommitOutcome::default());
+    }
+    let fired = CommitOutcome {
+        fired: true,
+        committed: false,
+    };
+
+    let Ok(second) = llm
+        .complete(
+            &CompletionRequest::new(vec![
+                Message::system(format!("{system}\n{READER_COMMIT_SYSTEM}")),
+                Message::user(user.to_string()),
+            ])
+            .with_max_tokens(160)
+            .with_schema(commit_schema()),
+        )
+        .await
+    else {
+        return (response, fired);
+    };
+
+    let Ok(parsed) = serde_json::from_str::<CommitAnswer>(&second.text) else {
+        return (response, fired);
+    };
+    // The model's own escape hatch, and the reason this cannot quietly
+    // destroy abstention.
+    if parsed.evidence_absent || parsed.answer.trim().is_empty() {
+        return (response, fired);
+    }
+    // A second decline dressed as an answer is still a decline; scoring it as
+    // one keeps `is_abstention` the single definition.
+    if is_abstention(&parsed.answer) {
+        return (response, fired);
+    }
+
+    (
+        parsed.answer,
+        CommitOutcome {
+            fired: true,
+            committed: true,
+        },
+    )
 }
 
 /// Flatten LoCoMo's `answer` field — or an LME-V2 harness row's
@@ -1144,6 +1288,7 @@ pub async fn bench_longmemeval_s(
     let mut scored = RowSink::create(out_dir)?;
     let mut latencies: Vec<f64> = Vec::new();
     let mut degradation = DegradationGuard::default();
+    let mut commits = CommitTally::default();
     // See `bench_locomo`: the clause is appended, not substituted.
     let system = if switches.profile_clause {
         format!("{READER_SYSTEM}{READER_PREFERENCE_CLAUSE}")
@@ -1199,20 +1344,37 @@ pub async fn bench_longmemeval_s(
             .map(|(n, it)| format!("[{n}] {}", it.value))
             .collect::<Vec<_>>()
             .join("\n");
+        let user = format!(
+            "<memories>\n{context}\n</memories>\n<today>\n{}\n</today>\n<question>\n{}\n</question>",
+            item.question_date, item.question
+        );
         let response = llm
             .complete(
                 &CompletionRequest::new(vec![
                     Message::system(system),
-                    Message::user(format!(
-                        "<memories>\n{context}\n</memories>\n<today>\n{}\n</today>\n<question>\n{}\n</question>",
-                        item.question_date, item.question
-                    )),
+                    Message::user(user.clone()),
                 ])
                 .with_max_tokens(160),
             )
             .await
             .with_context(|| format!("reader {}", item.question_id))?
             .text;
+        // M42: only a declining row pays for a second call. With the switch
+        // off the decline is still counted, so every run records the base
+        // rate the arm is measured against.
+        let (response, commit) = if switches.commit_answer {
+            commit_answer(&llm, system, &user, response).await
+        } else {
+            let fired = is_abstention(&response);
+            (
+                response,
+                CommitOutcome {
+                    fired,
+                    committed: false,
+                },
+            )
+        };
+        commits.observe(commit);
 
         let s = score_one(&response, &gold, adversarial, scorer);
 
@@ -1236,6 +1398,16 @@ pub async fn bench_longmemeval_s(
             select_degraded: selection.1,
         })?;
     }
+
+    // Printed even when the switch is off, so a run artifact always records
+    // how many rows declined — the base rate M42's control is measured
+    // against.
+    eprintln!(
+        "commit_answer: {} declines, {} recovered ({} left declining)",
+        commits.fired,
+        commits.committed,
+        commits.fired - commits.committed
+    );
 
     finish_run(
         &RunSpec {
@@ -1381,6 +1553,7 @@ fn finish_run(
         self_ask: spec.switches.self_ask,
         item_digest: spec.switches.item_digest,
         digest_dates: spec.switches.digest_dates,
+        commit_answer: spec.switches.commit_answer,
         untrusted_max: spec.switches.untrusted_max,
         decompose: spec.switches.decompose,
         categories: spec.switches.categories.clone(),
@@ -1550,6 +1723,7 @@ pub fn rescore_run(source: &Path, out_dir: &Path, scorer: Scorer) -> Result<Benc
             self_ask: flag("self_ask"),
             item_digest: flag("item_digest"),
             digest_dates: flag("digest_dates"),
+            commit_answer: flag("commit_answer"),
             untrusted_max: metrics
                 .get("untrusted_max")
                 .and_then(serde_json::Value::as_u64)
@@ -1820,6 +1994,7 @@ mod tests {
             serde_json::to_string(&crate::judge::JudgeFile {
                 model: "test-judge".into(),
                 verdicts: map,
+                answers: Default::default(),
             })
             .unwrap(),
         )
@@ -1935,5 +2110,153 @@ mod tests {
         let err = rescore_run(&src, &tmp.path().join("out"), Scorer::Judge).unwrap_err();
         let msg = format!("{err:#}");
         assert!(msg.contains("myelin-eval judge --run"), "{msg}");
+    }
+}
+
+#[cfg(test)]
+mod commit_tests {
+    use super::*;
+    use myelin_core::llm::{Completion, Llm, Usage};
+
+    struct Says(&'static str);
+
+    #[async_trait::async_trait]
+    impl Llm for Says {
+        fn id(&self) -> &str {
+            "says"
+        }
+        async fn raw_complete(
+            &self,
+            _r: &CompletionRequest,
+        ) -> myelin_core::error::Result<Completion> {
+            Ok(Completion {
+                text: self.0.to_string(),
+                tool_calls: vec![],
+                finish_reason: None,
+                usage: Usage::default(),
+            })
+        }
+    }
+
+    struct Broken;
+
+    #[async_trait::async_trait]
+    impl Llm for Broken {
+        fn id(&self) -> &str {
+            "broken"
+        }
+        async fn raw_complete(
+            &self,
+            _r: &CompletionRequest,
+        ) -> myelin_core::error::Result<Completion> {
+            Err(myelin_core::error::MyelinError::Store("down".into()))
+        }
+    }
+
+    /// An answered question must never pay for a second call.
+    #[tokio::test]
+    async fn a_row_that_answered_is_untouched_and_costs_nothing() {
+        let (out, outcome) = commit_answer(
+            &Broken,
+            "sys",
+            "user",
+            "The 70-200mm zoom lens.".to_string(),
+        )
+        .await;
+        assert_eq!(out, "The 70-200mm zoom lens.");
+        assert!(!outcome.fired, "a non-decline must not invoke the reader");
+    }
+
+    /// The mechanism: a decline becomes the answer the evidence supports.
+    #[tokio::test]
+    async fn a_decline_is_replaced_by_the_committed_answer() {
+        let (out, outcome) = commit_answer(
+            &Says(r#"{"answer":"Sony-compatible lenses and filters","evidence_absent":false}"#),
+            "sys",
+            "user",
+            "I don't know.".to_string(),
+        )
+        .await;
+        assert_eq!(out, "Sony-compatible lenses and filters");
+        assert!(outcome.fired && outcome.committed);
+    }
+
+    /// **The guard.** Abstention must stay reachable: 30 LongMemEval rows
+    /// require declining, and the MINJA posture measured at 7.50% ASR depends
+    /// on a reader that can still refuse. The model keeps its own escape
+    /// hatch, and taking it leaves the original decline untouched.
+    #[tokio::test]
+    async fn an_asserted_absence_leaves_the_decline_exactly_as_it_was() {
+        let (out, outcome) = commit_answer(
+            &Says(r#"{"answer":"the blue one","evidence_absent":true}"#),
+            "sys",
+            "user",
+            "I don't know.".to_string(),
+        )
+        .await;
+        assert_eq!(
+            out, "I don't know.",
+            "evidence_absent must win over the answer field, or an adversarial \
+             row can be talked out of abstaining"
+        );
+        assert!(outcome.fired && !outcome.committed);
+    }
+
+    /// Every failure mode keeps the decline. A mechanism that turned a model
+    /// error into a confident answer would be worse than the gap it closes.
+    #[tokio::test]
+    async fn every_failure_falls_back_to_the_original_decline() {
+        for (label, llm) in [
+            ("unparseable", &Says("I think it was Tuesday") as &dyn Llm),
+            ("wrong shape", &Says(r#"{"answer":"x"}"#) as &dyn Llm),
+            ("blank answer", &Says(r#"{"answer":"  ","evidence_absent":false}"#) as &dyn Llm),
+            // A decline restated inside the answer field is still a decline.
+            (
+                "decline in disguise",
+                &Says(r#"{"answer":"I don't know","evidence_absent":false}"#) as &dyn Llm,
+            ),
+            ("model down", &Broken as &dyn Llm),
+        ] {
+            let (out, outcome) =
+                commit_answer(llm, "sys", "user", "I don't know.".to_string()).await;
+            assert_eq!(out, "I don't know.", "{label} must not commit");
+            assert!(outcome.fired, "{label}");
+            assert!(!outcome.committed, "{label}");
+        }
+    }
+
+    /// The schema orders the fields, and the order is the mechanism: a strict
+    /// schema is emitted field-by-field, so the answer is written while the
+    /// absence decision is still open.
+    #[test]
+    fn the_schema_requires_the_answer_before_the_absence_decision() {
+        let schema = commit_schema();
+        let required = schema["required"].as_array().expect("required");
+        assert_eq!(
+            required
+                .iter()
+                .filter_map(|v| v.as_str())
+                .collect::<Vec<_>>(),
+            vec!["answer", "evidence_absent"],
+            "reversing these lets the model decline first and then fill in an \
+             answer it has already disowned"
+        );
+        assert_eq!(schema["additionalProperties"], serde_json::json!(false));
+    }
+
+    /// The control M40 established needs the base rate on every run.
+    #[test]
+    fn the_tally_separates_declines_from_recoveries() {
+        let mut t = CommitTally::default();
+        t.observe(CommitOutcome::default());
+        t.observe(CommitOutcome {
+            fired: true,
+            committed: false,
+        });
+        t.observe(CommitOutcome {
+            fired: true,
+            committed: true,
+        });
+        assert_eq!((t.fired, t.committed), (2, 1));
     }
 }

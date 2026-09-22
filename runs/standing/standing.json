@@ -1,6 +1,6 @@
 {
-  "commit": "777df9360e88771b11861a5be28f51a2a60590d6-dirty",
-  "generated_at": "2026-09-22T11:35:53.271609Z",
+  "commit": "2a3fd81c28f50efe3477aa41fbfb254dda6a7fe3-dirty",
+  "generated_at": "2026-09-22T13:27:00.609453Z",
   "rows": [
     {
       "registry_id": "locomo.judge.mempro15.gpt4omini",
@@ -155,6 +155,10 @@
           "value": 64.4
         },
         {
+          "run": "runs/m42_commit",
+          "value": 64.2
+        },
+        {
           "run": "runs/m39_selfask",
           "value": 62.8
         },
@@ -287,6 +291,10 @@
         {
           "run": "runs/m40_digest",
           "value": 64.4
+        },
+        {
+          "run": "runs/m42_commit",
+          "value": 64.2
         },
         {
           "run": "runs/m39_selfask",
@@ -459,6 +467,10 @@
         {
           "run": "runs/m40_digest",
           "value": 64.4
+        },
+        {
+          "run": "runs/m42_commit",
+          "value": 64.2
         },
         {
           "run": "runs/m39_selfask",
@@ -667,6 +679,10 @@
         {
           "run": "runs/m40_digest",
           "value": 64.4
+        },
+        {
+          "run": "runs/m42_commit",
+          "value": 64.2
         },
         {
           "run": "runs/m39_selfask",
@@ -940,6 +956,10 @@
         {
           "run": "runs/m40_digest",
           "value": 64.4
+        },
+        {
+          "run": "runs/m42_commit",
+          "value": 64.2
         },
         {
           "run": "runs/m39_selfask",
@@ -1325,6 +1345,10 @@
           "value": 64.4
         },
         {
+          "run": "runs/m42_commit",
+          "value": 64.2
+        },
+        {
           "run": "runs/m39_selfask",
           "value": 62.8
         },
@@ -1615,6 +1639,10 @@
           "value": 64.4
         },
         {
+          "run": "runs/m42_commit",
+          "value": 64.2
+        },
+        {
           "run": "runs/m39_selfask",
           "value": 62.8
         },
@@ -1825,6 +1853,10 @@
           "value": 64.4
         },
         {
+          "run": "runs/m42_commit",
+          "value": 64.2
+        },
+        {
           "run": "runs/m39_selfask",
           "value": 62.8
         },
@@ -1957,6 +1989,10 @@
         {
           "run": "runs/m40_digest",
           "value": 64.4
+        },
+        {
+          "run": "runs/m42_commit",
+          "value": 64.2
         },
         {
           "run": "runs/m39_selfask",
@@ -2604,6 +2640,10 @@
         {
           "run": "runs/m40_digest",
           "value": 64.4
+        },
+        {
+          "run": "runs/m42_commit",
+          "value": 64.2
         },
         {
           "run": "runs/m39_selfask",
