@@ -22,5 +22,6 @@ pub mod judge;
 pub mod manifest;
 pub mod phrases;
 pub mod ratchet;
+pub mod reindex;
 pub mod standing;
 pub mod temporal;

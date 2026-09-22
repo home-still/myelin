@@ -356,6 +356,9 @@ impl MyelinServer {
             item_digest: params
                 .item_digest
                 .unwrap_or(InvestigateConfig::default().item_digest),
+            digest_dates: params
+                .digest_dates
+                .unwrap_or(InvestigateConfig::default().digest_dates),
             rerank_pool: params.pool_rerank.unwrap_or(false),
             premise_analysis: premise,
             abstain_on_insufficient: premise,
@@ -845,6 +848,10 @@ pub struct InvestigateParams {
     /// `self_ask` with the entry count fixed by schema. investigate-only.
     #[serde(default)]
     pub item_digest: Option<bool>,
+    /// Prefix each digest line with the date of the memory it came from
+    /// (M41). Inert unless `item_digest` is on; costs no extra model call.
+    #[serde(default)]
+    pub digest_dates: Option<bool>,
     /// Split each probe into at most N sub-queries and retrieve for each
     /// (M24). One model call per step, on top of the reflect gate's.
     #[serde(default)]

@@ -1,6 +1,6 @@
 {
-  "commit": "a48a7e856bf0c7042f5add7fe984dd870e34ee64-dirty",
-  "generated_at": "2026-09-21T17:05:16.083048Z",
+  "commit": "777df9360e88771b11861a5be28f51a2a60590d6-dirty",
+  "generated_at": "2026-09-22T11:35:53.271609Z",
   "rows": [
     {
       "registry_id": "locomo.judge.mempro15.gpt4omini",
@@ -151,6 +151,14 @@
           "value": 30.0
         },
         {
+          "run": "runs/m40_digest",
+          "value": 64.4
+        },
+        {
+          "run": "runs/m39_selfask",
+          "value": 62.8
+        },
+        {
           "run": "runs/m21_full_sel",
           "value": 60.4
         },
@@ -275,6 +283,14 @@
         {
           "run": "runs/m20_pref_base",
           "value": 30.0
+        },
+        {
+          "run": "runs/m40_digest",
+          "value": 64.4
+        },
+        {
+          "run": "runs/m39_selfask",
+          "value": 62.8
         },
         {
           "run": "runs/m21_full_sel",
@@ -439,6 +455,14 @@
         {
           "run": "runs/m20_pref_base",
           "value": 30.0
+        },
+        {
+          "run": "runs/m40_digest",
+          "value": 64.4
+        },
+        {
+          "run": "runs/m39_selfask",
+          "value": 62.8
         },
         {
           "run": "runs/m21_full_sel",
@@ -639,6 +663,14 @@
         {
           "run": "runs/m20_pref_base",
           "value": 30.0
+        },
+        {
+          "run": "runs/m40_digest",
+          "value": 64.4
+        },
+        {
+          "run": "runs/m39_selfask",
+          "value": 62.8
         },
         {
           "run": "runs/m21_full_sel",
@@ -904,6 +936,14 @@
         {
           "run": "runs/m20_pref_base",
           "value": 30.0
+        },
+        {
+          "run": "runs/m40_digest",
+          "value": 64.4
+        },
+        {
+          "run": "runs/m39_selfask",
+          "value": 62.8
         },
         {
           "run": "runs/m21_full_sel",
@@ -1281,6 +1321,14 @@
           "value": 30.0
         },
         {
+          "run": "runs/m40_digest",
+          "value": 64.4
+        },
+        {
+          "run": "runs/m39_selfask",
+          "value": 62.8
+        },
+        {
           "run": "runs/m21_full_sel",
           "value": 60.4
         },
@@ -1563,6 +1611,14 @@
           "value": 30.0
         },
         {
+          "run": "runs/m40_digest",
+          "value": 64.4
+        },
+        {
+          "run": "runs/m39_selfask",
+          "value": 62.8
+        },
+        {
           "run": "runs/m21_full_sel",
           "value": 60.4
         },
@@ -1765,6 +1821,14 @@
           "value": 30.0
         },
         {
+          "run": "runs/m40_digest",
+          "value": 64.4
+        },
+        {
+          "run": "runs/m39_selfask",
+          "value": 62.8
+        },
+        {
           "run": "runs/m21_full_sel",
           "value": 60.4
         },
@@ -1889,6 +1953,14 @@
         {
           "run": "runs/m20_pref_base",
           "value": 30.0
+        },
+        {
+          "run": "runs/m40_digest",
+          "value": 64.4
+        },
+        {
+          "run": "runs/m39_selfask",
+          "value": 62.8
         },
         {
           "run": "runs/m21_full_sel",
@@ -2039,6 +2111,18 @@
           "value": 15.369498229642096
         },
         {
+          "run": "runs/m35_typed_web",
+          "value": 17.04641911507448
+        },
+        {
+          "run": "runs/m35_premise_web",
+          "value": 20.83520944636281
+        },
+        {
+          "run": "runs/m37_cal",
+          "value": 23.494865303572233
+        },
+        {
           "run": "runs/m22_nodate_web",
           "value": 10.995170539757964
         },
@@ -2170,6 +2254,18 @@
         {
           "run": "runs/m34_pools_web",
           "value": 44.583333333333336
+        },
+        {
+          "run": "runs/m35_typed_web",
+          "value": 41.66666666666667
+        },
+        {
+          "run": "runs/m35_premise_web",
+          "value": 35.833333333333336
+        },
+        {
+          "run": "runs/m37_cal",
+          "value": 14.285714285714285
         },
         {
           "run": "runs/m22_nodate_web",
@@ -2506,6 +2602,14 @@
           "value": 30.0
         },
         {
+          "run": "runs/m40_digest",
+          "value": 64.4
+        },
+        {
+          "run": "runs/m39_selfask",
+          "value": 62.8
+        },
+        {
           "run": "runs/m21_full_sel",
           "value": 60.4
         },
@@ -2629,12 +2733,20 @@
           "value": 5.03717567370257
         },
         {
+          "run": "runs/m40_digest",
+          "value": 51.7031082709231
+        },
+        {
           "run": "runs/m21_full_sel",
           "value": 50.07363960397371
         },
         {
           "run": "runs/m32_sel",
           "value": 50.07363960397371
+        },
+        {
+          "run": "runs/m39_selfask",
+          "value": 49.58608679083645
         },
         {
           "run": "runs/m32_inv_base",

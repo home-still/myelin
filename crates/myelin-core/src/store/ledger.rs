@@ -478,6 +478,55 @@ impl Ledger {
         Ok(row.get::<i64, _>("n"))
     }
 
+    /// One page of live records, for rebuilding the vector index.
+    ///
+    /// The vector store is a **derived cache**: every point in it can be
+    /// recomputed from this table plus the embedder. Nothing guaranteed that
+    /// until a collection was deleted out from under a running benchmark and
+    /// there was no way back short of re-running hours of LLM extraction —
+    /// which would have minted *different* records and silently broken
+    /// comparability with every run ever published. This accessor is what
+    /// makes the cache rebuildable.
+    ///
+    /// Keyset pagination on `rowid` rather than `LIMIT/OFFSET`: the scan is
+    /// over hundreds of thousands of rows, and `OFFSET` re-walks every
+    /// skipped one. Pass `after = 0` to start.
+    ///
+    /// The predicate is [`Ledger::count_live`]'s, so the number of records
+    /// this yields is exactly the number that count reports and the point
+    /// count a clean [`crate::store::reconcile`] expects.
+    pub async fn live_records_page(
+        &self,
+        now: DateTime<Utc>,
+        after: i64,
+        limit: i64,
+    ) -> Result<Vec<(i64, MemoryRecord)>> {
+        let now_s = fmt_time(now);
+        let rows = sqlx::query(
+            "SELECT rowid AS rid, * FROM record
+             WHERE rowid > ?
+               AND prov_source IS NOT NULL
+               AND trust_tier <> 'quarantined'
+               AND t_valid <= ?
+               AND (t_invalid IS NULL OR t_invalid > ?)
+               AND (t_expired IS NULL OR t_expired > ?)
+             ORDER BY rowid
+             LIMIT ?",
+        )
+        .bind(after)
+        .bind(&now_s)
+        .bind(&now_s)
+        .bind(&now_s)
+        .bind(limit)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(sql)?;
+
+        rows.iter()
+            .map(|r| Ok((r.get::<i64, _>("rid"), row_to_record(r)?)))
+            .collect()
+    }
+
     /// Record that an existing fact was encountered again.
     ///
     /// `salience` is the one JSON column the schema declares mutable

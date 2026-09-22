@@ -147,19 +147,12 @@ impl Llm for OpenAiLlm {
 
     async fn raw_complete(&self, req: &CompletionRequest) -> Result<Completion> {
         let url = format!("{}/chat/completions", self.base_url);
-        let response = self
-            .client
-            .post(&url)
-            .json(&self.body(req))
-            .send()
-            .await
-            .map_err(|e| MyelinError::Store(format!("{}: request to {url} failed: {e}", self.model)))?;
-
-        let status = response.status();
-        let body = response
-            .text()
-            .await
-            .map_err(|e| MyelinError::Store(format!("{}: reading body: {e}", self.model)))?;
+        let (status, body) = crate::net::send_retrying(
+            || self.client.post(&url).json(&self.body(req)),
+            &self.model,
+            &format!("request to {url}"),
+        )
+        .await?;
 
         // R7, transport half. This ordering is deliberate: an empty 200 is a
         // model-load failure, not malformed JSON.

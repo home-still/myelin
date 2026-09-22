@@ -234,6 +234,27 @@ pub struct InvestigateConfig {
     /// stays reproducible from this code.
     /// `docs/measurements/m40-forced-digest.md`.
     pub item_digest: bool,
+    /// Prefix each digest line with the `(YYYY-MM-DD)` of the memory it came
+    /// from (M41). Inert unless [`Self::item_digest`] is on.
+    ///
+    /// A separate switch rather than a change to `item_digest`, for the
+    /// reason M20 kept its profile block and its reader clause apart: one
+    /// combined flag cannot produce the marginals, and the undated arm is
+    /// already measured at **+2.40 (95% CI [−0.60, +5.60])**. With this off
+    /// the digest is byte-identical to that run.
+    ///
+    /// **M40 measured the cost of leaving it off.** `knowledge-update` lost
+    /// **−4.2 points**, because the answer to "which lens did I buy most
+    /// recently" is defined by recency and the note it was handed read
+    /// "50mm prime lens; Canon EF lens; 70-200mm zoom lens" with no dates —
+    /// so the reader answered from the first line. M19 measured resolving
+    /// dates *for* the reader at **+37.6** on LoCoMo category 2 against
+    /// **+14.3** for telling it to resolve them itself; an undated derived
+    /// line discards the larger half of that.
+    ///
+    /// Costs no extra model call: the stamp is already on the composed item
+    /// because `ComposeConfig::stamp_valid_time` ships on.
+    pub digest_dates: bool,
     /// Rerank the WHOLE accumulated pool against the **original question**
     /// once, after the last step and before selection/compose (M23 A2).
     ///
@@ -381,6 +402,7 @@ impl Default for InvestigateConfig {
             select_coverage: false,
             self_ask: false,
             item_digest: false,
+            digest_dates: false,
             rerank_pool: false,
             premise_analysis: false,
             answerability_gate: false,
@@ -1004,16 +1026,47 @@ pub fn digest_schema(n: usize) -> serde_json::Value {
     })
 }
 
+/// The `[YYYY-MM-DD]` stamp `compose` puts at the head of an evidence item,
+/// when `ComposeConfig::stamp_valid_time` is on — which it is by default.
+///
+/// Read off the composed text rather than the record, so the digest can only
+/// ever date a line with what the reader is actually shown. Shape-checked
+/// rather than parsed: a wrong-shaped prefix means no date, never a wrong
+/// date.
+pub fn stamped_date(value: &str) -> Option<&str> {
+    let rest = value.strip_prefix('[')?;
+    let (date, _) = rest.split_once(']')?;
+    let ok = date.len() == 10
+        && date.as_bytes().iter().enumerate().all(|(i, b)| match i {
+            4 | 7 => *b == b'-',
+            _ => b.is_ascii_digit(),
+        });
+    ok.then_some(date)
+}
+
 /// The contributions worth showing, in evidence order.
 ///
 /// Entries are matched to memories **by index**, so a model that reorders or
 /// repeats them cannot misattribute a fact to the wrong memory: an index
-/// outside `0..n` is dropped, and the first entry for an index wins. Anything
+/// outside range is dropped, and the first entry for an index wins. Anything
 /// saying `nothing` — or nothing at all — is dropped, because a `[notes]`
 /// line reading "nothing" spends the reader's budget to say so.
-pub fn digest_facts(entries: Vec<DigestEntry>, n: usize) -> Vec<String> {
+///
+/// `dates` carries one optional stamp per memory, in the same order. When a
+/// memory has one the line is prefixed `(YYYY-MM-DD)`.
+///
+/// **M40 measured what omitting them costs.** The digest flattened a dated
+/// evidence set into an undated fact list, and `knowledge-update` — where
+/// the answer is by definition the most recent value — lost **4.2 points**:
+/// asked which camera lens was bought most recently, the reader answered
+/// from the *first* line of a note reading "50mm prime lens; Canon EF lens;
+/// 70-200mm zoom lens". M19 measured resolving dates *for* the reader at
+/// **+37.6** on LoCoMo category 2, and an undated derived line throws that
+/// away.
+pub fn digest_facts(entries: Vec<DigestEntry>, dates: &[Option<&str>]) -> Vec<String> {
+    let n = dates.len();
     let mut seen = vec![false; n];
-    let mut out = Vec::new();
+    let mut out: Vec<(String, String)> = Vec::new();
     for e in entries {
         if e.index >= n || seen[e.index] {
             continue;
@@ -1023,6 +1076,10 @@ pub fn digest_facts(entries: Vec<DigestEntry>, n: usize) -> Vec<String> {
         if says.is_empty() || says.trim_end_matches('.').eq_ignore_ascii_case(DIGEST_NOTHING) {
             continue;
         }
+        let line = match dates[e.index] {
+            Some(d) => format!("({d}) {says}"),
+            None => says.to_string(),
+        };
         // Exact repeats carry nothing. Two memories often state the same
         // fact — a LongMemEval user turn and the assistant's reply back to
         // them — and the M40 pilot emitted "You graduated with a degree in
@@ -1035,13 +1092,18 @@ pub fn digest_facts(entries: Vec<DigestEntry>, n: usize) -> Vec<String> {
         // the rest of the set, so anything aimed at near-duplicates is
         // aimed at co-evidence. Identical strings are the one case where no
         // information can be lost.
-        let key = says.trim_end_matches('.').to_lowercase();
-        if out.iter().any(|(k, _): &(String, String)| *k == key) {
+        //
+        // The key is the **dated** line, so the same sentence on two
+        // different days survives twice. That is not an oversight: on a
+        // `knowledge-update` question the repetition across dates *is* the
+        // signal, and collapsing it would delete the update.
+        let key = line.trim_end_matches('.').to_lowercase();
+        if out.iter().any(|(k, _)| *k == key) {
             continue;
         }
-        out.push((key, says.to_string()));
+        out.push((key, line));
     }
-    out.into_iter().map(|(_, says)| says).collect()
+    out.into_iter().map(|(_, line)| line).collect()
 }
 
 /// Digest every composed memory against the question and append the
@@ -1055,7 +1117,13 @@ pub fn digest_facts(entries: Vec<DigestEntry>, n: usize) -> Vec<String> {
 /// Still subject to [`MIN_STEPS_EMITTED`]: M39 measured a one-line note
 /// costing **−4.6 points (95% CI [−8.6, −1.3])** on two-fact questions, so a
 /// digest where one memory contributes is not worth showing either.
-async fn item_digest(llm: &dyn Llm, question: &str, set: &mut EvidenceSet, enabled: bool) -> usize {
+async fn item_digest(
+    llm: &dyn Llm,
+    question: &str,
+    set: &mut EvidenceSet,
+    enabled: bool,
+    dated: bool,
+) -> usize {
     // Real records only. `compose` may already have appended a `[timeline]`
     // view, and digesting it produces a view of a view: the M40 pilot's very
     // first row restated one fact three times, once from the user turn, once
@@ -1097,7 +1165,14 @@ async fn item_digest(llm: &dyn Llm, question: &str, set: &mut EvidenceSet, enabl
     let Ok(parsed) = complete_json::<Entries>(llm, &request).await else {
         return 0;
     };
-    let facts = digest_facts(parsed.entries, n);
+    // One optional stamp per memory, in the same order the model was shown
+    // them. `None` throughout when the switch is off, which makes the
+    // undated arm byte-identical to M40's.
+    let dates: Vec<Option<&str>> = real
+        .iter()
+        .map(|i| if dated { stamped_date(&i.value) } else { None })
+        .collect();
+    let facts = digest_facts(parsed.entries, &dates);
     if facts.len() < MIN_STEPS_EMITTED {
         return 0;
     }
@@ -1508,7 +1583,14 @@ impl<'a> Investigator<'a> {
         // budget rather than smuggled past it.
         trace.asked_steps = self_ask(self.llm, &query.text, &mut set, self.config.self_ask).await;
         trace.digest_facts =
-            item_digest(self.llm, &query.text, &mut set, self.config.item_digest).await;
+            item_digest(
+                self.llm,
+                &query.text,
+                &mut set,
+                self.config.item_digest,
+                self.config.digest_dates,
+            )
+            .await;
 
         set.tokens = set
             .items
@@ -2308,7 +2390,7 @@ mod tests {
                 entry(3, "   "),
                 entry(4, "the rack cost $40"),
             ],
-            5,
+            &[None; 5],
         );
         assert_eq!(
             facts,
@@ -2332,7 +2414,7 @@ mod tests {
                 entry(1, "you graduated in business administration"),
                 entry(2, "You graduated in Business Administration in 2019."),
             ],
-            3,
+            &[None; 3],
         );
         assert_eq!(
             facts,
@@ -2342,6 +2424,94 @@ mod tests {
             ],
             "the exact repeat is dropped; the longer, different fact is kept"
         );
+    }
+
+    /// The stamp is read off the composed text, and only a well-formed one.
+    #[test]
+    fn only_a_well_formed_stamp_is_read_as_a_date() {
+        assert_eq!(stamped_date("[2023-05-30] user: hi"), Some("2023-05-30"));
+        for bad in [
+            "user: hi",              // no stamp at all
+            "[untrusted source] x",  // a different bracketed label
+            "[2023-5-30] x",         // not zero-padded, so not 10 chars
+            "[20230530xx] x",        // right length, wrong shape
+            "[2023-05-30 x",         // unterminated
+        ] {
+            assert_eq!(stamped_date(bad), None, "{bad:?} must not parse as a date");
+        }
+    }
+
+    /// Dating each line is the M41 mechanism.
+    #[test]
+    fn contributions_are_prefixed_with_the_date_of_the_memory_they_came_from() {
+        let facts = digest_facts(
+            vec![entry(0, "bought a 50mm prime"), entry(1, "bought a 70-200mm zoom")],
+            &[Some("2023-03-01"), Some("2023-09-14")],
+        );
+        assert_eq!(
+            facts,
+            vec![
+                "(2023-03-01) bought a 50mm prime",
+                "(2023-09-14) bought a 70-200mm zoom"
+            ],
+            "a reader asked for the most recent value needs the dates M40 dropped"
+        );
+    }
+
+    /// A memory with no stamp contributes an undated line rather than a
+    /// wrong one.
+    #[test]
+    fn an_unstamped_memory_contributes_an_undated_line() {
+        let facts = digest_facts(
+            vec![entry(0, "a fact"), entry(1, "another")],
+            &[None, Some("2023-09-14")],
+        );
+        assert_eq!(facts, vec!["a fact", "(2023-09-14) another"]);
+    }
+
+    /// The same sentence on two different days must survive twice.
+    ///
+    /// This is where dedup and dating meet, and getting it wrong deletes the
+    /// update: on a `knowledge-update` question the repetition across dates
+    /// **is** the signal. M40 lost 4.2 points on that category.
+    #[test]
+    fn the_same_fact_on_two_days_is_not_deduplicated() {
+        let facts = digest_facts(
+            vec![
+                entry(0, "ratio is 1 tbsp per 6 ounces"),
+                entry(1, "ratio is 1 tbsp per 6 ounces"),
+            ],
+            &[Some("2023-03-01"), Some("2023-09-14")],
+        );
+        assert_eq!(
+            facts.len(),
+            2,
+            "dedup keys on the dated line, so a restatement on a later day \
+             survives — collapsing it would delete the update"
+        );
+
+        // Same day, same sentence: that really is a repeat.
+        let same = digest_facts(
+            vec![entry(0, "ratio is 1 tbsp per 6 ounces"), entry(1, "Ratio is 1 tbsp per 6 ounces.")],
+            &[Some("2023-03-01"), Some("2023-03-01")],
+        );
+        assert_eq!(same.len(), 1, "one day, one statement");
+    }
+
+    /// Off is byte-identical to M40's measured arm.
+    #[tokio::test]
+    async fn the_dating_switch_off_reproduces_the_undated_digest() {
+        let body = r#"{"entries":[{"index":0,"says":"first"},{"index":1,"says":"second"}]}"#;
+        let mut undated = composed_set(&["[2023-03-01] alpha", "[2023-09-14] beta"]);
+        let mut dated = undated.clone();
+
+        item_digest(&Canned::text(body), "q", &mut undated, true, false).await;
+        item_digest(&Canned::text(body), "q", &mut dated, true, true).await;
+
+        let u = undated.items.last().expect("note").value.clone();
+        let d = dated.items.last().expect("note").value.clone();
+        assert_eq!(u, "[notes] first; second", "off must not date anything");
+        assert_eq!(d, "[notes] (2023-03-01) first; (2023-09-14) second");
     }
 
     /// Entries are bound to memories by index, so a reordered or repeated
@@ -2355,7 +2525,7 @@ mod tests {
                 entry(0, "first again"),
                 entry(9, "no such memory"),
             ],
-            3,
+            &[None; 3],
         );
         assert_eq!(
             facts,
@@ -2370,7 +2540,7 @@ mod tests {
         let llm = Canned(std::sync::Mutex::new(Vec::new()));
         let mut set = composed_set(&["alpha", "beta"]);
         let before = set.items.clone();
-        assert_eq!(item_digest(&llm, "q", &mut set, false).await, 0);
+        assert_eq!(item_digest(&llm, "q", &mut set, false, false).await, 0);
         assert_eq!(set.items, before);
     }
 
@@ -2385,7 +2555,7 @@ mod tests {
         );
         let mut set = composed_set(&["alpha", "beta"]);
         let before = set.items.clone();
-        assert_eq!(item_digest(&llm, "q", &mut set, true).await, 0);
+        assert_eq!(item_digest(&llm, "q", &mut set, true, false).await, 0);
         assert_eq!(set.items, before, "below MIN_STEPS_EMITTED, nothing appended");
     }
 
@@ -2401,7 +2571,7 @@ mod tests {
         set.items[1].trust = TrustTier::Untrusted;
         let before = set.items.clone();
 
-        let n = item_digest(&llm, "how much and when", &mut set, true).await;
+        let n = item_digest(&llm, "how much and when", &mut set, true, false).await;
         assert_eq!(n, 2);
         assert_eq!(set.items.len(), before.len() + 1);
         assert_eq!(set.items[..before.len()], before[..], "prior items untouched");
@@ -2435,7 +2605,7 @@ mod tests {
             r#"{"entries":[{"index":0,"says":"from alpha"},
                            {"index":1,"says":"from beta"}]}"#,
         );
-        let n = item_digest(&llm, "q", &mut set, true).await;
+        let n = item_digest(&llm, "q", &mut set, true, false).await;
         assert_eq!(n, 2, "a two-entry response for the two real records");
 
         let note = set.items.last().expect("note");
@@ -2453,7 +2623,7 @@ mod tests {
             let llm = Canned::text(body);
             let mut set = composed_set(&["alpha", "beta"]);
             let before = set.items.clone();
-            assert_eq!(item_digest(&llm, "q", &mut set, true).await, 0, "{body:?}");
+            assert_eq!(item_digest(&llm, "q", &mut set, true, false).await, 0, "{body:?}");
             assert_eq!(set.items, before, "{body:?}");
         }
     }

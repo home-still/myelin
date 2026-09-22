@@ -1072,3 +1072,97 @@ fn bridged_record_outranks_an_unrelated_one() {
         );
     });
 }
+
+// ── Rebuilding the derived index ────────────────────────────────
+
+/// The vector index is a cache of exactly the live records, so the scan that
+/// rebuilds it must agree with the count that audits it.
+///
+/// These two are written separately — `count_live` aggregates, the scan
+/// paginates — and a divergence is silent: the rebuild simply leaves rows
+/// out, the collection comes back short, and nothing says so. This asserts
+/// they select the same set, including the exclusions.
+#[test]
+fn the_rebuild_scan_yields_exactly_the_records_the_live_count_audits() {
+    rt().block_on(async {
+        let ledger = Ledger::open_memory().await.expect("open ledger");
+        let sc = scope("tenant-rebuild");
+        let now = Utc::now();
+
+        for i in 0..7 {
+            let r = record(
+                &format!("live-{i}"),
+                RecordKind::Episodic,
+                &sc,
+                &format!("live text {i}"),
+                Vec::new(),
+            );
+            ledger
+                .apply(&Delta::Add { record: Box::new(r) }, &actor())
+                .await
+                .expect("insert");
+        }
+
+        // A quarantined record is invisible to every read path, so indexing it
+        // would put a poisoned point in the store a rebuild was supposed to
+        // reproduce faithfully.
+        let bad = record(
+            "poisoned",
+            RecordKind::Episodic,
+            &sc,
+            "poisoned text",
+            Vec::new(),
+        );
+        ledger
+            .apply(&Delta::Add { record: Box::new(bad.clone()) }, &actor())
+            .await
+            .expect("insert");
+        ledger
+            .quarantine_existing(bad.id, "test")
+            .await
+            .expect("quarantine");
+
+        // A record whose validity has not opened yet is equally not live.
+        let mut future = record(
+            "not-yet",
+            RecordKind::Episodic,
+            &sc,
+            "future text",
+            Vec::new(),
+        );
+        future.validity.t_valid = now + Duration::hours(6);
+        ledger
+            .apply(&Delta::Add { record: Box::new(future) }, &actor())
+            .await
+            .expect("insert");
+
+        let expected = ledger.count_live(now).await.expect("count") as usize;
+
+        // Page size 2 against 7 rows: the walk must cross several pages and a
+        // partial final one, which is where keyset pagination goes wrong.
+        let mut seen = Vec::new();
+        let mut after = 0i64;
+        loop {
+            let page = ledger
+                .live_records_page(now, after, 2)
+                .await
+                .expect("page");
+            if page.is_empty() {
+                break;
+            }
+            after = page.last().expect("non-empty").0;
+            seen.extend(page.into_iter().map(|(_, r)| r.id));
+        }
+
+        assert_eq!(seen.len(), expected, "the scan and the audit must agree");
+        assert_eq!(expected, 7, "only the seven live records");
+        assert!(!seen.contains(&bad.id), "a quarantined record was indexed");
+
+        let unique: std::collections::HashSet<_> = seen.iter().collect();
+        assert_eq!(
+            unique.len(),
+            seen.len(),
+            "pagination repeated a record; every point would be written twice"
+        );
+    });
+}
