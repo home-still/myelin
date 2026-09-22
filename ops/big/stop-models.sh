@@ -4,8 +4,8 @@
 #
 # This does NOT release the GPU claim — that is deliberate, so a caller can
 # stop and restart models inside one window. Release separately with
-# `gpu-tenant release`, and say so in /tmp/agent_chat: other agents on this box
-# size their work against free VRAM.
+# `gpu-tenant release --who <project>@<host>`, and post with `gpu-tenant say`:
+# other agents on this box size their work against free VRAM.
 set -uo pipefail
 
 # Ports, so an orphan cannot survive a stop. Kept parallel to the pidfile

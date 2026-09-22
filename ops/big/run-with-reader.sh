@@ -30,7 +30,7 @@ reader_up() {
 
 serve() {
   echo "run-with-reader: reader is down, re-serving on big" >&2
-  ssh big "MYELIN_GPU_WHO=${MYELIN_GPU_WHO:-myelin@mac_air} \
+  ssh big "MYELIN_TENANT_WHO=${MYELIN_TENANT_WHO:-myelin@workstation} \
            MYELIN_READER_SLOTS=${MYELIN_READER_SLOTS:-1} \
            MYELIN_READER_CTX=${MYELIN_READER_CTX:-16384} \
            MYELIN_READER_THINK_BUDGET=${MYELIN_READER_THINK_BUDGET:--1} \
