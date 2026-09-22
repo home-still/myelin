@@ -61,7 +61,8 @@ graph TB
         I2 --> I3[reflect: sufficient?]
         I3 -->|no| I2
         I3 -->|yes| I4[select_sufficient]
-        I4 --> I5[compose]
+        I4 --> I5[compose: k records + timeline]
+        I5 --> I6[digest: one dated note per memory]
     end
 
     subgraph "Storage"

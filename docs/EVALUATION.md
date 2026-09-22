@@ -450,6 +450,45 @@ calls — a bounded, affordable external spend) and `local` (judge = the panel a
 loop). The local-vs-`gpt-5.2` delta on those 156 items is tracked as a calibration statistic in its own
 right.
 
+### 6.4 Where we stand on these two, and how a number gets made
+
+The shipped `investigate` operating point on LongMemEval_S, as of M43
+(2026-09-22): `--k 6 --budget-tokens 4096 --max-steps 2 --select-sufficient
+--item-digest --digest-dates`, judged by the local Qwen3.5-9B panel.
+
+| milestone | change | LongMemEval_S judged (n = 500) |
+|---|---|---|
+| M19 | dates resolved *for* the reader; `[timeline]` view | 56.40 |
+| M32 | pool-level sufficiency selection ships on | **62.00** (+5.8, 95% CI [+2.8, +8.8]) |
+| M43 | one dated digest note per memory ships on | **67.80** (+5.8, 95% CI [+2.8, +8.8]) |
+
+Everything between and after those rows — M33–M42, M44 R1 — is a measured
+null, a significant negative, or a win vetoed on the abstention rows, and
+each is recorded in `docs/measurements/` with the number that stopped it.
+`BACKLOG_DONE.md` keeps the running standing table and the ratchet history;
+`myelin-eval ratchet --strict` fails any commit whose artifacts fall below
+these floors.
+
+**How an arm becomes a number.** Every switch is pre-registered in its
+measurement doc *before* the arm runs — bar, strata, prediction, falsifier.
+The arm is one `bench` run differing from the base by exactly one switch;
+it is judged with `judge --seed <base>`, which reuses the base's verdict on
+every byte-identical answer so the control on untouched rows is exactly
+zero rather than judge noise (M42 measured 2 of 469 unchanged answers
+flipping under a fresh judge). The paired bootstrap over per-question
+differences (`adapters/paired_ci.py`) gives the CI; the bar is **+3.0 with
+the CI excluding zero**, and any drop on the 30 abstention rows vetoes the
+switch whatever the headline says. A switch that clears both flips its
+default in the same PR as its doc, its artifacts and the raised ratchet
+floor.
+
+**What the comparison to the literature is worth.** Every published
+LongMemEval_S and LoCoMo row is judged by a frontier API; ours by a local
+9B. `standing` marks every such row `caveat-judge`, marks a row backed by an
+arm rather than the shipped defaults `(arm)`, and licenses a claim only on a
+`comparable` row we lead. One such row exists: LoCoMo 69.87 against Mem0's
+published 66.88.
+
 ---
 
 ## 7. Robustness (G3)
