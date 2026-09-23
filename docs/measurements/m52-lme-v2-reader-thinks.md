@@ -59,7 +59,13 @@ abstention 128, answerable 323 (the harness's split).
 rebuilt store, reader thinking off. Shared with M47.
 
 **Arm.** The same pair with `--reader-enable-thinking` →
-`runs/m52_think_{web,ent}`; reader served with the projector
+`runs/m52_think_{web,ent}`, **on the base's own memory output** (amended
+2026-09-23 06:50, before any arm row existed): `--reuse-prompts-from
+runs/m47_base_{web,ent}` answers every memory query from the base run's
+`prompt_rows.jsonl` through the harness's own prompt builder, so the two
+runs' prompts are byte-identical by construction (verified on all 240 web
+rows, screenshots included) and the reader's thinking is the only
+difference. It also skips ~1 GPU-hour of memory calls per domain; reader served with the projector
 (`MYELIN_MMPROJ=1`, the harness sends screenshots) and the shipped
 1,024-token budget, no budget message (M44 R2b measured it below the bar).
 
@@ -68,7 +74,8 @@ of thinking; we cap the trace at 1,024. That is the configuration that
 works on this server and the one LongMemEval_S ships. A larger budget is a
 separate arm (as R2c is on LongMemEval_S).
 
-**No exact control exists on either side.** The harness samples its reader
+**No exact answer-level control exists on either side** (the memory side is
+now exact, above). The harness samples its reader
 (temperature 0.6, top-p 0.95, top-k 20, no seed), so no row is
 byte-identical between any two LME-V2 runs; the paired bootstrap carries
 that noise. Consequence for scheduling: this arm may share the reader with
