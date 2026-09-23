@@ -1631,11 +1631,17 @@ pub async fn bench_locomo(
     let conversations = locomo::load(path).context("load locomo")?;
 
     let llm = OpenAiLlm::new(&cfg.llm.url, &cfg.llm.model).context("reader client")?;
-    // M44's reader modes are wired into the LongMemEval_S reader only. A
-    // switch that sets a flag, prints it, records it and changes nothing is
-    // the failure M43's pilot caught; refuse rather than run inert.
-    if switches.reader_mode()? != ReaderMode::Plain {
-        anyhow::bail!("--reader-reasoning / --reader-thinking are measured on longmemeval-s only");
+    // M44's reader modes, through the same `read_answer` the LongMemEval_S
+    // path uses (M51, 2026-09-23). Before M51 this path called the model
+    // directly and refused any mode but Plain, because a switch that is
+    // recorded and changes nothing is the failure M43's pilot caught. Plain
+    // through `read_answer` is the identical request (same system and user
+    // messages, `READER_ANSWER_TOKENS` = 160), so every earlier LoCoMo run
+    // is reproduced unchanged.
+    let reader_mode = switches.reader_mode()?;
+    if let ReaderMode::Thinking { .. } = reader_mode {
+        verify_thinking_budget(&llm, THINKING_BUDGET_TOKENS).await?;
+        eprintln!("reader: thinking budget of {THINKING_BUDGET_TOKENS} tokens verified on the server");
     }
     let embedder = RemoteEmbedder::new(&cfg.embed.url, &cfg.embed.model, cfg.embed.dim)
         .context("embedder client")?;
@@ -1829,14 +1835,10 @@ pub async fn bench_locomo(
                     qa.question
                 ),
             };
-            let response = llm
-                .complete(
-                    &CompletionRequest::new(vec![Message::system(system), Message::user(user)])
-                        .with_max_tokens(160),
-                )
+            let read = read_answer(&llm, system, &user, reader_mode)
                 .await
-                .with_context(|| format!("reader {tenant}#{i}"))?
-                .text;
+                .with_context(|| format!("reader {tenant}#{i}"))?;
+            let response = read.answer;
 
             let s = score_one(&response, &gold, adversarial, scorer);
 
@@ -1857,7 +1859,7 @@ pub async fn bench_locomo(
                 evidence: evidence.items.iter().map(|i| i.value.clone()).collect(),
                 commit_samples: None,
                 commit_agreement: None,
-                reader_trace: None,
+                reader_trace: read.trace,
                 memory_query_duration_seconds: elapsed,
                 selected: selection.0,
                 select_degraded: selection.1,
@@ -3275,6 +3277,25 @@ mod reader_tests {
                 usage: Usage::default(),
             })
         }
+    }
+
+    /// M51 routed LoCoMo's reader through `read_answer`. Its earlier direct
+    /// call was `CompletionRequest::new([system, user]).with_max_tokens(160)`
+    /// and nothing else; Plain must send exactly that, or every pinned
+    /// LoCoMo number stops being reproducible from today's code.
+    #[tokio::test]
+    async fn plain_is_the_request_locomo_always_sent() {
+        let llm = Captures(std::sync::Mutex::new(None));
+        read_answer(&llm, "sys", "user", ReaderMode::Plain)
+            .await
+            .expect("reader");
+        let sent = llm.0.lock().expect("lock").clone().expect("one request");
+        let direct = CompletionRequest::new(vec![Message::system("sys"), Message::user("user")])
+            .with_max_tokens(160);
+        assert_eq!(
+            serde_json::to_value(&sent).expect("serialise"),
+            serde_json::to_value(&direct).expect("serialise"),
+        );
     }
 
     /// Off must be the path every prior milestone measured: the raw text, no

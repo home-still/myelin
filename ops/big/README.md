@@ -57,6 +57,7 @@ log paths if any server fails to come up. Two switches:
 | `MYELIN_EMBEDDER` | `bge` | `qwen` also serves the 8B embedder on :5811 |
 | `MYELIN_RERANK` | `1` | `0` skips the cross-encoder on :5813 |
 | `MYELIN_MMPROJ` | `1` | `0` serves the reader without the vision projector (saves ~0.9 GB; fine for LongMemEval_S and LoCoMo, which are text). **LME-V2 needs `1`**: the vendored harness sends the question screenshots as `image_url` parts and a projector-less reader answers HTTP 500 `image input is not supported` — measured 2026-09-23, 45 minutes of prompt-building lost before the first reader call |
+| `MYELIN_READER_KV_UNIFIED` | `0` | `1` gives every reader slot one shared KV pool (`--kv-unified`) of `MYELIN_READER_CTX` tokens instead of `CTX / SLOTS` each. For running several arms at once: measured 2026-09-23, 8 slots on a unified 131,072-token pool with the projector took the reader to **9.8 GB** (1 slot × 32k: 7.5 GB) and the card to 23.9 of 24.6 GB beside the distill embedder. Greedy arms that need a byte-identical control must still run alone. |
 | `MYELIN_READER_THINK_BUDGET` | `1024` | `--reasoning-budget` for the reader: the shipped reader since M44 R2 thinks under 1,024 tokens (LongMemEval_S 67.8 → 78.4). `-1` is unrestricted, what every run before M44 was served with. `bench --reader-thinking` probes the budget before the first row |
 
 ### The firewall makes a tunnel mandatory

@@ -74,6 +74,15 @@ byte-identical between any two LME-V2 runs; the paired bootstrap carries
 that noise. Consequence for scheduling: this arm may share the reader with
 a build pass without losing a control it never had.
 
+**Schedule amended 2026-09-23 06:35, before this arm ran.** The user asked
+for every queued arm to run now rather than in series. `big`'s reader was
+re-served with 8 slots on one unified 128k KV pool (`MYELIN_READER_KV_UNIFIED=1`)
+plus the projector, and M47, M51, M52 and the M50 extraction share it. The
+cost is reproducibility, not validity: llama.cpp batches concurrent slots,
+so the same greedy request can decode differently when its batch-mate
+changes (M48's note). No decision rule here rests on byte-identity. For M52 nothing is lost: the harness reader is sampled, so no exact control
+ever existed.
+
 **Primary metric.** `lme_v2_small.overall_full_set.combined`, paired
 bootstrap over `web+enterprise` (`adapters/paired_ci.py`), with the two
 strata.
