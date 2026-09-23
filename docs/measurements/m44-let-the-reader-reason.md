@@ -320,6 +320,35 @@ sampling); `single-session-preference` does not recover (its cost is
 hedging, not spill). **Falsifier.** If the capped rows do not move, the
 spill was harmless and the cap is not where the remaining error is.
 
+### R2b, seed 1 — measured
+
+`runs/m44_r2b_s1`, judged with `--seed runs/m44_r2_s1` (140 judged, 272
+reused) → `runs/m44_r2b_s1_judged`. 309 answers byte-identical to R2 seed 1.
+
+| stratum | n | R2 s1 | R2b s1 | delta | 95% CI | p |
+| --- | --- | --- | --- | --- | --- | --- |
+| **overall** | 500 | 78.4 | **80.2** | +1.8 | [−0.4, +4.0] | 0.125 |
+| abstention | 30 | 93.3 | 93.3 | +0.0 | [−10.0, +10.0] | 1.000 |
+| gold = 2 | 229 | 80.3 | 83.4 | +3.1 | [+0.4, +6.1] | 0.040 |
+| `multi-session` | 133 | 69.2 | 73.7 | +4.5 | [−1.5, +10.5] | 0.187 |
+| **spill rows in R2** (predicted to gain) | 56 | 48.2 | 62.5 | **+14.3** | [+5.4, +25.0] | <0.001 |
+| capped traces in R2 (predicted to gain) | 165 | 63.0 | 66.7 | +3.6 | [−1.2, +8.5] | 0.190 |
+| uncapped in R2 (control, predicted ~0) | 335 | 86.0 | 86.9 | +0.9 | [−1.2, +3.0] | 0.480 |
+
+Spill rows: **56 → 1**. Against the M43 base: **80.2, +12.4 [+8.8, +16.2]**.
+
+The mechanism did what it was aimed at — the spill is gone and the rows
+that carried it gained fourteen points — and the control moved by
+sampling noise. The headline is **+1.8 with an interval touching zero**, so
+by the pre-registered rule the seed-1 arm does not ship. A near miss is
+what the rule is for (M40).
+
+**Replication, declared before it ran.** R2 was measured on two seeds
+because sampling noise was ±2.4; R2b on one. The same arm runs on seed 2
+against R2 seed 2 (`runs/m44_r2b_s2` vs `runs/m44_r2_s2_judged`), and the
+ship decision is taken on the **pooled paired delta over both seeds**, same
+bar (+3.0, CI excluding zero), same veto. Nothing else changes.
+
 ## Verdict: `reader_thinking` ships
 
 Two seeds, both **+10.6** with intervals excluding zero by seven points,
