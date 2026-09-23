@@ -349,6 +349,28 @@ against R2 seed 2 (`runs/m44_r2b_s2` vs `runs/m44_r2_s2_judged`), and the
 ship decision is taken on the **pooled paired delta over both seeds**, same
 bar (+3.0, CI excluding zero), same veto. Nothing else changes.
 
+### R2b, seed 2 and the pooled verdict
+
+`runs/m44_r2b_s2` against `runs/m44_r2_s2_judged` (133 judged, 275 reused):
+**79.8**, +1.4 [−0.4, +3.4]; spill rows 66 → 6; abstention +0.0 exactly.
+
+| pooled over both seeds (mean per row) | n | R2 | R2b | delta | 95% CI | p |
+| --- | --- | --- | --- | --- | --- | --- |
+| **overall** | 500 | 78.4 | 80.0 | **+1.6** | [−0.1, +3.2] | 0.064 |
+| abstention | 30 | 95.0 | 95.0 | +0.0 | [−5.0, +5.0] | 1.000 |
+| spill rows in R2 (either seed) | 109 | 58.7 | 64.2 | **+5.5** | [+0.5, +10.6] | 0.044 |
+| capped in R2 (both seeds) | 107 | 57.9 | 62.6 | +4.7 | [+0.0, +9.3] | 0.054 |
+| uncapped in R2 (both seeds), control | 286 | 87.2 | 87.2 | **+0.0** | [−1.7, +1.7] | 1.000 |
+
+**`reader_think_message` ships off.** The effect is real and exactly where
+it was predicted — the rows that spilled gain, the rows that never reached
+the message move by nothing at all — and it is worth about a point and a
+half, not three. Two seeds, 1,000 paired rows, and the interval still
+touches zero. The serve default stays without the message. Against the M43
+base the message-serving reader is 80.00, +12.2 [+8.8, +15.7]; the shipped
+reader is 78.40. **R2c** (a 2,048-token budget) is the remaining lever on
+the 107 rows that cap under both seeds, at ~1.5× the reader time.
+
 ## Verdict: `reader_thinking` ships
 
 Two seeds, both **+10.6** with intervals excluding zero by seven points,
