@@ -35,11 +35,11 @@ moved the two-fact stratum +18 and temporal reasoning +30, with abstention
 R2 ships at **78.40** with a 1,024-token budget and no budget message. Two
 cheap arms, both against `runs/m44_r2_s1_judged` under the same seed:
 
-- **R2b — budget message.** 165 of 500 traces hit the cap and 56 answers
-  carry thinking that spilled past the forced end-of-thinking tag; they
-  score 27/56 against the base's 27/56 — no net cost, no gain. llama.cpp's
-  `--reasoning-budget-message` with Qwen's own wording (*"…I have to give
-  the answer now"*) closes the trace cleanly. One serve flag, one run.
+- **R2b — budget message.** *Seed 1 measured 2026-09-23: 78.4 → 80.2, +1.8
+  [−0.4, +4.0]; spill rows 56 → 1 and +14.3 on them; control +0.9. Misses
+  the bar on one seed; seed 2 running, ship decided on the pooled two-seed
+  delta.* llama.cpp's `--reasoning-budget-message` with Qwen's own wording
+  closes the trace cleanly. One serve flag.
 - **R2c — budget 2,048.** The same 165 rows, given room. Costs ~1.5× per
   row. Predicted: `temporal-reasoning` and gold ≥ 3 move; the preference
   stratum (−20.0 on seed 2, the one cost) does not recover — it is not a
