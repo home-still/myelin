@@ -22,14 +22,37 @@ its history. Short version: **one gate closed** (MINJA 7.50% ≤ 10%), one
 claimable row (LoCoMo beats Mem0's published 66.88 by +2.99), and three open
 gaps — LoCoMo −7.98, **LongMemEval_S −2.40** (M43 closed 5.80, **M44 R2
 closed 10.60**: 62.00 → 67.80 → 78.40 in one day), LME-V2 −20.02 at a
-pre-M43 configuration (the base at today's defaults lands 2026-09-23;
-web alone: **43.75**). M52 tested the harness's thinking reader on it: at
+undated configuration: **38.80** (web 43.75, enterprise 33.18), measured 2026-09-23 at today's memory defaults on the rebuilt store. M52 tested the harness's thinking reader on it: at
 a 1,024-token budget thinking *loses* on LME-V2 (web −2.08, abstention
 −9.72), so the gap is not our reader declining to think. M44 R1, M46 and M48 measured null with the veto
 firing; M48 closed the negation story; M45 closed decline recovery (AUROC
 0.59). Then R2 — native thinking, 1,024 tokens, two seeds at 78.40 —
 moved the two-fact stratum +18 and temporal reasoning +30, with abstention
 *up*. The reader was compute-limited all along.
+
+---
+
+## M53 — state completion *(next; diagnosed 2026-09-23)*
+
+LME-V2's losses are retrieval first: of 119 wrong answers with a phrase or
+list gold, **54 (45%) are in the haystack but were never delivered**, 43
+(36%) were delivered and misread, 22 are nowhere literally. And 28 of the
+54 sit in **another chunk of a page state we delivered, or the state right
+after it** — retrieval finds the page and hands over the wrong 512-token
+slice. Compose-time completion of the delivered state (sibling chunks by
+source prefix, plus the next state, reranked, displacing the tail of the
+budget). No re-ingest. Predicted +3 to +5 combined.
+`docs/measurements/m53-state-completion.md`.
+
+Then: an exact-text probe for the 12 answers in trajectories never
+delivered; then a local coding-agent controller over trajectory files (the
+LME-V2 paper's winning family, 72.5 vs RAG 48.5).
+
+**Also open: which LME-V2 operating point is "shipped".** Every LME-V2 run
+since M33 passed `--undated`; the server's default is dated, so `standing`
+marks the 38.80 base an arm. M22 measured undated at +2.4 (null). Either run
+a dated pair or make `dated` corpus-aware (LME-V2 records carry build dates,
+not event dates) — the user's call.
 
 ---
 
@@ -66,46 +89,6 @@ spill from 56 to 1 on LongMemEval_S. So the arm is thinking **plus** the
 budget message (`MYELIN_READER_THINK_MESSAGE`), on the base's replayed
 memory (`--reuse-prompts-from`), reading only: ~1 h per domain. Pre-register
 before running; the bar and the veto are M52's.
-
----
-
-## M47 — presupposition verification, contradiction only
-
-M35's `premise_analysis` tripled declines on answerable rows (8.3% → 26.8%)
-and moved abstention only 1.3×, because it fired on *unsupported* and a 9B
-says "unsupported" whenever the store is merely silent. LME-V2's abstention
-rows are **wrong-premise** questions; silence is not a false premise,
-contradiction is.
-
-Kim et al. (`2101.00391`) give the pipeline — presupposition generation from
-linguistic triggers, verification, explanation — and ~21% of Natural
-Questions' unanswerable items are explained by unverifiable presuppositions.
-(QA)² (`2212.10003`) and FalseQA (`2307.02394`) show models *hold* the
-knowledge to rebut false premises but need the rebuttal step activated; we
-cannot fine-tune, so the activation must be structural.
-
-Schema: `{claim, status: supported|contradicted|absent, evidence_index}`,
-`minItems ≥ 1` (M40's forcing), `status` after `claim` (M42/M43's ordering).
-Emit a `[premise]` line **only** on `contradicted`; emit **nothing** on
-`absent`. That one line is the whole difference from M35, and it makes M35's
-damage unreachable by construction.
-
-**Predicted.** LME-V2 abstention +10 or better from 17.97%; answerable −1.0 or
-better. **Falsifier:** if true premises get marked `contradicted` often enough
-to cost answerable rows, verification is the bottleneck exactly as Kim et al.
-found, and an NLI model should do it instead of the 9B.
-
-**Cost.** ~1 hour.
-
-**Status.** *Implemented and pre-registered* —
-`docs/measurements/m47-presupposition-contradiction.md`.
-`InvestigateConfig::premise_check` (off), `--premise-check` on `bench` and
-`run_myelin.py`, `premise_check` on the MCP `investigate` tool. Field order
-`claim → evidence_index → status`; only a contradiction naming a real memory
-emits the `[premise]` item; the view carries the weakest trust it cites. The
-arm needs an LME-V2 base at the shipped defaults first (none exists since
-M43 flipped the digest on), so it is two LME-V2 pairs, queued behind M44 R1
-and M46 on the reader.
 
 ---
 

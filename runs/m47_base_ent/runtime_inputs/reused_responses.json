@@ -1,0 +1,6 @@
+{
+  "source": "/Users/ladvien/myelin/runs/m47_base_ent.partial",
+  "reused": 176,
+  "not_reused_from_source": [],
+  "rule": "non-empty and prompt+completion < 32760 tokens; everything else regenerated"
+}

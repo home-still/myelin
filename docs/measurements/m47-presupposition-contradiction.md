@@ -118,6 +118,54 @@ the 9B — not another prompt.
 **Cost.** Two LME-V2 pairs (base and arm), each ~1–2 h on the reader at
 k = 25 / 10,000 tokens, plus one model call per query in the arm.
 
-## Results
+## Results — measured 2026-09-23: off
 
-*(pending — queued behind M44 R1 and M46 on the reader)*
+**Verdict: off.** The primary metric is flat and the answerable clause of
+the decision rule fires.
+
+Pre-registered primary, `web+enterprise`, 451 paired rows (paired bootstrap,
+20,000 resamples):
+
+| stratum | n | base | arm | Δ [95% CI] |
+| --- | --- | --- | --- | --- |
+| combined | 451 | 38.80 | 38.36 | **−0.44** [−3.99, +3.10] |
+| answerable | 323 | 45.82 | 44.27 | **−1.55** [−5.57, +2.48] |
+| abstention | 128 | 21.09 | 23.44 | +2.34 [−4.69, +9.38] |
+| web | 240 | 43.75 | 41.67 | −2.08 [−7.08, +2.92] |
+| enterprise | 211 | 33.18 | 34.60 | +1.42 [−3.79, +6.64] |
+
+Against the predictions: (1) abstention **+10 or better → +2.34**; (2)
+answerable −1.0 or better → **−1.55**, which is the veto clause; (3) the item
+fired on a minority of rows — **40 of 240 web, 29 of 211 enterprise** —
+but *not* concentrated on the abstention stratum: it fired on 42
+answerable rows and 27 wrong-premise rows.
+
+| where the `[premise]` line fired | n | base | arm |
+| --- | --- | --- | --- |
+| web, answerable | 22 | 40.9 | 50.0 |
+| web, wrong premise | 18 | 50.0 | 77.8 |
+| enterprise, answerable | 20 | 30.0 | 25.0 |
+| enterprise, wrong premise | 9 | 33.3 | 44.4 |
+
+**The falsifier, partly.** The check fires on true premises more often than
+on false ones, which is Kim et al.'s verification bottleneck; on web the
+rows it touched still improved (+17.5 over 40 rows), on enterprise they did
+not move (+0.0 over 29). The mechanism is not the damage M35 did — silence
+appends nothing, and the enterprise rows where it stayed silent moved +1.65
+[−3.85, +7.14] — but a 9B verifying premises against ~10k tokens of UI
+trajectory is not precise enough to pay for itself.
+
+**The web anomaly, explained by the enterprise pair.** On web the silent rows
+moved −6.00 [−11.00, −1.00] with memory context identical to the base on only
+8 of 200: `m47_base_web` built its memory alone on one 32k slot, the arm on
+the shared batched serve, and a long greedy digest is rarely byte-identical
+across the two. The enterprise base and arm were built side by side on the
+same serve (14 of 182 identical — batching again, but symmetric), and there
+the silent rows moved +1.65. Every LME-V2 arm from here builds its base the
+same way it builds its arm.
+
+**Also produced: the first LME-V2 number at today's memory defaults — 38.80**
+(web 43.75, enterprise 33.18) on the rebuilt store, 19.80 behind
+AgentRunbook-R's 58.60 with the same Qwen3.5-9B reader. It is still an arm by
+`standing`'s rule, because every LME-V2 run since M33 has passed `--undated`
+while the server's default is dated; see BACKLOG.md.

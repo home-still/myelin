@@ -1,0 +1,5 @@
+{
+  "source": "/private/tmp/claude-501/-Users-ladvien-myelin/4e73a005-3840-49ba-a62d-2935243a8dd9/scratchpad/replay/m47_check_web",
+  "prompt_rows": 240,
+  "rule": "memory context replayed byte-identical; harness reader re-run"
+}
