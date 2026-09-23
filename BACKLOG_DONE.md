@@ -55,6 +55,25 @@ first arm to question the measurement apparatus rather than the mechanism.
 
 ---
 
+## M51 — LoCoMo at the LongMemEval_S operating point: the wins do not transfer
+
+**Commit** PR #67 · `docs/measurements/m51-locomo-at-the-shipped-point.md` ·
+`runs/m51_locomo_s1` against `runs/m19_locomo_full`
+
+**Number: categories 1–4 judged 69.87 → 65.06 (−4.81 [−7.01, −2.66]);
+adversarial 69.96 → 84.08 (+14.13). Off; LoCoMo stays at 69.87.**
+
+The three switches that took LongMemEval_S from 62.00 to 78.40 (select,
+dated digest, thinking reader), bundled because each had cleared the bar on
+another corpus. On LoCoMo the reader turns cautious: answerable declines
+121 → 197, all its own (the insufficiency gate never fired), so it gains
+adversarial rows the comparable metric does not count and loses answerable
+ones it does. The bundle rule held its promise — one arm, 1,986 rows in ~6 h
+across twelve shards — and its cost: the split (thinking alone; digest
+alone) is now queued to find which switch carries the caution.
+
+---
+
 ## M53 — where LME-V2 loses its answers (diagnosis; three cheap fixes probed, no arm)
 
 **Commit** PR #62 · `docs/measurements/m53-state-completion.md`

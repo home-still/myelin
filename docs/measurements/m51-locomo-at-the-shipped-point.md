@@ -1,4 +1,4 @@
-# M51 — LoCoMo at the shipped LongMemEval_S operating point *(pre-registered 2026-09-23, one bundled arm)*
+# M51 — LoCoMo at the shipped LongMemEval_S operating point *(measured 2026-09-23: the bundle fails, off)*
 
 ## Why one arm and not three
 
@@ -117,6 +117,49 @@ with a plausible adversarial cost), thinking still on.
 floor and `docs/sota/progression.json` move to `runs/m51_locomo_s1`, and
 the standing row changes. The `recall` path is untouched.
 
-## Results
+## Results — measured 2026-09-23: the bundle fails on LoCoMo
 
-*(pending)*
+**Verdict: off, and the split is queued.** The pre-registered stop rule
+applies (point estimate under +1.0): the three switches that each won on
+LongMemEval_S *lose* on LoCoMo as a bundle.
+
+`runs/m19_locomo_full` against `runs/m51_locomo_s1` (1,986 rows, seed 1,
+twelve `--questions` shards merged by `bench --resume`; `resumed_rows` =
+1,986 records it), paired bootstrap, 20,000 resamples:
+
+| stratum | n | base | arm | Δ [95% CI] |
+| --- | --- | --- | --- | --- |
+| **judge (cat 1–4)** | 1,540 | 69.87 | 65.06 | **−4.81** [−7.01, −2.66] |
+| 1 multi-hop | 282 | 57.80 | 53.90 | −3.90 [−9.22, +1.42] |
+| 2 temporal | 321 | 60.44 | 52.96 | **−7.48** [−13.08, −1.87] |
+| 3 open-domain | 96 | 29.17 | 15.62 | −13.54 [−21.88, −6.25] |
+| 4 single-hop | 841 | 82.16 | 79.07 | −3.09 [−5.71, −0.48] |
+| 5 adversarial | 446 | 69.96 | 84.08 | **+14.13** [+9.42, +18.83] |
+| declines in base (1–4) | 121 | 0.00 | 10.74 | +10.74 |
+
+Against the predictions: judge +8 → **−4.81**; temporal +15 → **−7.48**;
+multi-hop +10 → −3.90; single-hop +3 → −3.09; declines in base ≥ 40 convert →
+13 did. The adversarial veto did *not* fire — the opposite happened, +14.13.
+The falsifier foresaw a drop on category 5 with a gain on 1–4; the data are
+its mirror image.
+
+**What happened.** The reader became cautious. Declines on answerable rows
+rose **121 → 197**; the thinking trace ran on all 1,986 rows, and
+`investigate`'s insufficiency gate fired on none (0 of 1,986 evidence sets
+carry its statement), so the new declines are the reader's own, with ~8
+memories in hand ("How many times has Melanie gone to the beach in 2023?",
+gold 2 → "I don't know"). On LongMemEval_S the same reader's caution was
+worth it (+10.6, abstention up); on LoCoMo — two-speaker small talk, where
+the evidence is conversational and indirect — it costs more answerable rows
+than it saves adversarial ones, and LoCoMo's comparable metric counts only
+categories 1–4.
+
+**Also measured.** One row (`conv-49#73`) returned an empty completion under
+co-scheduled batching and failed its shard loudly; the resume answered it
+("Summer 2024", a 3,768-character trace). The seed-1 answers are not
+reproducible under co-scheduling, as amended before the run.
+
+**Next, as pre-registered: the split.** Thinking alone (`recall`, today's
+LoCoMo operating point plus `--reader-thinking`) and the investigate +
+digest point alone (plain reader), each against `runs/m19_locomo_full`,
+to find which switch carries the caution.
