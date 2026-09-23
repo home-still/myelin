@@ -61,6 +61,75 @@ from data.public_data import (  # noqa: E402
 # import.
 import myelin  # noqa: E402,F401
 
+# One reader request, shaped like the harness's, before any prompt is built.
+# `max_tokens` 1: the probe asks whether the endpoint ACCEPTS the content
+# type, not what the model says about it.
+READER_PREFLIGHT_MAX_TOKENS = 1
+READER_PREFLIGHT_TEXT = "Reply with the single word: ok."
+READER_PREFLIGHT_TIMEOUT_S = 300.0
+
+
+def first_question_image(selected_questions: list[dict]) -> str | None:
+    """The screenshot path of the first selected question that carries one.
+
+    `question` is a string on most LME-V2 rows and `{text, image}` on the
+    rows with a screenshot (web small: 15 of 240; enterprise: none).
+    """
+    for question in selected_questions:
+        field = question.get("question")
+        if isinstance(field, dict) and field.get("image"):
+            return field["image"]
+    return None
+
+
+def preflight_reader_images(args: argparse.Namespace, selected_questions: list[dict], harness_module) -> None:
+    """Refuse to start when the reader cannot take the screenshots this run sends.
+
+    `harness.build_messages` attaches a question's screenshot as `image_url`
+    content. A reader served without its vision projector answers HTTP 500
+    ("image input is not supported") to that request — and on 2026-09-23 it
+    did so 45 minutes in, after every prompt had been built, which the harness
+    cannot resume (BACKLOG.md, operational debt). So when any selected question
+    carries an image, the first thing this driver does is send that image to
+    the reader through the harness's own `to_data_url`, the same bytes it will
+    send later; a refusal ends the run at the door with the fix named, and a
+    run with no screenshots sends nothing.
+    """
+    image_path = first_question_image(selected_questions)
+    if image_path is None:
+        return
+    import openai  # noqa: E402  (the harness's client library; imported here so a text-only run never needs it early)
+
+    client = openai.OpenAI(
+        base_url=args.reader_base_url,
+        api_key=os.getenv(args.reader_api_key_env) or "EMPTY",
+        max_retries=0,
+    )
+    messages = [
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": READER_PREFLIGHT_TEXT},
+                {"type": "image_url", "image_url": {"url": harness_module.to_data_url(image_path)}},
+            ],
+        }
+    ]
+    try:
+        client.chat.completions.create(
+            model=args.reader_model,
+            messages=messages,
+            max_tokens=READER_PREFLIGHT_MAX_TOKENS,
+            timeout=READER_PREFLIGHT_TIMEOUT_S,
+        )
+    except openai.APIError as exc:
+        raise SystemExit(
+            f"reader preflight: {args.reader_base_url} refused an image_url request: {exc}. "
+            "This run's questions carry screenshots (question.image); serve the reader with its "
+            "vision projector (ops/big/serve-models.sh with MYELIN_MMPROJ=1) and relaunch. "
+            "Nothing was built."
+        ) from exc
+    print(f"reader preflight: {args.reader_base_url} accepted an image_url request ({image_path})", flush=True)
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
@@ -398,6 +467,8 @@ def main() -> None:
     # client, so both have to be told.
     harness_module.OPENAI_MAX_RETRIES = args.openai_max_retries
     qa_eval_metrics.OPENAI_MAX_RETRIES = args.openai_max_retries
+
+    preflight_reader_images(args, selected_questions, harness_module)
 
     harness_main = harness_module.main
 

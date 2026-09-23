@@ -186,6 +186,18 @@ confidence problem.
   `-fa on`; two server profiles (LongMemEval_S at k=6/4,096 plus a 1,024-token
   thinking budget fits 8k per slot; only LME-V2 needs the large window); `n`
   parallel samples off one prefill for M45.
+- **LME-V2 needs the vision projector.** The harness attaches question
+  screenshots as `image_url` content; a reader served with `MYELIN_MMPROJ=0`
+  (the LongMemEval_S/LoCoMo saving) answers HTTP 500 on the first reader
+  call, after the ~45-minute prompt build, which the harness cannot resume.
+  2026-09-23 05:00: one such loss. `ops/big/README.md` says so now, and
+  `run_myelin.py` preflights it: when any selected question carries a
+  screenshot (web small: 15 of 240; enterprise: none) it sends that image
+  through the harness's own `to_data_url` as one `max_tokens: 1` request
+  before building anything, and a refusal ends the run at the door with
+  the fix named. Verified 2026-09-23: a text-only selection sends nothing,
+  the projector-served reader accepts in one request, a dead endpoint is
+  refused.
 - **Two arms sharing the reader's slots do not get an exact control.**
   M48 ran beside M44 R2 for its whole length; llama.cpp batches concurrent
   slots, and the same greedy request can decode a different token when its
