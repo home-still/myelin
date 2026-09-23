@@ -118,23 +118,16 @@ this arm can be built.
 
 ---
 
-## M50 — one `build` with Chronos-style event tuples
+## M50b — the events calendar on LoCoMo *(the pilot's follow-up)*
 
-Chronos (`2603.16862`) attributes **58.9%** of its gain to the events
-calendar; its ablation drops Chronos Low (GPT-4o) **93.1 → 58.6** without
-events and Chronos High (Opus) only 94.8 → 92.2 — the weaker the reader,
-the more events carry. REALM's reconsolidation (`2609.16053`) and our own
-M12 graph loss are the caution: one mechanism, one re-ingest.
+M50's LongMemEval_S pilot measured **+4.0** [−3.0, +11.0] (below its +5 gate;
+most of it where the base declined, +15.8). LoCoMo's events are already built
+(939 events in `myelin_locomo_events`, `data/locomo_events.ledger`), so the
+arm costs only reading time: LoCoMo's shipped point (`recall`, plain reader,
+dates resolved) on the events store against `runs/m19_locomo_full`. Pre-register
+first.
 
-**Status.** *Implemented and pre-registered 2026-09-23* —
-`docs/measurements/m50-events-calendar.md`. `events-extract` (reader only,
-cached by session content, `--shard i/n` across hosts) and `events-build`
-(no reader; `Semantic` records with I4 lineage into a snapshot-restored
-**copy** of the store). Scope: a stratified **n = 100 LongMemEval_S pilot**
-(`m50-pilot-questions.txt`, base 70.00) as the gate for the full ~9 GPU-hour
-extraction; LoCoMo extracted in full on bmb, its arm after M51. Measured
-while building: the prompt's literal `{"events": []}` made a constrained
-9B return nothing on 16 of 19 LoCoMo sessions; without it, 70 events.
+---
 
 ## Do not re-run
 

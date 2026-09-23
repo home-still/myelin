@@ -55,6 +55,25 @@ first arm to question the measurement apparatus rather than the mechanism.
 
 ---
 
+## M50 — the events calendar, piloted: +4.0, below the gate
+
+**Commit** PR #68 · `docs/measurements/m50-events-calendar.md` ·
+`runs/m50_pilot_s1_judged` against `runs/m50_pilot_base_s1_judged`
+
+**Number: LongMemEval_S pilot (100 stratified questions) 69.0 → 73.0, +4.0
+[−3.0, +11.0]; abstention 4 → 6 of 6; +15.8 on the 19 rows the base declined.
+Below the +5 gate: the full extraction is not spent.**
+
+Chronos's events calendar (`10.48550/arXiv.2603.16862`), built as two passes:
+reader-only extraction cached by session content (4,502 sessions on bmb and
+big_mac, no big time) and a reader-free build into a copy of the store. The
+events reach the reader on 78 of 100 rows and help most where it would have
+declined; they do not move temporal reasoning, where Chronos's ablation
+says they matter most — at 9B the date arithmetic, not date retrieval, is the
+limit. LoCoMo's events are built; that arm is M50b.
+
+---
+
 ## M51 — LoCoMo at the LongMemEval_S operating point: the wins do not transfer
 
 **Commit** PR #67 · `docs/measurements/m51-locomo-at-the-shipped-point.md` ·
