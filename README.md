@@ -145,8 +145,12 @@ standing`; the full table with comparability verdicts is
 
 Every literature row is judged by a frontier API where we are judged by a
 local Qwen3.5-9B (`caveat-judge`), and the LME-V2 row is backed by an arm of
-today's defaults because no run at the shipped configuration exists yet. One
-row we claim outright: LoCoMo 69.87 beats Mem0's published 66.88 by +2.99.
+today's defaults because no run at the shipped configuration exists yet. That
+row carries a second caveat, found on 2026-09-23: the LME-V2 harness's reader
+thinks by default and ours never has, so the −20.02 compares a non-thinking
+reader with a thinking one. [M52](docs/measurements/m52-lme-v2-reader-thinks.md)
+measures the difference. One row we claim outright: LoCoMo 69.87 beats Mem0's
+published 66.88 by +2.99.
 
 ![myelin-eval standing output showing 30 comparison rows](docs/images/standing.png)
 

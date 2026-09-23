@@ -131,6 +131,85 @@ def preflight_reader_images(args: argparse.Namespace, selected_questions: list[d
     print(f"reader preflight: {args.reader_base_url} accepted an image_url request ({image_path})", flush=True)
 
 
+# M52. A thinking probe: long enough for the budget to matter, short enough
+# to cost seconds. The completion ceiling leaves room for a full 1,024-token
+# trace (the serve default, `MYELIN_READER_THINK_BUDGET`) plus an answer.
+READER_THINKING_PROBE = "How many days are there between 2023-03-28 and 2023-05-02? Answer with the number."
+READER_THINKING_PROBE_MAX_TOKENS = 2048
+
+
+def enable_harness_thinking(harness_module) -> None:
+    """Make `--reader-enable-thinking` actually enable thinking.
+
+    `harness.build_extra_body` sends `chat_template_kwargs: {enable_thinking:
+    False}` when thinking is off and sends *nothing* when it is on, because
+    the vLLM server it was written for thinks by default. Ours does not:
+    `ops/big/serve-models.sh` starts llama.cpp with thinking off server-wide
+    so the evaluator, which shares the endpoint and never sends the flag,
+    stays a plain judge. So "thinking on" reached our reader as no flag and
+    ran with thinking OFF — silently.
+
+    The fix wraps the harness's own function rather than editing it
+    (`PLAN.md` §3.3 keeps the vendored harness unmodified): every field it
+    computes is kept, and the one it leaves to the server's default is
+    stated. The evaluator builds its requests elsewhere and is untouched.
+    """
+    original = harness_module.build_extra_body
+
+    def build_extra_body(args):
+        extra = original(args) or {}
+        extra["chat_template_kwargs"] = {"enable_thinking": True}
+        return extra
+
+    harness_module.build_extra_body = build_extra_body
+
+
+def preflight_reader_thinking(args: argparse.Namespace) -> None:
+    """Refuse to start a thinking run whose reader does not think.
+
+    One request with `enable_thinking: true`: the reply must carry a non-empty
+    `reasoning_content` (llama.cpp's field for the trace) and a non-empty
+    answer. The first catches a server that ignores the flag; the second, the
+    failure that made thinking default-off here — a trace that eats the whole
+    completion and leaves `content: ""` — which the server's
+    `--reasoning-budget` exists to prevent.
+    """
+    import openai  # noqa: E402
+
+    client = openai.OpenAI(
+        base_url=args.reader_base_url,
+        api_key=os.getenv(args.reader_api_key_env) or "EMPTY",
+        max_retries=0,
+    )
+    try:
+        reply = client.chat.completions.create(
+            model=args.reader_model,
+            messages=[{"role": "user", "content": READER_THINKING_PROBE}],
+            max_tokens=READER_THINKING_PROBE_MAX_TOKENS,
+            timeout=READER_PREFLIGHT_TIMEOUT_S,
+            extra_body={"chat_template_kwargs": {"enable_thinking": True}},
+        )
+    except openai.APIError as exc:
+        raise SystemExit(f"reader thinking preflight: request failed: {exc}. Nothing was built.") from exc
+    message = reply.choices[0].message
+    trace = getattr(message, "reasoning_content", None) or (getattr(message, "model_extra", None) or {}).get("reasoning_content")
+    answer = (message.content or "").strip()
+    if not trace:
+        raise SystemExit(
+            "reader thinking preflight: the reply carried no reasoning_content, so the server "
+            "ignored enable_thinking. Nothing was built."
+        )
+    if not answer:
+        raise SystemExit(
+            "reader thinking preflight: the trace consumed the completion and the answer is empty; "
+            "serve the reader with a --reasoning-budget (MYELIN_READER_THINK_BUDGET). Nothing was built."
+        )
+    print(
+        f"reader thinking preflight: trace {len(trace)} chars, answer {answer[:40]!r}",
+        flush=True,
+    )
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Run the official LongMemEval-V2 harness against myelin."
@@ -291,7 +370,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--memory-context-max-tokens", type=int, default=200000)
     # Thinking off by default: measured on this reader, Qwen3.5-9B spends the
     # whole completion budget on `reasoning_content` and returns
-    # `content: ""`. See `llm/openai.rs`.
+    # `content: ""`. See `llm/openai.rs`. Since M44 R2 the server caps the
+    # trace (`--reasoning-budget`), and `--reader-enable-thinking` is M52's
+    # arm: it is preflighted and made explicit (`enable_harness_thinking`),
+    # because the harness leaves "on" to a server default that is "off" here.
     parser.add_argument(
         "--reader-enable-thinking",
         action=argparse.BooleanOptionalAction,
@@ -422,6 +504,9 @@ def main() -> None:
             # M43's shipped digest, unconditional: absence reads as pre-M43.
             "item_digest": args.item_digest,
             "digest_dates": args.digest_dates,
+            # M52, unconditional for the reason `select` is. Not a memory
+            # switch, but part of the operating point `standing` pairs on.
+            "reader_thinking": args.reader_enable_thinking,
         },
     }
     memory_config_path = runtime_dir / "memory_config.json"
@@ -468,6 +553,9 @@ def main() -> None:
     harness_module.OPENAI_MAX_RETRIES = args.openai_max_retries
     qa_eval_metrics.OPENAI_MAX_RETRIES = args.openai_max_retries
 
+    if args.reader_enable_thinking:
+        preflight_reader_thinking(args)
+        enable_harness_thinking(harness_module)
     preflight_reader_images(args, selected_questions, harness_module)
 
     harness_main = harness_module.main

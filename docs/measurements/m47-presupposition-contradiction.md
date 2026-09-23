@@ -86,6 +86,14 @@ abstention rows, and buying them with answerable rows is M35 again.
 3. The item fires (`premise_contradictions > 0`) on a minority of rows,
    concentrated on the abstention stratum; rows where it does not fire
    move **exactly +0.0**.
+
+   *Amended 2026-09-23, before the arm ran:* "exactly" cannot hold on this
+   benchmark. The harness samples its reader (temperature 0.6, top-p 0.95,
+   top-k 20, no seed), so no LME-V2 row is byte-identical between two runs
+   whatever the memory does. The testable form is: rows where the item does
+   not fire move **+0.0 within their paired CI**, and the composed evidence
+   on those rows is identical between base and arm (the memory side is
+   greedy and deterministic; only the harness reader samples).
 4. Nothing on LongMemEval_S or LoCoMo is measured here; those corpora have
    too few wrong-premise rows to carry a CI (30 and 446 adversarial-by-
    silence rows respectively, which is the *other* abstention shape).

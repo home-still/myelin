@@ -22,7 +22,8 @@ its history. Short version: **one gate closed** (MINJA 7.50% ≤ 10%), one
 claimable row (LoCoMo beats Mem0's published 66.88 by +2.99), and three open
 gaps — LoCoMo −7.98, **LongMemEval_S −2.40** (M43 closed 5.80, **M44 R2
 closed 10.60**: 62.00 → 67.80 → 78.40 in one day), LME-V2 −20.02 at a
-pre-M43 configuration. M44 R1, M46 and M48 measured null with the veto
+pre-M43 configuration **and with the reader not thinking, where the
+harness's default — and so the published comparison — thinks (M52)**. M44 R1, M46 and M48 measured null with the veto
 firing; M48 closed the negation story; M45 closed decline recovery (AUROC
 0.59). Then R2 — native thinking, 1,024 tokens, two seeds at 78.40 —
 moved the two-fact stratum +18 and temporal reasoning +30, with abstention
@@ -51,6 +52,27 @@ cheap arms, both against `runs/m44_r2_s1_judged` under the same seed:
   `docs/measurements/m51-locomo-at-the-shipped-point.md`; ≈ 8 h a seed.
 
 **Cost.** R2b/R2c ~1.5 h each; LoCoMo an overnight.
+
+---
+
+## M52 — the LME-V2 reader thinks, as the harness intends
+
+**Found 2026-09-23:** the vendored harness defaults its reader to thinking
+**on** (20,000 completion tokens); our adapter ran it **off** on every
+LME-V2 number ever published here. So the −20.02 gap to AgentRunbook-R's
+58.6 compares a non-thinking reader against a thinking one. And
+`--reader-enable-thinking` was silently inert against our llama.cpp server
+(the harness sends no flag for "on"; our server's default is off).
+
+**Status.** *Implemented and pre-registered* —
+`docs/measurements/m52-lme-v2-reader-thinks.md`. The adapter preflights a
+thinking request and states the flag explicitly (wrapping the harness's own
+`build_extra_body`, vendor file unmodified); the 1,024-token budget is the
+stated deviation from the harness's 20,000. Base is `runs/m47_base_*`
+(shared with M47). The harness reader is sampled, so this arm has no exact
+control to lose and may share the reader with a build pass.
+
+**Cost.** One LME-V2 pair, ~3–4 h.
 
 ---
 
