@@ -199,7 +199,79 @@ R2 — native thinking under a 1,024-token budget, sampled, two seeds — is the
 remaining test, and it runs next with the trace recorded per row
 (`ScoredQuestion::reader_trace`, absent on this arm, which predates it).
 
-## Results — R2
+## Results — R2, seed 1
 
-*(pending — needs the reader restarted with `MYELIN_READER_THINK_BUDGET=1024`
-after the M46 arm releases it)*
+**Run.** `runs/m44_r2_s1` — `--reader-thinking --reader-seed 1` on the
+shipped M43 stack, reader served with `--reasoning-budget 1024` (verified
+by the probe before the first row), sampled at temperature 0.6 / top-p 0.95
+/ top-k 20, every trace recorded on the row. Judged with `--seed
+runs/m43_dated` (226 judged, 190 reused) → `runs/m44_r2_s1_judged`. 500
+rows; 40 inherited across a reader restart; sampled, so the batching
+caveat does not apply. **225 answers byte-identical** to the base.
+
+**Headline: 67.8 → 78.4, +10.6 (95% CI [+7.0, +14.2], p < 0.0001). The
+abstention rows went up, 90.0 → 93.3. The bar is cleared by three times
+its width and the veto does not fire. Seed 2 decides shipping.**
+
+| stratum | n | base | R2 s1 | delta | 95% CI | p |
+| --- | --- | --- | --- | --- | --- | --- |
+| **overall** | 500 | 67.8 | **78.4** | **+10.6** | [+7.0, +14.2] | <0.0001 |
+| answerable | 470 | 66.4 | 77.4 | +11.1 | [+7.4, +14.9] | <0.0001 |
+| **abstention** | 30 | 90.0 | 93.3 | +3.3 | [−6.7, +13.3] | 0.777 |
+| gold = 1 | 170 | 82.4 | 83.5 | +1.2 | [−3.5, +5.9] | 0.706 |
+| **gold = 2** | 229 | 62.9 | **80.3** | **+17.5** | [+11.8, +23.1] | <0.0001 |
+| **gold ≥ 3** | 71 | 39.4 | 53.5 | +14.1 | [+2.8, +25.4] | 0.019 |
+| base declined | 76 | 46.1 | 56.6 | +10.5 | [+2.6, +19.7] | 0.021 |
+| base answered | 424 | 71.7 | 82.3 | +10.6 | [+6.8, +14.6] | <0.0001 |
+| **`temporal-reasoning`** | 133 | 48.1 | **78.2** | **+30.1** | [+21.8, +38.3] | <0.0001 |
+| **`multi-session`** | 133 | 59.4 | 69.2 | +9.8 | [+2.3, +17.3] | 0.019 |
+| `knowledge-update` | 78 | 80.8 | 84.6 | +3.8 | [−1.3, +9.0] | 0.240 |
+| `single-session-user` | 70 | 94.3 | 94.3 | +0.0 | [−4.3, +4.3] | 1.000 |
+| `single-session-assistant` | 56 | 98.2 | 100.0 | +1.8 | [+0.0, +5.4] | 0.727 |
+| `single-session-preference` | 30 | 40.0 | 26.7 | −13.3 | [−30.0, +0.0] | 0.123 |
+
+**Against R1 on the same rows: +11.4 [+7.8, +15.0].** The pre-registration
+said *if R2 ≫ R1 the gain is deliberation*. It is deliberation.
+
+### Every prediction held
+
+1. gold = 2 moved **+17.5**, gold ≥ 3 **+14.1**; gold = 1 did not regress
+   (+1.2). The compositionality gap M39 measured (79.9 / 56.7 / 40.0) is
+   now 83.5 / 80.3 / 53.5: the two-fact collapse is gone.
+2. `temporal-reasoning` **+30.1** and `multi-session` +9.8 carry the gain —
+   `30 days` for a base `19`, `5 months` for `2`, `21 days` for `26`. The
+   arithmetic M46 tried to do on the page, the reader does itself when it
+   is allowed to think; and it does it on the *right* event, which M46's
+   anchor could not make it do.
+3. Abstention rose. Declines went 76 → 82: 28 rows newly decline (2 of
+   them adversarial, correctly; 13 of the answerable ones the base had
+   right), and 22 base declines are now answered, 13 correctly, only 1 of
+   them adversarial. The thinking reader is *more* willing to refuse, not
+   less — the opposite of R1, M42 and M45.
+
+### What did not
+
+`single-session-preference` −13.3 on 30 rows (5 lost): open-ended
+*suggest…* questions where the base answered from the memories and the
+thinking reader either hedged or spilled. Not significant, and the
+stratum has been the benchmark's worst at 33–40 since M20; it is not
+where the gain was expected.
+
+**Trace spill.** 165 of 500 traces hit the 1,024-token cap, and on **56
+rows** the answer field carries thinking that continued past the forced
+end-of-thinking tag — `"… Okay, final decision: "2 hours". Actually, …"`.
+Those 56 rows score 27 correct against the base's 27: no net cost, because
+the judge often finds the answer inside the spill, but no gain either.
+llama.cpp's `--reasoning-budget-message` (Qwen's own recipe: inject
+*"…I have to give the answer now"* before the tag) or a larger budget is a
+follow-up arm, **R2b**, not a change to this one.
+
+### Cost
+
+11.2 s median retrieval per row plus the reader's ~1,200 tokens: about 3×
+the plain reader per row (~28 s with two arms on the card). The number is
+worth it; the LME-V2 and LoCoMo runs will take correspondingly longer.
+
+## Results — R2, seed 2
+
+*(running — the ship decision is taken when both seeds are in)*
