@@ -147,7 +147,11 @@ Every literature row is judged by a frontier API where we are judged by a
 local Qwen3.5-9B (`caveat-judge`). The LME-V2 row is measured at today's
 shipped point (undated, digest on, rebuilt store); [M52](docs/measurements/m52-lme-v2-reader-thinks.md)
 showed thinking does not close that gap and [M53](docs/measurements/m53-state-completion.md)
-located it in retrieval. One row we claim outright: LoCoMo 69.87 beats Mem0's
+located it in retrieval. LoCoMo has resisted two arms: the LongMemEval_S
+settings ([M51](docs/measurements/m51-locomo-at-the-shipped-point.md), −4.81) and the events calendar
+([M50b](docs/measurements/m50b-locomo-events.md), −0.13, events crowding turns out of k = 6).
+[M55](docs/measurements/m55-bonsai-27b-model.md) tests whether the 9B model itself is the shared ceiling.
+One row we claim outright: LoCoMo 69.87 beats Mem0's
 published 66.88 by +2.99.
 
 ![myelin-eval standing output showing 30 comparison rows](docs/images/standing.png)
