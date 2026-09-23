@@ -154,10 +154,12 @@ gain is deliberation, not a field. The compositionality gap M39 measured
 (79.9 / 56.7 / 40.0) is now 83.5 / 80.3 / 53.5.
 
 Cost: `single-session-preference` −13.3 / −20.0 on 30 open-ended rows, and
-~3× the reader time. Reopened: the AgentRunbook-R row is now thinking
-against thinking at 1,024 vs 20,000 tokens; **R2b** (budget message: 56
-answers carry spilled thinking) and LoCoMo under the thinking reader are
-the follow-ups. The reader was compute-limited; M38's "reading is the gap"
+~3× the reader time. **R2b** (Qwen's budget message on a capped trace) was
+then measured on both seeds: spill rows 56 → 1 and 66 → 6, +5.5 [+0.5,
++10.6] on those rows, control +0.0 exactly, pooled headline **+1.6 [−0.1,
++3.2]** — real, small, below the bar, off. Reopened: the AgentRunbook-R row
+is now thinking against thinking at 1,024 vs 20,000 tokens; R2c (budget
+2,048) and LoCoMo under the thinking reader are the follow-ups. The reader was compute-limited; M38's "reading is the gap"
 stands.
 
 ---

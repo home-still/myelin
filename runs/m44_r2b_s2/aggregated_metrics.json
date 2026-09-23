@@ -1,0 +1,83 @@
+{
+  "corpus": "longmemeval_s",
+  "collection": "myelin_longmemeval_s",
+  "mode": "investigate",
+  "k": 6,
+  "max_steps": 2,
+  "graph": false,
+  "chronological": false,
+  "question_date": false,
+  "timeline_ago": false,
+  "resolve_dates": true,
+  "timeline": true,
+  "profile": false,
+  "profile_clause": false,
+  "mmr": null,
+  "select_sufficient": true,
+  "select_call_failed_rate": 0.0,
+  "select_declined_rate": 0.026,
+  "budget_tokens": 4096,
+  "prefetch_limit": null,
+  "rerank_depth": null,
+  "rerank_pool": false,
+  "premise": false,
+  "typed_probes": false,
+  "self_ask": false,
+  "untrusted_max": null,
+  "item_digest": true,
+  "digest_dates": true,
+  "commit_answer": false,
+  "resumed_rows": 0,
+  "commit_samples": null,
+  "commit_agree": null,
+  "digest_relevance": false,
+  "digest_role": false,
+  "reader_reasoning": false,
+  "premise_check": false,
+  "reader_thinking": true,
+  "reader_seed": 2,
+  "reader_thinking_budget": 1024,
+  "reader_think_message": true,
+  "decompose": null,
+  "categories": [],
+  "scorer": "token_f1",
+  "rescored_from": null,
+  "questions": 500,
+  "f1_answerable": 0.6039886505261581,
+  "em_answerable": 0.4531914893617021,
+  "abstention_accuracy": 0.9666666666666667,
+  "by_category": [
+    {
+      "category": 1,
+      "count": 70,
+      "mean_score": 0.8867346938775508
+    },
+    {
+      "category": 2,
+      "count": 56,
+      "mean_score": 0.8215154390819738
+    },
+    {
+      "category": 3,
+      "count": 30,
+      "mean_score": 0.04418031245880074
+    },
+    {
+      "category": 4,
+      "count": 133,
+      "mean_score": 0.5928970152654363
+    },
+    {
+      "category": 5,
+      "count": 133,
+      "mean_score": 0.5019918337395345
+    },
+    {
+      "category": 6,
+      "count": 78,
+      "mean_score": 0.7417018755878174
+    }
+  ],
+  "query_p50_seconds": 7.678204667,
+  "query_avg_seconds": 7.4388110891260055
+}

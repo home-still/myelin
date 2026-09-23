@@ -35,11 +35,10 @@ moved the two-fact stratum +18 and temporal reasoning +30, with abstention
 R2 ships at **78.40** with a 1,024-token budget and no budget message. Two
 cheap arms, both against `runs/m44_r2_s1_judged` under the same seed:
 
-- **R2b — budget message.** *Seed 1 measured 2026-09-23: 78.4 → 80.2, +1.8
-  [−0.4, +4.0]; spill rows 56 → 1 and +14.3 on them; control +0.9. Misses
-  the bar on one seed; seed 2 running, ship decided on the pooled two-seed
-  delta.* llama.cpp's `--reasoning-budget-message` with Qwen's own wording
-  closes the trace cleanly. One serve flag.
+- ~~**R2b — budget message.**~~ *Measured on two seeds 2026-09-23: +1.8 and
+  +1.4; pooled **+1.6 [−0.1, +3.2]**, spill rows +5.5 [+0.5, +10.6], control
+  +0.0 exactly. Real, a point and a half, below the bar; ships off. The
+  serve default stays without the message.*
 - **R2c — budget 2,048.** The same 165 rows, given room. Costs ~1.5× per
   row. Predicted: `temporal-reasoning` and gold ≥ 3 move; the preference
   stratum (−20.0 on seed 2, the one cost) does not recover — it is not a
