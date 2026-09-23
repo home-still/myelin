@@ -66,12 +66,11 @@ cheap arms, both against `runs/m44_r2_s1_judged` under the same seed:
   row. Predicted: `temporal-reasoning` and gold ≥ 3 move; the preference
   stratum (−20.0 on seed 2, the one cost) does not recover — it is not a
   budget problem.
-- **LoCoMo at the shipped LongMemEval_S point — now M51, one bundled
-  arm.** The pinned 69.87 is a plain-reader `recall` run that none of M32,
-  M43 or M44 has touched; the three switches are each validated on another
-  corpus, so they run as one pre-registered bundle (2026-09-23 rule:
-  bundle what is validated elsewhere, one arm per new mechanism).
-  `docs/measurements/m51-locomo-at-the-shipped-point.md`; ≈ 8 h a seed.
+- **LoCoMo split (after M51).** M51 measured the LongMemEval_S bundle on
+  LoCoMo at **−4.81** [−7.01, −2.66] on categories 1–4 and +14.13 on
+  adversarial: the reader declines 121 → 197 answerable rows. Split, as
+  pre-registered: (a) `recall` + `--reader-thinking` alone; (b) `investigate`
+  + select + dated digest with the plain reader. ~2–3 h each on big.
 
 **Cost.** R2b/R2c ~1.5 h each; LoCoMo an overnight.
 

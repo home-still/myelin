@@ -1,0 +1,78 @@
+{
+  "corpus": "locomo",
+  "collection": "myelin_locomo",
+  "mode": "investigate",
+  "k": 6,
+  "max_steps": 2,
+  "graph": false,
+  "chronological": false,
+  "question_date": false,
+  "timeline_ago": false,
+  "resolve_dates": true,
+  "timeline": true,
+  "profile": false,
+  "profile_clause": false,
+  "mmr": null,
+  "select_sufficient": true,
+  "select_call_failed_rate": 0.0,
+  "select_declined_rate": 0.057905337361530716,
+  "budget_tokens": 4096,
+  "prefetch_limit": null,
+  "rerank_depth": null,
+  "rerank_pool": false,
+  "premise": false,
+  "typed_probes": false,
+  "self_ask": false,
+  "untrusted_max": null,
+  "item_digest": true,
+  "digest_dates": true,
+  "commit_answer": false,
+  "resumed_rows": 1986,
+  "commit_samples": null,
+  "commit_agree": null,
+  "digest_relevance": false,
+  "digest_role": false,
+  "reader_reasoning": false,
+  "premise_check": false,
+  "reader_thinking": true,
+  "reader_seed": 1,
+  "reader_thinking_budget": 1024,
+  "reader_think_message": false,
+  "decompose": null,
+  "categories": [],
+  "scorer": "temporal",
+  "rescored_from": null,
+  "questions": 1986,
+  "f1_answerable": 0.5138803284005599,
+  "em_answerable": 0.32792207792207795,
+  "abstention_accuracy": 0.8408071748878924,
+  "by_category": [
+    {
+      "category": 1,
+      "count": 282,
+      "mean_score": 0.3699076537199111
+    },
+    {
+      "category": 2,
+      "count": 321,
+      "mean_score": 0.5206429302979624
+    },
+    {
+      "category": 3,
+      "count": 96,
+      "mean_score": 0.07983802374162781
+    },
+    {
+      "category": 4,
+      "count": 841,
+      "mean_score": 0.6091211848787232
+    },
+    {
+      "category": 5,
+      "count": 446,
+      "mean_score": 0.8408071748878924
+    }
+  ],
+  "query_p50_seconds": 21.943719375,
+  "query_avg_seconds": 41.70926741220386
+}

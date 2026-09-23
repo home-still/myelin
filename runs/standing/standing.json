@@ -1,6 +1,6 @@
 {
-  "commit": "c31862568264456a27358a1ae0070161d81bbd3c-dirty",
-  "generated_at": "2026-09-23T19:17:19.116063Z",
+  "commit": "c41b3fe84296d43ea37042b6ac10a2c55a8c1616-dirty",
+  "generated_at": "2026-09-23T21:37:37.184927Z",
   "rows": [
     {
       "registry_id": "locomo.judge.mempro15.gpt4omini",
@@ -32,8 +32,44 @@
           "value": 58.156028368794324
         },
         {
+          "run": "runs/m51_locomo_s1",
+          "value": 65.06493506493507
+        },
+        {
           "run": "runs/m21_mh_sel",
           "value": 54.96453900709219
+        },
+        {
+          "run": "runs/m51_locomo_s1.part10",
+          "value": 68.55345911949685
+        },
+        {
+          "run": "runs/m51_locomo_s1.part11",
+          "value": 66.66666666666666
+        },
+        {
+          "run": "runs/m51_locomo_s1.part5",
+          "value": 65.40880503144653
+        },
+        {
+          "run": "runs/m51_locomo_s1.part9",
+          "value": 63.52201257861635
+        },
+        {
+          "run": "runs/m51_locomo_s1.part6",
+          "value": 69.62025316455697
+        },
+        {
+          "run": "runs/m51_locomo_s1.part7",
+          "value": 66.45569620253164
+        },
+        {
+          "run": "runs/m51_locomo_s1.part4",
+          "value": 60.75949367088608
+        },
+        {
+          "run": "runs/m51_locomo_s1.part8",
+          "value": 63.69426751592356
         },
         {
           "run": "runs/locomo_recall",
@@ -71,8 +107,44 @@
           "value": 58.156028368794324
         },
         {
+          "run": "runs/m51_locomo_s1",
+          "value": 65.06493506493507
+        },
+        {
           "run": "runs/m21_mh_sel",
           "value": 54.96453900709219
+        },
+        {
+          "run": "runs/m51_locomo_s1.part10",
+          "value": 68.55345911949685
+        },
+        {
+          "run": "runs/m51_locomo_s1.part11",
+          "value": 66.66666666666666
+        },
+        {
+          "run": "runs/m51_locomo_s1.part5",
+          "value": 65.40880503144653
+        },
+        {
+          "run": "runs/m51_locomo_s1.part9",
+          "value": 63.52201257861635
+        },
+        {
+          "run": "runs/m51_locomo_s1.part6",
+          "value": 69.62025316455697
+        },
+        {
+          "run": "runs/m51_locomo_s1.part7",
+          "value": 66.45569620253164
+        },
+        {
+          "run": "runs/m51_locomo_s1.part4",
+          "value": 60.75949367088608
+        },
+        {
+          "run": "runs/m51_locomo_s1.part8",
+          "value": 63.69426751592356
         },
         {
           "run": "runs/locomo_recall",
@@ -468,8 +540,44 @@
           "value": 58.156028368794324
         },
         {
+          "run": "runs/m51_locomo_s1",
+          "value": 65.06493506493507
+        },
+        {
           "run": "runs/m21_mh_sel",
           "value": 54.96453900709219
+        },
+        {
+          "run": "runs/m51_locomo_s1.part10",
+          "value": 68.55345911949685
+        },
+        {
+          "run": "runs/m51_locomo_s1.part11",
+          "value": 66.66666666666666
+        },
+        {
+          "run": "runs/m51_locomo_s1.part5",
+          "value": 65.40880503144653
+        },
+        {
+          "run": "runs/m51_locomo_s1.part9",
+          "value": 63.52201257861635
+        },
+        {
+          "run": "runs/m51_locomo_s1.part6",
+          "value": 69.62025316455697
+        },
+        {
+          "run": "runs/m51_locomo_s1.part7",
+          "value": 66.45569620253164
+        },
+        {
+          "run": "runs/m51_locomo_s1.part4",
+          "value": 60.75949367088608
+        },
+        {
+          "run": "runs/m51_locomo_s1.part8",
+          "value": 63.69426751592356
         },
         {
           "run": "runs/locomo_recall",
@@ -686,8 +794,44 @@
           "value": 58.156028368794324
         },
         {
+          "run": "runs/m51_locomo_s1",
+          "value": 65.06493506493507
+        },
+        {
           "run": "runs/m21_mh_sel",
           "value": 54.96453900709219
+        },
+        {
+          "run": "runs/m51_locomo_s1.part10",
+          "value": 68.55345911949685
+        },
+        {
+          "run": "runs/m51_locomo_s1.part11",
+          "value": 66.66666666666666
+        },
+        {
+          "run": "runs/m51_locomo_s1.part5",
+          "value": 65.40880503144653
+        },
+        {
+          "run": "runs/m51_locomo_s1.part9",
+          "value": 63.52201257861635
+        },
+        {
+          "run": "runs/m51_locomo_s1.part6",
+          "value": 69.62025316455697
+        },
+        {
+          "run": "runs/m51_locomo_s1.part7",
+          "value": 66.45569620253164
+        },
+        {
+          "run": "runs/m51_locomo_s1.part4",
+          "value": 60.75949367088608
+        },
+        {
+          "run": "runs/m51_locomo_s1.part8",
+          "value": 63.69426751592356
         },
         {
           "run": "runs/locomo_recall",
@@ -724,8 +868,44 @@
           "value": 58.156028368794324
         },
         {
+          "run": "runs/m51_locomo_s1",
+          "value": 65.06493506493507
+        },
+        {
           "run": "runs/m21_mh_sel",
           "value": 54.96453900709219
+        },
+        {
+          "run": "runs/m51_locomo_s1.part10",
+          "value": 68.55345911949685
+        },
+        {
+          "run": "runs/m51_locomo_s1.part11",
+          "value": 66.66666666666666
+        },
+        {
+          "run": "runs/m51_locomo_s1.part5",
+          "value": 65.40880503144653
+        },
+        {
+          "run": "runs/m51_locomo_s1.part9",
+          "value": 63.52201257861635
+        },
+        {
+          "run": "runs/m51_locomo_s1.part6",
+          "value": 69.62025316455697
+        },
+        {
+          "run": "runs/m51_locomo_s1.part7",
+          "value": 66.45569620253164
+        },
+        {
+          "run": "runs/m51_locomo_s1.part4",
+          "value": 60.75949367088608
+        },
+        {
+          "run": "runs/m51_locomo_s1.part8",
+          "value": 63.69426751592356
         },
         {
           "run": "runs/locomo_recall",
@@ -993,6 +1173,42 @@
         {
           "run": "runs/rescored/m19_locomo_full_judge",
           "value": 69.95515695067265
+        },
+        {
+          "run": "runs/m51_locomo_s1",
+          "value": 84.08071748878923
+        },
+        {
+          "run": "runs/m51_locomo_s1.part8",
+          "value": 89.58333333333334
+        },
+        {
+          "run": "runs/m51_locomo_s1.part4",
+          "value": 81.25
+        },
+        {
+          "run": "runs/m51_locomo_s1.part7",
+          "value": 87.2340425531915
+        },
+        {
+          "run": "runs/m51_locomo_s1.part6",
+          "value": 85.1063829787234
+        },
+        {
+          "run": "runs/m51_locomo_s1.part5",
+          "value": 82.97872340425532
+        },
+        {
+          "run": "runs/m51_locomo_s1.part10",
+          "value": 91.30434782608697
+        },
+        {
+          "run": "runs/m51_locomo_s1.part11",
+          "value": 82.6086956521739
+        },
+        {
+          "run": "runs/m51_locomo_s1.part9",
+          "value": 80.43478260869566
         },
         {
           "run": "runs/locomo_recall",
@@ -1728,8 +1944,44 @@
           "value": 58.156028368794324
         },
         {
+          "run": "runs/m51_locomo_s1",
+          "value": 65.06493506493507
+        },
+        {
           "run": "runs/m21_mh_sel",
           "value": 54.96453900709219
+        },
+        {
+          "run": "runs/m51_locomo_s1.part10",
+          "value": 68.55345911949685
+        },
+        {
+          "run": "runs/m51_locomo_s1.part11",
+          "value": 66.66666666666666
+        },
+        {
+          "run": "runs/m51_locomo_s1.part5",
+          "value": 65.40880503144653
+        },
+        {
+          "run": "runs/m51_locomo_s1.part9",
+          "value": 63.52201257861635
+        },
+        {
+          "run": "runs/m51_locomo_s1.part6",
+          "value": 69.62025316455697
+        },
+        {
+          "run": "runs/m51_locomo_s1.part7",
+          "value": 66.45569620253164
+        },
+        {
+          "run": "runs/m51_locomo_s1.part4",
+          "value": 60.75949367088608
+        },
+        {
+          "run": "runs/m51_locomo_s1.part8",
+          "value": 63.69426751592356
         },
         {
           "run": "runs/locomo_recall",
@@ -2068,8 +2320,44 @@
           "value": 58.156028368794324
         },
         {
+          "run": "runs/m51_locomo_s1",
+          "value": 65.06493506493507
+        },
+        {
           "run": "runs/m21_mh_sel",
           "value": 54.96453900709219
+        },
+        {
+          "run": "runs/m51_locomo_s1.part10",
+          "value": 68.55345911949685
+        },
+        {
+          "run": "runs/m51_locomo_s1.part11",
+          "value": 66.66666666666666
+        },
+        {
+          "run": "runs/m51_locomo_s1.part5",
+          "value": 65.40880503144653
+        },
+        {
+          "run": "runs/m51_locomo_s1.part9",
+          "value": 63.52201257861635
+        },
+        {
+          "run": "runs/m51_locomo_s1.part6",
+          "value": 69.62025316455697
+        },
+        {
+          "run": "runs/m51_locomo_s1.part7",
+          "value": 66.45569620253164
+        },
+        {
+          "run": "runs/m51_locomo_s1.part4",
+          "value": 60.75949367088608
+        },
+        {
+          "run": "runs/m51_locomo_s1.part8",
+          "value": 63.69426751592356
         },
         {
           "run": "runs/locomo_recall",
@@ -2107,8 +2395,44 @@
           "value": 58.156028368794324
         },
         {
+          "run": "runs/m51_locomo_s1",
+          "value": 65.06493506493507
+        },
+        {
           "run": "runs/m21_mh_sel",
           "value": 54.96453900709219
+        },
+        {
+          "run": "runs/m51_locomo_s1.part10",
+          "value": 68.55345911949685
+        },
+        {
+          "run": "runs/m51_locomo_s1.part11",
+          "value": 66.66666666666666
+        },
+        {
+          "run": "runs/m51_locomo_s1.part5",
+          "value": 65.40880503144653
+        },
+        {
+          "run": "runs/m51_locomo_s1.part9",
+          "value": 63.52201257861635
+        },
+        {
+          "run": "runs/m51_locomo_s1.part6",
+          "value": 69.62025316455697
+        },
+        {
+          "run": "runs/m51_locomo_s1.part7",
+          "value": 66.45569620253164
+        },
+        {
+          "run": "runs/m51_locomo_s1.part4",
+          "value": 60.75949367088608
+        },
+        {
+          "run": "runs/m51_locomo_s1.part8",
+          "value": 63.69426751592356
         },
         {
           "run": "runs/locomo_recall",
@@ -2837,6 +3161,42 @@
           "value": 69.95515695067265
         },
         {
+          "run": "runs/m51_locomo_s1",
+          "value": 84.08071748878923
+        },
+        {
+          "run": "runs/m51_locomo_s1.part8",
+          "value": 89.58333333333334
+        },
+        {
+          "run": "runs/m51_locomo_s1.part4",
+          "value": 81.25
+        },
+        {
+          "run": "runs/m51_locomo_s1.part7",
+          "value": 87.2340425531915
+        },
+        {
+          "run": "runs/m51_locomo_s1.part6",
+          "value": 85.1063829787234
+        },
+        {
+          "run": "runs/m51_locomo_s1.part5",
+          "value": 82.97872340425532
+        },
+        {
+          "run": "runs/m51_locomo_s1.part10",
+          "value": 91.30434782608697
+        },
+        {
+          "run": "runs/m51_locomo_s1.part11",
+          "value": 82.6086956521739
+        },
+        {
+          "run": "runs/m51_locomo_s1.part9",
+          "value": 80.43478260869566
+        },
+        {
           "run": "runs/locomo_recall",
           "value": 69.95515695067265
         },
@@ -2916,8 +3276,44 @@
           "value": 58.156028368794324
         },
         {
+          "run": "runs/m51_locomo_s1",
+          "value": 65.06493506493507
+        },
+        {
           "run": "runs/m21_mh_sel",
           "value": 54.96453900709219
+        },
+        {
+          "run": "runs/m51_locomo_s1.part10",
+          "value": 68.55345911949685
+        },
+        {
+          "run": "runs/m51_locomo_s1.part11",
+          "value": 66.66666666666666
+        },
+        {
+          "run": "runs/m51_locomo_s1.part5",
+          "value": 65.40880503144653
+        },
+        {
+          "run": "runs/m51_locomo_s1.part9",
+          "value": 63.52201257861635
+        },
+        {
+          "run": "runs/m51_locomo_s1.part6",
+          "value": 69.62025316455697
+        },
+        {
+          "run": "runs/m51_locomo_s1.part7",
+          "value": 66.45569620253164
+        },
+        {
+          "run": "runs/m51_locomo_s1.part4",
+          "value": 60.75949367088608
+        },
+        {
+          "run": "runs/m51_locomo_s1.part8",
+          "value": 63.69426751592356
         },
         {
           "run": "runs/locomo_recall",
@@ -2963,8 +3359,44 @@
           "value": 42.52377963713383
         },
         {
+          "run": "runs/m51_locomo_s1",
+          "value": 51.388032840055985
+        },
+        {
           "run": "runs/m21_mh_sel",
           "value": 41.53701417072413
+        },
+        {
+          "run": "runs/m51_locomo_s1.part10",
+          "value": 53.013994486878936
+        },
+        {
+          "run": "runs/m51_locomo_s1.part11",
+          "value": 52.033010596888204
+        },
+        {
+          "run": "runs/m51_locomo_s1.part9",
+          "value": 50.377756245222
+        },
+        {
+          "run": "runs/m51_locomo_s1.part5",
+          "value": 47.93268263541551
+        },
+        {
+          "run": "runs/m51_locomo_s1.part7",
+          "value": 53.9191058824969
+        },
+        {
+          "run": "runs/m51_locomo_s1.part6",
+          "value": 52.253845061292424
+        },
+        {
+          "run": "runs/m51_locomo_s1.part4",
+          "value": 50.11964252879763
+        },
+        {
+          "run": "runs/m51_locomo_s1.part8",
+          "value": 55.191650554022885
         },
         {
           "run": "runs/rescored/locomo_recall_temporal",
