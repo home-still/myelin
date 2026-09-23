@@ -158,8 +158,9 @@ the two populations it had to separate:
 **AUROC 0.592** for telling an answerable decline from an adversarial
 row by agreement, against Farquhar et al.'s 0.79 for the hallucination task
 semantic entropy was built for. The reader agrees with itself about an
-answer that is not there (`fixing the fence`, again, at 0.8) about as often
-as it agrees about one that is, and when it does agree on an answerable row
+answer that is not there — `three months` of vintage films at 0.8, `0`
+autographed footballs at 0.8, `10` years of education at 0.6 — about as
+often as it agrees about one that is, and when it does agree on an answerable row
 it is right **3 times in 10** — below M42's 41.9% at zero agreement and M44
 R1's 40.7%. Sampling did not find a signal that greedy decoding hid; it
 found that this reader's five draws disagree for reasons unrelated to
