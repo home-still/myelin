@@ -50,7 +50,7 @@ ssh big gpu-tenant release --who myelin@workstation
 
 `serve-models.sh` blocks until every enabled `/health` answers 200 and then
 prints the ports and card occupancy, so it is safe to chain. It exits 1 with the
-log paths if any server fails to come up. Two switches:
+log paths if any server fails to come up. Switches:
 
 | variable | default | effect |
 |---|---|---|
@@ -59,6 +59,7 @@ log paths if any server fails to come up. Two switches:
 | `MYELIN_MMPROJ` | `1` | `0` serves the reader without the vision projector (saves ~0.9 GB; fine for LongMemEval_S and LoCoMo, which are text). **LME-V2 needs `1`**: the vendored harness sends the question screenshots as `image_url` parts and a projector-less reader answers HTTP 500 `image input is not supported` — measured 2026-09-23, 45 minutes of prompt-building lost before the first reader call |
 | `MYELIN_READER_KV_UNIFIED` | `0` | `1` gives every reader slot one shared KV pool (`--kv-unified`) of `MYELIN_READER_CTX` tokens instead of `CTX / SLOTS` each. **Measured 2026-09-23 under a full concurrent load (GPU 92–93%):** unified 8 slots / 131,072 tokens ran at 1,150 prompt + 80 gen tok/s in aggregate; 8 fixed slots of 16k at the same memory ran at 1,328 + 87. So the unified pool costs ~15%, and neither is much faster than one slot: for that prompt-to-generation mix (15:1) a single slot at its measured 2,844 prompt / 105 gen tok/s would deliver ~1,030 + 67. **Concurrency buys ~1.3× on this reader**, not the several-fold a dense model gets from batching — the likely cause (not verified) is llama.cpp splitting batches per sequence for Qwen3.5's recurrent Gated DeltaNet layers. Plan GPU time as roughly serial. |
 | `MYELIN_READER_THINK_BUDGET` | `1024` | `--reasoning-budget` for the reader: the shipped reader since M44 R2 thinks under 1,024 tokens (LongMemEval_S 67.8 → 78.4). `-1` is unrestricted, what every run before M44 was served with. `bench --reader-thinking` probes the budget before the first row |
+| `MYELIN_READER_MODEL` | `qwen3.5-9b` | the model on the reader port. `qwen3.5-9b` is the shipped model (Qwen3.5-9B UD-Q4_K_XL). `bonsai-27b` serves PrismML's Ternary Bonsai 2 27B (PTQ1_0, 5.95 GB) for M55: it needs PrismML's llama.cpp fork (`cuda-prism-1a07bfa`; stock builds reject the ternary packing) and the patched chat template big's own launcher uses (`~/.home-still/chat-template-bonsai.jinja`), plus `-fa on` and `--reasoning-format deepseek`. Slots, context, q8 KV, the thinking budget and thinking-off-by-default are this script's, so a bench arm differs from the base only in the model. `bench` records the model the server reports (`GET /v1/models`) as `llm_served_model`, and `standing` treats any run served another model as an arm. Bonsai's projector is the Q8_0 mmproj; pass `MYELIN_MMPROJ=0` for text-only benches |
 
 ### The firewall makes a tunnel mandatory
 

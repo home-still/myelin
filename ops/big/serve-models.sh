@@ -109,10 +109,6 @@ KVU_ARGS=()
 if [ "${MYELIN_READER_KV_UNIFIED:-0}" = "1" ]; then
   KVU_ARGS=(--kv-unified)
 fi
-MMPROJ_ARGS=()
-if [ "${MYELIN_MMPROJ:-1}" = "1" ]; then
-  MMPROJ_ARGS=(--mmproj "$R/mmproj-F16.gguf")
-fi
 
 # Thinking off SERVER-WIDE, not per request.
 #
@@ -124,6 +120,44 @@ fi
 # the run died with `Empty judgement response from evaluator model.`
 # A server-side default fixes every client at once.
 TEMPLATE_KWARGS='{"enable_thinking":false}'
+
+# The model the reader port serves (M55). `qwen3.5-9b` is the shipped model and
+# its launch line is today's. `bonsai-27b` is PrismML's Ternary Bonsai 2 27B
+# (PTQ1_0, 5.95 GB), which only PrismML's llama.cpp fork can load (stock builds
+# reject the packing), with the patched chat template big's own launcher uses
+# (~/.home-still/run-qwen3.8.sh). Everything else — slots, context, q8 KV, the
+# thinking budget, thinking off by default — is this script's, so a bench arm
+# differs from the base only in the model. The patched template requires a
+# reasoning effort whenever thinking is on; "medium" is its launcher's own.
+READER_MODEL="${MYELIN_READER_MODEL:-qwen3.5-9b}"
+case "$READER_MODEL" in
+  qwen3.5-9b)
+    READER_LC="$LC"
+    READER_GGUF="$R/Qwen3.5-9B-UD-Q4_K_XL.gguf"
+    READER_MMPROJ="$R/mmproj-F16.gguf"
+    READER_EXTRA=()
+    ;;
+  bonsai-27b)
+    READER_LC=/home/ladvien/.local/llama.cpp/cuda-prism-1a07bfa/bin
+    B=/home/ladvien/models/Ternary-Bonsai-2-27B-gguf
+    READER_GGUF="$B/Ternary-Bonsai-2-27B-PTQ1_0.gguf"
+    READER_MMPROJ="$B/Ternary-Bonsai-2-27B-mmproj-Q8_0.gguf"
+    READER_EXTRA=(-fa on --reasoning-format deepseek
+                  --chat-template-file /home/ladvien/.home-still/chat-template-bonsai.jinja)
+    TEMPLATE_KWARGS='{"enable_thinking":false,"reasoning_effort":"medium"}'
+    ;;
+  *)
+    echo "serve-models: unknown MYELIN_READER_MODEL=$READER_MODEL (qwen3.5-9b | bonsai-27b)" >&2
+    exit 1
+    ;;
+esac
+for f in "$READER_LC/llama-server" "$READER_GGUF"; do
+  [ -e "$f" ] || { echo "serve-models: $READER_MODEL needs $f, which does not exist" >&2; exit 1; }
+done
+MMPROJ_ARGS=()
+if [ "${MYELIN_MMPROJ:-1}" = "1" ]; then
+  MMPROJ_ARGS=(--mmproj "$READER_MMPROJ")
+fi
 
 # Retire whatever is already listening on our ports before writing a new
 # pidfile.
@@ -156,9 +190,10 @@ for _ in $(seq 1 30); do
   sleep 2
 done
 
-nohup "$LC/llama-server" \
-  -m "$R/Qwen3.5-9B-UD-Q4_K_XL.gguf" \
-  "${MMPROJ_ARGS[@]}" \
+LD_LIBRARY_PATH="$READER_LC" nohup "$READER_LC/llama-server" \
+  -m "$READER_GGUF" \
+  ${MMPROJ_ARGS[@]+"${MMPROJ_ARGS[@]}"} \
+  ${READER_EXTRA[@]+"${READER_EXTRA[@]}"} \
   --host "$BIND_HOST" --port "$READER_PORT" \
   -c "$READER_CTX" -ngl 999 \
   --cache-type-k q8_0 --cache-type-v q8_0 \
