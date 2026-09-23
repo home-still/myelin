@@ -43,10 +43,12 @@ cheap arms, both against `runs/m44_r2_s1_judged` under the same seed:
   row. Predicted: `temporal-reasoning` and gold ≥ 3 move; the preference
   stratum (−20.0 on seed 2, the one cost) does not recover — it is not a
   budget problem.
-- **LoCoMo under the thinking reader.** The pinned 69.87 is a plain-reader
-  `recall` run; `shipped_reader_thinking` is off for LoCoMo until this is
-  measured. 1,986 rows × ~12 s ≈ 6.5 h, then the ratchet floor moves there
-  too.
+- **LoCoMo at the shipped LongMemEval_S point — now M51, one bundled
+  arm.** The pinned 69.87 is a plain-reader `recall` run that none of M32,
+  M43 or M44 has touched; the three switches are each validated on another
+  corpus, so they run as one pre-registered bundle (2026-09-23 rule:
+  bundle what is validated elsewhere, one arm per new mechanism).
+  `docs/measurements/m51-locomo-at-the-shipped-point.md`; ≈ 8 h a seed.
 
 **Cost.** R2b/R2c ~1.5 h each; LoCoMo an overnight.
 
@@ -186,6 +188,18 @@ confidence problem.
   `-fa on`; two server profiles (LongMemEval_S at k=6/4,096 plus a 1,024-token
   thinking budget fits 8k per slot; only LME-V2 needs the large window); `n`
   parallel samples off one prefill for M45.
+- **LME-V2 needs the vision projector.** The harness attaches question
+  screenshots as `image_url` content; a reader served with `MYELIN_MMPROJ=0`
+  (the LongMemEval_S/LoCoMo saving) answers HTTP 500 on the first reader
+  call, after the ~45-minute prompt build, which the harness cannot resume.
+  2026-09-23 05:00: one such loss. `ops/big/README.md` says so now, and
+  `run_myelin.py` preflights it: when any selected question carries a
+  screenshot (web small: 15 of 240; enterprise: none) it sends that image
+  through the harness's own `to_data_url` as one `max_tokens: 1` request
+  before building anything, and a refusal ends the run at the door with
+  the fix named. Verified 2026-09-23: a text-only selection sends nothing,
+  the projector-served reader accepts in one request, a dead endpoint is
+  refused.
 - **Two arms sharing the reader's slots do not get an exact control.**
   M48 ran beside M44 R2 for its whole length; llama.cpp batches concurrent
   slots, and the same greedy request can decode a different token when its
