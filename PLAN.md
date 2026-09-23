@@ -858,9 +858,9 @@ floor under our own numbers is `docs/sota/progression.json` + `myelin-eval ratch
 |---|---|---|---|
 | `minja.asr.k6_prepopulated_defended` | **7.50%** | ≤10% | **+2.50 — CLOSED** |
 | `locomo.judge_score.n1540` | 69.87 | 77.85 | −7.98 |
-| `longmemeval_s.judge_score.n500` | **67.80** | 80.80 | −13.00 |
+| `longmemeval_s.judge_score.n500` | **78.40** | 80.80 | **−2.40** |
 | `lme_v2_small.overall_full_set.combined` | **38.58** | 74.90 | −36.32 — pre-M43 configuration (no digest, `dated: false`); no run at the shipped default exists yet |
-| └ vs AgentRunbook-**R** | 38.58 | 58.60 | −20.02 — **not a same-reader row, see M44** |
+| └ vs AgentRunbook-**R** | 38.58 | 58.60 | −20.02 — pre-M44 reader on a 95%-missing store; re-run pending |
 | `lme_v2_small.lafs_gain.small` | 0.00 | >0.00 | stale-config |
 
 ### 15.1 The finding that reorders the backlog

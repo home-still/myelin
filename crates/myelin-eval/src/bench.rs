@@ -1252,6 +1252,21 @@ const THINKING_TEMPERATURE: f32 = 0.6;
 const THINKING_TOP_P: f32 = 0.95;
 const THINKING_TOP_K: u32 = 20;
 
+/// Whether the shipped reader thinks, per corpus (M44 R2).
+///
+/// **On for LongMemEval_S since M44 R2**: 67.80 → 78.4 / 78.4 on two seeds
+/// (+10.6 [+7.0, +14.2] on seed 1), abstention up, every pre-registered
+/// stratum prediction held. A switch ships where it was measured, and this
+/// one has not been measured on LoCoMo — whose standing number was produced
+/// by the plain reader in `recall` mode — so there it stays off until it
+/// is, exactly as `select_sufficient` ships on for `investigate` and off
+/// for `recall`. Read from here by `standing`, so a plain-reader
+/// LongMemEval_S run is an arm of today's configuration and a plain-reader
+/// LoCoMo run is not.
+pub fn shipped_reader_thinking(corpus: &str) -> bool {
+    corpus == "longmemeval_s"
+}
+
 /// How the reader is asked (M44).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ReaderMode {

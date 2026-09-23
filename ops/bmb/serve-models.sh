@@ -33,7 +33,7 @@ READER_SLOTS="${MYELIN_READER_SLOTS:-2}"
 READER_CTX="${MYELIN_READER_CTX:-32768}"
 # `--reasoning-budget`: -1 unrestricted (every run before M44); M44 R2 runs
 # at 1024, and `bench --reader-thinking` probes it before the first row.
-READER_THINK_BUDGET="${MYELIN_READER_THINK_BUDGET:--1}"
+READER_THINK_BUDGET="${MYELIN_READER_THINK_BUDGET:-1024}"
 # Thinking off server-wide, for the reason big's script gives: third-party
 # clients (the vendored LME-V2 evaluator) never send the flag themselves.
 TEMPLATE_KWARGS='{"enable_thinking":false}'
