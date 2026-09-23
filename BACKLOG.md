@@ -20,78 +20,36 @@ Literature lives in home-still; the guidance this backlog was built from is
 See [`BACKLOG_DONE.md`](BACKLOG_DONE.md#sota-standing) for the full table and
 its history. Short version: **one gate closed** (MINJA 7.50% ≤ 10%), one
 claimable row (LoCoMo beats Mem0's published 66.88 by +2.99), and three open
-gaps — LoCoMo −7.98, LongMemEval_S **−13.00** (M43 closed 5.80 of it),
-LME-V2 −20.02 at a pre-M43 configuration. M44 R1, M46 and M48 all measured
-null with the abstention veto firing; M48 closed the negation story M42
-opened, and M45 closed decline recovery itself — a forced schema, room to
-reason and agreement across samples all convert this reader's declines at
-30–42% while surrendering adversarial rows (AUROC 0.59 for agreement).
-The reader does not have those answers; the remaining levers are M47's
-contradiction check for the adversarial half and write-time composition
-(M50) for the answerable half.
+gaps — LoCoMo −7.98, **LongMemEval_S −2.40** (M43 closed 5.80, **M44 R2
+closed 10.60**: 62.00 → 67.80 → 78.40 in one day), LME-V2 −20.02 at a
+pre-M43 configuration. M44 R1, M46 and M48 measured null with the veto
+firing; M48 closed the negation story; M45 closed decline recovery (AUROC
+0.59). Then R2 — native thinking, 1,024 tokens, two seeds at 78.40 —
+moved the two-fact stratum +18 and temporal reasoning +30, with abstention
+*up*. The reader was compute-limited all along.
 
 ---
 
-## M44 — the reader has never been allowed to reason
+## M44b — the thinking reader, tightened *(follow-ups to a shipped win)*
 
-**The finding.** `with_thinking(true)` exists in `llm/mod.rs`, is unit tested,
-and has **no production call site**. The server pins
-`{"enable_thinking":false}`. Every reader call is capped at 160 tokens and
-`READER_SYSTEM` says *"Answer in as few words as possible … Do not explain."*
-Meanwhile `vendor/longmemeval-v2/evaluation/harness.py:186` sets
-`reader_enable_thinking=True` **by default**, and our own
-`adapters/run_myelin.py:201` overrides it to `False`.
+R2 ships at **78.40** with a 1,024-token budget and no budget message. Two
+cheap arms, both against `runs/m44_r2_s1_judged` under the same seed:
 
-Two consequences:
+- **R2b — budget message.** 165 of 500 traces hit the cap and 56 answers
+  carry thinking that spilled past the forced end-of-thinking tag; they
+  score 27/56 against the base's 27/56 — no net cost, no gain. llama.cpp's
+  `--reasoning-budget-message` with Qwen's own wording (*"…I have to give
+  the answer now"*) closes the trace cleanly. One serve flag, one run.
+- **R2c — budget 2,048.** The same 165 rows, given room. Costs ~1.5× per
+  row. Predicted: `temporal-reasoning` and gold ≥ 3 move; the preference
+  stratum (−20.0 on seed 2, the one cost) does not recover — it is not a
+  budget problem.
+- **LoCoMo under the thinking reader.** The pinned 69.87 is a plain-reader
+  `recall` run; `shipped_reader_thinking` is off for LoCoMo until this is
+  measured. 1,986 rows × ~12 s ≈ 6.5 h, then the ratchet floor moves there
+  too.
 
-1. **The standing row is wrong.** AgentRunbook-R's 58.60 came from a thinking
-   Qwen3.5-9B with a 20,000-token budget; our 38.58 from the same weights with
-   thinking off and 160 tokens. It is labelled "same reader" and is not one.
-   It must carry `caveat-reader-mode` until an equal-configuration number
-   exists.
-2. **Every diagnosis since M38 was taken under that configuration.** The
-   2-fact collapse (79.9 → 56.7 → 40.0), the ignored instructions, the 63
-   false declines — all textbook behaviour for a small model denied reasoning
-   tokens. Tam et al. (`10.18653/v1/2024.emnlp-industry.91`) measured it: JSON
-   mode put the answer key before the reason key in **100%** of responses,
-   producing direct answering instead of chain-of-thought, and LLaMA-3-8B
-   loses **38.15%** on Last Letter. `READER_SYSTEM` is that failure mode with
-   no reason field at all.
-
-**Arms.**
-
-- **R1 — structured reasoning, thinking off.** `{reasoning, answer,
-  evidence_absent}`, field order is the mechanism (third application of M42's
-  and M43's rule). Ceiling 160 → 480. Temperature 0 stays, isolating "let it
-  reason" from "sample". **Measured 2026-09-22: −0.8 [−3.8, +2.2], null;
-  abstention 90.0 → 43.3, veto fires; gold=2 +3.1 [−0.4, +7.0];
-  `multi-session` exactly +0.0. Ships off.** 273 byte-identical rows, control
-  exact. On the 49 answerable rows the base declined it answers 27 and is
-  right on 11 (40.7%) — M42's conversion rate to the point. Seven of the 14
-  lost abstention rows turn absence into `0` / `Never` / `Nothing`.
-- **R2 — thinking on.** `enable_thinking: true`, bounded thinking budget
-  (1,024 tokens first), temp 0.6 / top_p 0.95 / top_k 20 per the Qwen3
-  Technical Report (`2505.09388`), two seeds so the CI carries sampling noise.
-  **Seed 1 measured 2026-09-22: 67.8 → 78.4, +10.6 [+7.0, +14.2]; abstention
-  90.0 → 93.3; gold=2 +17.5; `temporal-reasoning` +30.1; +11.4 over R1 on
-  the same rows. Every prediction held; the bar is cleared three times over
-  and the veto does not fire.** Seed 2 running; both in → ship. Follow-up
-  R2b: 165/500 traces hit the 1,024 cap and 56 answers carry spilled
-  thinking (no net cost); `--reasoning-budget-message` or a larger budget.
-- **LME-V2 corollary.** Re-run the shipped operating point at the harness's
-  own default. Not a mechanism arm — it is the *comparable* number.
-
-**Predicted.** gold=2 (n=217, 56.7%) and gold≥3 (n=31, 35.5%) move; gold=1
-(n=169, 79.9%) does not regress by more than 1.0; `temporal-reasoning` and
-`multi-session` carry the gain; abstention on the 30 `_abs` rows does not
-fall. If R2 ≫ R1 the gain is deliberation; if R1 ≈ R2 the cheap ship is the
-bounded field.
-
-**Falsifier.** If neither arm moves gold=2, the reader is not compute-limited,
-M38's "reading is the gap" theory is refuted at the cheapest possible point,
-and the project redirects to write-time aggregation with far more confidence.
-
-**Cost.** R1 minutes. R2 2–6 GPU-hours. LME-V2 hours.
+**Cost.** R2b/R2c ~1.5 h each; LoCoMo an overnight.
 
 ---
 

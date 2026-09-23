@@ -963,9 +963,15 @@ fn bench_metrics(dir: &Path, agg_text: &str) -> Result<Vec<Ours>> {
         // M43's digest relevance filter, and M48's three-way label.
         || run.digest_relevance
         || run.digest_role
-        // M44 R1's reasoning reader, and R2's thinking reader.
+        // M44 R1's reasoning reader ships off. R2's thinking reader ships
+        // ON for LongMemEval_S since M44 and is unmeasured elsewhere, so —
+        // like `select_sufficient` and the digest — an arm is a run whose
+        // reader mode differs from the shipped one *for its own corpus*. A
+        // run written before the field existed deserialises `false`, which
+        // is what it ran with: every pre-M44 LongMemEval_S run is an off-arm
+        // of today's reader, and every LoCoMo run is unaffected.
         || run.reader_reasoning
-        || run.reader_thinking
+        || run.reader_thinking != crate::bench::shipped_reader_thinking(&run.corpus)
         // M47's presupposition check.
         || run.premise_check;
 
@@ -1470,6 +1476,9 @@ const PAIR_SWITCH_DEFAULTS: [(&str, bool); 13] = [
     ("digest_relevance", false),
     ("digest_role", false),
     ("reader_reasoning", false),
+    // The LME-V2 harness brings its own reader; the myelin bench reader
+    // mode never appears in a harness artifact, so this key is inert there
+    // and is listed only so a stray `true` would read as an arm.
     ("reader_thinking", false),
     ("premise_check", false),
     // `item_digest` and `digest_dates` are deliberately **absent**: M43
@@ -3472,6 +3481,46 @@ mod tests {
                 ours["locomo.temporal.n1540"].arm, expect_arm,
                 "{mode} + select_sufficient={select} is {why}"
             );
+        }
+    }
+
+    /// M44 R2 shipped the thinking reader for LongMemEval_S and nowhere
+    /// else, so the reader mode is an arm against its own corpus's default:
+    /// a plain-reader LongMemEval_S run is an off-arm of today's reader; a
+    /// plain-reader LoCoMo run — the pinned standing row — is not.
+    #[test]
+    fn reader_thinking_is_an_arm_only_against_its_own_corpus_default() {
+        let row = serde_json::json!({
+            "question_id": "q", "tenant": "t", "category": 2,
+            "question_text": "when?", "answer_gold": "g",
+            "response_raw": "g", "score": 1.0, "exact_match": 1.0,
+            "is_abstention_problem": false, "retrieved_items": 6,
+            "memory_query_duration_seconds": 0.1
+        })
+        .to_string();
+        for (corpus, metric, thinking, expect_arm, why) in [
+            ("longmemeval_s", "longmemeval_s.token_f1.n500", true, false, "the shipped LongMemEval_S reader"),
+            ("longmemeval_s", "longmemeval_s.token_f1.n500", false, true, "a plain-reader LongMemEval_S run — every run before M44"),
+            ("locomo", "locomo.temporal.n1540", false, false, "the shipped LoCoMo reader, unmeasured under thinking"),
+            ("locomo", "locomo.temporal.n1540", true, true, "a thinking LoCoMo run, not yet the default there"),
+        ] {
+            let tmp = tempfile::tempdir().unwrap();
+            let dir = tmp.path().join("runs/r");
+            std::fs::create_dir_all(&dir).unwrap();
+            let agg = serde_json::json!({
+                "corpus": corpus, "collection": "c", "mode": "investigate", "k": 6,
+                "max_steps": 2, "scorer": if corpus == "locomo" { "temporal" } else { "token_f1" },
+                "resolve_dates": true, "timeline": true,
+                "select_sufficient": true, "item_digest": true, "digest_dates": true,
+                "reader_thinking": thinking,
+                "questions": 1, "f1_answerable": 0.5, "em_answerable": 0.1,
+                "abstention_accuracy": 0.0, "by_category": [],
+                "query_p50_seconds": 0.2, "query_avg_seconds": 0.2
+            });
+            std::fs::write(dir.join("per_question.jsonl"), &row).unwrap();
+            std::fs::write(dir.join("aggregated_metrics.json"), agg.to_string()).unwrap();
+            let ours = collect(&tmp.path().join("runs"), "/nonexistent/python").unwrap();
+            assert_eq!(ours[metric].arm, expect_arm, "{corpus} + reader_thinking={thinking} is {why}");
         }
     }
 

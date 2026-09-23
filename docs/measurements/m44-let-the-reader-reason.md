@@ -274,4 +274,59 @@ worth it; the LME-V2 and LoCoMo runs will take correspondingly longer.
 
 ## Results — R2, seed 2
 
-*(running — the ship decision is taken when both seeds are in)*
+`runs/m44_r2_s2` — identical configuration, `--reader-seed 2`, judged with
+`--seed runs/m43_dated` (250 judged, 165 reused) → `runs/m44_r2_s2_judged`.
+
+| stratum | n | base | R2 s2 | delta | 95% CI | p |
+| --- | --- | --- | --- | --- | --- | --- |
+| **overall** | 500 | 67.8 | **78.4** | **+10.6** | [+7.0, +14.4] | <0.0001 |
+| answerable | 470 | 66.4 | 77.2 | +10.9 | [+6.8, +14.9] | <0.0001 |
+| **abstention** | 30 | 90.0 | 96.7 | +6.7 | [−6.7, +20.0] | 0.442 |
+| gold = 1 | 170 | 82.4 | 81.8 | −0.6 | [−5.9, +4.7] | 0.907 |
+| **gold = 2** | 229 | 62.9 | 81.7 | +18.8 | [+13.1, +24.9] | <0.0001 |
+| gold ≥ 3 | 71 | 39.4 | 52.1 | +12.7 | [+1.4, +23.9] | 0.042 |
+| `temporal-reasoning` | 133 | 48.1 | 77.4 | +29.3 | [+21.1, +37.6] | <0.0001 |
+| `multi-session` | 133 | 59.4 | 72.2 | +12.8 | [+4.5, +21.1] | 0.003 |
+| `knowledge-update` | 78 | 80.8 | 85.9 | +5.1 | [+0.0, +11.5] | 0.129 |
+| `single-session-preference` | 30 | 40.0 | 20.0 | **−20.0** | [−33.3, −6.7] | 0.003 |
+
+**Seed 2 against seed 1 on the same rows: +0.0 (95% CI [−2.4, +2.4]).**
+The two seeds agree to the decimal on the headline and within noise on
+every stratum; the mean of the two seeds per row is **78.40**, +10.60
+[+7.2, +14.0] over the base. Sampling noise is inside the effect by a
+factor of four.
+
+## Verdict: `reader_thinking` ships
+
+Two seeds, both **+10.6** with intervals excluding zero by seven points,
+both raising the abstention rows (28 and 29 of 30 against the base's 27),
+every pre-registered stratum prediction held on both. The bar was +3.0.
+
+The falsifier is answered the other way: the reader *was* compute-limited.
+M38's "reading is the gap" theory stands, and the cheapest point at which
+to test it — give the reader tokens to think — was the right one. R1
+(−0.8) showed that a *field* for reasoning is not the same as reasoning;
+R2 ≫ R1 by +11.4, so the gain is native deliberation, sampled per the
+model's own report, bounded at 1,024 tokens.
+
+**What ships.** For LongMemEval_S the shipped reader is
+`--reader-thinking --reader-seed <n>` with the server at
+`--reasoning-budget 1024` (`shipped_reader_thinking` in `bench.rs`;
+`standing` treats a plain-reader LongMemEval_S run as an arm from here on).
+The serve scripts default to the 1,024 budget on both hosts. The floor
+moves 67.80 → **78.40**. LoCoMo keeps the plain reader until it is measured
+under thinking — a switch ships where it was measured — so its pinned rows
+stay quotable.
+
+**What it costs.** `single-session-preference` −13.3 / −20.0 on 30
+open-ended *suggest…* rows: the thinker hedges or spills where the plain
+reader listed. Real on seed 2, six points of a stratum that has been the
+benchmark's worst since M20, and the price of +10.6 elsewhere. Recorded,
+not argued away. And ~3× the reader time per row.
+
+**What it reopens.** The AgentRunbook-R row is now a thinking-vs-thinking
+comparison, at 1,024 tokens against their 20,000; the LME-V2 base at the
+harness's own default is the next run. And **R2b**: 165 of 500 traces hit
+the cap and 56 answers carry spilled thinking at no net cost — a
+`--reasoning-budget-message` (Qwen's own recipe) or a larger budget is one
+run from an answer.

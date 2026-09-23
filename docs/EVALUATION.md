@@ -452,15 +452,18 @@ right.
 
 ### 6.4 Where we stand on these two, and how a number gets made
 
-The shipped `investigate` operating point on LongMemEval_S, as of M43
+The shipped `investigate` operating point on LongMemEval_S, as of M44 R2
 (2026-09-22): `--k 6 --budget-tokens 4096 --max-steps 2 --select-sufficient
---item-digest --digest-dates`, judged by the local Qwen3.5-9B panel.
+--item-digest --digest-dates --reader-thinking --reader-seed <n>`, the
+reader served with `--reasoning-budget 1024`, judged by the local
+Qwen3.5-9B panel (thinking off for the judge).
 
 | milestone | change | LongMemEval_S judged (n = 500) |
 |---|---|---|
 | M19 | dates resolved *for* the reader; `[timeline]` view | 56.40 |
 | M32 | pool-level sufficiency selection ships on | **62.00** (+5.8, 95% CI [+2.8, +8.8]) |
 | M43 | one dated digest note per memory ships on | **67.80** (+5.8, 95% CI [+2.8, +8.8]) |
+| M44 R2 | the reader thinks — 1,024-token budget, sampled, two seeds | **78.40** (+10.6, 95% CI [+7.0, +14.2]; seed 2 identical) |
 
 Everything between and after those rows — M33–M42, M44 R1 — is a measured
 null, a significant negative, or a win vetoed on the abstention rows, and
