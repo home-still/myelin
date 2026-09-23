@@ -1,4 +1,4 @@
-# M55 — a stronger local model: Ternary Bonsai 2 27B as myelin's model *(pre-registered 2026-09-23)*
+# M55 — a stronger local model: Ternary Bonsai 2 27B as myelin's model *(pilot measured 2026-09-23: +10.0, gate passed)*
 
 ## Why the model, and why now
 
@@ -91,3 +91,76 @@ not being honoured by the fork).
 **Follow-up if it wins.** A reader-only swap (9B for select and digest, 27B
 reading) needs a second LLM URL in `bench`. It is worth building only if
 attribution matters for the next step.
+
+## Results — LongMemEval_S pilot, measured 2026-09-23
+
+**69.0 → 79.0, +10.0 [+3.0, +17.0], p = 0.005.** The gate was +5, so the
+pilot passes. Abstention rose from 4/6 to 5/6, so the veto does not fire.
+
+| stratum | n | 9B | Bonsai | Δ | 95% CI |
+|---|---|---|---|---|---|
+| overall | 100 | 69.0 | 79.0 | +10.0 | [+3.0, +17.0] |
+| answerable | 94 | 69.1 | 78.7 | +9.6 | [+2.1, +17.0] |
+| two gold sessions | 44 | 68.2 | 88.6 | +20.5 | [+9.1, +34.1] |
+| three or more gold sessions | 17 | 52.9 | 47.1 | −5.9 | [−23.5, +11.8] |
+| rows the 9B declined | 19 | 21.1 | 57.9 | +36.8 | [+15.8, +57.9] |
+| knowledge-update | 15 | 66.7 | 86.7 | +20.0 | [+0.0, +40.0] |
+| temporal-reasoning | 27 | 77.8 | 88.9 | +11.1 | [+0.0, +25.9] |
+| multi-session | 27 | 55.6 | 63.0 | +7.4 | [−11.1, +25.9] |
+
+Twelve rows were gained and two lost. Declines fell from 19 to 15. The
+predictions held: the gain landed in knowledge-update and in the 9B's
+declines, and two-session questions moved most. Questions over three or
+more sessions did not move, so composition across many sessions is still the
+limit.
+
+| side measurement | 9B | Bonsai |
+|---|---|---|
+| seconds per row, p50 | 24.9 | 34.0 |
+| thinking trace present | 100/100 | 100/100 |
+| median trace length, chars | 3,247 | 526 |
+| selector declined (`model_declined`) | 2 | 7 |
+| answers byte-identical to the 9B's | — | 46/100 |
+
+Bonsai thinks about a sixth as long as the 9B under the same 1,024-token
+budget and still answers better. The cost is 1.4× per row, not the 2×
+predicted. The artifact records `llm_served_model =
+Ternary-Bonsai-2-27B-PTQ1_0.gguf`. Big's reader log confirms the judge was
+the 9B: it loaded `Qwen3.5-9B-UD-Q4_K_XL.gguf` and served 47 judge calls.
+The other 37 verdicts came from the base's cache for identical answers.
+
+Artifacts: `runs/m55_bonsai_pilot_s1` and `runs/m55_bonsai_pilot_s1_judged`,
+each with `aggregated_metrics.json` and `judge_verdicts.json`.
+
+## Pre-registration — the full runs the gate calls for
+
+Both arms run on one Bonsai server: 4 slots × 16k, thinking budget 1,024,
+no projector. Both are judged by the 9B, re-served afterwards.
+
+**M55 full: LongMemEval_S, 500 questions.**
+- **Base.** `runs/m44_r2_s1_judged`: the shipped point, **78.40**.
+- **Arm.** The pilot's command without `--questions` →
+  `runs/m55_bonsai_s1`. It inherits the pilot's 100 rows, which came from the
+  identical command. It runs the other 400 in two shards and closes the merge
+  with `bench --resume` while Bonsai still serves.
+- **Judge.** Seeded from `runs/m44_r2_s1`.
+- **Bar.** +3.0 with the paired 95% CI excluding zero, and abstention (30
+  rows) no lower than base.
+- **Prediction.** +6 to +10, shrinking from the pilot's +10. At 78.40 + 6 the
+  row would pass MemPro-15's 80.80.
+- **If it clears.** Bonsai becomes the shipped model:
+  `SHIPPED_LLM_MODEL` and the serve default move in the results PR, and G2
+  carries the 27B-dense against 30B-A3B caveat above.
+
+**M55b: LoCoMo on Bonsai, 1,986 questions.**
+- **Base.** `runs/m19_locomo_full`: `recall`, k = 6, plain reader, dates
+  resolved. Judge (1–4) **69.87**, adversarial 69.96, 121 declines.
+- **Arm.** The identical command (`bench --corpus locomo --mode recall --k 6
+  --max-steps 2`) on Bonsai → `runs/m55b_locomo_bonsai`, in two shards.
+- **Bar.** +3.0 with the CI excluding zero, and adversarial not lower.
+- **Prediction.** +4 to +8, with declines on answerable rows below 121 and
+  the gain in multi-hop and open-domain, where the 9B is weakest (57.80,
+  29.17).
+- **Falsifier.** Adversarial drops, meaning a stronger model answers what it
+  should refuse.
+
