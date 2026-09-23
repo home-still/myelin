@@ -1,4 +1,4 @@
-# M50 — one `build` with Chronos-style event tuples *(plan — not yet pre-registered)*
+# M50 — one `build` with Chronos-style event tuples *(implemented and pre-registered 2026-09-23)*
 
 ## Why this is the only write-path arm worth a GPU window
 
@@ -104,7 +104,122 @@ So the scope is a decision, not a default, and it is the user's:
 Whichever scope, the pass is resumable per session (the `unit_complete`
 audit event, as `build` already does) and ships with its `reindex` path.
 
-## Pre-registration
+## What was built (2026-09-23)
 
-*(written once the scope is chosen; bar +3.0 with the CI excluding zero,
-abstention veto, coverage reported before judging)*
+Two passes, so the expensive half runs where a reader is free and the cheap
+half runs anywhere:
+
+- **`myelin-eval events-extract`** — one schema-constrained call per
+  *distinct* session (Chronos's 25-turn windows with a 5-turn overlap),
+  written to a JSONL cache keyed by the SHA-256 of the session text. It
+  touches no store, resumes from the cache, and `--shard i/n` splits a
+  corpus across hosts. `myelin_core::pipeline::events` holds the prompt,
+  schema and resolution.
+- **`myelin-eval events-build`** — resolves each event's `when` against the
+  date of *that copy* of the session and writes one `Semantic` record per
+  event into a **copy** of the store, derived from the session's episodic
+  records (I4). No reader.
+
+Three decisions, each measured before it was made:
+
+| | measured | decision |
+| --- | --- | --- |
+| who does date arithmetic | M46: the reader subtracts badly at answer time | the model copies `when` verbatim; M19's closed grammar resolves it, failing closed |
+| cache key | LongMemEval_S: 25,112 session slots, **18,821 distinct contents**, 5,283 slots re-dated | extract date-free, once per content; resolve per copy |
+| the empty list | first prompt ended on the literal `{"events": []}` → **16 of 19** LoCoMo conv-26 sessions returned nothing, including "I went to a LGBTQ support group yesterday" | the literal is gone; the same sessions give **70 events, one empty**, every `when` verbatim |
+
+Stores: `myelin_longmemeval_s_events` and `myelin_locomo_events` are Qdrant
+snapshot restores of the shipped collections (5 s and 2 s, against ~57 min
+to re-embed), with ledgers copied to `data/*_events.ledger`. `events-build`
+refuses the shipped collection and ledger by name.
+
+## Scope, decided 2026-09-23
+
+The user's instruction was to bundle what is validated elsewhere, keep one
+arm per new mechanism, and keep the GPU busy. So:
+
+1. **LongMemEval_S pilot, n = 100** — the gate. Chronos is a LongMemEval_S
+   result, and on LoCoMo the store already holds 4,169 extracted facts, so
+   the mechanism is least distinct there. The population is
+   [`m50-pilot-questions.txt`](m50-pilot-questions.txt): every 5th question
+   by file index, proportional across all six types (14 / 27 / 6 / 27 / 15 /
+   11; 6 abstention rows). `--limit 100` would have been 70
+   `single-session-user` and 30 `multi-session` with no temporal row at all.
+2. **Extraction where the reader is free.** 4,765 distinct sessions, four
+   shards: `bmb` takes shard 3 while `big` runs the M47 pair alone, `big`
+   takes shards 0–2 after it. bmb decodes ~10 tok/s per slot (4 slots) and
+   prefills slowly, so it carries a quarter, not a half.
+3. **LoCoMo** extracts in full on bmb (272 sessions, ~50 min) and its arm
+   waits for M51, whose operating point it will run at.
+
+## Pre-registration — LongMemEval_S pilot
+
+**Base.** `runs/m44_r2_s1_judged` restricted to the 100 pilot ids: **70.00**
+(full 500: 78.40).
+
+| stratum | n | base |
+| --- | --- | --- |
+| single-session-user | 14 | 100.00 |
+| multi-session | 27 | 48.15 |
+| single-session-preference | 6 | 0.00 |
+| temporal-reasoning | 27 | 81.48 |
+| knowledge-update | 15 | 66.67 |
+| single-session-assistant | 11 | 100.00 |
+| abstention (`_abs`) | 6 | 83.33 |
+
+**Arm.** The shipped command, seed 1, on the events store:
+
+```
+myelin-eval events-extract --corpus longmemeval-s --questions docs/measurements/m50-pilot-questions.txt --shard <i>/4 --out data/events/longmemeval_s.s<i>.jsonl
+myelin-eval events-build --corpus longmemeval-s --questions docs/measurements/m50-pilot-questions.txt \
+  --cache data/events/longmemeval_s.s0.jsonl,…,data/events/longmemeval_s.s3.jsonl \
+  --collection myelin_longmemeval_s_events --ledger data/longmemeval_s_events.ledger
+myelin-eval bench --corpus longmemeval-s --mode investigate --k 6 --budget-tokens 4096 --max-steps 2 \
+  --select-sufficient --item-digest --digest-dates --reader-thinking --reader-seed 1 \
+  --questions docs/measurements/m50-pilot-questions.txt \
+  --collection myelin_longmemeval_s_events --ledger data/longmemeval_s_events.ledger --out runs/m50_pilot_s1
+myelin-eval judge --run runs/m50_pilot_s1 --seed runs/m44_r2_s1
+```
+
+Run **alone** on `big`, reader served as for `m44_r2_s1`, so a row whose
+composed evidence holds no event must come back byte-identical to the base
+— the pilot's only exact control, reported as a count.
+
+**Reported before judging.** Rows with ≥ 1 event in the composed evidence;
+mean event slots per row; events written, and how many `when`s resolved,
+stayed verbatim, or were empty.
+
+**Predictions.**
+
+- Pilot overall: **+5 or better.** Chronos Low lost 34.5 without events
+  (GPT-4o), Chronos High 2.6 (Opus); a 9B sits nearer the first.
+- multi-session (27): **+10 or better** — aggregation over events is the
+  cross-session count Chronos reports at 91.73.
+- temporal-reasoning (27): **+5 or better** — resolved dates, and the gain is
+  capped by the base's 81.48.
+- knowledge-update (15): **no prediction** — M49's finding (the reader picks
+  the older value with the newer one in hand) is not an events problem.
+- single-session-user / -assistant: **no drop** (already 100.00).
+- abstention (6): **the veto** — any drop fires it. Events state what
+  happened; they should not invent an answer to a question about what did not.
+
+**Gate, not ship.** n = 100 resolves only effects near ±9, so the pilot
+decides whether to spend ~9 more GPU-hours extracting the other 14,056
+distinct sessions, not whether the switch ships:
+
+- point estimate ≥ +5 and abstention not lower → **full extraction**,
+  co-running with M51 (whose comparison has no exact control to lose), then
+  the n = 500 arm on the ship bar: +3.0 with the paired CI excluding zero
+  and the abstention veto.
+- point estimate in [0, +5) → stop; record; LoCoMo arm only.
+- negative → stop; the falsifier below decides what is recorded.
+
+**Falsifier.** Events crowd gold turns out of the k = 6 slots: rows whose
+base evidence held every gold session and whose arm evidence does not are
+counted (M38's coverage instrument), and a loss concentrated there means the
+events belong in a separate quota (`kind_quota`, M35), not in the fused
+ranking.
+
+## Results
+
+*(pending)*
