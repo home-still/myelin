@@ -145,10 +145,12 @@ arm per new mechanism, and keep the GPU busy. So:
    by file index, proportional across all six types (14 / 27 / 6 / 27 / 15 /
    11; 6 abstention rows). `--limit 100` would have been 70
    `single-session-user` and 30 `multi-session` with no temporal row at all.
-2. **Extraction where the reader is free.** 4,765 distinct sessions, four
-   shards: `bmb` takes shard 3 while `big` runs the M47 pair alone, `big`
-   takes shards 0–2 after it. bmb decodes ~10 tok/s per slot (4 slots) and
-   prefills slowly, so it carries a quarter, not a half.
+2. **Extraction where the reader is free.** 4,765 distinct sessions, eight
+   shards: `bmb` takes shard 7 while `big` runs the M47 pair alone, `big`
+   takes shards 0–6 after it. bmb decodes ~10 tok/s per slot (4 slots) and
+   prefills slowly, so it carries an eighth; every extraction process runs
+   on the workstation and writes a local cache, so whichever host finishes
+   first resumes the other's shard where it stopped.
 3. **LoCoMo** extracts in full on bmb (272 sessions, ~50 min) and its arm
    waits for M51, whose operating point it will run at.
 
@@ -170,9 +172,9 @@ arm per new mechanism, and keep the GPU busy. So:
 **Arm.** The shipped command, seed 1, on the events store:
 
 ```
-myelin-eval events-extract --corpus longmemeval-s --questions docs/measurements/m50-pilot-questions.txt --shard <i>/4 --out data/events/longmemeval_s.s<i>.jsonl
+myelin-eval events-extract --corpus longmemeval-s --questions docs/measurements/m50-pilot-questions.txt --shard <i>/8 --out data/events/longmemeval_s.s<i>.jsonl
 myelin-eval events-build --corpus longmemeval-s --questions docs/measurements/m50-pilot-questions.txt \
-  --cache data/events/longmemeval_s.s0.jsonl,…,data/events/longmemeval_s.s3.jsonl \
+  --cache data/events/longmemeval_s.s0.jsonl,…,data/events/longmemeval_s.s7.jsonl \
   --collection myelin_longmemeval_s_events --ledger data/longmemeval_s_events.ledger
 myelin-eval bench --corpus longmemeval-s --mode investigate --k 6 --budget-tokens 4096 --max-steps 2 \
   --select-sufficient --item-digest --digest-dates --reader-thinking --reader-seed 1 \
@@ -181,9 +183,19 @@ myelin-eval bench --corpus longmemeval-s --mode investigate --k 6 --budget-token
 myelin-eval judge --run runs/m50_pilot_s1 --seed runs/m44_r2_s1
 ```
 
-Run **alone** on `big`, reader served as for `m44_r2_s1`, so a row whose
-composed evidence holds no event must come back byte-identical to the base
-— the pilot's only exact control, reported as a count.
+Run **alone** on `big`, reader served as for `m44_r2_s1` (2 slots, 32k,
+no projector, 1,024-token thinking budget).
+
+**Amended before any arm ran (2026-09-23 06:20):** `m44_r2_s1` co-ran beside
+M48 for its whole length (operational debt: *two arms sharing the reader's
+slots do not get an exact control*), so its rows cannot be reproduced
+byte-for-byte. The pilot therefore re-runs its own base first — the same
+command on the shipped store with `--out runs/m50_pilot_base_s1`, alone,
+~25 minutes — and pairs the arm against **that**. A row whose composed
+evidence holds no event must then come back byte-identical: the pilot's
+exact control, reported as a count. The delta between the re-run and
+`m44_r2_s1` on the same 100 rows is reported too; it is the co-running
+noise the M48 note warned about, measured.
 
 **Reported before judging.** Rows with ≥ 1 event in the composed evidence;
 mean event slots per row; events written, and how many `when`s resolved,
