@@ -1,0 +1,13 @@
+{
+  "source": "/Users/ladvien/myelin/runs/m52_think_web.partial",
+  "reused": 215,
+  "not_reused_from_source": [
+    "07fff330",
+    "0cd6dc43",
+    "0fe2c676",
+    "2cc1b9ca",
+    "6a5bbcdb",
+    "bdf0e84b"
+  ],
+  "rule": "non-empty and prompt+completion < 16376 tokens; everything else regenerated"
+}

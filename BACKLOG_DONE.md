@@ -52,6 +52,32 @@ first arm to question the measurement apparatus rather than the mechanism.
 
 ---
 
+## M52 — the LME-V2 reader thinks, and thinking loses
+
+**Commit** PR #59 · `docs/measurements/m52-lme-v2-reader-thinks.md` ·
+`runs/m52_think_web` against `runs/m47_base_web`
+
+**Number: web −2.08 (95% CI [−6.67, +2.08]); abstention 26.39 → 16.67
+(−9.72 [−19.44, 0.00]), veto fires. Enterprise stopped for futility. Off.**
+
+The LME-V2 harness defaults its reader to thinking and every LME-V2 number
+here had run it off — and "on" was silently inert against our server (it
+sent no flag; ours defaults off). Fixed and preflighted (PR #53), then
+measured on the base's *replayed* memory (PR #55), so memory context was
+identical on 240 of 240 rows and the reader was the only difference. The
+pre-registered falsifier held: +2.94 on the 68 answers under the 1,024-token
+budget, −4.07 on the 172 that reached it — most of which then spilled
+thousands of tokens into the answer. The −20 LME-V2 gap is not our reader
+declining to think. Follow-up queued as M52b (thinking plus M44 R2b's budget
+message, which removed the spill on LongMemEval_S).
+
+**Also built on the way:** `--reuse-prompts-from` (an arm that changes only
+the reader skips ~1 GPU-hour of memory calls per domain and gets an exact
+memory-side control) and `--reuse-responses-from` (a run that dies while
+scoring keeps its answers).
+
+---
+
 ## M45 — consensus-gated commit: agreement does not discriminate for this reader
 
 **Commit** PR #41 · `docs/measurements/m45-consensus-gated-commit.md` ·
