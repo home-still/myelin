@@ -141,15 +141,13 @@ standing`; the full table with comparability verdicts is
 | `minja.asr.k6_prepopulated_defended` | **7.50%** | ≤10% | **CLOSED** | M15 |
 | `locomo.judge_score.n1540` | 69.87 | 77.85 MemPro-15 (Qwen) | −7.98 | M32 |
 | `longmemeval_s.judge_score.n500` | **78.40** | 80.80 MemPro-15 (Qwen) | **−2.40** | M44 R2 |
-| `lme_v2_small.overall_full_set.combined` | 38.80 (arm) | 58.60 AgentRunbook-R | −19.80 | M47 base |
+| `lme_v2_small.overall_full_set.combined` | 38.80 | 58.60 AgentRunbook-R | −19.80 | M47 base |
 
 Every literature row is judged by a frontier API where we are judged by a
-local Qwen3.5-9B (`caveat-judge`), and the LME-V2 row is backed by an arm of
-today's defaults because no run at the shipped configuration exists yet. That
-row carries a second caveat, found on 2026-09-23: the LME-V2 harness's reader
-thinks by default and ours never has, so the −20.02 compares a non-thinking
-reader with a thinking one. [M52](docs/measurements/m52-lme-v2-reader-thinks.md)
-measures the difference. One row we claim outright: LoCoMo 69.87 beats Mem0's
+local Qwen3.5-9B (`caveat-judge`). The LME-V2 row is measured at today's
+shipped point (undated, digest on, rebuilt store); [M52](docs/measurements/m52-lme-v2-reader-thinks.md)
+showed thinking does not close that gap and [M53](docs/measurements/m53-state-completion.md)
+located it in retrieval. One row we claim outright: LoCoMo 69.87 beats Mem0's
 published 66.88 by +2.99.
 
 ![myelin-eval standing output showing 30 comparison rows](docs/images/standing.png)

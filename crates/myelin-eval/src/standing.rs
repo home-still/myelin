@@ -1467,10 +1467,15 @@ fn unrecorded_pair_keys(dir: &Path) -> Result<Vec<&'static str>> {
 /// The **mode-independent** boolean switches in [`PAIR_KEYS`], and what the
 /// MCP server does when the caller says nothing about them.
 ///
-/// `dated` is the one that is **on**: `apply_operating_point` suppresses the
-/// date machinery only for an explicit `false`, because "a corpus is dated
-/// until someone says it is not". The other three are M23 mechanisms that
-/// all ship off pending a measurement.
+/// `dated` ships **off here**, and only here. The MCP server still reads an
+/// absent `dated` as on ("a corpus is dated until someone says it is not"),
+/// but this table describes *harness* artifacts, and the harness path is
+/// LME-V2 only — whose records carry the ingest time, not an event time
+/// (agent task logs have no dates). Decided 2026-09-23 by the user: the
+/// shipped LME-V2 point is undated. The adapter (`run_myelin.py`) defaults to
+/// it (`--dated` opts back in), every LME-V2 run since M33 already used it,
+/// and M22 measured it at +2.4 over dated (a null, never a loss). The other
+/// switches are mechanisms that ship off pending a measurement.
 ///
 /// `select` is deliberately **absent**. It is the one switch whose shipped
 /// value depends on the mode — M32 made it the `investigate` default and
@@ -1478,7 +1483,7 @@ fn unrecorded_pair_keys(dir: &Path) -> Result<Vec<&'static str>> {
 /// tested separately in [`harness_arm`] against
 /// [`shipped_select_sufficient`], which reads the library defaults.
 const PAIR_SWITCH_DEFAULTS: [(&str, bool); 14] = [
-    ("dated", true),
+    ("dated", false),
     ("timeline_ago", false),
     ("pool_rerank", false),
     ("premise", false),
@@ -3083,7 +3088,8 @@ mod tests {
         serde_json::json!({
             "mode": "investigate", "k": 25, "budget_tokens": 10000, "max_steps": 2,
             "prefetch_limit": null, "rerank_depth": null,
-            "select": true, "dated": true,
+            // LME-V2 ships undated (user decision, 2026-09-23).
+            "select": true, "dated": false,
             "pool_rerank": false, "premise": false, "typed_probes": false,
             "decompose": null,
             // M43's shipped digest, written explicitly: an artifact without
@@ -3156,23 +3162,19 @@ mod tests {
         );
     }
 
-    /// **The arm defect on the LME-V2 path.** `dated` ships **on**, so a
-    /// run carrying `dated: false` measures an arm — and M22 measured that
-    /// arm as a null. It scored 39.02 against the shipped configuration's
-    /// 36.59 and was published, because `harness_metrics` hardcoded
-    /// `arm: false` and had done since the path was written.
+    /// **The arm defect on the LME-V2 path.** An arm must never be quoted
+    /// as where we stand, however well it scores. Originally the M22 case
+    /// (`dated: false` published at 39.02 over the shipped 36.59 because
+    /// `harness_metrics` hardcoded `arm: false`); since 2026-09-23 LME-V2
+    /// ships undated, so the arm here is the *dated* pair.
     #[test]
     fn an_lme_v2_arm_never_displaces_the_shipped_configuration() {
         let tmp = tempfile::tempdir().unwrap();
         let runs = tmp.path().join("runs");
-        let undated = serde_json::json!({
-            "mode": "investigate", "k": 25, "budget_tokens": 10000, "max_steps": 2,
-            "prefetch_limit": null, "rerank_depth": null, "select": false, "dated": false,
-            "pool_rerank": false, "premise": false, "typed_probes": false,
-            "decompose": null
-        });
-        harness_run(&runs, "nodate_web", "web", 240, 0.39, undated.clone());
-        harness_run(&runs, "nodate_ent", "enterprise", 211, 0.39, undated);
+        let mut dated = full_params();
+        dated["dated"] = serde_json::json!(true);
+        harness_run(&runs, "nodate_web", "web", 240, 0.39, dated.clone());
+        harness_run(&runs, "nodate_ent", "enterprise", 211, 0.39, dated);
         harness_run(&runs, "base_web", "web", 240, 0.3659, full_params());
         harness_run(&runs, "base_ent", "enterprise", 211, 0.3659, full_params());
 
