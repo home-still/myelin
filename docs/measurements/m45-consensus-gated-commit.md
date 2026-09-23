@@ -125,5 +125,62 @@ prompt cache: minutes.
 
 ## Results
 
-*(pending — the sampling run is queued behind M46 and M44 R2 on the reader;
-the calibration choice above is open)*
+**Run.** `commit-arm --run runs/m43_dated --out runs/m45_consensus --samples
+5 --seed 0 --agree 0.6`, judged with `--seed runs/m43_dated` (9 judged, 422
+reused) → `runs/m45_consensus_judged`. 76 declining rows sampled five times
+each; 487 rows untouched by construction. Sampled beside two running arms,
+which is irrelevant to a sampled pass.
+
+**Headline at the provisional τ = 0.6: −0.4 (95% CI [−1.2, +0.4]). Null.
+Abstention 90.0 → 80.0, −10.0: three adversarial rows committed. Ships off,
+and no threshold rescues it.**
+
+| τ | committed | of which answerable | correct | adversarial flipped | overall | delta |
+| --- | --- | --- | --- | --- | --- | --- |
+| 0.6 (strict majority of 5) | 13 | 10 | **3** | **3** | 67.40 | −0.4 [−1.2, +0.4] |
+| 0.8 | 5 | 3 | 1 | 2 | 67.40 | −0.4 [−1.0, +0.0] |
+| 1.0 (unanimous) | 0 | 0 | 0 | 0 | 67.80 | +0.0 |
+
+The stricter thresholds are re-applied offline from the recorded samples,
+as the pre-registration allowed; nothing below 0.6 is quotable because a
+row that did not commit keeps no representative answer.
+
+### The falsifier fired, and it closes the calibration question
+
+Agreement — the largest same-meaning cluster's share of five samples — on
+the two populations it had to separate:
+
+| share | 0.0 | 0.2 | 0.4 | 0.6 | 0.8 |
+| --- | --- | --- | --- | --- | --- |
+| adversarial rows (should decline), n = 27 | 15 | 5 | 4 | 1 | 2 |
+| answerable declines (should answer), n = 49 | 18 | 14 | 7 | 7 | 3 |
+
+**AUROC 0.592** for telling an answerable decline from an adversarial
+row by agreement, against Farquhar et al.'s 0.79 for the hallucination task
+semantic entropy was built for. The reader agrees with itself about an
+answer that is not there (`fixing the fence`, again, at 0.8) about as often
+as it agrees about one that is, and when it does agree on an answerable row
+it is right **3 times in 10** — below M42's 41.9% at zero agreement and M44
+R1's 40.7%. Sampling did not find a signal that greedy decoding hid; it
+found that this reader's five draws disagree for reasons unrelated to
+whether the evidence supports an answer.
+
+So the pre-registered falsifier holds: *self-consistency does not
+discriminate for this reader, and the discriminator has to be external —
+M47's contradiction check, or an NLI model — not sampled.* And the open
+calibration question is moot: there is no τ at which the number is
+positive, so there is nothing to calibrate on LME-V2 or on LoCoMo.
+
+### What survives
+
+- `commit-arm --samples` is the cheapest instrument this project has for
+  a per-row uncertainty signal: 76 rows × 6 calls in a few minutes, samples
+  recorded on the row for any later threshold. It stays.
+- The decline-recovery ledger is now complete on this reader. Three
+  mechanisms tried to convert its declines — a forced schema (M42), room to
+  reason (M44 R1), agreement across samples (M45) — and every one converts
+  at 30–42% while surrendering adversarial rows. The 49 answerable declines
+  are not a confidence problem; the reader does not have the answer, or
+  cannot compose it, on most of them. M47 approaches the adversarial half
+  from the other side (contradiction, not confidence); the answerable half
+  is a composition problem, which is M50's write-time argument.

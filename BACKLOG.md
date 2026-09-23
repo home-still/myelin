@@ -22,8 +22,13 @@ its history. Short version: **one gate closed** (MINJA 7.50% ≤ 10%), one
 claimable row (LoCoMo beats Mem0's published 66.88 by +2.99), and three open
 gaps — LoCoMo −7.98, LongMemEval_S **−13.00** (M43 closed 5.80 of it),
 LME-V2 −20.02 at a pre-M43 configuration. M44 R1, M46 and M48 all measured
-null with the abstention veto firing; M48 also closed the negation story
-M42 opened — the note's negations were never what made the reader decline.
+null with the abstention veto firing; M48 closed the negation story M42
+opened, and M45 closed decline recovery itself — a forced schema, room to
+reason and agreement across samples all convert this reader's declines at
+30–42% while surrendering adversarial rows (AUROC 0.59 for agreement).
+The reader does not have those answers; the remaining levers are M47's
+contradiction check for the adversarial half and write-time composition
+(M50) for the answerable half.
 
 ---
 
@@ -84,58 +89,6 @@ M38's "reading is the gap" theory is refuted at the cheapest possible point,
 and the project redirects to write-time aggregation with far more confidence.
 
 **Cost.** R1 minutes. R2 2–6 GPU-hours. LME-V2 hours.
-
----
-
-## M45 — consensus-gated commit
-
-M42's forced commit is worth **+35.5 on the 31 rows it changed** and ships off
-because 2 of 30 adversarial rows were talked out of refusing. It needs a
-discriminator between "declined out of habit" and "declined because the
-premise is absent" — and M42 refuted the falsifier, so the headroom is real.
-
-Replace the model's single `evidence_absent` hatch with **agreement**: sample
-N=5 under M42's schema at temp 0.6 (llama.cpp serves `n` off one prefill, so
-this is decode-only on ~20% of rows), cluster by meaning, commit the majority
-cluster only above a threshold **calibrated** by conformal risk control.
-
-Grounding: Farquhar et al., *Nature* 2024 (`10.1038/s41586-024-07421-0`) —
-semantic entropy averages **0.790 AUROC** vs 0.691 naive entropy and 0.698
-P(True), and is **stable at 0.78–0.81 from 7B to 70B**; its *discrete* variant
-uses cluster counts and no logprobs, which is what llama.cpp's OpenAI shim can
-actually give us. Yadkori et al. (`2405.01563`) turn the threshold into an
-error-rate guarantee from ~100 calibration rows.
-
-**Calibrate, never tune.** τ comes from a split that is **not** the reported
-population — the 30 `_abs` rows are too few; LME-V2's 128 abstention rows are
-the calibration set.
-
-**Measured 2026-09-22:** the reader server caps `n` at its slot count —
-`Field 'n': Value must be between 1 <= value <= 2` at `-np 2` — so "N=5 off
-one prefill" is not one request. Either serve `-np 5` for the arm (65,536 ÷
-5 ≈ 13k per slot, enough for LongMemEval_S at k=6/4,096 but not LME-V2's
-window) or send five seeded requests and let llama.cpp's prompt cache make
-each one decode-only. M44 R1's interim rows sharpen the need: a reader with
-room to reason answers "0" / "Nothing" / "0 minutes" for what the store
-never mentions, so the discriminator has to come from agreement, not from
-the model's own `evidence_absent` hatch.
-
-**Predicted.** Commits fall from 31 to ~15–20; accuracy on committed rows rises
-above 41.9; the two adversarial rows do not flip, because an absent premise
-produces *disagreement*. Non-firing rows +0.0 exactly.
-
-**Cost.** Minutes plus decode on ~20% of rows.
-
-**Status.** *Implemented and pre-registered* —
-`docs/measurements/m45-consensus-gated-commit.md`. `commit-arm --samples N
---seed S --agree τ`: N seeded samples under M42's schema (Qwen3 non-thinking
-sampling), one forced `same_as` clustering call, commit the majority iff its
-share ≥ τ; samples and agreement recorded per row so τ is re-applied
-offline. **Open decision for the user — the calibration set:** (a) LME-V2's
-128 wrong-premise rows as pre-registered (needs the LME-V2 base at shipped
-defaults plus a `ScoredQuestion` export from the harness), or (b) LoCoMo
-category 5's 446 silence-shaped rows already on disk. The sampling run is
-written at a provisional τ = 0.6 and labelled uncalibrated until then.
 
 ---
 
@@ -232,8 +185,10 @@ diversity term over the reranked pool (M21, gold recall **0.658 → 0.550** —
 co-evidence resembles itself 1.60× more than the rest of the set, so every
 such term is aimed squarely at the answer); widening (M37, three nulls).
 
-Do not revise the adjudicator prompt (M15/M23). Do not tune M45's τ on the
-population it reports.
+Do not revise the adjudicator prompt (M15/M23). Do not re-run decline
+recovery on this reader in any form — forced schema (M42), reasoning field
+(M44 R1) and sampled agreement (M45) are measured; the declines are not a
+confidence problem.
 
 ---
 
