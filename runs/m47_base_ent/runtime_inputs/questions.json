@@ -1,0 +1,1943 @@
+[
+  {
+    "id": "01307e07",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "dynamic-environment",
+    "question": "I am working with our ServiceNow portal. On the Incidents list page, when I open the \"Filters\" dropdown, excluding \"Edit personal filters\" and \"-- None --\", which filter option labels contain the substring \"Incident\"?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "Incident Mobile, Incident Portal, My Open Incidents",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "025db8ef",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "procedure",
+    "question": "I am working with our ServiceNow portal. My boss asked me to rebalance workload between several agents by reassigning problems with a specific tag. What are the two modules that our company's workflow typically use in order to accomplish this task? Tell me the first module's name and the second module's name in order, separated by a semicolon. Mark your final answer (should be two short phrases separated by a semicolon) in \\boxed{}.",
+    "answer": "Reports;Problems",
+    "eval_function": "norm_phrase_set_match_ordered|lower=true|normalize_hyphen=true|strip_punct=true|separators=;|require_non_empty=true"
+  },
+  {
+    "id": "057a2d4d",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment",
+    "question": "I am working with our ServiceNow portal. When we order a Dell XPS as the developer laptop, what is the extra dollar amount if we choose the largest SSD option?\n\nMark your final answer (should be a single integer indicating the amount) in \\boxed{}.",
+    "answer": "300",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "059974dd",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "procedure-abs",
+    "question": "I am working with our ServiceNow Portal. In our company's workflow, when we disperse change requests so they do not overlap, what field besides `risk level` do we also use to decide the time span length allocated to each change request?\n\nMark your final answer in \\boxed{}.",
+    "answer": "That scheduling workflow does not use a second duration-deciding field besides `risk level`.",
+    "eval_function": "llm_abstention_checker|require_non_empty=true"
+  },
+  {
+    "id": "07ffeedf",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "procedure",
+    "question": "I am working with our ServiceNow portal. For the task of navigating and creating problem requests from incident-report results, which option contains only fields that are both (i) present on the Problem table in this environment and (ii) unimportant in our typical workflow?\n\nA. Problem Statement, Description, Category\nB. Problem Statement, Impact/Priority/Urgency, Assignment Group\nC. Subcategory, Routing Cluster, State\nD. Assignment Group, State, Escalation Tier\nE. Category, Subcategory, Configuration Item\nF. Description, Problem Statement, Workstream Code\nG. Subcategory, Assignment Group, State\nH. Configuration Item, Priority, Urgency\n\nPut your final answer into \\boxed{} format like \\boxed{A}.",
+    "answer": "G",
+    "eval_function": "mc_choice_match|require_non_empty=true"
+  },
+  {
+    "id": "080b0218",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment",
+    "question": "I am working with our ServiceNow portal. When we order a Dell XPS as the developer laptop, what is the extra dollar amount if we choose a Windows operating system?\n\nMark your final answer (should be a single integer indicating the dollar amount) in \\boxed{}.",
+    "answer": "100",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "0b50ca0d",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "procedure",
+    "question": "I am working with our ServiceNow portal. In our company's typical workflow, if I am told to create extra device item requests for agents selected from incident-report criteria, which form should I go to?\n\nA. IT Services > Device Purchase Request\nB. Open Records > Items (Item Requests)\nC. Manager Resources > Order Hardware for Employee\nD. Service Catalog > Request a New Device\nE. Employee Center > New Hardware / Peripheral Request\nF. Departmental Services > Agent Equipment Upgrade\nG. Procurement > Employee Device Requisition\nH. Service Catalog > Order Hardware\n\nPut your final answer into \\boxed{} format like \\boxed{A}.",
+    "answer": "B",
+    "eval_function": "mc_choice_match|require_non_empty=true"
+  },
+  {
+    "id": "0cf979c4",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment",
+    "question": "I am working with our ServiceNow portal. In the Service Catalog, the Mac and PC developer laptop items use similar but non-identical names. What are the exact two item names? Separate them with semicolons.\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "Developer Laptop (Mac); Development Laptop (PC)",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "0d07143c",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "dynamic-environment",
+    "question": "I am working with our ServiceNow portal while sorting the All Assets list. Before selecting the target field, what default sort field is initially shown in the sort row?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "Acquisition method",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "0f8c85a6",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment",
+    "question": "I am working in our ServiceNow based portal. On an `Expense Line` record page, which field has a checkbox next to it?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "Inherited",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "0f970f01",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment",
+    "question": "I am working with our ServiceNow portal. In the Catalog Items list view, which column header sits between \"Price\" and \"Delivery time\"?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "Class",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "100ff132",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "procedure",
+    "question": "I am working with our ServiceNow portal. My boss asks me to find a report with a specific title that shows agents' performance and then create and assign problems based on it. Before assigning new problems, which single procedure is the most appropriate for locating the relevant incident report?\n\nA. Navigate to Performance Analytics > Dashboards -> open the Incident Management dashboard -> review MTTR, SLA breaches, and workload distribution -> use the dashboard insights to decide who gets new problems.\nB. Navigate to Reports > Create New -> choose table = Incident -> group by Assigned to -> add metrics (resolution time, open count, reassignment count) -> Run -> analyze results to identify underperforming agents.\nC. Navigate to Reports > View/Run -> click the All (or Global) tab -> search Open Incidents by Assigned to -> open the closest match -> review current workload levels per agent.\nD. Use the All filter in the left navigator -> type reports -> click View/Run -> locate and open the incident-related performance report.\nE. Navigate to Reports > View/Run -> filter the report list to the Incident table -> use a contains search for #INC -> open the first result -> apply date range + Assignment group/Assigned to filters -> review the report data.\nF. Navigate to Analytics Hub (or Performance Analytics) -> Dashboards -> open a Service Desk/Incident dashboard -> add a breakdown by Assigned to and a time period -> drill down into specific incidents to find bottlenecks.\nG. Navigate to Reports > View/Run -> search Incident + Performance/Assignment/Resolved -> open the closest match -> then pivot/group by Assigned to and filter to Resolved/Closed in the last X days.\nH. Navigate to Reports > Create New -> table = Incident -> choose Bar or Pivot -> group by Assigned to (optionally add State/Resolution time) -> set filters (Resolved/Closed + last X days + assignment group) -> Save and Run.\n\nPut your final answer into \\boxed{} format like \\boxed{A}.",
+    "answer": "D",
+    "eval_function": "mc_choice_match|require_non_empty=true"
+  },
+  {
+    "id": "106c321b",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment",
+    "question": "I am working with our ServiceNow portal. When we order an iPad Pro, how many total possible (color, storage) combinations are there? Answer with an English word (e.g., one/two/three, etc.).\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "six",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "109b334c",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "dynamic-environment-abs",
+    "question": "I am working with our ServiceNow portal. After opening a Hardware Asset record and clicking \"Personalize Form\", the dialog shows many \"Form Fields\" checkboxes. Which checkbox labels contain the substring \"Amortiz\" (that is, amortization-related)?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "There are no checkbox labels containing Amortiz in that Personalize Form dialog.",
+    "eval_function": "llm_abstention_checker|require_non_empty=true"
+  },
+  {
+    "id": "11cc7ac2",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "dynamic-environment-abs",
+    "question": "I am working with our ServiceNow portal. When you delete multiple records using Data Management Deletion Jobs and the job completes successfully, what are the two new fields that pop up on the progress page and their values? Format them as `field, value; field, value`.\n\nMark your final answer in \\boxed{}.",
+    "answer": "Only one new field appears on the successful completion page, not two.",
+    "eval_function": "llm_abstention_checker|require_non_empty=true"
+  },
+  {
+    "id": "12286151",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "dynamic-environment-abs",
+    "question": "I am working with our ServiceNow portal. After placing a hardware order for a few developer laptops and reaching the final confirmation page, which extra approval-history fieldset is shown between the order summary and the request details?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "There is no extra approval-history fieldset shown between those sections on the final confirmation page.",
+    "eval_function": "llm_abstention_checker|require_non_empty=true"
+  },
+  {
+    "id": "123b74fb",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment-abs",
+    "question": "I am working with a few forms in our ServiceNow portal. Create Change Request vs Incident. What is the additional button at the top right of the change-request page that does not appear in the incident form?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "There is no additional top-right button on the change-request form that the incident form lacks.",
+    "eval_function": "llm_abstention_checker|require_non_empty=true"
+  },
+  {
+    "id": "12f8cfd2",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "procedure-abs",
+    "question": "I am working with our ServiceNow Portal. I need to offboard a user. After I clear the `Assigned to` field on that user's hardware asset record, what value should I set the `State` field to before clicking `Update`?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "No `State` change is part of that hardware-asset step; the workflow only requires clearing `Assigned to` and updating the record.",
+    "eval_function": "llm_abstention_checker|require_non_empty=true"
+  },
+  {
+    "id": "14a823df",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "dynamic-environment",
+    "question": "I am working with our ServiceNow portal. I am filling out the form to create a new problem record. If I change the \"Impact\" field to \"Low\" and the \"Urgency\" field to \"Low\", what value does the \"Priority\" field automatically change to?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "5 - Planning",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "17a03f9b",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment",
+    "question": "I am working in our ServiceNow based portal. On the `Data Management Delete Job` form, what checkbox label appears directly above the `Run at` field?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "Run business rules and engines",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "18b91103",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "errors-gotchas",
+    "question": {
+      "text": "I am working in our ServiceNow portal. I need to order the same item as someone else did, and the instructions mention adding Adobe Photoshop, but in Service Catalog I only see Adobe Creative Cloud. The screenshot shows what I am seeing. What is the most likely issue or one action I should take? Please give me only the most likely explanation or if action is needed only that one action. Do not list alternatives.",
+      "image": "/Users/ladvien/myelin/data/lmev2/question_screenshots/18b91103.png"
+    },
+    "answer": "you should not order the Adobe Creative Cloud bundle here. instead, you should proceed ordering the hardware and in the configuration page, select the Adobe Photoshop there to add to the hardware.",
+    "eval_function": "llm_gotchas_checker|require_non_empty=true"
+  },
+  {
+    "id": "191184f3",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "dynamic-environment-abs",
+    "question": "I am working with our ServiceNow portal. After a problem is marked as Duplicate and the progress changes from \"Assess\" to \"Closed\", which field replaces \"Resolution code\" directly below the \"State\" field on the problem form?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "Nothing replaces `Resolution code` there; `Resolution code` is itself the field shown directly below `State` in the traced closed form.",
+    "eval_function": "llm_abstention_checker|require_non_empty=true"
+  },
+  {
+    "id": "19367bc7",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment",
+    "question": "I am working with a few forms in our ServiceNow portal. Among these five forms (change request/problem/incident/hardware/user), do you remember a page that intergrates with Outlook calendar?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "User",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "19935d2d",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment-abs",
+    "question": "I am working with our ServiceNow portal. In the Catalog Items list view, which column header sits between `Class` and `Delivery time`?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "No column header sits between `Class` and `Delivery time` in that list view.",
+    "eval_function": "llm_abstention_checker|require_non_empty=true"
+  },
+  {
+    "id": "1bfd2eac",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment",
+    "question": "I am working with a few forms in our ServiceNow portal. Among these five forms (change request/problem/incident/hardware/user), do you remember which page has the least number of required fields?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "Change-request",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "1cf04706",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "procedure",
+    "question": "I am working with our ServiceNow portal. According to company protocol \"Problem List Cleanup\", in our company's typical workflow, how should we handle the description field of the duplicated problems we want to remove?\n\nA. Refer to the internal knowledge base and decide case-by-case for each duplicate\nB. Set it to `duplicate of [target id]` so reviewers can trace the link from description text\nC. Do not overwrite the existing description because it may contain root-cause context\nD. Clear the description field entirely to avoid conflicting notes\nE. Copy the full description from the retained (non-duplicate) problem\nF. Set the description field to `duplicate`\nG. Set it to `resolved as duplicate` and include timestamp + assignee initials\nH. Prefix the original description with `[DUPLICATE]` and keep the rest unchanged\n\nPut your final answer into \\boxed{} format like \\boxed{A}.",
+    "answer": "F",
+    "eval_function": "mc_choice_match|require_non_empty=true"
+  },
+  {
+    "id": "229675cd",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment",
+    "question": "I am working with a few forms in our ServiceNow portal. Create Change Request vs Incident. What is the additional button at the top right of the incident page that does not appear in the change-request form?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "Resolve",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "233f9f09",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "dynamic-environment",
+    "question": "I am working with our ServiceNow service catalog and comparing the order pages for the `Standard Laptop`, `Developer Laptop (Mac)`, and `Sales Laptop`. Which page has the largest number of optional software checkbox choices?\n\nA. Standard Laptop\nB. Developer Laptop (Mac)\nC. Sales Laptop\nD. Standard Laptop and Developer Laptop (Mac) are tied\nE. Developer Laptop (Mac) and Sales Laptop are tied\nF. All three are tied\n\nPut your final answer into \\boxed{} format like \\boxed{A}.",
+    "answer": "C",
+    "eval_function": "mc_choice_match|require_non_empty=true"
+  },
+  {
+    "id": "237d2cc5",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment",
+    "question": "I am working with a few forms in our ServiceNow portal. Among these five forms (change request/problem/incident/hardware/user), do you remember a page that has a remainder/system message about how to fill the form?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "User",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "23c3e290",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment",
+    "question": "I am working with a few forms in our ServiceNow portal. Create Change Request vs Incident. Both forms mark short-description as a required field, true or false?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "false",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "247bf724",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment-abs",
+    "question": "I am working with our ServiceNow portal. For the Hardware form, how many model-category options are there besides `Computer` and `Computer Peripheral`? Answer in English and wrap your final answer in \\boxed{}.",
+    "answer": "There are no additional model-category options besides those two.",
+    "eval_function": "llm_abstention_checker|require_non_empty=true"
+  },
+  {
+    "id": "25b00876",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "procedure",
+    "question": "I am working with our ServiceNow portal. In our company's typical workflow, if I am told to allocate investments to maximize returns by managing the items in Expense Lines, which field can I find the returns of each item?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "short description",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "2721ca7f",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "dynamic-environment",
+    "question": "I am working with our ServiceNow portal. After you place an order for a MacBook, how many stages remain, excluding in-progress ones, before the order pipeline is fully complete? Answer in English (e.g., zero, one, two, three, etc.).\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "seven",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "285db8ec",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "errors-gotchas",
+    "question": {
+      "text": "I am working in our ServiceNow portal. I am trying to delete the incorrect investments after identifying the exact records I want to remove with Delete with Preview, but after I press \"Execute Now\", the deletion does not happen. The screenshot shows the page state when this occurs. What is the most likely issue or one action I still need to take? Please give me only the most likely explanation or if action is needed only that one action. Do not list alternatives.",
+      "image": "/Users/ladvien/myelin/data/lmev2/question_screenshots/285db8ec.png"
+    },
+    "answer": "need to click \"Update\" button to save the changes",
+    "eval_function": "llm_gotchas_checker|require_non_empty=true"
+  },
+  {
+    "id": "2975030d",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment",
+    "question": "I am working in our ServiceNow based portal. On a `Report` record page, what is the only entry under `Related Links`?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "Launch Dependency Assessment",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "2ad054b5",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment-abs",
+    "question": "I am working with a few forms in our ServiceNow portal. Among these five forms (change request/problem/incident/hardware/user), do you remember a page whose category field is \"Hardware\" on the initial load?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "None of those five forms has a category field preloaded to Hardware on initial load.",
+    "eval_function": "llm_abstention_checker|require_non_empty=true"
+  },
+  {
+    "id": "2b96f402",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment",
+    "question": "I am working with our ServiceNow portal. How many knowledge bases do we have right now in our system? Answer in English (one/two/three/four/five/...).\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "four",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "2d4e08b9",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "dynamic-environment",
+    "question": "I am working with our ServiceNow portal. In `Personalize List Columns`, look at the default `Selected` pane for the Assets list, Users list, and Catalog Items list. What is the bottom-most selected label on each page? Give the three labels in this order: Assets, Users, Catalog Items. Put the three short phrases in \\boxed{} separated by semicolons.",
+    "answer": "Warranty expiration; Business phone; Fulfillment automation level",
+    "eval_function": "norm_phrase_set_match_ordered|lower=true|normalize_hyphen=true|strip_punct=true|separators=;|require_non_empty=true"
+  },
+  {
+    "id": "2e90de97",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment",
+    "question": "I am working in our ServiceNow based portal. On the `Data Management Delete Job` form, which fields are shown but not modifiable? Answer as a comma-separated list.\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "Number, State",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "2f6a21cd",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "errors-gotchas",
+    "question": {
+      "text": "I am working in our ServiceNow portal. I am off-boarding a user, and in the Hardware list view the system seems to crash when I change the top search-field dropdown from \"for text\" to \"Assigned to\". The screenshot shows the state around this issue. What is the most likely explanation or one action I should take instead? Please give me only the most likely explanation or if action is needed only that one action. Do not list alternatives.",
+      "image": "/Users/ladvien/myelin/data/lmev2/question_screenshots/2f6a21cd.png"
+    },
+    "answer": "1) the crash is expected, and 2) to avoid it, keep the default \"for text\" search when querying Hardware list entries for the user or directly open the user's record instead of switching the dropdown to \"Assigned to\".",
+    "eval_function": "llm_gotchas_checker|require_non_empty=true"
+  },
+  {
+    "id": "2fab8b79",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "dynamic-environment-abs",
+    "question": "I am working with our ServiceNow portal. After you place an order for a MacBook, what is the name of the extra stage inserted before delivery?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "There is no extra stage inserted before delivery on that MacBook order timeline.",
+    "eval_function": "llm_abstention_checker|require_non_empty=true"
+  },
+  {
+    "id": "302bf60e",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "errors-gotchas",
+    "question": {
+      "text": "I am working in our ServiceNow portal. I need to assign incidents to agents with different capabilities, but when I open an incident from the Self Service incident list I do not see the \"Assigned to\" field. The screenshot shows the page I opened. What is the one page or view change I should use instead? Please give me only the most likely explanation or if action is needed only that one action. Do not list alternatives.",
+      "image": "/Users/ladvien/myelin/data/lmev2/question_screenshots/302bf60e.png"
+    },
+    "answer": "you should change the view to a view that exposes the Assigned to field, such as Default. you can change the view either in the list page or inside the record.",
+    "eval_function": "llm_gotchas_checker|require_non_empty=true"
+  },
+  {
+    "id": "32909aa1",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "procedure",
+    "question": "I am working with our ServiceNow Portal. I am tasked with balancing the workload for problems with a specific hashtag. Which of the modules should I try to use first? Mark your final answer (should be a short phrase with optional arrow labels) in \\boxed{}.",
+    "answer": "Reports",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "329742b1",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "dynamic-environment-abs",
+    "question": "I am working with our ServiceNow portal. In the Change Request form, after you enter \"IP-Router-3\" in the \"Configuration item\" field, what is the name of the fifth button that appears to the right of that field?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "There is no fifth button there; after entering `IP-Router-3`, the field shows only the existing lookup button plus three additional right-side controls.",
+    "eval_function": "llm_abstention_checker|require_non_empty=true"
+  },
+  {
+    "id": "32d04f31",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "dynamic-environment",
+    "question": "I am working with our ServiceNow portal. After you place an order for a loaner laptop, how many stages remain before the order pipeline is fully complete? Answer in English (e.g., zero, one, two, three, etc.).\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "one",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "32e719c2",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment",
+    "question": "I am working with our ServiceNow portal. When we order a Macbook developer laptop, we can opt for Google Chrome as an optional software, true or false?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "false",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "38726e61",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment",
+    "question": "I am working with our ServiceNow portal. In Reports > View/Run, incident-assignment dashboard report links begin with \"Incidents with hashtag #...\". What prefix is used for inventory/order dashboard report links?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "Catalog with hashtag",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "3a131a42",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment",
+    "question": "I am working with a few forms in our ServiceNow portal. Create Change Request vs Incident. There is only one single-word non-prepopulated mandatory field that appears in the incident form but not in the change request form, true or false?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "true",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "3a2e9368",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "procedure",
+    "question": "I am working with our ServiceNow portal. For the task of filtering and removing duplicated problems, which fields are the most important in our typical workflow?\n\nA. Category, Related incidents\nB. Ownership, Category, Impact, Related incidents\nC. Priority, Impact\nD. Priority, Problem statement\nE. Problem statement, Configuration item\nF. Scope, Ownership\nG. Impact, Configuration item, Related incidents, Scope\nH. Configuration item, Scope\n\nPut your final answer into \\boxed{} format like \\boxed{A}.",
+    "answer": "D",
+    "eval_function": "mc_choice_match|require_non_empty=true"
+  },
+  {
+    "id": "3a7a7880",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment-abs",
+    "question": "I am working with our ServiceNow portal. In the Service Catalog, the developer-laptop family uses similar but non-identical names. What are the exact two item names for the Linux and Chromebook developer laptop items? Separate them with semicolons in \\boxed{}.",
+    "answer": "There are no Linux and Chromebook developer laptop items in that catalog view.",
+    "eval_function": "llm_abstention_checker|require_non_empty=true"
+  },
+  {
+    "id": "3a836b31",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment-abs",
+    "question": "I am working with a few forms in our ServiceNow portal. Create Change Request vs Problem vs Incident vs Hardware vs User. Among create-request, problem, incident, hardware, and user forms, how many forms let you send an email directly after entering the field and also open an Outlook meeting seeded from that exact same field value? What are they?\n\nMark your final answer in \\boxed{}.",
+    "answer": "None of those forms combines a direct email action with an Outlook-meeting action seeded from that same field value.",
+    "eval_function": "llm_abstention_checker|require_non_empty=true"
+  },
+  {
+    "id": "3b375e30",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment",
+    "question": "I am working with a few forms in our ServiceNow portal. Create Change Request vs Problem vs Incident. Among the three, which one has the most number of fields with drop-down lists?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "Incident",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "3daef058",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment-abs",
+    "question": "I am working with a few forms in our ServiceNow portal. Create Change Request vs Problem vs Incident. Among the three, which one has the most number of drop-down lists for outage schedules?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "None of the three forms has dropdown lists dedicated to outage schedules.",
+    "eval_function": "llm_abstention_checker|require_non_empty=true"
+  },
+  {
+    "id": "3fd81278",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "dynamic-environment",
+    "question": "I am working with our ServiceNow portal. When ordering a Dell XPS 13 from the Service Catalog, if I change the operating system from the default Ubuntu to Windows 8, what dollar amount appears in brackets next to Ubuntu?\n\nMark your final answer (should be a single integer indicating the amount) in \\boxed{}.",
+    "answer": "100",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "41a18e5c",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "dynamic-environment",
+    "question": "I am working with our ServiceNow portal. After opening a Hardware Asset record and clicking \"Personalize Form\", the dialog shows many \"Form Fields\" checkboxes. Which three checkbox labels contain the word \"Depreciat\" (i.e., depreciation-related)?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "Depreciated amount, Depreciation, Depreciation effective date",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "42a55762",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment",
+    "question": "I am working with a few forms in our ServiceNow portal. Create Incident vs Problem, in which form(s) is the field \"Number\" mutable?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "Incident",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "43d9c5d0",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "dynamic-environment-abs",
+    "question": "I am working with our ServiceNow portal. In the Service Catalog, after submitting a Loaner Laptop order and reaching the Order Status page, what values are shown in the right-side `Total` box and the right-side `Delivery date` box? Separate the two values with a semicolon.\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "The Order Status page shows a right-side `Total` box there, but it does not show a paired right-side `Delivery date` box.",
+    "eval_function": "llm_abstention_checker|require_non_empty=true"
+  },
+  {
+    "id": "45d1e7f1",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment-abs",
+    "question": "I am working with a few forms in our ServiceNow portal. Create Change Request vs Incident. There is only one single-word non-prepopulated mandatory field that appears in the change-request form but not in the incident form. What is it?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "There is no such single-word non-prepopulated mandatory field on the change-request form.",
+    "eval_function": "llm_abstention_checker|require_non_empty=true"
+  },
+  {
+    "id": "4755f316",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment",
+    "question": "I am working with our ServiceNow portal. For the Hardware form, what are the current model categories we can fill in? Separate them with semicolons in your answer.\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "computer; computer peripheral",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "48a52262",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "errors-gotchas",
+    "question": {
+      "text": "I am working in our ServiceNow portal. I need to search for records with a specific name in the \"Assigned to\" field, but when I select \"Assigned to\" in the dropdown it keeps changing back to \"for text\" automatically. The screenshot shows this behavior. What is the one action I should take instead? Please give me only the most likely explanation or if action is needed only that one action. Do not list alternatives.",
+      "image": "/Users/ladvien/myelin/data/lmev2/question_screenshots/48a52262.png"
+    },
+    "answer": "use the funnel icon to use the filter builder instead.",
+    "eval_function": "llm_gotchas_checker|require_non_empty=true"
+  },
+  {
+    "id": "4964afed",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "errors-gotchas",
+    "question": {
+      "text": "I am working in our ServiceNow portal. I need to order the same item as someone else did, but after finding the item from Requested Items I do not see an entry point to place the new order. The screenshot shows the page I am on. What is the one thing I should do next? Please give me only the most likely explanation or if action is needed only that one action. Do not list alternatives.",
+      "image": "/Users/ladvien/myelin/data/lmev2/question_screenshots/4964afed.png"
+    },
+    "answer": "should use the filter inside the \"All\" tab on the top left corner to find the service catalog module.",
+    "eval_function": "llm_gotchas_checker|require_non_empty=true"
+  },
+  {
+    "id": "4c6d1eb7",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "dynamic-environment",
+    "question": "I am working with our ServiceNow portal. On the Users list page, after clicking \"Personalize List Columns\", the dialog shows several settings checkboxes. Which two settings checkboxes are unchecked by default?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "Compact rows, Active row highlighting",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "4df5e6b4",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "procedure",
+    "question": "I am working with our ServiceNow portal. I want to compare two workflows: balancing the workload for problems with a specific hashtag, and restocking items that are low in quantity. What shared application or module family do they both involve?\n\nMark your final answer (should be a short phrase) in \\boxed{}.",
+    "answer": "Reports",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "4dffe641",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "dynamic-environment",
+    "question": "I am working with our ServiceNow portal. In the Service Catalog, after submitting a Loaner Laptop order and reaching the Order Status page, what value is shown in the right-side Total box? Select ONE.\n\nA. $0.00\nB. empty\nC. -\nD. the full purchase price of the laptop\nE. a calculated depreciation/decay value\nF. the selected quantity multiplied by a unit rental price\n\nPut your final answer into \\boxed{} format like \\boxed{A}.",
+    "answer": "C",
+    "eval_function": "mc_choice_match|require_non_empty=true"
+  },
+  {
+    "id": "4ed01379",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment",
+    "question": "I am working with a few forms in our ServiceNow portal. Create Change Request vs Problem vs Incident vs Hardware vs User. Among create-request, problem, incident, hardware, and user forms, how many forms have the ability to send an email directly after entering the field? What are they? Say the number in English (one/two/three/four) and then say their names.\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "One; User",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "50711c52",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "dynamic-environment",
+    "question": "I am working with our ServiceNow portal. When ordering a Dell XPS 13 from the Service Catalog, if I change the operating system from the default 250GB solid-state-drive (SSD) to 500GB, what dollar amount appears in brackets next to 250GB?\n\nMark your final answer (should be a single integer indicating the amount) in \\boxed{}.",
+    "answer": "300",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "507a0fe8",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "procedure",
+    "question": "I am working with our ServiceNow portal. When we create a user record, which option contains only important fields that are present in the form and typically required for manual entry in our workflow?\n\nA. Locked out, Mobile phone, Business phone\nB. Title, Department, Language\nC. Date format, Active, Password needs reset\nD. Photo, Active, Lock out\nE. Lock out, Active, Language\n\nPut your final answer into \\boxed{} format like \\boxed{A}.",
+    "answer": "A",
+    "eval_function": "mc_choice_match|require_non_empty=true"
+  },
+  {
+    "id": "50bfa714",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "dynamic-environment-abs",
+    "question": "I am working with our ServiceNow portal while sorting the All Assets list. Before selecting the target field, what default secondary sort field is initially shown in the second sort row?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "There is no second sort row shown by default in that sorting dialog.",
+    "eval_function": "llm_abstention_checker|require_non_empty=true"
+  },
+  {
+    "id": "50d92f55",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "errors-gotchas",
+    "question": {
+      "text": "I am working in our ServiceNow portal to offboard a user. I opened this page, cleared the \"Assigned to\" field, updated the record, and returned to the list, but the user still appears assigned and the hardware is still assigned. The screenshot shows this state. What is the most likely explanation or one action I should take? Please give me only the most likely explanation or if action is needed only that one action. Do not list alternatives.",
+      "image": "/Users/ladvien/myelin/data/lmev2/question_screenshots/50d92f55.png"
+    },
+    "answer": "1) the page you are looking at is not wrong; 2) inside the record, clearing the \"Assigned to\" field is not enough, you need to click into that field and then click elsewhere so the cleared value is actually applied before updating.",
+    "eval_function": "llm_gotchas_checker|require_non_empty=true"
+  },
+  {
+    "id": "52dd33bb",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "procedure",
+    "question": "I am working with our ServiceNow portal. My boss asks me to allocate investments to expense lines that meet specific criteria so we can maximize returns within a given budget. Before the final action that completes the task (clicking the Update button), which meaningful action is most likely required?\n\nA. Set the State of expense line item(s) to Closed - Complete.\nB. Fill the Additional comments field and mark it as customer-visible.\nC. Explain the investment methodology in the Description field.\nD. Fill the Work notes field to document internal progress.\nE. Set the State field expense line item(s) from Pending to Processed.\nF. Set the Investment field on every expense line item.\nG. Export the filtered expense lines to CSV and attach the file to the record.\nH. Reassign each selected expense line to the Finance approvals queue before saving.\n\nPut your final answer into \\boxed{} format like \\boxed{A}.",
+    "answer": "A",
+    "eval_function": "mc_choice_match|require_non_empty=true"
+  },
+  {
+    "id": "571b841c",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "dynamic-environment-abs",
+    "question": "I am working with our ServiceNow portal. I am filling out the form to create a new problem record. If I change the \"Category\" field to \"Database\", what value does the \"Priority\" field automatically change to?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "The traced interaction does not establish any automatic `Priority` change from editing `Category` alone.",
+    "eval_function": "llm_abstention_checker|require_non_empty=true"
+  },
+  {
+    "id": "579557d8",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "dynamic-environment-abs",
+    "question": "I am working with our ServiceNow portal. On the Incidents list page, when I open the \"Filters\" dropdown, excluding \"Edit personal filters\" and \"-- None --\", which filter option labels contain the word \"Escalated\"?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "none of the filter options contain Escalated",
+    "eval_function": "llm_abstention_checker|require_non_empty=true"
+  },
+  {
+    "id": "57cd3560",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "dynamic-environment-abs",
+    "question": "I am working with our ServiceNow portal. When marking a problem as duplicate, a popup appears to collect additional information. Which additional free-text field in that popup lets you explain why the duplicate should be merged?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "That duplicate-marking popup does not include an extra free-text explanation field.",
+    "eval_function": "llm_abstention_checker|require_non_empty=true"
+  },
+  {
+    "id": "5849c18b",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment-abs",
+    "question": "I am working with a few forms in our ServiceNow portal. Among these five forms (change request/problem/incident/hardware/user), which one displays a prepopulated read-only case number with the prefix \"TASK\" at the top?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "None of those five forms shows a read-only case number with the prefix TASK.",
+    "eval_function": "llm_abstention_checker|require_non_empty=true"
+  },
+  {
+    "id": "58c34839",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "procedure",
+    "question": "I am working with our ServiceNow portal. Compare the onboarding and offboarding workflows in the cited successful runs. Counting only the major non-task work surfaces where the core action happens, and counting a user form, a catalog item page, or a hardware record page as one surface each, which statement is correct?\n\nA. Onboarding requires one more major work surface than offboarding.\nB. Offboarding requires one more major work surface than onboarding.\nC. Onboarding and offboarding require the same number of major work surfaces.\n\nPut your final answer into \\boxed{} format like \\boxed{A}.",
+    "answer": "A",
+    "eval_function": "mc_choice_match|require_non_empty=true"
+  },
+  {
+    "id": "5aaf0f61",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment",
+    "question": "I am working with a few forms in our ServiceNow portal. Create Change Request vs Incident. Which one -- incident and change-request -- supports the related search feature?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "Incident",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "5b249b5c",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment",
+    "question": "I am working in our ServiceNow based portal. On the `Private Task` form page, what is the name of the mandatory field in this form?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "Owner",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "5ca112bf",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment-abs",
+    "question": "I am working with a few forms in our ServiceNow portal. Among these five forms (change request/problem/incident/hardware/user), do you remember a page that has two stacked reminder/system messages about how to fill the form?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "None of those five forms shows two stacked fill-the-form reminder messages.",
+    "eval_function": "llm_abstention_checker|require_non_empty=true"
+  },
+  {
+    "id": "5edd2533",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "dynamic-environment",
+    "question": "I am working in our ServiceNow portal on requesting an item for an employee. In the form, the internal stage value is set to waiting_for_approval. After submitting the form, what value does it translate to in the Approval column in the requested items list? Select ONE.\n\nA. Requested\nB. Pending Approval\nC. Approved\nD. Awaiting Approval\nE. Approval Requested\nF. Not Requested\nG. No Approval Required\nH. Not Yet Requested\n\nPut your final answer into \\boxed{} format like \\boxed{A}.",
+    "answer": "H",
+    "eval_function": "mc_choice_match|require_non_empty=true"
+  },
+  {
+    "id": "5f100f22",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment",
+    "question": "I am working with a few forms in our ServiceNow portal. Create Incident vs Problem. In both forms, the default value for the field \"Priority\" is 5, true or false?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "true",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "616c238d",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "procedure",
+    "question": "I am working with our ServiceNow Portal. I am tasked with balancing the workload for problems with a specific hashtag. Which of the modules should I try to use first?\n\nA. Advanced Work Assignment\nB. System Policy -> Assignment Rules\nC. Queue Groups\nD. Flow Designer\nE. Reports\nF. Problem -> All (with grouped list view)\n\nPut your final answer into \\boxed{} format like \\boxed{A}.",
+    "answer": "E",
+    "eval_function": "mc_choice_match|require_non_empty=true"
+  },
+  {
+    "id": "634973c3",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment",
+    "question": "I am working in our ServiceNow based portal. On an `Expense Line` record form, what are the three business options in the `Summary type` dropdown besides `-- None --`? Answer in dropdown order and separate them with semicolons.\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "Grow Business; Run Business; Transform Business",
+    "eval_function": "norm_phrase_set_match_ordered|lower=true|normalize_hyphen=true|strip_punct=true|separators=;|require_non_empty=true"
+  },
+  {
+    "id": "658fa827",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "dynamic-environment",
+    "question": "I am working with our ServiceNow service catalog and comparing the order pages for the `Standard Laptop` and the `Developer Laptop (Mac)`. Which optional software choice appears on the `Developer Laptop (Mac)` page but not on the `Standard Laptop` page?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "Eclipse IDE",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "668f7b74",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment",
+    "question": "I am working in our ServiceNow based portal. On an `Expense Line` record page, what are the two buttons in the `Source` section? Separate them with semicolons.\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "Update; Delete",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "679111c6",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment",
+    "question": "I am working with a few forms in our ServiceNow portal. Create Change Request vs Problem vs Incident vs Hardware vs User. Among them, which forms have unchangeable/fixed fields on the initial load? List all that apply and separate them with semicolon.\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "problem; incident; change request; hardware",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "68107cba",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment",
+    "question": "I am working with our ServiceNow portal. On the page where you manage and filter the list of users, the avatar field shows the user's initials when no image is uploaded, true or false?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "false",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "6a7808c5",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment",
+    "question": "I am working with our ServiceNow portal. \"Peripherals\" is a valid value in the Category column when we are filtering service catalog, true or false?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "true",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "6c285a23",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "dynamic-environment-abs",
+    "question": "I am working with our ServiceNow portal. When we remove a user record, which option exactly matches the VPN-token records that might be automatically affected? Select ONE.\n\nMark your final answer in \\boxed{}.",
+    "answer": "There is no VPN-token option in that removal-impact popup.",
+    "eval_function": "llm_abstention_checker|require_non_empty=true"
+  },
+  {
+    "id": "6cb8ce37",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "dynamic-environment",
+    "question": "I am working with our ServiceNow portal. In the Create Incident form, after you enter \"Problem CoordinatorATF\" in the \"Caller\" field, how many additional icons appear to the right of that field? Answer in English (e.g., one, two, three, etc.).\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "two",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "6e0759a2",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "dynamic-environment-abs",
+    "question": "I am working with our ServiceNow portal. After I create a new User record and submit it successfully, besides `Email device created`, which second automatic action is confirmed by the top-page popup message?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "The popup does not confirm any second automatic action besides `Email device created`.",
+    "eval_function": "llm_abstention_checker|require_non_empty=true"
+  },
+  {
+    "id": "6fdda2fc",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment-abs",
+    "question": "I am working with a few forms in our ServiceNow portal. Create Change Request vs Problem vs Incident. What is the subtab name shared by all the three forms that shows approvals?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "There is no approvals subtab shared by all three forms.",
+    "eval_function": "llm_abstention_checker|require_non_empty=true"
+  },
+  {
+    "id": "71026f57",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment-abs",
+    "question": "I am working with our ServiceNow portal. When we order an iPad mini, how many total possible (color, cellular-plan) combinations are there? Answer with an English word and wrap your final answer in \\boxed{}.",
+    "answer": "There is no cellular-plan chooser on the iPad mini page.",
+    "eval_function": "llm_abstention_checker|require_non_empty=true"
+  },
+  {
+    "id": "71e61e15",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment",
+    "question": "I am working with a few forms in our ServiceNow portal. Create Change Request vs Problem vs Incident. What is the form among create-request, problem, and incident forms that has the most number of fields to enter in the first section (main form, above the tabs)? Count in required fields, optional fields, and prepopulated fields, but do not count in immutable ones.\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "Incident",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "7351cbcc",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "procedure-abs",
+    "question": "I am working with our ServiceNow Portal. If I am told to allocate investments to maximize returns, which module under \"Reports\" should I work in first?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "The module you need is not under `Reports`; the traced workflow starts from `Cost > Expense Lines`.",
+    "eval_function": "llm_abstention_checker|require_non_empty=true"
+  },
+  {
+    "id": "73b6738b",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment",
+    "question": "I am working with a few forms in our ServiceNow portal. Create Incident vs Problem, which form has more fields that are immutable?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "Problem",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "73cbefdc",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "procedure",
+    "question": "I am working with our ServiceNow portal. In our company's tight-window, priority-aware change-request rescheduling workflow, which combined rule is correct?\n\nA. Schedule higher-risk changes first, and keep the gap between consecutive changes to at most 1 day while honoring risk-based durations.\nB. Keep the original change order and only resize durations by risk, even if adjacent changes overlap.\nC. Schedule higher-impact changes first, and keep the gap between consecutive changes to at most 1 day while honoring risk-based durations.\nD. Schedule lower-impact changes first so high-impact requests can use spare time at the end of the window.\nE. Schedule higher-impact changes first, keep the gap between consecutive changes to at most 1 hour, and still honor risk-based durations.\nF. Ignore the gap-limit requirement and only ensure non-overlap plus risk-based durations.\n\nPut your final answer into \\boxed{} format like \\boxed{A}.",
+    "answer": "E",
+    "eval_function": "mc_choice_match|require_non_empty=true"
+  },
+  {
+    "id": "756a7434",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "procedure",
+    "question": "I am working with our ServiceNow portal. My manager asks me to onboard an employee to our company. Which of the following shows the correct sequence of major steps?\n\nA. Create/submit an Employee Onboarding request in Employee Center -> Assign/route and approve onboarding case/tasks in HR Agent Workspace -> Fulfill tasks (IT accounts/equipment, Facilities access, HR forms) and update statuses -> Verify completion and close the onboarding case\nB. Navigate to Service Portal -> Open New Hire Onboarding form (or Order Guide) -> Fill employee and equipment details -> Submit to trigger workflow\nC. Create user profile -> Order device -> Create hardware profile\nD. Order device -> Create hardware profile -> Create user profile\nE. Create user profile -> Create hardware profile -> Order device\nF. Create user profile -> Submit onboarding case -> Assign queue group\n\nPut your final answer into \\boxed{} format like \\boxed{A}.",
+    "answer": "C",
+    "eval_function": "mc_choice_match|require_non_empty=true"
+  },
+  {
+    "id": "75816b26",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "procedure",
+    "question": "I am working with our ServiceNow Portal. I need to offboard a user. What should I do on that user's hardware asset record?\n\nA. Set `Department` to `IT Storage` and set `Managed by` to `IT Manager`.\nB. Set `Substate` to `Available` and clear `Assigned to`.\nC. Replace the value of field `Assigned to` with an empty value (`\"\"`).\nD. Set `Stockroom` to `IT Storage Room` and set `State` to `In stock`.\nE. Clear `Assigned to`, then set `State` to `In stock`, then set `Substate` to `Available`.\nF. Set `Managed by` to `IT Manager`, set `Stockroom` to `IT Storage Room`, and add note `returned by [user]`.\nG. Set `State` to `In stock`.\nH. Add note `returned by [user]` and set `Substate` to `Available`.\n\nPut your final answer into \\boxed{} format like \\boxed{A}.",
+    "answer": "C",
+    "eval_function": "mc_choice_match|require_non_empty=true"
+  },
+  {
+    "id": "7586cf7c",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "errors-gotchas",
+    "question": {
+      "text": "I am working with the ServiceNow system. I need to search Expense Lines for a specific investment whose short description contains `#tag`, but nothing appears when I enter either `tag` or `*#tag*` in the search box even though matching entries should exist. The attached screenshot shows the result when I entered `*#tag*`. What is the most likely issue here? Please give me only the most likely explanation or if action is needed only that one action. Do not list alternatives.",
+      "image": "/Users/ladvien/myelin/data/lmev2/question_screenshots/7586cf7c.png"
+    },
+    "answer": "the list header search requires a left-side wildcard; use `*#tag` so the left-side `*` is applied for contains-style matching.",
+    "eval_function": "llm_gotchas_checker|require_non_empty=true"
+  },
+  {
+    "id": "767e4106",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "procedure",
+    "question": "I am working with our ServiceNow portal. For the task of filtering and removing duplicated problems, besides problem description, which field is the most important in our typical workflow?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "priority",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "78686f4e",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "dynamic-environment",
+    "question": "I am working with our ServiceNow portal. When we remove a user record, which option exactly matches the other record types that might be automatically affected? Select ONE.\n\nA. Notification device; Expense line\nB. User preference; Time Card\nC. Notification device; Expense line; User preference; Subscription\nD. Notification device; Expense line; User preference\nE. Expense line; User preference; Live Profile; Report Viewer\nF. Notification device; User preference; Bookmark; Skill\nG. Expense line; Notification message\nH. Notification device; Expense line; User Delegation; User preference\n\nPut your final answer into \\boxed{} format like \\boxed{A}.",
+    "answer": "D",
+    "eval_function": "mc_choice_match|require_non_empty=true"
+  },
+  {
+    "id": "7a07e9a0",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment",
+    "question": "I am working with a few forms in our ServiceNow portal. Among these five forms (change request/problem/incident/hardware/user), four pages support optionally linking a configuration item, true or false?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "false",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "7df9e2ff",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "procedure-abs",
+    "question": "I am working with our ServiceNow portal. In our company's tight-window, priority-aware change-request rescheduling workflow, which extra mandatory cooling-off rule applies after every high-risk change in addition to the higher-impact-first and one-hour-gap rules?\n\nMark your final answer in \\boxed{}.",
+    "answer": "That workflow does not add any extra mandatory cooling-off rule after high-risk changes.",
+    "eval_function": "llm_abstention_checker|require_non_empty=true"
+  },
+  {
+    "id": "7e32e4a2",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "procedure",
+    "question": "I am working with our ServiceNow portal. I want to compare the hardware order procedures for several catalog items. Starting from the catalog item pages and counting each visible change from the default page state before `Order Now` as one step, which item page can require the most such steps for a valid configuration?\n\nA. Apple Watch\nB. Loaner Laptop\nC. Developer Laptop (Mac)\nD. Sales Laptop\nE. Standard Laptop\n\nPut your final answer into \\boxed{} format like \\boxed{A}.",
+    "answer": "D",
+    "eval_function": "mc_choice_match|require_non_empty=true"
+  },
+  {
+    "id": "7ea13f14",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "dynamic-environment",
+    "question": "I am working with our ServiceNow portal. When marking a problem as duplicate, a popup appears to collect additional information. Which field(s) are actually in that popup? Select ONE.\n\nA. Duplicate of\nB. Duplicate of; Resolution code\nC. Duplicate of; Resolution code; Close notes\nD. Duplicate of; Resolution code; Work notes / internal comments\nE. Duplicate of; Resolution code; Customer-facing comments / additional information\nF. Duplicate of; Resolution code; Parent\nG. Duplicate of; Resolution code; Canonical problem; Notes\nH. Duplicate of; Resolution code; Reason for marking as duplicate (short explanation)\n\nPut your final answer into \\boxed{} format like \\boxed{A}.",
+    "answer": "A",
+    "eval_function": "mc_choice_match|require_non_empty=true"
+  },
+  {
+    "id": "823d133a",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment-abs",
+    "question": "I am working with our ServiceNow portal. When we order a Macbook developer laptop, what solid-state-drive size options can we choose?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "There is no solid-state-drive size selector on the Macbook developer laptop page.",
+    "eval_function": "llm_abstention_checker|require_non_empty=true"
+  },
+  {
+    "id": "82cdfcc3",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "dynamic-environment",
+    "question": "I am working in our ServiceNow portal on assigning incidents to agents with specific expertise. After clicking into an incident item in the incident list and clicking on the Assigned to search box, a small box sometimes pops up beneath it before any input is entered. What is the title of that box?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "recent selections",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "83c35034",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment",
+    "question": "I am working with a few forms in our ServiceNow portal. Create Incident vs Problem. In both forms, all the fields that have a suggestion button beside them are mandatory, true or false?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "true",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "85251f36",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment",
+    "question": "I am working with a few forms in our ServiceNow portal. Create Change Request vs Hardware vs Incident, which one has the most clickable tabs under the main form body?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "Hardware",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "85fc5722",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "dynamic-environment",
+    "question": "I am working in our ServiceNow portal. When I am sorting inside the Catalog Items list, the full button label is \"Show / Hide Filter.\" In our use case, the filter is currently hidden, so clicking it effectively shows the filter. Before selecting the target field, what is the default sort field shown in the sort row?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "access type",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "876c720a",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "dynamic-environment",
+    "question": "I am working with our ServiceNow portal. When you delete multiple records using Data Management Deletion Jobs and the job completes successfully, what is the name of the new field that pops up on the progress page and its value? Separate the two using a comma.\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "completion code, success",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "87711b62",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "dynamic-environment",
+    "question": "I am working with our ServiceNow portal. On the Change Request list page, when building a filter condition and browsing the field list in alphabetical order, what is the second field whose name contains the word \"type\"?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "task type",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "882965b7",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "dynamic-environment",
+    "question": "I am working with our ServiceNow portal. In the field-picker search dropdown used for list filters, typing `Type` on the Change Requests page and on the Catalog Items page reveals four extra matches besides the plain `Type` entry across the two pages. Give all four extra matches; order does not matter. Put the four short phrases in \\boxed{} separated by semicolons.",
+    "answer": "Access Type; Classic Mobile Picture Type; Contact type; Task type",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "89439d62",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment",
+    "question": "I am working with a few forms in our ServiceNow portal. Among these five forms (change request/problem/incident/hardware/user), four of them display a prepopulated, system-generated case number, true or false?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "false",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "8b09f378",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment",
+    "question": "I am working with a few forms in our ServiceNow portal. Create Change Request vs Hardware. Which form has more mandatory fields among the two forms?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "Hardware",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "8b2a9dd3",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment",
+    "question": "I am working with our ServiceNow portal. For the Hardware form, how many different options are there for the model categories field? Answer in English (one/two/three/four/five, etc.).\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "two",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "8bc6d989",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "procedure-abs",
+    "question": "I am working with our ServiceNow portal. For the task of filtering and removing duplicated problems, which field besides `Priority` and `Problem statement` must also be checked for every duplicate set before deciding which one to keep?\n\nMark your final answer in \\boxed{}.",
+    "answer": "That workflow does not require a third comparison field beyond `Priority` and `Problem statement`.",
+    "eval_function": "llm_abstention_checker|require_non_empty=true"
+  },
+  {
+    "id": "8d0400e5",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment-abs",
+    "question": "I am working in our ServiceNow portal. Create change request vs. create hardware asset: what is the shared subform tab name that contains mandatory fields whose values are not pre-populated?\n\nMake sure you wrap your final answer in \\boxed{}.",
+    "answer": "There is no shared subform tab of that kind between the two forms.",
+    "eval_function": "llm_abstention_checker|require_non_empty=true"
+  },
+  {
+    "id": "8e21c6e5",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "errors-gotchas",
+    "question": {
+      "text": "I am working in our ServiceNow portal on filtering asset items. After I apply the quick column filters \"Computer\" for \"Model category\" and \"In maintenance\" for \"State\" and press Enter, nothing shows up even though matching items should exist. The screenshot shows this result. What is the one action I should take instead? Please give me only the most likely explanation or if action is needed only that one action. Do not list alternatives.",
+      "image": "/Users/ladvien/myelin/data/lmev2/question_screenshots/8e21c6e5.png"
+    },
+    "answer": "use the funnel icon to use the filter builder instead.",
+    "eval_function": "llm_gotchas_checker|require_non_empty=true"
+  },
+  {
+    "id": "8e320e42",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment",
+    "question": "I am working in our ServiceNow based portal. On the `Private Task` form page, which two fields on the page have a checkbox next to them? Answer as a comma-separated list.\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "Active, Work notes",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "8f752563",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment",
+    "question": "I am working with a few forms in our ServiceNow portal. Create Change Request vs Hardware. Which form(s) out of the two forms -- hardware and create-request -- enable the calendar plugin when you need to enter a field's value as a date?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "Hardware",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "901b7d17",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "dynamic-environment",
+    "question": "I am working in our ServiceNow portal. After opening a knowledge article from the Knowledge search results list, what is the label of the new header action button that appears on the article page and was not present on the search-results list page?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "Attach to Private Task",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "90df8253",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment",
+    "question": "I am working in our ServiceNow based portal. On the `Private Task` form page, which field is marked externally visible to customers?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "Additional comments",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "927c65a2",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment",
+    "question": "I am working with a few forms in our ServiceNow portal. Create Change Request vs Problem vs Incident vs Hardware vs User. Among these five forms, which form (s) doesn't share the same subtab named \"Notes\"? List all that apply and separate them with semicolon.\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "User; Hardware",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "93d0613b",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "dynamic-environment-abs",
+    "question": "I am working with our ServiceNow portal. In the Incident form, after entering \"Problem CoordinatorATF\" in the \"Caller\" field, what is the name of the third button that appears to the right of the field, besides the open/show referenced record icon and the info/preview record icon?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "there is no third button",
+    "eval_function": "llm_abstention_checker|require_non_empty=true"
+  },
+  {
+    "id": "95ae824f",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "procedure",
+    "question": "I am working with our ServiceNow portal. Compare the onboarding and offboarding workflows in the cited successful runs. Counting only the major non-task work surfaces where the core action happens, how many such surfaces appear in onboarding, and how many appear in offboarding? Count a user form, a catalog item page, or a hardware record page as one surface each. Answer onboarding first and offboarding second, in English (for example, one; two), separated by a semicolon. Mark your final answer in \\boxed{}.",
+    "answer": "three; two",
+    "eval_function": "norm_phrase_set_match_ordered|lower=true|normalize_hyphen=true|strip_punct=true|separators=;|require_non_empty=true"
+  },
+  {
+    "id": "9680f077",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment",
+    "question": "I am working with a few forms in our ServiceNow portal. Create Change Request vs Hardware. In both forms -- hardware and create-request -- what is the name of the field that is mandatory yet non-mutable for only one of the two forms?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "Quantity",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "984022b1",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "dynamic-environment",
+    "question": "I am working with our ServiceNow portal. On Users > New, before I change anything in the form, I open the \"Date format\" dropdown for the first time. Which value is selected by default in our company environment?\n\nA. dd-MM-yyyy\nB. MM-dd-yyyy\nC. System (yyyy-MM-dd)\nD. System (MM/dd/yyyy)\nE. yyyy/MM/dd\nF. ISO-8601\nG. Locale default\nH. Blank\n\nPut your final answer into \\boxed{} format like \\boxed{A}.",
+    "answer": "C",
+    "eval_function": "mc_choice_match|require_non_empty=true"
+  },
+  {
+    "id": "99bc5d0d",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "procedure-abs",
+    "question": "I am working with our ServiceNow portal. I am given a task to manage expenses whose short descriptions contain a hashtag tag by deleting duplicate records in Expense Lines. After finding records containing this hashtag on the Expense Lines page, what is the correct next step to mark those duplicate rows for merge review before deleting them?\n\nMark your final answer in \\boxed{}.",
+    "answer": "That workflow does not have a separate merge-review marking step before deletion.",
+    "eval_function": "llm_abstention_checker|require_non_empty=true"
+  },
+  {
+    "id": "9b34f55b",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "procedure-abs",
+    "question": "I am working with our ServiceNow portal. My manager asks me to onboard an employee to our company. Which intermediate traceability step happens between ordering the device and creating the hardware profile, where you return to the onboarding task to record the request number?\n\nPut your final answer into \\boxed{} format.",
+    "answer": "That onboarding workflow does not insert a return-to-task traceability step between ordering the device and creating the hardware profile.",
+    "eval_function": "llm_abstention_checker|require_non_empty=true"
+  },
+  {
+    "id": "9c074855",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment",
+    "question": "I am working with our ServiceNow portal. On the Loaner Laptop page, what is the default value shown for \"How long do you need it for?\"\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "1 day",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "9c24f41e",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "dynamic-environment",
+    "question": "I am working in our ServiceNow portal to balance workload across problems with the same tag. I reassign the lowest-priority problem from the user with the most assigned problems to the user with the fewest assigned problems. After filtering for that problem and opening it, what stage is the problem on, as shown in the progress bar at the top?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "assess",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "9c32bca6",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment",
+    "question": "I am working in our ServiceNow based portal. On the `Data Management Delete Job` form, what are the two entries under `Related Links`? Separate them with semicolons.\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "Preview Cascade; Execute Now",
+    "eval_function": "norm_phrase_set_match_ordered|lower=true|normalize_hyphen=true|strip_punct=true|separators=;|require_non_empty=true"
+  },
+  {
+    "id": "9e05978c",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "procedure",
+    "question": "I am working with our ServiceNow portal. My boss asks me to manage expenses whose short descriptions contain the hashtag tag `#SERIES-df9c3c1e-3`. What is the correct step to find the matching expenses on the Expense Line page?\n\nA. Click `Show Filter` on the Expense Line list, add condition `Short description` `contains` `#SERIES-df9c3c1e-3`, then click `Run`.\nB. Use the list search dropdown, choose `Short description`, enter `#SERIES-df9c3c1e-3`, and press Enter.\nC. Use the list search dropdown, choose `Short description`, enter `*#SERIES-df9c3c1e-3`, and press Enter.\nD. Use the Short Description column search box and enter `#SERIES-df9c3c1e-3` directly.\nE. Open filter builder and set `Short description` `starts with` `#SERIES-df9c3c1e-3`.\nF. Open filter builder and set `Short description` `is` `#SERIES-df9c3c1e-3`.\nG. Use global search for `#SERIES-df9c3c1e-3`, then filter results to Expense Lines.\nH. Right-click a Short description value and choose `Filter Out` to narrow results.\n\nPut your final answer into \\boxed{} format like \\boxed{A}.",
+    "answer": "A",
+    "eval_function": "mc_choice_match|require_non_empty=true"
+  },
+  {
+    "id": "9ff0ffff",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "dynamic-environment-abs",
+    "question": "I am working with our ServiceNow portal. When you delete multiple records using Data Management Deletion Jobs and the job completes successfully, what is the third hyperlink that appears for reopening the deletion job?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "Only two follow-up hyperlinks appear there; there is no third reopen-job link.",
+    "eval_function": "llm_abstention_checker|require_non_empty=true"
+  },
+  {
+    "id": "a3a7b079",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment",
+    "question": "I am working with a few forms in our ServiceNow portal. Among these five forms (change request/problem/incident/hardware/user), do you remember a page who category field is \"Other\" on the initial load?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "change-request",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "a444cec8",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment",
+    "question": "I am working with a few forms in our ServiceNow portal. Create Change Request vs Hardware. The default value of the \"state\" field is \"New\" for change request and \"In use\" for hardware, true or false?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "true",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "a45edf3e",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment",
+    "question": "I am working with our ServiceNow portal. When we order a Macbook developer laptop, we can choose the solid state drive size, true or false?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "false",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "a482c0d9",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment",
+    "question": "I am working with a few forms in our ServiceNow portal. Among these five forms (change request/problem/incident/hardware/user), two of them they display a pre-populated non-editable Priority field, true or false?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "true",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "a58c5548",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment-abs",
+    "question": "I am working with a few forms in our ServiceNow portal. Create Change Request vs Hardware. In both forms -- hardware and create-request -- what is the name of the mandatory field that is read-only on both forms?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "There is no mandatory field that is read-only on both forms.",
+    "eval_function": "llm_abstention_checker|require_non_empty=true"
+  },
+  {
+    "id": "a667402d",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment-abs",
+    "question": "I am working with a few forms in our ServiceNow portal. Create Change Request vs Hardware. Which form has more mandatory fields among the two forms after excluding the shared mandatory lookup field that appears near the top of both forms?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "Those two forms do not share a single mandatory lookup field near the top, so that comparison does not apply.",
+    "eval_function": "llm_abstention_checker|require_non_empty=true"
+  },
+  {
+    "id": "a7edfb7a",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment",
+    "question": "I am working with a few forms in our ServiceNow portal. Create Change Request vs Problem vs Incident. What is the subtab name shared by all the three forms?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "Notes",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "a8959d04-abs",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment-abs",
+    "question": "I am working with a few forms in our ServiceNow portal. Create Change Request vs Hardware. Which mandatory field do the two forms -- hardware and create-request -- share?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "The two forms share no mandatory fields.",
+    "eval_function": "llm_abstention_checker|require_non_empty=true"
+  },
+  {
+    "id": "aa4a4b7b",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment",
+    "question": "I am working with a few forms in our ServiceNow portal. Create Change Request vs Hardware. Which form(s) out of the two forms -- hardware and change request -- enable using \"lookup using list\" when you need to enter a field's value? Write the name and separate two names with semicolon if the answer is both.\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "change request; hardware",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "aa64a8bd",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "dynamic-environment",
+    "question": "I am working with our ServiceNow portal. After a problem is marked as Duplicate and the progress changes from \"Assess\" to \"Closed\", which field replaces \"Impact\" directly below the \"State\" field on the problem form?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "resolution code",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "aca57021",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "procedure",
+    "question": "I am working with our ServiceNow portal. My boss asked me to order the item Eric requested. What is the application and the two modules in it that I have to use in order?\n\nA. Service Catalog; Catalog Items; Cart\nB. Self-Service; Requested Items; My Requests\nC. Procurement; Purchase Orders; Sourcing\nD. Self-Service; My Requests; Service Catalog\nE. Procurement; Sourcing Workspace; Purchase Orders\nF. Self-Service; Requested Items; Service Catalog\nG. Service Catalog; Open Search; Requested Items\nH. Self Service; Service Catalog; Requested Items\n\nPut your final answer into \\boxed{} format like \\boxed{A}.",
+    "answer": "F",
+    "eval_function": "mc_choice_match|require_non_empty=true"
+  },
+  {
+    "id": "ad903be2",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment",
+    "question": "I am working with our ServiceNow portal. If I order an Apple Watch, how long does the delivery take by default? Express the duration in English, e.g., \"4 days\", \"7 days\".\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "2 days",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "adddeaa5",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment",
+    "question": "I am working with a few forms in our ServiceNow portal. Create Change Request vs Problem vs Incident, what form(s) among them have the feature that could allow you to search/filter knowledge and inspect the result? List all that apply and separate your answers with a semicolon.\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "problem; incident",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "aedd338d",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment",
+    "question": "I am working with a few forms in our ServiceNow portal. Among these five forms (change request/problem/incident/hardware/user), which form has the most subform tabs under the main fields?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "Hardware",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "aef57896",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment",
+    "question": "I am working in our ServiceNow based portal. On the Service Catalog search results page, how many results are displayed per page by default?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "20",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "af2ebaed",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "errors-gotchas",
+    "question": {
+      "text": "I am working in our ServiceNow portal. My manager asked me to retrieve information from the chart with title #CAT001314192, but I searched for the chart ID in global search and Dashboards Overview and got no results. The screenshot shows where I searched. What is the one module I should use instead? Please give me only the most likely explanation or if action is needed only that one action. Do not list alternatives.",
+      "image": "/Users/ladvien/myelin/data/lmev2/question_screenshots/af2ebaed.png"
+    },
+    "answer": "reports",
+    "eval_function": "llm_gotchas_checker|require_non_empty=true"
+  },
+  {
+    "id": "b15314c0",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment-abs",
+    "question": "I am working with a few forms in our ServiceNow portal. Create Incident vs Problem. What is the name of the mandatory field that has a suggestion button beside it in both forms?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "There is no mandatory field with a suggestion button in both forms.",
+    "eval_function": "llm_abstention_checker|require_non_empty=true"
+  },
+  {
+    "id": "b54161f8",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "dynamic-environment",
+    "question": "I am working with our ServiceNow service catalog and comparing the order pages for the `Standard Laptop` and the `Sales Laptop`. Which optional software choices appear on the `Sales Laptop` page but not on the `Standard Laptop` page? Give the two labels separated by semicolons in \\boxed{}.",
+    "answer": "Microsoft Powerpoint; Siebel Client",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=;|require_non_empty=true"
+  },
+  {
+    "id": "b7cc4da2",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "procedure",
+    "question": "I am working with our ServiceNow portal. My boss asked me to order the item Eric requested. What is the two modules in it that I have to use in logical order in the Self-Service application to accomplish this task? Tell me the first module's name and the second module's name in order, separated by a semicolon.\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "Requested Items; Service Catalog",
+    "eval_function": "norm_phrase_set_match_ordered|lower=true|normalize_hyphen=true|strip_punct=true|separators=;|require_non_empty=true"
+  },
+  {
+    "id": "b82d0dd6",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "procedure-abs",
+    "question": "I am working with our ServiceNow portal. My manager asks me to assign N incidents to agents using predefined matching rules. Before applying the matching rules, which page must I open first to review the category-to-priority lookup table that drives those rules?\n\nPut your final answer into \\boxed{} format.",
+    "answer": "That incident-assignment workflow does not open a separate category-to-priority lookup page before editing the incidents.",
+    "eval_function": "llm_abstention_checker|require_non_empty=true"
+  },
+  {
+    "id": "b8cabd09",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "dynamic-environment",
+    "question": "I am working with our ServiceNow portal. After I create a new User record and submit it successfully, which automatic action is confirmed by the top-page popup message? Select ONE.\n\nA. Record inserted\nB. Update successful\nC. User created successfully\nD. HR Profile Created\nE. Email device created\nF. Customer Contact Created\nG. Welcome email sent\nH. Password generated\n\nPut your final answer into \\boxed{} format like \\boxed{A}.",
+    "answer": "E",
+    "eval_function": "mc_choice_match|require_non_empty=true"
+  },
+  {
+    "id": "bdb825a3",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "dynamic-environment",
+    "question": "I am working with our ServiceNow portal. When filtering the Hardware list by the \"Assigned to\" field, what is the default comparator? Select ONE.\n\nA. is\nB. >=\nC. ==\nD. =\nE. contains\n\nPut your final answer into \\boxed{} format like \\boxed{A}.",
+    "answer": "B",
+    "eval_function": "mc_choice_match|require_non_empty=true"
+  },
+  {
+    "id": "bdfef1b9",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment-abs",
+    "question": "I am working with a few forms in our ServiceNow portal. Among these five forms (change request/problem/incident/hardware/user), which form has more than seven subform tabs under the main fields?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "None of those five forms has more than seven subform tabs under the main fields.",
+    "eval_function": "llm_abstention_checker|require_non_empty=true"
+  },
+  {
+    "id": "bf4f8b37",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment-abs",
+    "question": "I am working with our ServiceNow portal. When we order a Dell XPS as the developer laptop, what is the extra dollar amount if we choose the 1TB solid-state-drive option?\n\nMark your final answer (should be an integer indicating the dollar amount) in \\boxed{}.",
+    "answer": "There is no 1TB solid-state-drive option on that Dell XPS page.",
+    "eval_function": "llm_abstention_checker|require_non_empty=true"
+  },
+  {
+    "id": "bf98bb38",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment",
+    "question": "I am working with our ServiceNow portal. When we order a Dell XPS as the developer laptop, we can choose the solid state drive size, true or false?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "true",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "bfb3bcc4",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "procedure",
+    "question": "I am working with our ServiceNow portal. My manager asks me to offboard a user named Gail-David Walker-Saunders. According to our typical workflow, what are the necessary steps?\n\nA. Navigate to the user profile -> Unassign all hardware assets from the user -> Delete the user profile -> Mark the task as Closed - Complete.\nB. Navigate to the user profile -> Delete the user profile -> Manually clear the Assigned To field on all related hardware assets -> Mark the task as Closed - Complete.\nC. Navigate to Hardware Assets -> Transfer all assigned assets to Available status -> Delete the user profile -> Mark the task as Closed - Complete.\nD. Delete the user profile -> Verify related incidents and tasks are reassigned -> Mark the task as Closed - Complete.\nE. Navigate to the user profile -> Lock the account -> Delete the user profile -> Mark the task as Closed - Complete.\nF. Navigate to the user profile -> Unassign hardware assets -> Update related records (incidents, approvals, requests) -> Delete the user profile -> Mark the task as Closed - Complete.\n\nPut your final answer into \\boxed{} format like \\boxed{A}.",
+    "answer": "A",
+    "eval_function": "mc_choice_match|require_non_empty=true"
+  },
+  {
+    "id": "c0593d69",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment",
+    "question": "I am working with a few forms in our ServiceNow portal. Create Change Request vs Problem vs Incident vs Hardware vs User. Among create-request, problem, incident, hardware, and user forms, how many forms have subtabs on the page, in addition to the field-entering section? Answer in English (zero/one/two/three/four/five)\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "four",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "c0696888",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "dynamic-environment",
+    "question": "I am working with our ServiceNow portal. In the Change Request form, after you enter \"IP-Router-3\" in the \"Configuration item\" field, how many additional icons appear to the right of that field? Answer in English (e.g., one, two, three, etc.).\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "three",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "c1c000eb",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment",
+    "question": "I am working with our ServiceNow portal. After navigating to Change > All, clicking New, and viewing the change model cards, how many preapproved model cards have 100% success rate? Answer in English (one, two, three, etc.).\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "four",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "c35bfeed",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "errors-gotchas",
+    "question": {
+      "text": "I am working in our ServiceNow portal. I need to order the same item as someone else did, but searching for her name or requested items is not working. The screenshot shows the current state. What is the one thing I should do instead of ordering a default standard laptop? Please give me only the most likely explanation or if action is needed only that one action. Do not list alternatives.",
+      "image": "/Users/ladvien/myelin/data/lmev2/question_screenshots/c35bfeed.png"
+    },
+    "answer": "1) no you should not directly order a standard laptop 2) you can use the filter inside the \"All\" tab on the top left corner to find the requested items module.",
+    "eval_function": "llm_gotchas_checker|require_non_empty=true"
+  },
+  {
+    "id": "c3dbec17",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment",
+    "question": "I am working in our ServiceNow based portal. On the `Data Management Delete Job` form, besides `AND` and `OR`, what are the names of the two buttons in the `Condition` section? Answer as a comma-separated list.\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "Preview, New Criteria",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "c4c0e117",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "dynamic-environment-abs",
+    "question": "I am working with our ServiceNow portal. After a problem is marked as Duplicate and the progress changes from \"Assess\" to \"Closed\", which field disappears from the right column on the form where \"State\" is the first row?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "nothing disappears",
+    "eval_function": "llm_abstention_checker|require_non_empty=true"
+  },
+  {
+    "id": "c60f4681",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "procedure",
+    "question": "I am working with our ServiceNow portal. My manager asks me to assign N incidents to agents using predefined matching rules to ensure each incident is handled by the most suitable agent.\n\nWhich of the following shows the correct steps in order?\n\nA. Open the Incident list -> Apply matching filters -> Assign randomly -> Close records\nB. Open the correct Incident list -> Clear existing filters -> Apply matching rules -> Enable Show Related Fields -> Verify results -> Bulk edit assignments -> Validate\nC. Export incidents -> Edit in Excel -> Re-import -> Notify agents\nD. Find and open one incident that needs edits -> Apply matching rules -> Edit assignments -> Repeat for all N incidents\nE. Ask another agent to assign incidents -> Review later -> Update if needed\n\nPut your final answer into \\boxed{} format like \\boxed{A}.",
+    "answer": "D",
+    "eval_function": "mc_choice_match|require_non_empty=true"
+  },
+  {
+    "id": "c80ca967",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment",
+    "question": "I am working in our ServiceNow based portal. On the `Sales Laptop` item page under `Service Catalog > Hardware`, what are the names of the two sections shown on the right side of the page? Separate them with semicolons.\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "Order this Item; Shopping Cart",
+    "eval_function": "norm_phrase_set_match_ordered|lower=true|normalize_hyphen=true|strip_punct=true|separators=;|require_non_empty=true"
+  },
+  {
+    "id": "c9568c9b",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "procedure",
+    "question": "I am working with our ServiceNow Portal. In our company's workflow, when we disperse change requests so they do not overlap, what field do we typically use to decide the time span length allocated to each change request?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "risk level",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "c9c6a06a",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment",
+    "question": "I am working with our ServiceNow portal. When we order an iPad mini, how many total possible (color, storage) combinations are there? Answer with an English word (e.g., one/two/three, etc.).\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "eight",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "ca8e070b",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment",
+    "question": "I am working with our ServiceNow portal. When we order a loaner laptop, we are able to choose from preset choices (like \"1 day\") for \"How long do you need it for\" and select a specific date for \"When do you need it\", true or false?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "false",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "cbcd74ae",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment-abs",
+    "question": "I am working with our ServiceNow portal. In Reports > View/Run, incident-assignment dashboard report links begin with \"Incidents with hashtag #...\". What prefix is used for finance or expense dashboard report links?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "That report view does not use a finance or expense dashboard-link prefix in this task family.",
+    "eval_function": "llm_abstention_checker|require_non_empty=true"
+  },
+  {
+    "id": "ccf29914",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "procedure",
+    "question": "I am working with our ServiceNow portal. For the task of removing duplicated existing expenses on the Expenses Line page, which fields are the most important in our typical workflow?\n\nA. Task, Vendor\nB. Amount, Employee, Vendor, Expense Date\nC. Merchant, Date\nD. Short description, Expense Date, Merchant, Vendor\nE. Employee, Task\nF. Amount, Vendor, Expense Date, Merchant\nG. Amount, Task, Short description, Date\nH. Merchant, Vendor\n\nPut your final answer into \\boxed{} format like \\boxed{A}.",
+    "answer": "G",
+    "eval_function": "mc_choice_match|require_non_empty=true"
+  },
+  {
+    "id": "cdd0e687",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "procedure",
+    "question": "I am working with our ServiceNow portal. In our company's `Managing Your Existing Expenses` workflow, after filtering Expense Lines by the target hashtag and determining which duplicate rows should be removed while keeping the most expensive duplicate, what should I do next?\n\nA. Use a list-level bulk delete on all filtered rows.\nB. Use a list-level bulk delete only on the rows chosen for removal.\nC. Open each expense line chosen for removal and delete it from its record page.\nD. Export the filtered rows, remove duplicates offline, and re-import them.\n\nPut your final answer into \\boxed{} format like \\boxed{A}.",
+    "answer": "C",
+    "eval_function": "mc_choice_match|require_non_empty=true"
+  },
+  {
+    "id": "ce1cdb2d",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "dynamic-environment-abs",
+    "question": "I am working in our ServiceNow portal to balance workload across problems with the same tag. After filtering for the reassigned problem and opening it, what approval stage is the problem on, as shown in the progress bar at the top?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "That problem progress bar does not show approval stages in this workflow.",
+    "eval_function": "llm_abstention_checker|require_non_empty=true"
+  },
+  {
+    "id": "ce9aa351",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "errors-gotchas",
+    "question": {
+      "text": "I am working in our ServiceNow portal. I am creating an incident, but after I fill in the form at \"https://empmassimo20.service-now.com/incident.do?sys_id=-1\" and click \"Submit\", the incident does not appear. The screenshot shows the form I used. What is the most likely issue or one action I should take instead? Please give me only the most likely explanation or if action is needed only that one action. Do not list alternatives.",
+      "image": "/Users/ladvien/myelin/data/lmev2/question_screenshots/ce9aa351.png"
+    },
+    "answer": "should navigate to the \"Incidents\" module of the \"Service Desk\" application manually instead of using the link. The link takes you to another form.",
+    "eval_function": "llm_gotchas_checker|require_non_empty=true"
+  },
+  {
+    "id": "cf62efad",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment",
+    "question": "I am working in our ServiceNow based portal. On an `Expense Line` record page, which field has a pencil icon next to it?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "Amount",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "d0d61088",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "dynamic-environment",
+    "question": "I am working with our ServiceNow portal. When deleting multiple records using Data Management Deletion Jobs, what is the exact name of the initial state highlighted in yellow on the progress page right after you proceed with the job?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "Starting",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "d0e556eb",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment-abs",
+    "question": "I am working with a few forms in our ServiceNow portal. Create Incident vs Problem. Which form has more immutable fields inside a Analysis Information tab?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "That comparison does not apply because the Create Incident form has no Analysis Information tab.",
+    "eval_function": "llm_abstention_checker|require_non_empty=true"
+  },
+  {
+    "id": "d1f82e80",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "procedure-abs",
+    "question": "I am working with our ServiceNow portal. In our company's typical workflow, if I am told to create extra device item requests for agents selected from incident-report criteria, which module under Self Service should I go to?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "The module you need is not under `Self Service`; the traced workflow creates the item requests from `Open Records > Items`.",
+    "eval_function": "llm_abstention_checker|require_non_empty=true"
+  },
+  {
+    "id": "d3d7ec75",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment",
+    "question": "I am working with a few forms in our ServiceNow portal. Among these five forms (change request/problem/incident/hardware/user), which one displays a prepopulated read-only case number at the top?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "Problem",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "d63e8a7f",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "procedure",
+    "question": "I am working with our ServiceNow portal. My boss asks me to onboard a new user. After creating the new user profile, I navigate to order an Apple Mac Book Pro for this user and complete the order. What step remains? (Select ONE.)\n\nA. Return to the onboarding task -> add the MacBook Request (REQ) / Request Item (RITM) number in Work notes for traceability -> change the task state from Open to Closed - Complete.\nB. Navigate back to the onboarding task -> write a brief summary in Additional comments for the hiring manager/requester -> click Close Task (or set state to Closed - Complete).\nC. Verify the Request Item (RITM) was successfully created -> link it to the parent onboarding ticket -> then mark the onboarding task as Complete/Closed - Complete to trigger the next workflow phase.\nD. Create a new hardware record -> then return to the onboarding task page and change the status/state from Open to Closed - Complete.\nE. Return to the new user profile (sys_user) -> confirm the MacBook request is associated with the user/asset context -> validate provisioning details (delivery location/approvals) -> then close the onboarding task as Closed - Complete.\nF. Open the created MacBook request -> verify it is submitted and assigned to the correct fulfillment group -> notify the requester/manager with the tracking details -> then close the onboarding task as Closed - Complete.\nG. Return to the onboarding task -> reassign/hand off the task to the next fulfillment team -> set the task state to In Progress (so they can continue fulfillment).\nH. Create a new hardware record -> open the MacBook request and attach the hardware record -> then send the new user a completion message and close the onboarding task as Closed - Complete.\n\nPut your final answer into \\boxed{} format like \\boxed{A}.",
+    "answer": "D",
+    "eval_function": "mc_choice_match|require_non_empty=true"
+  },
+  {
+    "id": "d72fb64d",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "procedure-abs",
+    "question": "I am working with our ServiceNow portal. I want to compare two workflows: balancing the workload for problems with a specific hashtag, and restocking items that are low in quantity. Excluding the shared report/chart retrieval stage, what shared application or module family do the two actual task-completion pages belong to?\n\nMark your final answer (should be a short phrase) in \\boxed{}.",
+    "answer": "The two actual task-completion pages do not belong to a shared application or module family once the report/chart retrieval stage is excluded, so there is no common family to name.",
+    "eval_function": "llm_abstention_checker|require_non_empty=true"
+  },
+  {
+    "id": "d83c4bf7",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "dynamic-environment",
+    "question": "I am working with our ServiceNow portal while creating a hardware asset record. After clicking New and loading the blank Hardware form, what default value is shown in the State dropdown?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "in use",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "dbe1a814",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "dynamic-environment-abs",
+    "question": "I am working with our ServiceNow portal. When ordering a Dell XPS 13 from the Service Catalog for an employee, if I change the operating system from the default Ubuntu to Windows 8, what bracketed text appears next to `Windows 8`?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "That order page shows bracketed text next to `Ubuntu` but not next to `Windows 8`.",
+    "eval_function": "llm_abstention_checker|require_non_empty=true"
+  },
+  {
+    "id": "dc41b134",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "procedure-abs",
+    "question": "I am working with our ServiceNow portal. My boss asks me to manage expenses whose short descriptions contain a hashtag tag. What is the correct step to find the matching expenses on the Expense Line page by opening the saved smart filter for that hashtag?\n\nMark your final answer in \\boxed{}.",
+    "answer": "There is no saved smart filter for that hashtag in the traced workflow.",
+    "eval_function": "llm_abstention_checker|require_non_empty=true"
+  },
+  {
+    "id": "dd53ab77",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "dynamic-environment",
+    "question": "I am working with our ServiceNow portal. When you delete multiple records using Data Management Deletion Jobs and the job completes successfully, what are the two next steps you are able to perform, as indicated by the two hyperlinks that appear below the successful condition code? Tell me their names, separated by comma.\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "Check execution results, Go back to list view",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "de0abc47",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "dynamic-environment-abs",
+    "question": "I am working with our ServiceNow portal. After opening a Hardware Asset record and clicking \"Personalize Form\", the dialog shows many \"Form Fields\" checkboxes. Which checkbox labels contain the substring \"Amortiz\" (i.e., amortization-related)?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "there are no checkbox labels containing Amortiz",
+    "eval_function": "llm_abstention_checker|require_non_empty=true"
+  },
+  {
+    "id": "e033e796",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "dynamic-environment",
+    "question": "I am working with our ServiceNow portal. After placing a hardware order for a few developer laptops and reaching the final confirmation page, which set of additional fields is shown?\n\nA. Asset Tag Number; Requested For; Approval Status\nB. Request Number; Requested For; Request Stage; Approval Status\nC. Cost Center; Charge Account; Asset Tag; Requested For\nD. Asset Tag; Cost Center; Charge Account; Shipping address\nE. Requested For; Cost Center\nF. Request Number; Delivery Date; Approval Status\nG. Asset Tag Number; Shipping address\nH. Request Number; Delivery Date; Request Stage\n\nPut your final answer into \\boxed{} format like \\boxed{A}.",
+    "answer": "H",
+    "eval_function": "mc_choice_match|require_non_empty=true"
+  },
+  {
+    "id": "e334d5c6",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "procedure",
+    "question": "I am working with our ServiceNow Portal. If I am told to allocate investments to maximize returns, which module should I work in first?\n\nA. Portfolio Planning > Investment Portfolio\nB. Demand Management > Demands\nC. Investment Planning > Funding Plans\nD. Strategic Planning Workspace > Initiatives\nE. Cost > Expense Lines\nF. Scenario Planning > Plan Comparison\nG. Investment Funding > Allocation Rules\nH. Portfolio Workspace > Capital Plans\n\nPut your final answer into \\boxed{} format like \\boxed{A}.",
+    "answer": "E",
+    "eval_function": "mc_choice_match|require_non_empty=true"
+  },
+  {
+    "id": "e7292dab",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment",
+    "question": "I am working with a few forms in our ServiceNow portal. Create Change Request vs Problem vs Incident vs Hardware vs User. Among these four forms, how many forms have clickable boxes/ticks as one of the valid values in the main form's fields (not counting the tabs at the bottom)? What are they? Say the number in English (one/two/three/four) and then say their names.\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "One; User",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "e823a94a",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment",
+    "question": "I am working in our ServiceNow portal. Create change request vs. create hardware asset: how many more subform tabs containing mandatory fields whose values are not pre-populated does the hardware form have compared to the change request form?\n\nMake sure you wrap your final answer in English (e.g., one, two, three) inside \\boxed{}.",
+    "answer": "two",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "e9fde9fe",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment",
+    "question": "I am working with our ServiceNow portal. On the asset management page, what class is typically assigned to mice and keyboards?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "consumable",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "eb3cfd03",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "procedure",
+    "question": "I am working with our ServiceNow portal. In our company's typical workflow, what are the modules we need to visit in order to restock items that are low in quantity?\nNote: within each option, the listed modules are not in order.\n\nA. Request Management > Requests, Inventory > Stockroom\nB. Approvals > My Approvals, Procurement > Sourcing\nC. Request Management > Requests, Stockroom > Stock Rules\nD. Approvals > My Approvals, Reports > View, Self-Service > Service Catalog\nE. Self-Service > Service Catalog, Approvals > My Approvals\nF. Procurement > Sourcing, Request Management > Requests, Stockroom > Transfer Orders\nG. Approvals > My Approvals, Inventory > Stockroom, Procurement > Sourcing\nH. Self-Service > Service Catalog, Reports > View\n\nPut your final answer into \\boxed{} format like \\boxed{A}.",
+    "answer": "H",
+    "eval_function": "mc_choice_match|require_non_empty=true"
+  },
+  {
+    "id": "eb8cf28b",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment-abs",
+    "question": "I am working with a few forms in our ServiceNow portal. Create Change Request vs Hardware. Which form(s) out of the two forms -- hardware and create-request -- enable the calendar plugin for the mandatory field `Planned start date` in the state we inspected?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "Neither inspected form exposes a mandatory `Planned start date` field in that state.",
+    "eval_function": "llm_abstention_checker|require_non_empty=true"
+  },
+  {
+    "id": "ebad58ed",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment-abs",
+    "question": "I am working with our ServiceNow portal. After searching the knowledge base for `team leaders`, what extra sorting option appears after `Alphabetical` in the `Sort by` list?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "There is no extra sorting option after `Alphabetical` in that `Sort by` list.",
+    "eval_function": "llm_abstention_checker|require_non_empty=true"
+  },
+  {
+    "id": "ecdb7d5e",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "procedure",
+    "question": "I am working with our ServiceNow portal. I am tasked with updating records associated with the hashtag tag `#SERIES-df9c3c1e-3`. After updating the affected records, what should I do to return to the original task record and mark it as completed?\n\nA. Use global search with the task name, press Enter (the system will take you directly to the task record).\nB. Use global search with the full task number, press Enter, then click the exact-match result.\nC. Use global search with the full task number, do not press Enter, and click the exact-match suggestion in the dropdown.\nD. Use global search with the task name, do not press Enter, and click View results from the dropdown.\nE. Use global search for \"Managing Your Existing Expenses\" and press Enter, then click the exact-match option.\nF. Use global search for the full task number and press Enter (the system will take you straight to the record).\nG. Use global search for the full task number and click the exact-match option.\nH. Use global search for the full task number and click the View results option.\n\nPut your final answer into \\boxed{} format like \\boxed{A}.",
+    "answer": "B",
+    "eval_function": "mc_choice_match|require_non_empty=true"
+  },
+  {
+    "id": "ee5252a3",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "dynamic-environment-abs",
+    "question": "I am working with our ServiceNow portal while creating a hardware asset record. After clicking New and loading the blank Hardware form, what default value is shown in the `Managed by` field?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "No default value is shown there; the `Managed by` field is blank on the loaded form.",
+    "eval_function": "llm_abstention_checker|require_non_empty=true"
+  },
+  {
+    "id": "f02bec54",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "procedure-abs",
+    "question": "I am working with our ServiceNow portal. For the task of removing duplicated existing expenses on the Expenses Line page, which field besides `Amount`, `Task`, `Short description`, and `Date` is the next most important in our typical workflow?\n\nMark your final answer in \\boxed{}.",
+    "answer": "That workflow does not specify an additional comparison field beyond `Amount`, `Task`, `Short description`, and `Date`.",
+    "eval_function": "llm_abstention_checker|require_non_empty=true"
+  },
+  {
+    "id": "f0882f6e",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment",
+    "question": "I am working with a few forms in our ServiceNow portal. Among these five forms (change request/problem/incident/hardware/user), which form has a subform tab that contains a mandatory field?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "Hardware",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "f1d8a168",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment",
+    "question": "I am working with a few forms in our ServiceNow portal. Among these five forms (change request/problem/incident/hardware/user), three forms have a process flow at the top, true or false?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "false",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "f1f9de44",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment",
+    "question": "I am working with a few forms in our ServiceNow portal. Create Change Request vs Incident. Both of the two fields -- the \"Priority\" field in the incident form and the \"Conflict status\" field in the change-request form -- are immutable, true or false?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "true",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "f3496ca5",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment",
+    "question": "I am working with our ServiceNow portal. Compared to ordering a Macbook Pro developer laptop, how many software options are available only when ordering a Sales Laptop? Answer in English (e.g., one/two/three, etc.).\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "two",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "f35bac4a",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "dynamic-environment",
+    "question": "I am working with our ServiceNow portal. I am filling out the form to create a new problem record. If I change the \"Impact\" field to \"High\" and the \"Urgency\" field to \"Low\", what value does the \"Priority\" field automatically change to?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "3 - Moderate",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "f4b2b1fb",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment",
+    "question": "I am working with our ServiceNow portal. On the Knowledge Search results page, what sorting options are listed next to \"Sort by\"? Separate them with semicolons.\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "Relevance; Views; Newest; Alphabetical",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "f9c65fe6",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "procedure",
+    "question": "I am working with our ServiceNow Portal. Which applications do I need to visit if I would like to offboard a user?\n\nA. Self-Service, User Administration, Task\nB. HR Case Management, Lifecycle Events\nC. User Administration, System Security, Task\nD. Assets, Task\nE. Assets, System Security\nF. Lifecycle Events, Task, Self-Service\nG. HR Case Management, User Administration\nH. Self-Service, Lifecycle Events, HR Case Management\n\nPut your final answer into \\boxed{} format like \\boxed{A}.",
+    "answer": "E",
+    "eval_function": "mc_choice_match|require_non_empty=true"
+  },
+  {
+    "id": "fa504f5e",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "errors-gotchas",
+    "question": {
+      "text": "I am working in our ServiceNow portal. My manager asked me to find the warranty expiration date of agent Chelsea-Cynthia Tran-Dyer's laptop. In the Hardware Asset list, I used the list header search on the \"Assigned to\" field and entered \"Chelsea-Cynthia Tran-Dyer\", but the results still include hardware assigned to other employees. The screenshot shows exactly how I entered the search. What is the most likely explanation? Please give me only the most likely explanation or if action is needed only that one action. Do not list alternatives.",
+      "image": "/Users/ladvien/myelin/data/lmev2/question_screenshots/fa504f5e.png"
+    },
+    "answer": "the comparison criteria defaults to >= and therefore other employees are included in the search results.",
+    "eval_function": "llm_gotchas_checker|require_non_empty=true"
+  },
+  {
+    "id": "fb56a896",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "errors-gotchas",
+    "question": {
+      "text": "I am working in our ServiceNow portal. I am off-boarding a user and trying to de-assign the user from their hardware, but after I click in the field as shown in the screenshot, click \"Update\", and reopen the record, the same user is still assigned. What is the most likely issue or one action I should take? Please give me only the most likely explanation or if action is needed only that one action. Do not list alternatives.",
+      "image": "/Users/ladvien/myelin/data/lmev2/question_screenshots/fb56a896.png"
+    },
+    "answer": "the field was not actually cleared; manually remove the assigned user value (for example by pressing Backspace) and then click Update.",
+    "eval_function": "llm_gotchas_checker|require_non_empty=true"
+  },
+  {
+    "id": "fe41b553",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment",
+    "question": "I am working with a few forms in our ServiceNow portal. Create Incident vs Problem. How many form(s) among them have the \"Related Search\" feature at the bottom of the page? Answer in English (zero, one, or two).\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "two",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  },
+  {
+    "id": "ff311d07",
+    "domain": "enterprise",
+    "environment": "workarena",
+    "question_type": "static-environment",
+    "question": "I am working with a few forms in our ServiceNow portal. Among these five forms (change request/problem/incident/hardware/user), there is a page where a field where some form of \"plans\" is mandatory, true or false?\n\nMark your final answer (should be one or more short phrases) in \\boxed{}.",
+    "answer": "false",
+    "eval_function": "norm_phrase_set_match|lower=true|normalize_hyphen=true|strip_punct=true|separators=,;|require_non_empty=true"
+  }
+]
