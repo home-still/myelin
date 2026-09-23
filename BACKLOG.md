@@ -72,9 +72,12 @@ Two consequences:
 - **R2 — thinking on.** `enable_thinking: true`, bounded thinking budget
   (1,024 tokens first), temp 0.6 / top_p 0.95 / top_k 20 per the Qwen3
   Technical Report (`2505.09388`), two seeds so the CI carries sampling noise.
-  *Implemented (`--reader-thinking --reader-seed`, PR #26); the run records
-  the trace per row. Needs the reader restarted with
-  `MYELIN_READER_THINK_BUDGET=1024`; next on the GPU after M46.*
+  **Seed 1 measured 2026-09-22: 67.8 → 78.4, +10.6 [+7.0, +14.2]; abstention
+  90.0 → 93.3; gold=2 +17.5; `temporal-reasoning` +30.1; +11.4 over R1 on
+  the same rows. Every prediction held; the bar is cleared three times over
+  and the veto does not fire.** Seed 2 running; both in → ship. Follow-up
+  R2b: 165/500 traces hit the 1,024 cap and 56 answers carry spilled
+  thinking (no net cost); `--reasoning-budget-message` or a larger budget.
 - **LME-V2 corollary.** Re-run the shipped operating point at the harness's
   own default. Not a mechanism arm — it is the *comparable* number.
 
