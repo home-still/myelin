@@ -55,6 +55,21 @@ first arm to question the measurement apparatus rather than the mechanism.
 
 ---
 
+## M50b — the events calendar on LoCoMo: −0.13, events crowd out turns
+
+**Commit** (this PR) · `docs/measurements/m50b-locomo-events.md` ·
+`runs/m50b_locomo_events` against `runs/m19_locomo_full`
+
+**Number: LoCoMo judge (categories 1–4) 69.87 → 69.74, −0.13 [−1.49, +1.23];
+adversarial +1.12 (no veto); +11.57 on the 121 rows the base declined. Null:
+LoCoMo's standing row does not move.**
+
+The pre-registered falsifier fired. At k = 6 the events displaced gold
+turns on 74 rows and restored them on 17, which cancels the declines they
+rescued. The follow-up is M50c: events beside turns, not instead.
+
+---
+
 ## M50 — the events calendar, piloted: +4.0, below the gate
 
 **Commit** PR #68 · `docs/measurements/m50-events-calendar.md` ·

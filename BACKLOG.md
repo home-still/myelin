@@ -133,14 +133,14 @@ this arm can be built.
 
 ---
 
-## M50b — the events calendar on LoCoMo *(the pilot's follow-up)*
+## M50c — events beside turns, not instead *(M50 and M50b's shared lesson)*
 
-M50's LongMemEval_S pilot measured **+4.0** [−3.0, +11.0] (below its +5 gate;
-most of it where the base declined, +15.8). LoCoMo's events are already built
-(939 events in `myelin_locomo_events`, `data/locomo_events.ledger`), so the
-arm costs only reading time: LoCoMo's shipped point (`recall`, plain reader,
-dates resolved) on the events store against `runs/m19_locomo_full`. Pre-register
-first.
+Events rescue declines on both benchmarks: +15.8 on LongMemEval_S's base
+declines and +11.6 on LoCoMo's. But at k = 6 they displace turns. On LoCoMo,
+74 rows lost a gold turn the base held against 17 that gained one, and the
+arm netted −0.13 (M50b). The untested design keeps k = 6 turns and adds the
+top events in a separate budget. Reader-side only, so the stores already
+built serve it. Pilot on the M50 population first.
 
 ---
 
