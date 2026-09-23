@@ -1,4 +1,4 @@
-# M50 — one `build` with Chronos-style event tuples *(implemented and pre-registered 2026-09-23)*
+# M50 — one `build` with Chronos-style event tuples *(pilot measured 2026-09-23: +4.0, below the gate)*
 
 ## Why this is the only write-path arm worth a GPU window
 
@@ -251,6 +251,41 @@ counted (M38's coverage instrument), and a loss concentrated there means the
 events belong in a separate quota (`kind_quota`, M35), not in the fused
 ranking.
 
-## Results
+## Results — LongMemEval_S pilot, measured 2026-09-23
 
-*(pending)*
+**Verdict: below the gate, stopped as pre-registered.** +4.0 falls in the
+`[0, +5)` band: the full 25,000-session extraction is not spent; the LoCoMo
+arm (its store already built: 939 events, `myelin_locomo_events`) is next.
+
+`runs/m50_pilot_base_s1_judged` against `runs/m50_pilot_s1_judged`, 100 rows,
+paired bootstrap:
+
+| stratum | n | base | arm | Δ [95% CI] |
+| --- | --- | --- | --- | --- |
+| **overall** | 100 | 69.0 | 73.0 | **+4.0** [−3.0, +11.0] |
+| answerable | 94 | 69.1 | 71.3 | +2.1 [−4.3, +8.5] |
+| abstention | 6 | 66.7 | 100.0 | +33.3 [+0.0, +66.7] |
+| base declined | 19 | 21.1 | 36.8 | +15.8 [+0.0, +31.6] |
+| multi-session | 27 | 55.6 | 59.3 | +3.7 |
+| temporal-reasoning | 27 | 77.8 | 77.8 | +0.0 |
+| knowledge-update | 15 | 66.7 | 73.3 | +6.7 |
+| single-session-user | 14 | 85.7 | 100.0 | +14.3 |
+| gold ≥ 3 | 17 | 52.9 | 47.1 | −5.9 |
+
+Against the predictions: overall +5 → **+4.0**; multi-session +10 → +3.7;
+temporal-reasoning +5 → +0.0; abstention "no drop" → 4 of 6 → **6 of 6**.
+Gained 8 rows, lost 4. The events reach the reader — **78 of 100** composed
+evidence sets carry at least one (1.63 per row) — and they help most where
+the base *declined* (+15.8 over 19 rows), which is the calendar doing its
+job: a dated tuple is something to answer from. They do not move temporal
+reasoning, the stratum Chronos's ablation leans on hardest; at 9B the
+arithmetic, not the retrieval of dates, is the limit there (M44 R2).
+
+**Extraction, measured.** 4,502 distinct sessions on two Macs (big_mac
+8.1 s/session, bmb 10.9), zero failures after the sweep (one 10,877-token
+window retried on big_mac's 16k slots); 7,039 events over the pilot's 4,749
+session slots — 26% with a resolved date, 22% an unresolved phrase kept
+verbatim, 53% dated by the session.
+
+**Control.** Co-scheduled with M51 (amended before the run), 13 of 22
+no-event rows came back byte-identical; the diagnostic is weak, as expected.
