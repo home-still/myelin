@@ -32,6 +32,21 @@ moved the two-fact stratum +18 and temporal reasoning +30, with abstention
 
 ---
 
+## M55 — Ternary Bonsai 2 27B as myelin's model *(the shared ceiling; pilot pre-registered)*
+
+Every open gap points at the 9B: thinking was worth +10.6 on LongMemEval_S
+(compute-limited), LME-V2 misreads 36% of the answers it is handed, and
+LoCoMo's declines rose 121 → 197 at the shipped settings. The comparable SOTA
+row answers with Qwen3-30B-A3B. Bonsai 27B (ternary, 5.95 GB, local) is on
+big today. Plumbing merged first: bench records the served model
+(`llm_served_model`), `standing` treats a non-9B run as an arm, and
+`serve-models.sh` serves Bonsai with `MYELIN_READER_MODEL=bonsai-27b`.
+Pilot: the M50 100-question population against the 9B pilot base (69.0),
+gate +5 → full run, then LoCoMo and LME-V2
+(`docs/measurements/m55-bonsai-27b-model.md`).
+
+---
+
 ## M54 — a local file-reading controller for LME-V2 *(the LME-V2 lever)*
 
 M53 (`docs/measurements/m53-state-completion.md`) measured where LME-V2

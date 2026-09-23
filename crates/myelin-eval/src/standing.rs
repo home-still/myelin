@@ -975,7 +975,14 @@ fn bench_metrics(dir: &Path, agg_text: &str) -> Result<Vec<Ours>> {
         // M44 R2b's budget message, shipping off pending its arm.
         || run.reader_think_message
         // M47's presupposition check.
-        || run.premise_check;
+        || run.premise_check
+        // M55: a run served any model but the shipped one measures that
+        // model, not the system as shipped. Absent = written before the
+        // field existed, and every such run was served the shipped model.
+        || run
+            .llm_served_model
+            .as_deref()
+            .is_some_and(|m| m != SHIPPED_LLM_MODEL);
 
     // Does this run record its own operating point? Every key below defines
     // part of what the system does per query today. An artifact that does
@@ -1125,6 +1132,11 @@ fn bench_metrics(dir: &Path, agg_text: &str) -> Result<Vec<Ours>> {
     }
     Ok(out)
 }
+
+/// The model file the shipped system is served (`ops/big/serve-models.sh`'s
+/// default reader), as `GET /v1/models` names it. A bench run that recorded
+/// a different `llm_served_model` is an arm (M55).
+const SHIPPED_LLM_MODEL: &str = "Qwen3.5-9B-UD-Q4_K_XL.gguf";
 
 /// Keys a `bench` artifact must carry for its operating point to be
 /// recoverable from disk, in the order the report names them.
@@ -2649,6 +2661,48 @@ mod tests {
             .unwrap(),
         )
         .unwrap();
+    }
+
+    /// M55: a run served a different model measures that model. It must
+    /// be marked an arm and must not displace the run served the shipped
+    /// model, however it scores; a run recording the shipped model, or none
+    /// (written before the field), is the system as shipped.
+    #[test]
+    fn a_run_served_another_model_is_an_arm() {
+        let tmp = tempfile::tempdir().unwrap();
+        let runs = tmp.path().join("runs");
+        let served = |dir: &Path, model: Option<&str>| {
+            let path = dir.join("aggregated_metrics.json");
+            let mut agg: serde_json::Value =
+                serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+            if let Some(m) = model {
+                agg["llm_served_model"] = serde_json::json!(m);
+            }
+            std::fs::write(&path, agg.to_string()).unwrap();
+        };
+        let shipped = runs.join("shipped_9b");
+        locomo_fixture(&shipped, false, true); // 1539 of 1540 correct
+        served(&shipped, Some(SHIPPED_LLM_MODEL));
+        let bigger = runs.join("bonsai_27b");
+        locomo_fixture(&bigger, true, false); // 1540 of 1540: scores higher
+        served(&bigger, Some("Ternary-Bonsai-2-27B-PTQ1_0.gguf"));
+
+        let ours = collect(&runs, "/nonexistent/python").unwrap();
+        let judged = &ours["locomo.judge_score.n1540"];
+        assert!(
+            judged.run.ends_with("shipped_9b"),
+            "the run served the shipped model is where we stand: {judged:?}"
+        );
+        assert!(!judged.arm, "{judged:?}");
+
+        let legacy = tmp.path().join("legacy").join("runs").join("old");
+        locomo_fixture(&legacy, true, false);
+        served(&legacy, None);
+        let legacy_ours = collect(legacy.parent().unwrap(), "/nonexistent/python").unwrap();
+        assert!(
+            !legacy_ours["locomo.judge_score.n1540"].arm,
+            "an artifact without the field predates it and was served the shipped model"
+        );
     }
 
     #[test]

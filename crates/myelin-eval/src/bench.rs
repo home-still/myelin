@@ -487,6 +487,13 @@ pub struct BenchRun {
     /// scored over its whole corpus.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub question_ids: Vec<String>,
+    /// M55. The model the LLM server *said* it was serving when the run
+    /// started (`GET /v1/models`, file name of the loaded GGUF) — measured
+    /// from the server, not taken from `MyelinConfig`, whose model string
+    /// llama.cpp ignores. Absent on every run before 2026-09-23, all of which
+    /// were served Qwen3.5-9B; `standing` reads a different model as an arm.
+    #[serde(default)]
+    pub llm_served_model: Option<String>,
     /// Which column `score` carries, and where the row scores came from.
     /// `rescored_from` is `None` for a live bench run. Empty on a pre-M14
     /// artifact, which is token F1 by definition.
@@ -1339,6 +1346,38 @@ impl BenchSwitches {
 /// follows, and the completion stops on its own. Unenforced, the trace runs
 /// into the ceiling and the completion is empty with `finish_reason:
 /// length`, which `Llm::complete` reports as `BudgetExhausted`.
+/// M55: the model file the OpenAI-compatible server reports serving.
+///
+/// llama.cpp answers `GET /v1/models` with the loaded GGUF's path as the id
+/// and ignores the model name a client sends, so `MyelinConfig`'s model
+/// string says nothing about what produced a run. This asks the server, and
+/// a server that does not say is an error rather than an unrecorded run.
+pub(crate) async fn served_model(llm_url: &str) -> Result<String> {
+    let url = format!("{}/models", llm_url.trim_end_matches('/'));
+    let body: serde_json::Value = reqwest::Client::new()
+        .get(&url)
+        .timeout(std::time::Duration::from_secs(SERVED_MODEL_TIMEOUT_SECS))
+        .send()
+        .await
+        .with_context(|| format!("GET {url}"))?
+        .error_for_status()
+        .with_context(|| format!("GET {url}"))?
+        .json()
+        .await
+        .with_context(|| format!("parse {url}"))?;
+    let id = body["data"][0]["id"]
+        .as_str()
+        .with_context(|| format!("{url} reported no model id: {body}"))?;
+    Ok(std::path::Path::new(id)
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or(id)
+        .to_string())
+}
+
+/// How long [`served_model`] waits for the server's model list.
+const SERVED_MODEL_TIMEOUT_SECS: u64 = 30;
+
 pub(crate) async fn verify_thinking_budget(llm: &dyn Llm, budget: u32) -> Result<()> {
     let request = CompletionRequest::new(vec![
         Message::system("Answer with a number only."),
@@ -1631,6 +1670,8 @@ pub async fn bench_locomo(
     let conversations = locomo::load(path).context("load locomo")?;
 
     let llm = OpenAiLlm::new(&cfg.llm.url, &cfg.llm.model).context("reader client")?;
+    let served_model = served_model(&cfg.llm.url).await?;
+    eprintln!("llm server reports serving {served_model}");
     // M44's reader modes, through the same `read_answer` the LongMemEval_S
     // path uses (M51, 2026-09-23). Before M51 this path called the model
     // directly and refused any mode but Plain, because a switch that is
@@ -1880,6 +1921,7 @@ pub async fn bench_locomo(
             switches: switches.clone(),
             scorer,
             rescored_from: None,
+            llm_served_model: Some(served_model.clone()),
         },
         scored,
         latencies,
@@ -1944,6 +1986,8 @@ pub async fn bench_longmemeval_s(
     }
 
     let llm = OpenAiLlm::new(&cfg.llm.url, &cfg.llm.model).context("reader client")?;
+    let served_model = served_model(&cfg.llm.url).await?;
+    eprintln!("llm server reports serving {served_model}");
     // M44. The mode is resolved once, and a thinking run proves the server's
     // budget before it spends a row on it.
     let reader_mode = switches.reader_mode()?;
@@ -2141,6 +2185,7 @@ pub async fn bench_longmemeval_s(
             switches: switches.clone(),
             scorer,
             rescored_from: None,
+            llm_served_model: Some(served_model.clone()),
         },
         scored,
         latencies,
@@ -2185,6 +2230,9 @@ pub struct RunSpec {
     pub switches: BenchSwitches,
     pub scorer: Scorer,
     pub rescored_from: Option<String>,
+    /// The model file the LLM server reported serving (`GET /v1/models`),
+    /// or `None` on a spec rebuilt from an artifact that predates the field.
+    pub llm_served_model: Option<String>,
 }
 
 /// Aggregate, print nothing, write `per_question.jsonl` and
@@ -2293,6 +2341,7 @@ fn finish_run(
         decompose: spec.switches.decompose,
         categories: spec.switches.categories.clone(),
         question_ids: spec.switches.question_ids.clone(),
+        llm_served_model: spec.llm_served_model.clone(),
         scorer: spec.scorer.slug().to_string(),
         rescored_from: spec.rescored_from.clone(),
         questions: scored.len(),
@@ -2500,6 +2549,11 @@ pub fn rescore_run(source: &Path, out_dir: &Path, scorer: Scorer) -> Result<Benc
         },
         scorer,
         rescored_from: Some(source.display().to_string()),
+        // A rescore keeps the model its rows were produced by.
+        llm_served_model: metrics
+            .get("llm_served_model")
+            .and_then(serde_json::Value::as_str)
+            .map(str::to_string),
     };
     // Row order is preserved, so `paired_ci.py`'s id intersection pairs a
     // rescored run against its source or another rescored run unchanged.
