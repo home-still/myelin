@@ -202,6 +202,13 @@ and M52 on an 8-slot unified-KV reader (a build pass needs no control). The
 two pilot *runs* keep their exact control: base and arm run alone, back to
 back, on one serve configuration, after everything else has finished.
 
+**Extraction moved to `bmb` (2026-09-23 06:58).** Measured: concurrency buys
+only ~1.3× on this reader, so the ~6 GPU-hours of pilot extraction would
+push M47, M51 and M52 past the evening on `big`. `bmb` extracts all eight
+shards (~12 s/session, 4 slots) while `big` runs those three; the pilot
+runs when the cache is complete. The extractor's backend does not enter the
+comparison: base and arm read the same built store.
+
 **Reported before judging.** Rows with ≥ 1 event in the composed evidence;
 mean event slots per row; events written, and how many `when`s resolved,
 stayed verbatim, or were empty.

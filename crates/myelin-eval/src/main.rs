@@ -1440,7 +1440,7 @@ async fn events_build_cmd(
     let r = myelin_eval::events::build(&slots, &map, collection, Path::new(ledger), concurrency).await?;
     eprintln!(
         "events-build {}: {} slots ({} resumed), {} events (stated {}, unresolved {}, said {}), \
-         {} added, {} duplicates, {:.0}s",
+         {} records written, {:.0}s",
         corpus.slug(),
         r.slots,
         r.resumed,
@@ -1448,8 +1448,11 @@ async fn events_build_cmd(
         r.stated,
         r.unresolved,
         r.said,
-        r.total.added,
-        r.total.duplicates,
+        // `episodes`, not `added`: with extraction off the write path
+        // stores each event as its own record and never reaches the
+        // consolidation step that `added`/`duplicates` count. The first
+        // LoCoMo build printed "0 added" over 939 records it had written.
+        r.total.episodes,
         r.wall_secs
     );
     Ok(())
