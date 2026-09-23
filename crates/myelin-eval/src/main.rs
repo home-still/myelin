@@ -661,6 +661,12 @@ enum Command {
         /// Two seeds make one arm: the CI must carry sampling noise.
         #[arg(long, requires = "reader_thinking")]
         reader_seed: Option<u64>,
+        /// Declare that the reader server was started with
+        /// `MYELIN_READER_THINK_MESSAGE` (M44 R2b): a capped trace is closed
+        /// with Qwen's "I have to give the answer now" instead of a bare
+        /// tag. Recorded on the artifact; the harness cannot verify it.
+        #[arg(long, requires = "reader_thinking")]
+        reader_think_message: bool,
         /// Cap how many `Untrusted` records the composed set may contain
         /// (M23 B1). A ceiling, not an exclusion: the quota never drops
         /// untrusted evidence to zero and never drops a trusted record.
@@ -1101,6 +1107,7 @@ async fn main() -> anyhow::Result<()> {
             reader_reasoning,
             reader_thinking,
             reader_seed,
+            reader_think_message,
             untrusted_max,
             decompose,
             ref categories,
@@ -1142,6 +1149,7 @@ async fn main() -> anyhow::Result<()> {
                     reader_reasoning,
                     reader_thinking,
                     reader_seed,
+                    reader_think_message,
                     untrusted_max,
                     decompose,
                     categories: categories.clone().unwrap_or_default(),
