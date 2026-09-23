@@ -202,6 +202,13 @@ and M52 on an 8-slot unified-KV reader (a build pass needs no control). The
 two pilot *runs* keep their exact control: base and arm run alone, back to
 back, on one serve configuration, after everything else has finished.
 
+**Amended again 2026-09-23 14:25, before any pilot row existed.** The user
+chose to run the pilot as soon as extraction finishes ("whenever") rather
+than alone after M51. Base and arm therefore run side by side with M51's
+shards on an 8 × 12k serve: the no-event control ("rows whose evidence holds
+no event come back byte-identical") becomes a reported diagnostic, not an
+exact control. The gate rule is unchanged.
+
 **Extraction moved to `bmb` (2026-09-23 06:58).** Measured: concurrency buys
 only ~1.3× on this reader, so the ~6 GPU-hours of pilot extraction would
 push M47, M51 and M52 past the evening on `big`. `bmb` extracts all eight
