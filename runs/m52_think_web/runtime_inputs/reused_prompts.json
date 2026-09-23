@@ -1,0 +1,5 @@
+{
+  "source": "/Users/ladvien/myelin/runs/m47_base_web",
+  "prompt_rows": 240,
+  "rule": "memory context replayed byte-identical; harness reader re-run"
+}

@@ -1,4 +1,4 @@
-# M52 — the LME-V2 reader thinks, as the harness intends *(pre-registered 2026-09-23)*
+# M52 — the LME-V2 reader thinks, as the harness intends *(measured 2026-09-23: off)*
 
 ## What was found
 
@@ -116,6 +116,53 @@ and a loss where it was means the cap is binding on LME-V2's long evidence
 **Cost.** One LME-V2 pair: ~1 h of prompt building and ~30–60 min of
 thinking reads per domain.
 
-## Results
+## Results — web measured, enterprise stopped for futility (2026-09-23)
 
-*(pending)*
+**Verdict: off.** The thinking reader loses on LME-V2 web, the abstention
+veto fires, and the pre-registered falsifier's pattern holds. The enterprise
+half was stopped after the web partial, because enterprise would have needed
+about +9 on its own to lift the pair to the bar. The pre-registered combined
+metric was therefore never computed; the web domain is complete (240 of
+240) and is what this records.
+
+`runs/m47_base_web` against `runs/m52_think_web`, paired bootstrap, 20,000
+resamples. Memory context identical on **240 of 240** rows (replayed), so the
+reader is the only difference:
+
+| stratum | n | base | arm | Δ [95% CI] |
+| --- | --- | --- | --- | --- |
+| web, all | 240 | 43.75 | 41.67 | **−2.08** [−6.67, +2.08] |
+| answerable | 168 | 51.19 | 52.38 | +1.19 [−2.98, +5.36] |
+| abstention | 72 | 26.39 | 16.67 | **−9.72** [−19.44, +0.00] |
+| dynamic | 51 | 37.25 | 43.14 | +5.88 [+0.00, +13.73] |
+| dynamic, abstention | 21 | 23.81 | 4.76 | −19.05 |
+| gotchas | 15 | 26.67 | 33.33 | +6.67 |
+| procedure | 42 | 78.57 | 78.57 | +0.00 |
+| static | 60 | 50.00 | 46.67 | −3.33 |
+| completion ≥ 1,024 tokens (budget reached) | 172 | 40.70 | 36.63 | −4.07 [−9.30, +1.16] |
+| under budget | 68 | 51.47 | 54.41 | +2.94 [−4.41, +10.29] |
+
+Against the predictions: combined +5 → **−2.08**; abstention "no drop, a
+gain" → **−9.72** (the veto); answerable +3 → +1.19. **The falsifier's
+pattern is what happened**: the gain sits on the rows the budget did not
+bind and the loss on the 172 of 240 where it did. The spill that M44 R2b
+measured on LongMemEval_S (56 of 500 answers continued the trace) is the
+majority case here: **86 of the first 221 answers ran past the budget plus
+the answer's own 160 tokens, up to 12,556 completion tokens**, and the
+reader's final answer is then whatever the rambling ends on. On a
+false-premise question that is an invented answer where the non-thinking
+reader said it did not know.
+
+**How the run was kept honest through three failures.** It died once at
+row 222 of scoring: the abstention judge's prompt carries the full answer,
+and a 17,540-token request overflowed a 16k serving slot. 6 answers had
+also been cut off at 16k while generating. It was completed on 32k slots
+with `--reuse-responses-from` (215 answers reused, 25 regenerated: the 19
+never scored and the 6 cut off) and scored end to end; `big` was rebooted
+for maintenance in between.
+
+**What it settles.** The −20 gap to AgentRunbook-R is not explained by our
+reader not thinking: at this budget, thinking makes LME-V2 worse. Whether a
+reader that *stops* thinking cleanly helps is a different arm — M44 R2b's
+budget message removed the spill on LongMemEval_S (56 → 1) — and is queued
+as M52b.
