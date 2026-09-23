@@ -1412,14 +1412,31 @@ fn fingerprint(dir: &Path) -> Result<String> {
     }
     let cfg = read_json(&path)?;
     let params = cfg.get("memory_params").unwrap_or(&Value::Null);
-    Ok(PAIR_KEYS
+    let mut parts: Vec<String> = PAIR_KEYS
         .iter()
         .map(|k| {
             let v = params.get(*k).unwrap_or(&Value::Null);
             format!("{k}={v}")
         })
-        .collect::<Vec<_>>()
-        .join(" "))
+        .collect();
+    // Every later switch joins the fingerprint too, NORMALISED: an absent key
+    // reads as the value it had when the artifact was written (the shipped
+    // default for the mode), so older runs keep pairing with each other while
+    // no base half can pair with an arm half. Measured 2026-09-23: without
+    // this, `premise_check` was invisible to pairing and the combined LME-V2
+    // row was published as `m47_base_web` + `m47_check_ent` (39.47) — a base
+    // domain glued to an arm domain.
+    for (key, shipped) in PAIR_SWITCH_DEFAULTS.iter().filter(|(k, _)| !PAIR_KEYS.contains(k)) {
+        let v = params.get(*key).and_then(Value::as_bool).unwrap_or(*shipped);
+        parts.push(format!("{key}={v}"));
+    }
+    // The digest keys read absence as `false` (every pre-M43 artifact ran
+    // without the digest), exactly as `harness_arm` does.
+    for key in ["item_digest", "digest_dates"] {
+        let v = params.get(key).and_then(Value::as_bool).unwrap_or(false);
+        parts.push(format!("{key}={v}"));
+    }
+    Ok(parts.join(" "))
 }
 
 /// Which [`PAIR_KEYS`] this harness artifact does not record at all.
@@ -2275,6 +2292,40 @@ pub fn run(
 
 #[cfg(test)]
 mod tests {
+
+    /// A base domain must never pair with an arm domain, and an artifact
+    /// written before a switch existed must still pair with one that states
+    /// the switch's default explicitly. `premise_check` was invisible to the
+    /// fingerprint and the combined LME-V2 row paired `m47_base_web` with
+    /// `m47_check_ent`.
+    #[test]
+    fn the_fingerprint_separates_arms_and_normalises_absence() {
+        let root = std::env::temp_dir().join(format!("myelin-fp-{}", std::process::id()));
+        let write = |name: &str, extra: serde_json::Value| -> PathBuf {
+            let dir = root.join(name).join("runtime_inputs");
+            std::fs::create_dir_all(&dir).expect("dir");
+            let mut params = serde_json::json!({
+                "mode": "investigate", "k": 25, "budget_tokens": 10000, "max_steps": 2,
+                "prefetch_limit": null, "rerank_depth": null, "select": true, "dated": false,
+                "pool_rerank": false, "premise": false, "typed_probes": false, "decompose": null,
+                "item_digest": true, "digest_dates": true
+            });
+            if let (Some(m), Some(e)) = (params.as_object_mut(), extra.as_object()) {
+                for (k, v) in e { m.insert(k.clone(), v.clone()); }
+            }
+            std::fs::write(dir.join("memory_config.json"),
+                serde_json::json!({"memory_params": params}).to_string()).expect("write");
+            root.join(name)
+        };
+        let base_old = write("base_old", serde_json::json!({}));
+        let base_new = write("base_new", serde_json::json!({"premise_check": false, "reader_thinking": false}));
+        let arm = write("arm", serde_json::json!({"premise_check": true}));
+        let fp = |d: &Path| fingerprint(d).expect("fingerprint");
+        assert_eq!(fp(&base_old), fp(&base_new), "absence must read as the shipped default");
+        assert_ne!(fp(&base_old), fp(&arm), "an arm must not pair with a base");
+        std::fs::remove_dir_all(&root).ok();
+    }
+
     use super::*;
 
     fn source() -> Source {
