@@ -32,21 +32,24 @@ moved the two-fact stratum +18 and temporal reasoning +30, with abstention
 
 ---
 
-## M53 — state completion *(next; diagnosed 2026-09-23)*
+## M54 — a local file-reading controller for LME-V2 *(the LME-V2 lever)*
 
-LME-V2's losses are retrieval first: of 119 wrong answers with a phrase or
-list gold, **54 (45%) are in the haystack but were never delivered**, 43
-(36%) were delivered and misread, 22 are nowhere literally. And 28 of the
-54 sit in **another chunk of a page state we delivered, or the state right
-after it** — retrieval finds the page and hands over the wrong 512-token
-slice. Compose-time completion of the delivered state (sibling chunks by
-source prefix, plus the next state, reranked, displacing the tail of the
-budget). No re-ingest. Predicted +3 to +5 combined.
-`docs/measurements/m53-state-completion.md`.
+M53 (`docs/measurements/m53-state-completion.md`) measured where LME-V2
+loses its answers — 45% of wrong phrase/list answers are in the haystack but
+never delivered, 36% delivered and misread — and probed three cheap
+retrieval fixes: reranked state completion recovered **1 of 6** live, a
+change view over delivered states would cover 19 of 65 misses (~+2 to +3),
+a step-anchored change view 3–4. None is the lever. The answer is a specific
+UI string in a specific transition, and the LME-V2 paper's best system finds
+it by *acting*: a coding agent over trajectory files, 72.5 against RAG's
+48.5 (`10.48550/arXiv.2605.12493`).
 
-Then: an exact-text probe for the 12 answers in trajectories never
-delivered; then a local coding-agent controller over trajectory files (the
-LME-V2 paper's winning family, 72.5 vs RAG 48.5).
+Local-only (hard requirement): an `investigate` tool set over the stored
+trajectories — `grep` over page text and thoughts, `open(traj, state)`,
+`diff(traj, state)` against the previous state — driven by a local
+controller (big's 27B coding model, or the 9B), returning the evidence it
+gathered to the unchanged reader. Pilot on a stratified LME-V2 subset before
+any full pair. Design doc first.
 
 **Also open: which LME-V2 operating point is "shipped".** Every LME-V2 run
 since M33 passed `--undated`; the server's default is dated, so `standing`

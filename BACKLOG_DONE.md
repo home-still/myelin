@@ -54,6 +54,26 @@ first arm to question the measurement apparatus rather than the mechanism.
 
 ---
 
+## M53 — where LME-V2 loses its answers (diagnosis; three cheap fixes probed, no arm)
+
+**Commit** PR #62 · `docs/measurements/m53-state-completion.md`
+
+**Number: 45% of wrong phrase/list answers are in the haystack but never
+delivered, 36% delivered and misread, 18% nowhere literally. Reranked state
+completion recovered 1 of 6 diagnosed misses live; a change view would cover
+19 of 65; a step-anchored change view 3–4. No arm run.**
+
+The first measurement of *where* the LME-V2 gap lives, with no GPU: answer
+presence in the delivered memory, then in the raw haystack, then relative to
+the delivered page states. Retrieval usually finds the right trajectory and
+page and hands over the wrong 1,800-character slice of it; the answer is
+what changed after an action (a banner, a dropdown's options), and it does
+not resemble the question. Each cheap fix was probed before spending an arm
+on it, and none reaches enough rows to matter. The lever is a controller that
+can search, open and compare — M54.
+
+---
+
 ## M47 — presupposition verification: it works where it fires, and it rarely fires
 
 **Commit** PR #61 · `docs/measurements/m47-presupposition-contradiction.md` ·
