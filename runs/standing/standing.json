@@ -1,6 +1,6 @@
 {
-  "commit": "d6e218111e09a015013dc2ddc5f4a1a9f8e36761-dirty",
-  "generated_at": "2026-09-22T23:27:10.446351Z",
+  "commit": "84aae614341216b728c11a2d1cccc4e152b14608-dirty",
+  "generated_at": "2026-09-23T01:21:19.085988Z",
   "rows": [
     {
       "registry_id": "locomo.judge.mempro15.gpt4omini",
@@ -144,6 +144,10 @@
         {
           "run": "runs/m20_pref_base",
           "value": 30.0
+        },
+        {
+          "run": "runs/m48_role",
+          "value": 67.80000000000001
         },
         {
           "run": "runs/m46_ago",
@@ -299,6 +303,10 @@
         {
           "run": "runs/m20_pref_base",
           "value": 30.0
+        },
+        {
+          "run": "runs/m48_role",
+          "value": 67.80000000000001
         },
         {
           "run": "runs/m46_ago",
@@ -493,6 +501,10 @@
         {
           "run": "runs/m20_pref_base",
           "value": 30.0
+        },
+        {
+          "run": "runs/m48_role",
+          "value": 67.80000000000001
         },
         {
           "run": "runs/m46_ago",
@@ -724,6 +736,10 @@
         {
           "run": "runs/m20_pref_base",
           "value": 30.0
+        },
+        {
+          "run": "runs/m48_role",
+          "value": 67.80000000000001
         },
         {
           "run": "runs/m46_ago",
@@ -1020,6 +1036,10 @@
         {
           "run": "runs/m20_pref_base",
           "value": 30.0
+        },
+        {
+          "run": "runs/m48_role",
+          "value": 67.80000000000001
         },
         {
           "run": "runs/m46_ago",
@@ -1433,6 +1453,10 @@
           "value": 30.0
         },
         {
+          "run": "runs/m48_role",
+          "value": 67.80000000000001
+        },
+        {
           "run": "runs/m46_ago",
           "value": 67.4
         },
@@ -1749,6 +1773,10 @@
           "value": 30.0
         },
         {
+          "run": "runs/m48_role",
+          "value": 67.80000000000001
+        },
+        {
           "run": "runs/m46_ago",
           "value": 67.4
         },
@@ -1982,6 +2010,10 @@
           "value": 30.0
         },
         {
+          "run": "runs/m48_role",
+          "value": 67.80000000000001
+        },
+        {
           "run": "runs/m46_ago",
           "value": 67.4
         },
@@ -2135,6 +2167,10 @@
         {
           "run": "runs/m20_pref_base",
           "value": 30.0
+        },
+        {
+          "run": "runs/m48_role",
+          "value": 67.80000000000001
         },
         {
           "run": "runs/m46_ago",
@@ -2804,6 +2840,10 @@
           "value": 30.0
         },
         {
+          "run": "runs/m48_role",
+          "value": 67.80000000000001
+        },
+        {
           "run": "runs/m46_ago",
           "value": 67.4
         },
@@ -2961,6 +3001,10 @@
         {
           "run": "runs/m46_ago",
           "value": 53.463346321027
+        },
+        {
+          "run": "runs/m48_role",
+          "value": 52.025413079902606
         },
         {
           "run": "runs/m40_digest",

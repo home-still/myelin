@@ -87,4 +87,64 @@ shortfall is somewhere else entirely.
 
 ## Results
 
-*(pending — queued behind M46 and M44 R2 on the reader)*
+**Run.** `runs/m48_role` on the shipped M43 stack, judged with `--seed
+runs/m43_dated` (87 judged, 327 reused) → `runs/m48_role_judged`. 500 rows
+(68 inherited across a reader restart), 10.2 s/row while sharing the
+reader's two slots with M44 R2. 375 answers byte-identical to the base.
+
+**Headline: +0.0 exactly (95% CI [−2.2, +2.2], p = 1.00). Null. The
+abstention veto fires on one row (90.0 → 86.7). `digest_role` ships off.**
+
+| stratum | n | base | arm | delta | 95% CI | p |
+| --- | --- | --- | --- | --- | --- | --- |
+| **overall** | 500 | 67.8 | 67.8 | **+0.0** | [−2.2, +2.2] | 1.000 |
+| answerable | 470 | 66.4 | 66.6 | +0.2 | [−2.1, +2.6] | 0.933 |
+| abstention | 30 | 90.0 | 86.7 | −3.3 | [−10.0, +0.0] | 0.726 |
+| gold = 1 | 170 | 82.4 | 80.6 | −1.8 | [−4.7, +0.6] | 0.245 |
+| gold = 2 | 229 | 62.9 | 63.3 | +0.4 | [−3.1, +3.9] | 0.899 |
+| gold ≥ 3 | 71 | 39.4 | 43.7 | +4.2 | [−4.2, +14.1] | 0.446 |
+| `multi-session` | 133 | 59.4 | 63.2 | +3.8 | [−0.8, +9.0] | 0.162 |
+| `temporal-reasoning` | 133 | 48.1 | 47.4 | −0.8 | [−6.8, +5.3] | 0.899 |
+| `knowledge-update` | 78 | 80.8 | 78.2 | −2.6 | [−6.4, +0.0] | 0.261 |
+
+### What the predictions did
+
+| run | rows with a note | lines | lines/note | negations |
+| --- | --- | --- | --- | --- |
+| M43 A, dated (the base) | 423 | 2,193 | 5.2 | 266 (12.1%) |
+| M43 B, boolean filter | 178 | 548 | 3.0 | 3 (0.5%) |
+| **M48, three-way role** | **440** | 2,004 | 4.6 | **133 (6.6%)** |
+
+1. **The note survived** — the prediction the arm was built on. 32 rows
+   lost their note (M43's boolean lost 245), 49 gained one, 440 carry one.
+   `context` gave "related but not the answer" somewhere to go.
+2. **Negations halved, not vanished**: 12.1% → 6.6%. A `context` line is
+   allowed to be a sentence, and some of those sentences are still "the
+   assistant did not mention …".
+3. **The rows whose base note carried a negation did not gain**: −1.6
+   [−6.2, +3.1] over 129 rows. This is the prediction that mattered and it
+   failed.
+4. Splits: note lost −9.4 [−21.9, +0.0] over 32 rows (as in M43, losing the
+   note costs); note kept +1.0 [−1.5, +3.6] over 391.
+
+### The falsifier fired
+
+*If the note survives and the headline still does not move, the negations
+were inert decoration all along.* It survived; nothing moved; the 129
+negation-bearing rows moved −1.6. **M42's reading of its ten rows was
+pattern-matching on anecdotes**: a note saying *no information about X*
+beside two useful facts was not what made the reader decline. The −0.9 /
++4.1 split M43 started from was baseline difference between the groups,
+as its own caveat allowed. The digest's remaining shortfall is somewhere
+other than its negations, and the two label arms (M43 B, M48) are closed.
+
+### One more thing the run measured
+
+Only 375 of 500 answers were byte-identical, and the 28 rows with no note
+in *either* run — where the evidence should be identical — moved +3.6
+[+0.0, +10.7]. This arm shared the reader's two slots with M44 R2 for its
+whole length, and llama.cpp batches concurrent slots together: the same
+greedy request can decode a different token when its batch-mate changes.
+The control is exact only when the arm runs alone, or when the rows the
+mechanism did not touch are taken from the base by construction (M42's
+`commit-arm`). Recorded under operational debt.

@@ -49,6 +49,32 @@ first arm to question the measurement apparatus rather than the mechanism.
 
 ---
 
+## M48 — a boolean is the wrong label, and the label was not the problem
+
+**Commit** PR #40 · `docs/measurements/m48-three-way-digest-label.md` ·
+`runs/m48_role`, `runs/m48_role_judged`
+
+**Number: +0.0 exactly (95% CI [−2.2, +2.2]); abstention 90.0 → 86.7 (one
+row), veto fires. Shipped off. The falsifier fired.**
+
+`digest_role` typed each digest entry `answers` / `context` / `irrelevant`
+and dropped only the last. It did what M43's boolean could not: the note
+survived (32 rows lost it against M43's 245; 440 rows carry one) and
+negations halved (12.1% → 6.6%). And nothing moved — least of all the 129
+rows whose base note carried a negation (−1.6 [−6.2, +3.1]), the rows the
+mechanism existed for. So the pre-registered falsifier holds: **the
+negations were inert decoration**, M42's reading of its ten rows was
+pattern-matching on anecdotes, and M43's −0.9/+4.1 split was baseline
+difference. Both label arms are closed; the digest's remaining shortfall is
+elsewhere.
+
+**Also measured.** Co-running two arms on the reader's two slots costs the
+exact control: llama.cpp batches concurrent slots, and 375/500 answers were
+byte-identical against M46's 429 alone, with the 28 no-note rows at +3.6
+instead of +0.0. Recorded under operational debt.
+
+---
+
 ## M46 — the timeline never said how long ago
 
 **Commit** PR #38 · `docs/measurements/m46-anchored-timeline.md` ·
