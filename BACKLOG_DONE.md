@@ -49,6 +49,29 @@ first arm to question the measurement apparatus rather than the mechanism.
 
 ---
 
+## M45 — consensus-gated commit: agreement does not discriminate for this reader
+
+**Commit** PR #41 · `docs/measurements/m45-consensus-gated-commit.md` ·
+`runs/m45_consensus`, `runs/m45_consensus_judged`
+
+**Number: −0.4 (95% CI [−1.2, +0.4]) at τ = 0.6, abstention 90.0 → 80.0;
+−0.4 at τ = 0.8; +0.0 at τ = 1.0 (nothing commits). Shipped off; the
+falsifier fired.**
+
+Five seeded samples under M42's schema on each of the 76 declining rows,
+one forced clustering call, commit the majority above τ. **AUROC 0.592**
+for telling an answerable decline from an adversarial row by agreement
+(Farquhar et al.: 0.79 on the task semantic entropy was built for). The
+reader agrees with itself about an answer that is not there about as often
+as about one that is, and its agreed answers on answerable rows are right
+**3 in 10** — below M42's 41.9% at zero agreement. No threshold gives a
+positive number, so the open calibration question (LME-V2 vs LoCoMo) is
+moot. Decline recovery on this reader is closed: three mechanisms (M42, M44
+R1, M45) convert at 30–42% and each surrenders adversarial rows. The
+instrument stays: `commit-arm --samples N` records every sample on the row.
+
+---
+
 ## M48 — a boolean is the wrong label, and the label was not the problem
 
 **Commit** PR #40 · `docs/measurements/m48-three-way-digest-label.md` ·
