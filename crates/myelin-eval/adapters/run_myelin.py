@@ -41,6 +41,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import json
 import os
 from pathlib import Path
 import sys
@@ -162,6 +163,87 @@ def enable_harness_thinking(harness_module) -> None:
         return extra
 
     harness_module.build_extra_body = build_extra_body
+
+
+class ReplayedMemory:
+    """A memory that answers one question from a finished run's prompt row.
+
+    Implements exactly the four calls `harness.build_prompt_row` makes, so
+    the harness's own truncation and message building run unchanged over the
+    same memory context the source run's memory produced.
+    """
+
+    def __init__(self, source_row: dict):
+        self.row = source_row
+
+    def set_query_context(self, **_kwargs) -> None:
+        return None
+
+    def clear_query_context(self) -> None:
+        return None
+
+    def query(self, _text, query_image=None):
+        return self.row["memory_context"]
+
+    def post_query_hook(self, **_kwargs):
+        return self.row["memory_post_query_metadata"]
+
+
+def reuse_prompts_from(source_dir: Path, selected_questions: list[dict], runtime_dir: Path, harness_module) -> None:
+    """Answer every memory query from `source_dir`'s prompt rows (M52).
+
+    An arm that changes only the *harness reader* — M52's thinking — does not
+    need its memory side re-run: the base already produced it, and re-running
+    it costs ~1 GPU-hour per domain and, co-scheduled, is not even
+    byte-identical (llama.cpp batching). Replaying the base's memory context
+    makes the memory side of base and arm identical by construction, so the
+    reader is the only thing that differs.
+
+    Wraps the harness's own `build_prompt_row` (vendored file unmodified,
+    `PLAN.md` §3.3): the replayed memory answers `query`, the harness builds
+    the messages, and the source's measured memory latencies are carried
+    over rather than the replay's ~0. Refuses when the source does not cover
+    exactly this run's questions, or a rebuilt context differs from the
+    source's.
+    """
+    rows_path = source_dir / "prompt_rows.jsonl"
+    if not rows_path.exists():
+        raise SystemExit(f"--reuse-prompts-from: {rows_path} does not exist (the source run has not finished building prompts)")
+    rows = {}
+    with rows_path.open(encoding="utf-8") as fh:
+        for line in fh:
+            if line.strip():
+                row = json.loads(line)
+                rows[row["question_id"]] = row
+    wanted = {q["id"] for q in selected_questions}
+    if set(rows) != wanted:
+        raise SystemExit(
+            f"--reuse-prompts-from: {source_dir} holds {len(rows)} prompt rows, this run selects "
+            f"{len(wanted)} questions, {len(set(rows) ^ wanted)} differ. Nothing was built."
+        )
+    original = harness_module.build_prompt_row
+
+    def build_prompt_row(item, *, haystack_ids, memory, system_prompt, memory_context_max_tokens):
+        source = rows[item["question_id"]]
+        row = original(
+            item,
+            haystack_ids=haystack_ids,
+            memory=ReplayedMemory(source),
+            system_prompt=system_prompt,
+            memory_context_max_tokens=memory_context_max_tokens,
+        )
+        if row["memory_context"] != source["memory_context"] or row["messages"] != source["messages"]:
+            raise RuntimeError(f"replayed prompt for {item['question_id']} differs from {source_dir}")
+        row["memory_query_duration_seconds"] = source["memory_query_duration_seconds"]
+        row["memory_post_query_duration_seconds"] = source["memory_post_query_duration_seconds"]
+        return row
+
+    harness_module.build_prompt_row = build_prompt_row
+    write_json(
+        runtime_dir / "reused_prompts.json",
+        {"source": str(source_dir), "prompt_rows": len(rows), "rule": "memory context replayed byte-identical; harness reader re-run"},
+    )
+    print(f"reusing {len(rows)} prompt rows from {source_dir}", flush=True)
 
 
 def preflight_reader_thinking(args: argparse.Namespace) -> None:
@@ -305,6 +387,13 @@ def parse_args() -> argparse.Namespace:
         help="Verify what the question assumes against the composed memories and append "
         "a [premise] line only when a memory contradicts it (M47). Silence appends "
         "nothing, which is the one rule that separates it from --premise. investigate-only.",
+    )
+    parser.add_argument(
+        "--reuse-prompts-from",
+        default=None,
+        help="Answer every memory query from this finished run's prompt_rows.jsonl instead of "
+        "querying the memory: for an arm that changes only the harness reader (M52). The memory "
+        "side is then byte-identical to the source run by construction.",
     )
     parser.add_argument(
         "--typed-probes",
@@ -556,6 +645,10 @@ def main() -> None:
     if args.reader_enable_thinking:
         preflight_reader_thinking(args)
         enable_harness_thinking(harness_module)
+    if args.reuse_prompts_from:
+        reuse_prompts_from(
+            Path(args.reuse_prompts_from).expanduser().resolve(), selected_questions, runtime_dir, harness_module
+        )
     preflight_reader_images(args, selected_questions, harness_module)
 
     harness_main = harness_module.main
