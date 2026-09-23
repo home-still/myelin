@@ -13,6 +13,7 @@ pub mod adjudicate;
 pub mod compose;
 pub mod consolidate;
 pub mod decompose;
+pub mod events;
 pub mod extract;
 pub mod fuse;
 pub mod index;

@@ -127,23 +127,20 @@ this arm can be built.
 ## M50 — one `build` with Chronos-style event tuples
 
 Chronos (`2603.16862`) attributes **58.9%** of its gain to the events
-calendar. Unknown at 9B, frontier-backbone result. The only write-path arm
-worth a GPU window, and worth **one** re-ingest, not three — REALM's
-reconsolidation (`2609.16053`) is +1.31 over Zep on a GPT-4o-mini backbone and
-our graph channel already measured as a loss in M12.
+calendar; its ablation drops Chronos Low (GPT-4o) **93.1 → 58.6** without
+events and Chronos High (Opus) only 94.8 → 92.2 — the weaker the reader,
+the more events carry. REALM's reconsolidation (`2609.16053`) and our own
+M12 graph loss are the caution: one mechanism, one re-ingest.
 
-**Cost — recomputed 2026-09-22.** "57 minutes" was `reindex` throughput
-(embed-only). An events pass is one reader call per *session*: LongMemEval_S
-is ~25,000 sessions → **14–28 GPU-hours** on one slot. The scope is the
-user's call; `docs/measurements/m50-events-calendar.md` lays out three:
-(a) a 100-haystack pilot (~5,000 calls, 3–6 h, n = 100, the other 400 as
-control), (b) the full corpus overnight (the only scope that can move the
-standing row), (c) LoCoMo first (~250 calls, under an hour, 1,986-question
-arm). The plan reuses `build --pools`' shape — one call per unit, strict
-schema, `Semantic` records with `prov_derived_from` lineage — and M19's
-`resolve_relative` for the datetime ranges.
-
----
+**Status.** *Implemented and pre-registered 2026-09-23* —
+`docs/measurements/m50-events-calendar.md`. `events-extract` (reader only,
+cached by session content, `--shard i/n` across hosts) and `events-build`
+(no reader; `Semantic` records with I4 lineage into a snapshot-restored
+**copy** of the store). Scope: a stratified **n = 100 LongMemEval_S pilot**
+(`m50-pilot-questions.txt`, base 70.00) as the gate for the full ~9 GPU-hour
+extraction; LoCoMo extracted in full on bmb, its arm after M51. Measured
+while building: the prompt's literal `{"events": []}` made a constrained
+9B return nothing on 16 of 19 LoCoMo sessions; without it, 70 events.
 
 ## Do not re-run
 

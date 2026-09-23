@@ -422,6 +422,56 @@ enum Command {
         #[arg(long)]
         allow_undated: bool,
     },
+    /// M50: extract Chronos-style event tuples (`10.48550/arXiv.2603.16862`
+    /// §3.1) from every distinct session of a conversational corpus into a
+    /// JSONL cache. Reader only — no store is touched — so it can run on a
+    /// second host (`ops/bmb`) while `big`'s reader is held for a
+    /// measurement, and `--shard i/n` splits one corpus across hosts.
+    EventsExtract {
+        #[arg(long, value_enum)]
+        corpus: Corpus,
+        /// The cache to append to; sessions it already holds are skipped.
+        /// Defaults to data/events/<slug>.jsonl.
+        #[arg(long)]
+        out: Option<String>,
+        /// Only the first N units (conversations, or LongMemEval questions).
+        #[arg(long)]
+        limit: Option<usize>,
+        /// `i/n`: extract only the i-th of n disjoint shares of the distinct
+        /// sessions. Every host partitions identically.
+        #[arg(long, default_value = "0/1")]
+        shard: String,
+        /// LongMemEval_S: only these questions' haystacks (a `--questions`
+        /// file, as `bench` takes).
+        #[arg(long)]
+        questions: Option<String>,
+        /// Extraction calls in flight. At most the reader's slot count.
+        #[arg(long, default_value_t = 2)]
+        concurrency: usize,
+    },
+    /// M50: write cached events into a store as `Semantic` records derived
+    /// from their session's episodic records. Embedder and store only — no
+    /// reader. Build into a COPY of the corpus's store (`reindex
+    /// --collection …` over a copied ledger), so the shipped store and every
+    /// base run measured on it stay what they were.
+    EventsBuild {
+        #[arg(long, value_enum)]
+        corpus: Corpus,
+        /// One or more extraction caches (shards), comma-separated.
+        #[arg(long, value_delimiter = ',', required = true)]
+        cache: Vec<String>,
+        /// LongMemEval_S: only these questions' haystacks.
+        #[arg(long)]
+        questions: Option<String>,
+        #[arg(long)]
+        collection: String,
+        #[arg(long)]
+        ledger: String,
+        #[arg(long)]
+        limit: Option<usize>,
+        #[arg(long, default_value_t = 4)]
+        concurrency: usize,
+    },
     /// Populate the phrase↔record incidence graph over an already-built
     /// ledger. Pure SQLite: no Qdrant, no GPU, no model.
     Phrases {
@@ -686,6 +736,11 @@ enum Command {
         /// 4 multi-session, 5 temporal-reasoning, 6 knowledge-update.
         #[arg(long, value_delimiter = ',')]
         categories: Option<Vec<u8>>,
+        /// Score only the question ids listed in this file, one per line
+        /// (`#` comments allowed). A pre-registered population, e.g. M50's
+        /// stratified pilot. Every id must exist in the corpus.
+        #[arg(long)]
+        questions: Option<String>,
         /// Which scorer `score` reports. Both columns are always written on
         /// every row, so a run stays readable under either. Defaults follow
         /// `--corpus`.
@@ -867,6 +922,8 @@ impl Command {
         match self {
             Command::Fetch => "fetch",
             Command::Build { .. } => "build",
+            Command::EventsExtract { .. } => "events-extract",
+            Command::EventsBuild { .. } => "events-build",
             Command::Phrases { .. } => "phrases",
             Command::Reindex { .. } => "reindex",
             Command::CommitArm { .. } => "commit-arm",
@@ -916,6 +973,23 @@ async fn main() -> anyhow::Result<()> {
             )
             .await
         }
+        Command::EventsExtract {
+            corpus,
+            ref out,
+            limit,
+            ref shard,
+            ref questions,
+            concurrency,
+        } => events_extract_cmd(corpus, out.as_deref(), limit, shard, questions.as_deref(), concurrency).await,
+        Command::EventsBuild {
+            corpus,
+            ref cache,
+            ref questions,
+            ref collection,
+            ref ledger,
+            limit,
+            concurrency,
+        } => events_build_cmd(corpus, cache, questions.as_deref(), collection, ledger, limit, concurrency).await,
         Command::Phrases {
             corpus,
             ref ledger,
@@ -1111,8 +1185,13 @@ async fn main() -> anyhow::Result<()> {
             untrusted_max,
             decompose,
             ref categories,
+            ref questions,
             scorer,
         } => {
+            let question_ids = match questions {
+                Some(path) => read_question_ids(path)?,
+                None => Vec::new(),
+            };
             bench_cmd(
                 corpus,
                 dataset.as_deref(),
@@ -1153,6 +1232,7 @@ async fn main() -> anyhow::Result<()> {
                     untrusted_max,
                     decompose,
                     categories: categories.clone().unwrap_or_default(),
+                    question_ids,
                 },
                 scorer,
             )
@@ -1263,6 +1343,118 @@ async fn fetch() -> anyhow::Result<()> {
 }
 /// M3: drive LoCoMo through the write path and report records/unit, tokens
 /// and wall time.
+/// A question-id list: one id per line, blank lines and `#` comments
+/// skipped. An empty list or a repeated id is refused — both are typos that
+/// would silently change the population.
+fn read_question_ids(path: &str) -> anyhow::Result<Vec<String>> {
+    let text = std::fs::read_to_string(path).with_context(|| format!("read {path}"))?;
+    let ids: Vec<String> = text
+        .lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty() && !l.starts_with('#'))
+        .map(str::to_string)
+        .collect();
+    anyhow::ensure!(!ids.is_empty(), "{path} lists no question ids");
+    let distinct: std::collections::HashSet<&String> = ids.iter().collect();
+    anyhow::ensure!(distinct.len() == ids.len(), "{path} repeats a question id");
+    Ok(ids)
+}
+
+/// The session slots of a conversational corpus, for the M50 passes.
+fn event_slots(
+    corpus: Corpus,
+    limit: Option<usize>,
+    questions: Option<&str>,
+) -> anyhow::Result<Vec<myelin_eval::events::SessionSlot>> {
+    let ids = match questions {
+        Some(path) => read_question_ids(path)?,
+        None => Vec::new(),
+    };
+    match corpus {
+        Corpus::Locomo => {
+            anyhow::ensure!(ids.is_empty(), "--questions selects LongMemEval_S haystacks; LoCoMo has ten conversations, use --limit");
+            myelin_eval::events::locomo_slots(Path::new("data/locomo10.json"), limit)
+        }
+        Corpus::LongmemevalS => {
+            myelin_eval::events::longmemeval_slots(Path::new("data/longmemeval_s.json"), limit, &ids)
+        }
+        other => anyhow::bail!(
+            "events are a conversational-corpus pass (LoCoMo, LongMemEval_S); {} is UI \
+             trajectories, whose event pool is `build --pools`",
+            other.slug()
+        ),
+    }
+}
+
+async fn events_extract_cmd(
+    corpus: Corpus,
+    out: Option<&str>,
+    limit: Option<usize>,
+    shard: &str,
+    questions: Option<&str>,
+    concurrency: usize,
+) -> anyhow::Result<()> {
+    let shard = myelin_eval::events::parse_shard(shard)?;
+    let out = out.map_or_else(|| format!("data/events/{}.jsonl", corpus.slug()), str::to_string);
+    let slots = event_slots(corpus, limit, questions)?;
+    let r = myelin_eval::events::extract(&slots, Path::new(&out), shard, concurrency).await?;
+    eprintln!(
+        "events-extract {}: {} extracted ({} events), {} cached, {} failed, {:.0}s -> {out}",
+        corpus.slug(),
+        r.extracted,
+        r.events,
+        r.cached,
+        r.failed,
+        r.wall_secs
+    );
+    anyhow::ensure!(
+        r.failed == 0,
+        "{} sessions failed extraction and are not in the cache; re-run the same command to \
+         retry only those",
+        r.failed
+    );
+    Ok(())
+}
+
+async fn events_build_cmd(
+    corpus: Corpus,
+    cache: &[String],
+    questions: Option<&str>,
+    collection: &str,
+    ledger: &str,
+    limit: Option<usize>,
+    concurrency: usize,
+) -> anyhow::Result<()> {
+    anyhow::ensure!(
+        collection.starts_with("myelin_") && collection != corpus.collection(),
+        "refusing to write events into {collection:?}: build them into a myelin_* COPY of \
+         {}, so the shipped store and its base runs stay unchanged",
+        corpus.collection()
+    );
+    anyhow::ensure!(
+        ledger != corpus.ledger(),
+        "refusing to write events into the shipped ledger {ledger}; copy it first"
+    );
+    let slots = event_slots(corpus, limit, questions)?;
+    let map = myelin_eval::events::load_cache(cache)?;
+    let r = myelin_eval::events::build(&slots, &map, collection, Path::new(ledger), concurrency).await?;
+    eprintln!(
+        "events-build {}: {} slots ({} resumed), {} events (stated {}, unresolved {}, said {}), \
+         {} added, {} duplicates, {:.0}s",
+        corpus.slug(),
+        r.slots,
+        r.resumed,
+        r.events,
+        r.stated,
+        r.unresolved,
+        r.said,
+        r.total.added,
+        r.total.duplicates,
+        r.wall_secs
+    );
+    Ok(())
+}
+
 #[allow(clippy::too_many_arguments)]
 async fn build_cmd(
     corpus: Corpus,

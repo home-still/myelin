@@ -483,6 +483,10 @@ pub struct BenchRun {
     /// which is what every run before M19 did.
     #[serde(default)]
     pub categories: Vec<u8>,
+    /// The `--questions` population, when one was given. Absent on every run
+    /// scored over its whole corpus.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub question_ids: Vec<String>,
     /// Which column `score` carries, and where the row scores came from.
     /// `rescored_from` is `None` for a live bench run. Empty on a pre-M14
     /// artifact, which is token F1 by definition.
@@ -623,12 +627,27 @@ pub struct BenchSwitches {
     /// 1,986 or 500, or M19 does not fit in one GPU window. Filtering happens
     /// **before** retrieval, so a skipped question costs nothing.
     pub categories: Vec<u8>,
+    /// Score only these question ids (`bench --questions <file>`). Empty
+    /// means all of them.
+    ///
+    /// M50's pilot: a population fixed in a committed file before the arm
+    /// runs, stratified across every question type, where `--limit` would
+    /// take the corpus's first N in file order — on LongMemEval_S that is
+    /// 70 `single-session-user` and 30 `multi-session` rows and not one
+    /// temporal-reasoning question. Filtering is before retrieval, as for
+    /// `categories`.
+    pub question_ids: Vec<String>,
 }
 
 impl BenchSwitches {
     /// Is this question in the scored stratum?
     fn wants(&self, category: u8) -> bool {
         self.categories.is_empty() || self.categories.contains(&category)
+    }
+
+    /// Is this question in the scored population?
+    fn wants_question(&self, id: &str) -> bool {
+        self.question_ids.is_empty() || self.question_ids.iter().any(|q| q == id)
     }
 }
 
@@ -1730,6 +1749,9 @@ pub async fn bench_locomo(
             if !switches.wants(qa.category) {
                 continue;
             }
+            if !switches.wants_question(&format!("{}#{i}", conv.sample_id)) {
+                continue;
+            }
             // Already scored by the attempt this one resumes.
             if scored.contains(&format!("{}#{i}", conv.sample_id)) {
                 continue;
@@ -1898,6 +1920,23 @@ pub async fn bench_longmemeval_s(
     // Stratum before `--limit`: truncating the 500 to N and *then* filtering
     // would leave a handful of rows for a 127-question stratum.
     items.retain(|it| switches.wants(question_type_code(&it.question_type)));
+    if !switches.question_ids.is_empty() {
+        let known: std::collections::HashSet<&str> =
+            items.iter().map(|it| it.question_id.as_str()).collect();
+        let unknown: Vec<&String> = switches
+            .question_ids
+            .iter()
+            .filter(|q| !known.contains(q.as_str()))
+            .collect();
+        anyhow::ensure!(
+            unknown.is_empty(),
+            "--questions names {} id(s) not in {} (after --categories): {:?}",
+            unknown.len(),
+            dataset.display(),
+            unknown.iter().take(5).collect::<Vec<_>>()
+        );
+        items.retain(|it| switches.wants_question(&it.question_id));
+    }
     if let Some(n) = limit {
         items.truncate(n);
     }
@@ -2251,6 +2290,7 @@ fn finish_run(
         untrusted_max: spec.switches.untrusted_max,
         decompose: spec.switches.decompose,
         categories: spec.switches.categories.clone(),
+        question_ids: spec.switches.question_ids.clone(),
         scorer: spec.scorer.slug().to_string(),
         rescored_from: spec.rescored_from.clone(),
         questions: scored.len(),
@@ -2441,6 +2481,17 @@ pub fn rescore_run(source: &Path, out_dir: &Path, scorer: Scorer) -> Result<Benc
                     a.iter()
                         .filter_map(serde_json::Value::as_u64)
                         .filter_map(|n| u8::try_from(n).ok())
+                        .collect()
+                })
+                .unwrap_or_default(),
+            // A rescore keeps the population it was measured on.
+            question_ids: metrics
+                .get("question_ids")
+                .and_then(serde_json::Value::as_array)
+                .map(|a| {
+                    a.iter()
+                        .filter_map(serde_json::Value::as_str)
+                        .map(str::to_string)
                         .collect()
                 })
                 .unwrap_or_default(),
