@@ -1,4 +1,4 @@
-# M54 — a local file-reading controller for LME-V2 *(design, 2026-09-23)*
+# M54 — a local file-reading controller for LME-V2 *(route chosen, pilot pre-registered 2026-09-23)*
 
 ## Why
 
@@ -58,3 +58,51 @@ arbitrary `-c` config to the Codex CLI.
    building before it is built.
 
 The choice is the user's (see the session note of 2026-09-23).
+
+## Decided (2026-09-23)
+
+**Route 1**, with **Ternary Bonsai 2 27B** as the controller, served on big's
+3090 through the PrismML fork (re-enabled in big's llama-swap as
+`qwen3.8-27b` at the user's request; ~10.3 GiB with 96k context, 57.7 tok/s).
+
+What made it run locally, measured:
+- The OpenAI Codex CLI (0.156.1) with an isolated `CODEX_HOME` whose provider
+  is local; it speaks the Responses API, which llama.cpp serves.
+- A shim (`responses_shim.py`, scratch) that folds Codex's extra developer
+  messages into `instructions`: Qwen-family chat templates reject any system
+  message that is not first ("System message must be at the beginning").
+- `codex exec` must get `< /dev/null`; it otherwise waits for stdin forever.
+- Mechanics verified with the 9B: a shell command run and the right answer,
+  12,891 input tokens for a one-step task.
+
+Driver: `adapters/run_agentrunbook_c.py` runs the vendored AgentRunbook-C
+unmodified in two phases, because the 27B controller and the 9B reader do not
+fit on the card together: `--prompts-only` (controller builds and saves every
+prompt) then `--reuse-prompts-from` (reader answers, harness scores).
+
+## Pre-registration — pilot
+
+**Population.** `m54-pilot-web.txt` (24) + `m54-pilot-enterprise.txt` (23):
+every 11th question within each category by question id, 47 questions, 14
+abstention (30%, against 28% in the tier). Base on these rows,
+`runs/m47_base_{web,ent}` (today's shipped myelin, undated): **42.55** (web
+45.83, enterprise 39.13; whole tier 38.80).
+
+**Arm.** AgentRunbook-C, controller Bonsai 27B via Codex (reasoning effort
+medium), evidence `axtree` (the controller has no vision projector), reader
+Qwen3.5-9B non-thinking, judge Qwen3.5-9B — the base's reader and judge.
+
+**Reported.** Paired difference on the 47 with bootstrap CI; the abstention
+14 separately; controller wall time per question; how often the controller
+fails or times out (a failure returns no context and is scored as the reader
+does with none).
+
+**Gate, not ship.** n = 47 resolves only large effects. AgentRunbook-C with a
+frontier controller sits 13.9 above AgentRunbook-R and 34 above our 38.80
+tier score; a local 27B is expected to land well short of 72.5. **≥ +10 on
+the pilot** → a full pair (or a larger pilot, given ~2–5 min/question);
+**below +5** → the local controller is not the lever at this size, recorded.
+
+**Falsifier.** If the controller mostly fails to produce spans (errors,
+timeouts, empty output), the result measures the harness under a small model,
+not file-based retrieval — report the failure rate first.

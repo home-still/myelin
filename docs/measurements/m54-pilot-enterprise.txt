@@ -1,0 +1,27 @@
+# M54 pilot population, LME-V2 small enterprise (pre-registered 2026-09-23).
+# Stratified: every 11th question within each category, ordered by question id
+# (23 questions; categories {'dynamic': 4, 'dynamic-abs': 2, 'gotchas': 2, 'procedure': 3, 'procedure-abs': 2, 'static': 7, 'static-abs': 3}; 7 abstention rows).
+# Base (runs/m47_base_ent) on these rows: 39.13; on the whole domain: 33.18.
+01307e07
+50711c52
+901b7d17
+e033e796
+109b334c
+6c285a23
+18b91103
+ce9aa351
+025db8ef
+58c34839
+bfb3bcc4
+059974dd
+f02bec54
+057a2d4d
+23c3e290
+5aaf0f61
+83c35034
+9c32bca6
+bf98bb38
+e9fde9fe
+123b74fb
+71026f57
+eb8cf28b
