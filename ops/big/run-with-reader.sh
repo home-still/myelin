@@ -63,6 +63,7 @@ serve() {
                MYELIN_READER_SLOTS=${MYELIN_READER_SLOTS:-1} \
                MYELIN_READER_CTX=${MYELIN_READER_CTX:-16384} \
                MYELIN_READER_THINK_BUDGET=${MYELIN_READER_THINK_BUDGET:-1024} \
+               MYELIN_READER_THINK_MESSAGE='${MYELIN_READER_THINK_MESSAGE:-}' \
                MYELIN_MMPROJ=${MYELIN_MMPROJ:-1} bash -s" < "$HERE/serve-models.sh" >&2
       reader_up || restart_tunnel
     fi

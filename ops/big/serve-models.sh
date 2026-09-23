@@ -84,6 +84,16 @@ READER_CTX="${MYELIN_READER_CTX:-32768}"
 # `myelin-eval bench --reader-thinking` probes it before the first row and
 # refuses to run against an unenforced budget.
 READER_THINK_BUDGET="${MYELIN_READER_THINK_BUDGET:-1024}"
+# M44 R2b: when set, llama.cpp injects this before the forced
+# end-of-thinking tag at budget exhaustion, so the model wraps up instead
+# of continuing its trace in the answer (56 of 500 R2 answers did). Qwen's
+# own wording from the Qwen3 thinking-budget recipe. Empty = no message,
+# which is what M44 R2 was served with.
+READER_THINK_MESSAGE="${MYELIN_READER_THINK_MESSAGE:-}"
+THINK_MESSAGE_ARGS=()
+if [ -n "$READER_THINK_MESSAGE" ]; then
+  THINK_MESSAGE_ARGS=(--reasoning-budget-message "$READER_THINK_MESSAGE")
+fi
 EMBED_CTX="${MYELIN_EMBED_CTX:-4096}"
 
 # mmproj is ON by default. It costs ~920 MiB, and 29 of LongMemEval-V2's 451
@@ -146,6 +156,7 @@ nohup "$LC/llama-server" \
   -np "$READER_SLOTS" -cb \
   --jinja --chat-template-kwargs "$TEMPLATE_KWARGS" \
   --reasoning-budget "$READER_THINK_BUDGET" \
+  ${THINK_MESSAGE_ARGS[@]+"${THINK_MESSAGE_ARGS[@]}"} \
   > /tmp/myelin-reader.log 2>&1 &
 echo $! > /tmp/myelin-reader.pid
 

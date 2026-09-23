@@ -34,6 +34,16 @@ READER_CTX="${MYELIN_READER_CTX:-32768}"
 # `--reasoning-budget`: -1 unrestricted (every run before M44); M44 R2 runs
 # at 1024, and `bench --reader-thinking` probes it before the first row.
 READER_THINK_BUDGET="${MYELIN_READER_THINK_BUDGET:-1024}"
+# M44 R2b: when set, llama.cpp injects this before the forced
+# end-of-thinking tag at budget exhaustion, so the model wraps up instead
+# of continuing its trace in the answer (56 of 500 R2 answers did). Qwen's
+# own wording from the Qwen3 thinking-budget recipe. Empty = no message,
+# which is what M44 R2 was served with.
+READER_THINK_MESSAGE="${MYELIN_READER_THINK_MESSAGE:-}"
+THINK_MESSAGE_ARGS=()
+if [ -n "$READER_THINK_MESSAGE" ]; then
+  THINK_MESSAGE_ARGS=(--reasoning-budget-message "$READER_THINK_MESSAGE")
+fi
 # Thinking off server-wide, for the reason big's script gives: third-party
 # clients (the vendored LME-V2 evaluator) never send the flag themselves.
 TEMPLATE_KWARGS='{"enable_thinking":false}'
@@ -68,6 +78,7 @@ nohup "$LS" \
   -np "$READER_SLOTS" -cb \
   --jinja --chat-template-kwargs "$TEMPLATE_KWARGS" \
   --reasoning-budget "$READER_THINK_BUDGET" \
+  ${THINK_MESSAGE_ARGS[@]+"${THINK_MESSAGE_ARGS[@]}"} \
   > /tmp/myelin-reader.log 2>&1 &
 echo $! > /tmp/myelin-reader.pid
 

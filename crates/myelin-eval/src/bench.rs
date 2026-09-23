@@ -467,6 +467,13 @@ pub struct BenchRun {
     pub reader_seed: Option<u64>,
     #[serde(default)]
     pub reader_thinking_budget: Option<u32>,
+    /// M44 R2b: the server was started with `--reasoning-budget-message`,
+    /// so a trace that hits the budget is closed with Qwen's own wording
+    /// instead of a bare end-of-thinking tag. **Declared, not measured**:
+    /// the harness cannot read the server's flag back, so this records what
+    /// the caller asserted about the server it ran against.
+    #[serde(default)]
+    pub reader_think_message: bool,
     /// M24's sub-query decomposition cap, mirroring
     /// `RetrieveConfig::decompose`. Ships off; absent on every run before
     /// M24.
@@ -597,6 +604,10 @@ pub struct BenchSwitches {
     /// The sampling seed for a thinking run. Required with
     /// [`Self::reader_thinking`], so the artifact always records it.
     pub reader_seed: Option<u64>,
+    /// The reader server closes a capped trace with a budget message
+    /// (`MYELIN_READER_THINK_MESSAGE`) — M44 R2b. A declaration recorded on
+    /// the artifact; see `BenchRun::reader_think_message`.
+    pub reader_think_message: bool,
     /// Cap untrusted occupancy in the composed set — M23 B1,
     /// `ComposeConfig::untrusted_max`.
     ///
@@ -2232,6 +2243,7 @@ fn finish_run(
         // Measured by `verify_thinking_budget` before the first row, or the
         // run did not start; so a thinking artifact always carries it.
         reader_thinking_budget: spec.switches.reader_thinking.then_some(THINKING_BUDGET_TOKENS),
+        reader_think_message: spec.switches.reader_think_message,
         commit_answer: spec.switches.commit_answer,
         resumed_rows: resumed,
         commit_samples: None,
@@ -2412,6 +2424,7 @@ pub fn rescore_run(source: &Path, out_dir: &Path, scorer: Scorer) -> Result<Benc
             premise_check: flag("premise_check"),
             reader_thinking: flag("reader_thinking"),
             reader_seed: metrics.get("reader_seed").and_then(|v| v.as_u64()),
+            reader_think_message: flag("reader_think_message"),
             commit_answer: flag("commit_answer"),
             untrusted_max: metrics
                 .get("untrusted_max")

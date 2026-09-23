@@ -296,6 +296,30 @@ every stratum; the mean of the two seeds per row is **78.40**, +10.60
 [+7.2, +14.0] over the base. Sampling noise is inside the effect by a
 factor of four.
 
+## R2b — close the capped trace cleanly *(pre-registered before the arm ran)*
+
+165 of 500 seed-1 traces hit the 1,024-token cap, and on 56 rows the
+answer field carries thinking that continued past the forced
+end-of-thinking tag. llama.cpp's `--reasoning-budget-message` injects a
+sentence before that tag; the Qwen3 thinking-budget recipe's own wording
+is *"Considering the limited time by the user, I have to give the solution
+based on the thinking directly now."* Served as `MYELIN_READER_THINK_MESSAGE`,
+declared on the run as `reader_think_message` (the harness cannot read the
+server flag back; the declaration is the record).
+
+**Base.** `runs/m44_r2_s1_judged` (78.40). **Arm.** the same command, seed
+1, against the message-serving reader → `runs/m44_r2b_s1`, judged with
+`--seed runs/m44_r2_s1`. Sampling noise between seeds measured +0.0
+[−2.4, +2.4], so the bar for this arm is the standard **+3.0 with the CI
+excluding zero**, veto on abstention.
+
+**Predicted.** The 56 spill rows lose the spill (fewer than 10 remain);
+the 165 capped rows move up, the 335 uncapped rows move ~0 (their traces
+never reach the message, so their requests are byte-identical apart from
+sampling); `single-session-preference` does not recover (its cost is
+hedging, not spill). **Falsifier.** If the capped rows do not move, the
+spill was harmless and the cap is not where the remaining error is.
+
 ## Verdict: `reader_thinking` ships
 
 Two seeds, both **+10.6** with intervals excluding zero by seven points,
