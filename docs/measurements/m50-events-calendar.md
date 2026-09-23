@@ -197,6 +197,11 @@ exact control, reported as a count. The delta between the re-run and
 `m44_r2_s1` on the same 100 rows is reported too; it is the co-running
 noise the M48 note warned about, measured.
 
+**Schedule amended 2026-09-23 06:35.** The extraction co-runs with M47, M51
+and M52 on an 8-slot unified-KV reader (a build pass needs no control). The
+two pilot *runs* keep their exact control: base and arm run alone, back to
+back, on one serve configuration, after everything else has finished.
+
 **Reported before judging.** Rows with ≥ 1 event in the composed evidence;
 mean event slots per row; events written, and how many `when`s resolved,
 stayed verbatim, or were empty.

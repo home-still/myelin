@@ -71,6 +71,28 @@ clears the bar but the lower bound does not, seed 2 decides, as R2 did. If
 the point estimate is under +1.0, stop: the bundle failed and the split
 (thinking alone, then digest alone) is queued instead.
 
+**Schedule amended 2026-09-23 06:35, before this arm ran.** The user asked
+for every queued arm to run now rather than in series. `big`'s reader was
+re-served with 8 slots on one unified 128k KV pool (`MYELIN_READER_KV_UNIFIED=1`)
+plus the projector, and M47, M51, M52 and the M50 extraction share it. The
+cost is reproducibility, not validity: llama.cpp batches concurrent slots,
+so the same greedy request can decode differently when its batch-mate
+changes (M48's note). No decision rule here rests on byte-identity. Concretely for M51:
+
+- **The reader path was not wired.** `bench_locomo` called the model
+  directly and refused `--reader-thinking` ("measured on longmemeval-s
+  only"). It now reads through the same `read_answer` as LongMemEval_S;
+  Plain through it is the identical request (pinned by a test), so the
+  69.87 base is reproduced by today's code.
+- **Four shards.** `--questions` round-robin over the 1,986 ids of
+  `runs/m19_locomo_full`, four `bench` processes into
+  `runs/m51_locomo_s1.part{0..3}`, then concatenated into
+  `runs/m51_locomo_s1` and closed by one `bench --resume` with the full
+  command, which scores nothing new and writes the aggregate over all rows
+  (`resumed_rows` = 1,986 records that it did). The judge follows.
+- M51 never had an exact control (every row changes mode and reader), so
+  co-running costs only run-to-run reproducibility of seed 1.
+
 ## Predictions, written before the run
 
 - **Judge (cat 1–4): +8 or better.** Single-hop is 55% of the rows and

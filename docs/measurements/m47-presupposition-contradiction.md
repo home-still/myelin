@@ -98,6 +98,18 @@ abstention rows, and buying them with answerable rows is M35 again.
    too few wrong-premise rows to carry a CI (30 and 446 adversarial-by-
    silence rows respectively, which is the *other* abstention shape).
 
+**Schedule amended 2026-09-23 06:35, before this arm ran.** The user asked
+for every queued arm to run now rather than in series. `big`'s reader was
+re-served with 8 slots on one unified 128k KV pool (`MYELIN_READER_KV_UNIFIED=1`)
+plus the projector, and M47, M51, M52 and the M50 extraction share it. The
+cost is reproducibility, not validity: llama.cpp batches concurrent slots,
+so the same greedy request can decode differently when its batch-mate
+changes (M48's note). No decision rule here rests on byte-identity. Concretely for M47: `m47_base_web` ran alone on 1 slot × 32k before the
+change; `m47_base_ent` and both arm domains run co-scheduled. Prediction 3's
+composed-evidence identity is therefore *reported* as a diagnostic, not
+predicted; the decision rule (paired bootstrap, answerable veto) is
+unchanged.
+
 **Falsifier.** If true premises get marked `contradicted` often enough to
 cost answerable rows, verification is the bottleneck exactly as Kim et al.
 found, and the next step is an NLI model doing the verification instead of

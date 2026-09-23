@@ -100,6 +100,15 @@ EMBED_CTX="${MYELIN_EMBED_CTX:-4096}"
 # questions carry a `question_screenshots/*.png`; without it the harness dies
 # on the first one with `image input is not supported`. Dropping those 29
 # would bias G1 rather than save memory. MYELIN_MMPROJ=0 for a text-only run.
+# One KV pool shared by every slot (`--kv-unified`) instead of `-c / -np`
+# each. For running several arms at once (2026-09-23): an LME-V2 slot needs
+# ~20k tokens and a LongMemEval/LoCoMo slot ~6k, so a fixed per-slot split
+# either wastes most of the pool or starves LME-V2. Off by default; every run
+# before this used the fixed split.
+KVU_ARGS=()
+if [ "${MYELIN_READER_KV_UNIFIED:-0}" = "1" ]; then
+  KVU_ARGS=(--kv-unified)
+fi
 MMPROJ_ARGS=()
 if [ "${MYELIN_MMPROJ:-1}" = "1" ]; then
   MMPROJ_ARGS=(--mmproj "$R/mmproj-F16.gguf")
@@ -154,6 +163,7 @@ nohup "$LC/llama-server" \
   -c "$READER_CTX" -ngl 999 \
   --cache-type-k q8_0 --cache-type-v q8_0 \
   -np "$READER_SLOTS" -cb \
+  ${KVU_ARGS[@]+"${KVU_ARGS[@]}"} \
   --jinja --chat-template-kwargs "$TEMPLATE_KWARGS" \
   --reasoning-budget "$READER_THINK_BUDGET" \
   ${THINK_MESSAGE_ARGS[@]+"${THINK_MESSAGE_ARGS[@]}"} \
