@@ -246,6 +246,63 @@ def reuse_prompts_from(source_dir: Path, selected_questions: list[dict], runtime
     print(f"reusing {len(rows)} prompt rows from {source_dir}", flush=True)
 
 
+def reuse_responses_from(source_dir: Path, below_tokens: int, runtime_dir: Path, harness_module) -> None:
+    """Reuse a failed run's scored answers; generate only the rest (M52).
+
+    The harness keeps every answer in memory until scoring and cannot resume,
+    so a run that dies while scoring loses answers it paid for. This reads
+    the source run's `per_question.jsonl` and reuses an answer only when it
+    is non-empty (the harness writes `""` for a rejected reader request) and
+    its prompt plus completion stayed under `below_tokens` — i.e. the serving
+    slot did not cut it off. Every other question is generated again.
+
+    Wraps the harness's own `generate_all_reader_outputs` (vendored file
+    unmodified). Scoring re-runs on every row, reused or not.
+    """
+    path = source_dir / "per_question.jsonl"
+    if not path.exists():
+        raise SystemExit(f"--reuse-responses-from: {path} does not exist")
+    cache = {}
+    skipped = []
+    with path.open(encoding="utf-8") as fh:
+        for line in fh:
+            if not line.strip():
+                continue
+            row = json.loads(line)
+            usage = row.get("usage") or {}
+            total = int(usage.get("prompt_tokens", 0)) + int(usage.get("completion_tokens", 0))
+            if row.get("response_raw") and total < below_tokens:
+                cache[row["question_id"]] = {
+                    "response_raw": row["response_raw"],
+                    "response_parsed_boxed": row["response_parsed_boxed"],
+                    "is_unknown": row["is_unknown"],
+                    "usage": usage,
+                }
+            else:
+                skipped.append(row["question_id"])
+    original = harness_module.generate_all_reader_outputs
+
+    async def generate_all_reader_outputs(args, prompt_rows):
+        todo = [r for r in prompt_rows if r["question_id"] not in cache]
+        outputs = await original(args, todo) if todo else {}
+        for r in prompt_rows:
+            if r["question_id"] in cache:
+                outputs[r["question_id"]] = dict(cache[r["question_id"]])
+        return outputs
+
+    harness_module.generate_all_reader_outputs = generate_all_reader_outputs
+    write_json(
+        runtime_dir / "reused_responses.json",
+        {
+            "source": str(source_dir),
+            "reused": len(cache),
+            "not_reused_from_source": skipped,
+            "rule": f"non-empty and prompt+completion < {below_tokens} tokens; everything else regenerated",
+        },
+    )
+    print(f"reusing {len(cache)} answers from {source_dir}; {len(skipped)} of its rows regenerated", flush=True)
+
+
 def preflight_reader_thinking(args: argparse.Namespace) -> None:
     """Refuse to start a thinking run whose reader does not think.
 
@@ -394,6 +451,19 @@ def parse_args() -> argparse.Namespace:
         help="Answer every memory query from this finished run's prompt_rows.jsonl instead of "
         "querying the memory: for an arm that changes only the harness reader (M52). The memory "
         "side is then byte-identical to the source run by construction.",
+    )
+    parser.add_argument(
+        "--reuse-responses-from",
+        default=None,
+        help="Reuse the answers a failed run already scored (per_question.jsonl) and generate "
+        "only the rest. Requires --reuse-responses-below-tokens.",
+    )
+    parser.add_argument(
+        "--reuse-responses-below-tokens",
+        type=int,
+        default=None,
+        help="Reuse an answer only when its prompt+completion stayed below this many tokens "
+        "(the source run's slot size, less a margin): a longer one may have been cut off.",
     )
     parser.add_argument(
         "--typed-probes",
@@ -648,6 +718,15 @@ def main() -> None:
     if args.reuse_prompts_from:
         reuse_prompts_from(
             Path(args.reuse_prompts_from).expanduser().resolve(), selected_questions, runtime_dir, harness_module
+        )
+    if args.reuse_responses_from:
+        if args.reuse_responses_below_tokens is None:
+            raise SystemExit("--reuse-responses-from needs --reuse-responses-below-tokens")
+        reuse_responses_from(
+            Path(args.reuse_responses_from).expanduser().resolve(),
+            args.reuse_responses_below_tokens,
+            runtime_dir,
+            harness_module,
         )
     preflight_reader_images(args, selected_questions, harness_module)
 
