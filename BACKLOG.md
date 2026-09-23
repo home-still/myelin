@@ -51,12 +51,6 @@ controller (big's 27B coding model, or the 9B), returning the evidence it
 gathered to the unchanged reader. Pilot on a stratified LME-V2 subset before
 any full pair. Design doc first.
 
-**Also open: which LME-V2 operating point is "shipped".** Every LME-V2 run
-since M33 passed `--undated`; the server's default is dated, so `standing`
-marks the 38.80 base an arm. M22 measured undated at +2.4 (null). Either run
-a dated pair or make `dated` corpus-aware (LME-V2 records carry build dates,
-not event dates) — the user's call.
-
 ---
 
 ## M44b — the thinking reader, tightened *(follow-ups to a shipped win)*

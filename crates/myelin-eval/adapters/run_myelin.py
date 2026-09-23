@@ -498,12 +498,13 @@ def parse_args() -> argparse.Namespace:
         "per query; on investigate, one per probe.",
     )
     parser.add_argument(
-        "--undated",
+        "--dated",
         action="store_true",
-        help="The corpus carries no event timestamps; suppress the date mechanisms "
-        "(stamp_valid_time, resolve_relative, timeline). Required for LME-V2: all "
-        "85,589 of its records carry the ingest timestamp as t_valid because its "
-        "trajectories are agent task logs with no dates.",
+        help="Turn the date mechanisms (stamp_valid_time, resolve_relative, timeline) back ON. "
+        "Off is LME-V2's shipped point (decided 2026-09-23): all 85,589 of its records "
+        "carry the ingest timestamp as t_valid because its trajectories are agent task "
+        "logs with no dates, and M22 measured undated at +2.4 over dated (a null). Every "
+        "LME-V2 run since M33 passed the old --undated.",
     )
 
     # Reader. Defaults are this project's tunnelled llama-server, not the
@@ -640,7 +641,7 @@ def main() -> None:
             # `false` for the same configuration, splitting a pair over a
             # schema difference rather than an operating-point difference.
             "select": args.select,
-            "dated": not args.undated,
+            "dated": args.dated,
             # M23 Phase A. Same rule: unconditional booleans, query-time
             # switches the server applies per call.
             "pool_rerank": args.pool_rerank,
