@@ -21,9 +21,9 @@ See [`BACKLOG_DONE.md`](BACKLOG_DONE.md#sota-standing) for the full table and
 its history. Short version: **one gate closed** (MINJA 7.50% ≤ 10%), one
 claimable row (LoCoMo beats Mem0's published 66.88 by +2.99), and three open
 gaps — LoCoMo −7.98, LongMemEval_S **−13.00** (M43 closed 5.80 of it),
-LME-V2 −20.02 at a pre-M43 configuration. M44 R1 and M46 both measured null
-with the abstention veto firing; the reader answers whatever number is on
-the page.
+LME-V2 −20.02 at a pre-M43 configuration. M44 R1, M46 and M48 all measured
+null with the abstention veto firing; M48 also closed the negation story
+M42 opened — the note's negations were never what made the reader decline.
 
 ---
 
@@ -179,30 +179,6 @@ and M46 on the reader.
 
 ---
 
-## M48 — three-way digest label *(conditional on M44)*
-
-Chain-of-Note (Yu et al., `2311.09210`) is `item_digest` with a different
-provenance, and its gains land on exactly our two failure shapes: **+7.9 EM
-under entirely noisy retrieval** (34.28 → 41.83) and **+10.5 rejection rate**.
-CoN types each note three ways — *answers* / *useful context* / *irrelevant* —
-where M43's `bears_on_question` boolean collapses the first two. M42's failure
-rows are "useful context" entries phrased as negations.
-
-One enum instead of a bool; same forcing, same field order. CoN's cost warning
-also transfers: their inference went 0.61 s → 12.02 s per query (19.7×)
-because notes are per-item calls. Ours is one call. Keep it that way.
-
-**Conditional on M44 — resolved.** R1 shipped off (null, veto), so the
-digest stays the mechanism and its label is worth a run. *Implemented and
-pre-registered* — `docs/measurements/m48-three-way-digest-label.md`:
-`InvestigateConfig::digest_role` (off), `--digest-role`, `digest_role` on the
-MCP tool; `digest_label` refuses stacking it with `digest_relevance`. Arm
-queued behind M46 and M44 R2 on the reader.
-
-**Cost.** Minutes.
-
----
-
 ## M49 — REPLAY and supersedes routing, as read-path views
 
 JustMem (`2609.19877`) reports three access modes, of which **REPLAY**
@@ -286,6 +262,14 @@ population it reports.
   `-fa on`; two server profiles (LongMemEval_S at k=6/4,096 plus a 1,024-token
   thinking budget fits 8k per slot; only LME-V2 needs the large window); `n`
   parallel samples off one prefill for M45.
+- **Two arms sharing the reader's slots do not get an exact control.**
+  M48 ran beside M44 R2 for its whole length; llama.cpp batches concurrent
+  slots, and the same greedy request can decode a different token when its
+  batch-mate changes. Result: 375/500 byte-identical (M46 alone: 429), and
+  the 28 rows with no note in either run moved +3.6 instead of +0.0. Either
+  run one arm at a time, or take untouched rows from the base by
+  construction as `commit-arm` does. The throughput gain of co-running was
+  real (both arms progressed); the exact control was the price.
 - **`investigate` never narrows `[timeline]` to interval questions.** Only
   `recall` applies `is_interval_question`; `investigate` composes with the
   view on every row. Every judged number since M19 was measured that way, so
