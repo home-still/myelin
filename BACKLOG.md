@@ -170,7 +170,16 @@ worth a GPU window, and worth **one** re-ingest, not three — REALM's
 reconsolidation (`2609.16053`) is +1.31 over Zep on a GPT-4o-mini backbone and
 our graph channel already measured as a loss in M12.
 
-**Cost.** One ~57-minute re-ingest plus arms.
+**Cost — recomputed 2026-09-22.** "57 minutes" was `reindex` throughput
+(embed-only). An events pass is one reader call per *session*: LongMemEval_S
+is ~25,000 sessions → **14–28 GPU-hours** on one slot. The scope is the
+user's call; `docs/measurements/m50-events-calendar.md` lays out three:
+(a) a 100-haystack pilot (~5,000 calls, 3–6 h, n = 100, the other 400 as
+control), (b) the full corpus overnight (the only scope that can move the
+standing row), (c) LoCoMo first (~250 calls, under an hour, 1,986-question
+arm). The plan reuses `build --pools`' shape — one call per unit, strict
+schema, `Semantic` records with `prov_derived_from` lineage — and M19's
+`resolve_relative` for the datetime ranges.
 
 ---
 
