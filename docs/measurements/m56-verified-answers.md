@@ -1,4 +1,4 @@
-# M56 — a second opinion on when to answer *(Step 0 measured 2026-09-24: gate failed, recorded)*
+# M56 — a second opinion on when to answer *(Steps 0 and 0b measured 2026-09-24: both short of the gate; used as documented, Jev is safe and recovers LoCoMo refusals)*
 
 ## Why
 
@@ -206,4 +206,55 @@ Scoring is as in Step 0, exact from existing verdicts.
 **Gate:** as in Step 0.
 - LongMemEval_S ≥ 80.80 with abstention ≥ 28/30, or
 - LoCoMo ≥ +3.0 over 69.87 with adversarial ≥ 69.96.
+
+## Results — Step 0b, measured 2026-09-24
+
+**Used as its manual says, Jev stops doing harm, and it still misses the
+gate on both benchmarks.** 15,804 per-memory requests cost **$0.41**.
+
+| replay | real | Step 0 (whole answer) | **Step 0b (per memory)** | gate |
+|---|---|---|---|---|
+| LongMemEval_S, Bonsai | 82.20, abstention 25/30 | 59.80 | **81.80**, abstention **26/30** | ≥ 80.80 and ≥ 28/30 |
+| LoCoMo, Bonsai, judge 1–4 | 66.69 | 62.99 | **70.65** | ≥ 72.87 |
+| LoCoMo, adversarial | 92.83 | 95.96 | **79.82** | ≥ 69.96 |
+
+**Rule 1**, decline first when a memory contradicts the premise and none is
+evidence:
+- It fired on 4 LongMemEval_S rows and 9 LoCoMo rows.
+- Of M55's three lost abstention rows it fixed **Harajuku / Shinjuku**
+  (3 memories contradict the premise, none is evidence).
+- It missed **Dr. Smith / Dr. Johnson**: no memory mentions a Dr. Johnson,
+  so none "conflicts", and none is evidence. The secondary rule (decline on
+  no evidence) catches it: 27/30, 80.40.
+- It missed **"4"**: two memories are evidence for a question about leading
+  engineers.
+
+**Rule 2**, override a refusal when some memory is evidence:
+- It fired 214 times on LoCoMo: 156 answerable rows and 58 adversarial.
+- The 9B stand-in was right on **65 of the 156** answerable overrides
+  (42%). That is LoCoMo's +3.96 over Bonsai: 70.65, +0.78 over the shipped
+  9B's 69.87.
+- The 58 adversarial overrides cost 13 points of adversarial accuracy, which
+  still sits 9.9 above the 9B.
+- On LongMemEval_S it fired 10 times, 5 right.
+
+**What this means.** The manual's per-memory pattern is safe: it moves
+little that was right, and on LongMemEval_S it is flat (−0.4). On LoCoMo it
+is a real but partial lever. Refusals with usable evidence in hand are
+where the points are, and the stand-in answer is the weak link, right
+only 42% of the time. In a live system the override would be Bonsai
+answering under a "best guess" instruction. Bonsai is right 82% of the time
+when it does answer, so that is the next arm to try. Rule 2 also needs a
+guard for adversarial rows: a question about something that never happened
+still retrieves "evidence" about the people in it.
+
+**Scope of the negative in Step 0.** It measured Jev used against its own
+documentation. It is not evidence that Jev cannot help, and this section
+supersedes it as the fair test.
+
+Artifacts:
+- `runs/m56b_jev_passages/summary.json`
+- `runs/m56b_jev_passages/jev_passage_verdicts.jsonl`: every per-memory
+  verdict, keyed by content.
+- `crates/myelin-eval/adapters/jev_passage_probe.py`
 
