@@ -174,6 +174,9 @@ pub struct Resolved {
     /// whitespace-collapsed.
     pub phrase: String,
     pub range: DayRange,
+    /// Where the phrase's first occurrence stands in the text, as a byte
+    /// range into the original string (M64 annotates it in place).
+    pub span: std::ops::Range<usize>,
 }
 
 /// The most results [`resolve_relative`] returns for one text.
@@ -208,7 +211,7 @@ const MAX_RESOLVED: usize = 3;
 /// Results are in order of first occurrence, deduped by [`Resolved::phrase`],
 /// and capped at three.
 pub fn resolve_relative(text: &str, anchor: NaiveDate) -> Vec<Resolved> {
-    let toks = tokenize(text);
+    let (toks, spans) = tokenize_spanned(text);
     let p = Parser { t: &toks };
     let mut out: Vec<Resolved> = Vec::new();
     let mut i = 0;
@@ -219,7 +222,8 @@ pub fn resolve_relative(text: &str, anchor: NaiveDate) -> Vec<Resolved> {
         };
         let phrase = p.phrase(i, end);
         if !out.iter().any(|r| r.phrase == phrase) {
-            out.push(Resolved { phrase, range });
+            let span = spans[i].start..spans[end.min(spans.len()) - 1].end;
+            out.push(Resolved { phrase, range, span });
             if out.len() == MAX_RESOLVED {
                 return out;
             }
@@ -227,6 +231,42 @@ pub fn resolve_relative(text: &str, anchor: NaiveDate) -> Vec<Resolved> {
         i = end;
     }
     out
+}
+
+const MONTH_NAMES: [&str; 12] = [
+    "January", "February", "March", "April", "May", "June", "July", "August", "September",
+    "October", "November", "December",
+];
+
+fn month_name(d: NaiveDate) -> &'static str {
+    MONTH_NAMES[d.month0() as usize]
+}
+
+/// A day range in words, the way LoCoMo's gold answers write dates: `7 May
+/// 2023`, `May 2023`, `2023`, `2–8 June 2023`, `28 July – 3 August 2023`,
+/// `28 December 2022 – 3 January 2023`. The ISO form `2023-06-02..2023-06-08`
+/// is what the reader copied into answers the judge then marked wrong on 18
+/// temporal rows of `m19_locomo_full` whose date was right (M64).
+pub fn range_in_words(r: &DayRange) -> String {
+    let (lo, hi) = (r.lo, r.hi);
+    let day = |d: NaiveDate| format!("{} {} {}", d.day(), month_name(d), d.year());
+    if lo == hi {
+        return day(lo);
+    }
+    let last_of_month = |d: NaiveDate| (d + chrono::Duration::days(1)).month() != d.month();
+    if lo.year() == hi.year() && lo.month() == 1 && lo.day() == 1 && hi.month() == 12 && hi.day() == 31 {
+        return lo.year().to_string();
+    }
+    if lo.year() == hi.year() && lo.month() == hi.month() {
+        if lo.day() == 1 && last_of_month(hi) {
+            return format!("{} {}", month_name(lo), lo.year());
+        }
+        return format!("{}–{} {} {}", lo.day(), hi.day(), month_name(lo), lo.year());
+    }
+    if lo.year() == hi.year() {
+        return format!("{} {} – {} {} {}", lo.day(), month_name(lo), hi.day(), month_name(hi), hi.year());
+    }
+    format!("{} – {}", day(lo), day(hi))
 }
 
 /// Does the question ask for an elapsed time or for the order of two events?
@@ -371,13 +411,42 @@ fn iso_date_at(chars: &[char], i: usize) -> Option<(String, usize)> {
 /// `21Janury` and `Januarty 5, 2024` typos and the `Sept`/`Jan` abbreviations
 /// without an edit-distance table.
 fn tokenize(text: &str) -> Vec<Tok> {
-    let chars: Vec<char> = text.to_lowercase().chars().collect();
-    let mut flat = String::with_capacity(chars.len() + 8);
+    tokenize_spanned(text).0
+}
+
+/// [`tokenize`], with each token's byte range in the **original** `text`.
+///
+/// The one tokenizer: `tokenize` is this with the spans dropped. Every
+/// character pushed into the normalised stream carries the byte span of the
+/// source character it came from (an expanded ISO date carries its whole
+/// source date, a dash's `to` carries the dash), so a token's span runs from
+/// its first character's source start to its last's source end. That is
+/// what lets a resolved phrase be annotated *where it stands* in the text
+/// (M64) rather than after the whole record.
+fn tokenize_spanned(text: &str) -> (Vec<Tok>, Vec<std::ops::Range<usize>>) {
+    // Lower-cased characters, each with its source character's byte span.
+    let mut chars: Vec<char> = Vec::with_capacity(text.len());
+    let mut from: Vec<std::ops::Range<usize>> = Vec::with_capacity(text.len());
+    for (b, ch) in text.char_indices() {
+        for lc in ch.to_lowercase() {
+            chars.push(lc);
+            from.push(b..b + ch.len_utf8());
+        }
+    }
+    let mut flat: Vec<char> = Vec::with_capacity(chars.len() + 8);
+    let mut src: Vec<std::ops::Range<usize>> = Vec::with_capacity(chars.len() + 8);
+    let push = |s: &str, span: std::ops::Range<usize>, flat: &mut Vec<char>, src: &mut Vec<std::ops::Range<usize>>| {
+        for c in s.chars() {
+            flat.push(c);
+            src.push(span.clone());
+        }
+    };
     let mut prev_digit = false;
     let mut i = 0;
     while i < chars.len() {
         if let Some((iso, next)) = iso_date_at(&chars, i) {
-            flat.push_str(&iso);
+            let span = from[i].start..from[next - 1].end;
+            push(&iso, span, &mut flat, &mut src);
             prev_digit = false;
             i = next;
             continue;
@@ -385,13 +454,14 @@ fn tokenize(text: &str) -> Vec<Tok> {
         let c = chars[i];
         if is_dash(c) {
             let next_digit = chars.get(i + 1).is_some_and(char::is_ascii_digit);
-            flat.push_str(if prev_digit && next_digit { " to " } else { " " });
+            let sep = if prev_digit && next_digit { " to " } else { " " };
+            push(sep, from[i].clone(), &mut flat, &mut src);
             prev_digit = false;
             i += 1;
             continue;
         }
         if c.is_ascii_digit() {
-            flat.push(c);
+            push(&c.to_string(), from[i].clone(), &mut flat, &mut src);
             prev_digit = true;
             i += 1;
             continue;
@@ -402,27 +472,41 @@ fn tokenize(text: &str) -> Vec<Tok> {
                     i += n;
                     continue;
                 }
-                flat.push(' ');
+                push(" ", from[i].clone(), &mut flat, &mut src);
             }
-            flat.push(c);
+            push(&c.to_string(), from[i].clone(), &mut flat, &mut src);
             prev_digit = false;
             i += 1;
             continue;
         }
-        flat.push(' ');
+        push(" ", from[i].clone(), &mut flat, &mut src);
         prev_digit = false;
         i += 1;
     }
 
-    flat.split_whitespace()
-        .map(|w| match w.parse::<i64>() {
+    let mut toks = Vec::new();
+    let mut spans = Vec::new();
+    let mut k = 0;
+    while k < flat.len() {
+        if flat[k].is_whitespace() {
+            k += 1;
+            continue;
+        }
+        let start = k;
+        while k < flat.len() && !flat[k].is_whitespace() {
+            k += 1;
+        }
+        let w: String = flat[start..k].iter().collect();
+        toks.push(match w.parse::<i64>() {
             Ok(value) if w.bytes().all(|b| b.is_ascii_digit()) => Tok::Num {
                 value,
                 digits: w.len(),
             },
-            _ => Tok::Word(w.to_string()),
-        })
-        .collect()
+            _ => Tok::Word(w),
+        });
+        spans.push(src[start].start..src[k - 1].end);
+    }
+    (toks, spans)
 }
 
 // ------------------------------------------------------------------- parsing
@@ -1362,14 +1446,46 @@ mod tests {
     #[track_caller]
     fn one_resolved(text: &str, anchor: (i32, u32, u32), phrase: &str, lo: (i32, u32, u32), hi: (i32, u32, u32)) {
         let got = resolve_relative(text, ymd(anchor.0, anchor.1, anchor.2));
+        assert_eq!(got.len(), 1, "resolve {text:?}: {got:?}");
+        assert_eq!(got[0].phrase, phrase, "resolve {text:?}");
         assert_eq!(
-            got,
-            vec![Resolved {
-                phrase: phrase.to_string(),
-                range: DayRange::new(ymd(lo.0, lo.1, lo.2), ymd(hi.0, hi.1, hi.2)),
-            }],
+            got[0].range,
+            DayRange::new(ymd(lo.0, lo.1, lo.2), ymd(hi.0, hi.1, hi.2)),
             "resolve {text:?}"
         );
+        // M64: the span quotes the phrase where it stands in the original text.
+        let quoted: String = text[got[0].span.clone()]
+            .to_lowercase()
+            .chars()
+            .map(|c| if c.is_alphanumeric() { c } else { ' ' })
+            .collect::<String>()
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ");
+        assert_eq!(quoted, phrase, "the span of {phrase:?} in {text:?}");
+    }
+
+    #[test]
+    fn a_span_is_a_byte_range_of_the_original_text() {
+        // Upper case and a non-ASCII prefix: offsets are bytes of the input,
+        // not of its lower-cased copy.
+        let text = "Ça va! We met LAST TUESDAY at the café.";
+        let got = resolve_relative(text, ymd(2023, 7, 20));
+        assert_eq!(got.len(), 1);
+        assert_eq!(&text[got[0].span.clone()], "LAST TUESDAY");
+    }
+
+    #[test]
+    fn dates_in_words_follow_the_gold_answers() {
+        let r = |a: (i32, u32, u32), b: (i32, u32, u32)| {
+            range_in_words(&DayRange::new(ymd(a.0, a.1, a.2), ymd(b.0, b.1, b.2)))
+        };
+        assert_eq!(r((2023, 5, 7), (2023, 5, 7)), "7 May 2023");
+        assert_eq!(r((2023, 5, 1), (2023, 5, 31)), "May 2023");
+        assert_eq!(r((2023, 1, 1), (2023, 12, 31)), "2023");
+        assert_eq!(r((2023, 6, 2), (2023, 6, 8)), "2–8 June 2023");
+        assert_eq!(r((2023, 7, 28), (2023, 8, 3)), "28 July – 3 August 2023");
+        assert_eq!(r((2022, 12, 28), (2023, 1, 3)), "28 December 2022 – 3 January 2023");
     }
 
     #[test]

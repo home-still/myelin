@@ -298,6 +298,24 @@ pub struct ComposeConfig {
     /// Ships **off** until its arm (L1) is measured.
     #[serde(default)]
     pub dedupe_lineage: bool,
+    /// Place each relative-date resolution right after its phrase, in words
+    /// ("two weeks ago [28 July – 3 August 2023]"), instead of appending it
+    /// in ISO form after the whole record.
+    ///
+    /// Measured 2026-09-24 on `m19_locomo_full`. The appended annotation for
+    /// "I got a puppy two weeks ago" sat ~2,000 characters after the phrase,
+    /// at the end of a 2,193-character episode, and the reader answered with
+    /// the session stamp instead. Of the temporal rows whose gold turn is
+    /// relative, **86 were lost** (58 wrong, 28 declined). Separately, 18
+    /// temporal rows whose date the deterministic scorer counts right were
+    /// judged wrong because the reader copied the ISO range
+    /// (`2023-06-02..2023-06-08` for "the week before 9 June 2023").
+    /// Resolving dates next to the event, not leaving it to the reader, is
+    /// TReMu's timeline memory (Ge et al. 2025,
+    /// `10.18653/v1/2025.findings-acl.972`) at read time. Requires
+    /// [`Self::resolve_relative`]. Ships **off** until M64 is measured.
+    #[serde(default)]
+    pub inline_dates: bool,
 }
 
 impl Default for ComposeConfig {
@@ -318,6 +336,7 @@ impl Default for ComposeConfig {
             untrusted_max: None,
             kind_quota: None,
             dedupe_lineage: false,
+            inline_dates: false,
         }
     }
 }
@@ -351,19 +370,41 @@ fn label(record: &MemoryRecord, cfg: &ComposeConfig) -> String {
     if cfg.label_untrusted && record.trust.tier == TrustTier::Untrusted {
         out.push_str("[untrusted source] ");
     }
+    let resolved = if cfg.resolve_relative && cfg.stamp_valid_time {
+        crate::time::resolve_relative(&record.text, record.validity.t_valid.date_naive())
+    } else {
+        Vec::new()
+    };
+    if cfg.inline_dates {
+        // M64: each resolution in words, bracketed, right after its phrase.
+        // The record itself is never rewritten (the ledger holds its words);
+        // the bracket marks what the evidence adds to them.
+        out.push_str(&annotate_in_place(&record.text, &resolved));
+        return out;
+    }
     out.push_str(&record.text);
     // The annotation rides *after* the text, not inside it: rewriting the
     // record's own words would make the evidence item no longer quote the
     // memory it came from, and the audit trail depends on that.
-    if cfg.resolve_relative && cfg.stamp_valid_time {
-        let anchor = record.validity.t_valid.date_naive();
-        for r in crate::time::resolve_relative(&record.text, anchor) {
-            if r.range.lo == r.range.hi {
-                out.push_str(&format!(" ({} = {})", r.phrase, r.range.lo));
-            } else {
-                out.push_str(&format!(" ({} = {}..{})", r.phrase, r.range.lo, r.range.hi));
-            }
+    for r in &resolved {
+        if r.range.lo == r.range.hi {
+            out.push_str(&format!(" ({} = {})", r.phrase, r.range.lo));
+        } else {
+            out.push_str(&format!(" ({} = {}..{})", r.phrase, r.range.lo, r.range.hi));
         }
+    }
+    out
+}
+
+/// `text` with ` [<date in words>]` inserted after each resolved phrase.
+/// Spans come from [`crate::time::resolve_relative`] and never overlap; the
+/// insertions go from the last to the first so earlier offsets stay valid.
+fn annotate_in_place(text: &str, resolved: &[crate::time::Resolved]) -> String {
+    let mut spans: Vec<&crate::time::Resolved> = resolved.iter().collect();
+    spans.sort_by_key(|r| std::cmp::Reverse(r.span.end));
+    let mut out = text.to_string();
+    for r in spans {
+        out.insert_str(r.span.end, &format!(" [{}]", crate::time::range_in_words(&r.range)));
     }
     out
 }
@@ -1426,6 +1467,38 @@ mod tests {
         let set = compose(Vec::new(), &[], &ComposeConfig::default());
         assert!(set.is_empty());
         assert!(set.to_wire().is_empty());
+    }
+
+    /// M64: with `inline_dates`, the resolution sits right after its phrase,
+    /// in words; without it, the ISO form trails the record as before.
+    #[test]
+    fn inline_dates_annotate_the_phrase_where_it_stands_in_words() {
+        use chrono::TimeZone;
+        // The real LoCoMo turn behind gold "two weeks before 11 August 2023".
+        let fixture = || {
+            let mut r = record("Maria: I got a puppy two weeks ago! Her name's Coco.");
+            r.validity.t_valid = Utc.with_ymd_and_hms(2023, 8, 11, 0, 10, 0).unwrap();
+            vec![Ranked {
+                record: r,
+                score: 1.0,
+                vector: None,
+            }]
+        };
+        let cfg = ComposeConfig {
+            timeline: false,
+            ..Default::default()
+        };
+        let appended = compose(fixture(), &[], &cfg);
+        assert_eq!(
+            appended.items[0].value,
+            "[2023-08-11] Maria: I got a puppy two weeks ago! Her name's Coco. \
+             (two weeks ago = 2023-07-28..2023-08-03)"
+        );
+        let inline = compose(fixture(), &[], &ComposeConfig { inline_dates: true, ..cfg });
+        assert_eq!(
+            inline.items[0].value,
+            "[2023-08-11] Maria: I got a puppy two weeks ago [28 July – 3 August 2023]! Her name's Coco."
+        );
     }
 
     /// Arm A of M19. The annotation is text-only: the two bench arms must
