@@ -18,6 +18,18 @@ reader (Qwen3.5-9B) do not fit on big's card beside its other tenants:
   2. `--reuse-prompts-from <phase-1 dir>`: the reader answers from those exact
      prompts and the harness scores them (`run_myelin.reuse_prompts_from`).
 
+The controller path, all local:
+
+    codex exec -> responses_shim.py :5821 -> ssh tunnel :18081 -> big's llama-swap :8081
+
+`codex_bonsai.config.toml` is the `CODEX_HOME/config.toml` (copy it into an
+empty directory; set `<repo root>`). `responses_shim.py` makes two rewrites
+llama.cpp's /v1/responses needs: extra system messages folded into
+`instructions`, and an image in a tool output (Codex's `view_image`) replaced
+by a text note, since the controller is text-only and llama.cpp refuses any
+tool output that is not text (HTTP 400; 5 of the first 9 pilot questions died
+on it before the rewrite).
+
 Usage (phase 1):
 
     CODEX_HOME=<dir with config.toml> PYTHONPATH=vendor/longmemeval-v2:adapters \\
