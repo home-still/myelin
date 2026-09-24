@@ -44,6 +44,7 @@ and otherwise waits forever (measured 2026-09-23).
 from __future__ import annotations
 
 import argparse
+import json
 import os
 from pathlib import Path
 import sys
@@ -54,6 +55,12 @@ from data.public_data import (  # noqa: E402
     materialize_runtime_questions,
     write_json,
 )
+
+
+# The controller model family both hosts serve (big: PTQ1_0 via llama-swap
+# `qwen3.8-27b`; bmb: PQ2_0 via `bonsai-2-27b`). The pack per question is in
+# `controller_hosts`.
+CONTROLLER_MODEL = "Ternary Bonsai 2 27B"
 
 
 class PromptsBuilt(Exception):
@@ -137,9 +144,23 @@ def main() -> None:
         selected_questions=selected,
         output_path=runtime_dir / "haystack.json",
     )
+    # Provenance, written unconditionally (`standing` pairs on these keys).
+    # Phase one reads nothing and records no reader. Phase two replays the
+    # merged chunks' prompts and carries their controller mixture from
+    # `controller_hosts.json`, which the merge writes from each chunk's
+    # `controller.json` (M54 amendment, 2026-09-24).
+    controller_hosts = None
+    if args.reuse_prompts_from:
+        manifest = Path(args.reuse_prompts_from).expanduser().resolve() / "controller_hosts.json"
+        if not manifest.is_file():
+            raise SystemExit(f"{manifest} does not exist: the merged prompts must name their controllers. Nothing was built.")
+        controller_hosts = json.loads(manifest.read_text(encoding="utf-8"))
     memory_config = {
         "memory_type": "agentrunbook_c",
         "memory_params": {
+            "controller_model": CONTROLLER_MODEL,
+            "controller_hosts": controller_hosts,
+            "reader_served_model": None if args.prompts_only else rm.served_model(args.reader_base_url),
             "evidence_mode": args.evidence_mode,
             "trajectory_pool_root": None,
             "query_codex_params": {
