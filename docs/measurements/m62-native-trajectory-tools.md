@@ -182,3 +182,58 @@ stores are backfilled from the dataset with no re-embedding.
       GPU is free. Phase one builds the prompts with Bonsai as controller;
       phase two reads them on the 9B as one 204,800-token slot, as M54's
       reader did.
+
+## Pilot — pre-registered *(2026-09-24 ~15:05, before any row)*
+
+The user scheduled the pilot on big right after M59, ahead of M60 and M58
+(code first).
+
+**Population.** M54's pilot, 47 questions: web 24 and enterprise 23
+(`docs/measurements/m54-pilot-{web,enterprise}.txt`).
+
+**The arm.**
+- **Store:** `data/lme_v2_small.ledger` with the M62 tables (200
+  trajectories, 5,095 states). The pre-M62 copy is kept beside it.
+- **Controller:** Ternary Bonsai 2 27B PTQ1_0 on big, through
+  `serve-models.sh` (`MYELIN_READER_MODEL=bonsai-27b`, 2 slots x 65,536,
+  no projector). It is the MCP server's LLM.
+- **Controller settings:** temperature 0, thinking off, at most 16 steps,
+  a 48,000-token transcript budget, and `axtree` evidence.
+- **Phase one:** `run_myelin.py --mode trajectories --prompts-only`, two
+  questions at a time.
+- **Phase two:** `--reuse-prompts-from`, read by Qwen3.5-9B exactly as
+  M54's reader. That is one 204,800-token slot plus the projector
+  (`MYELIN_READER_SLOTS=1 MYELIN_READER_CTX=204800 MYELIN_MMPROJ=1`),
+  one request at a time, temperature 0.6, top-p 0.95, top-k 20, 20,000
+  completion tokens and a 200,000-token memory context. The harness judge
+  is the 9B.
+
+**Comparisons**, paired over the 47:
+1. **Replication:** against AgentRunbook-C with the same local controller,
+   M54's pilot (`runs/m54_arc_{web,ent}`, 82.98). M62 passes if it scores
+   at least **77.98** (within 5 points) and at least **74.90** (the LME-V2
+   gate row).
+2. **Against myelin's shipped LME-V2 memory** on the same 47
+   (`runs/m47_base_{web,ent}`, 42.55): +5 with the CI excluding zero,
+   M54's own gate.
+
+**Predictions.**
+- Overall 70–85.
+- Abstention at least 50% (M54's pilot: 64.29%).
+- Fewer than 30% of answers forced by the budget.
+- Zero schema failures, meaning no reply outside the action form.
+
+**Diagnostics reported either way:**
+- steps per question and the forced-answer rate, by domain;
+- tool errors fed back to the model;
+- states per answer;
+- phase-one minutes per question, against M54's controller.
+
+**Known differences from M54's AgentRunbook-C.**
+- **Tools:** bounded tools here, where M54's controller had a shell and
+  scripts.
+- **Sampling:** temperature 0 and thinking off, where M54 used the Codex
+  defaults and reasoning effort "medium".
+- **Budget:** a 16-step budget.
+- **Images:** neither controller sees images. M54's shim replaced every
+  image with a text note; the reader still gets the question image here.
