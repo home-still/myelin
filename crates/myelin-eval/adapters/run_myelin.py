@@ -72,6 +72,11 @@ READER_PREFLIGHT_TIMEOUT_S = 300.0
 # `GET /v1/models` answers at once on a live llama-server; a server that has
 # not answered in this long is not serving.
 SERVED_MODEL_TIMEOUT_S = 30.0
+# `investigate`'s step cap: the measured peak (docs/measurements/m7-step-value-curve.md).
+INVESTIGATE_MAX_STEPS = 2
+# M62's trajectory controller: `trajectory_agent::DEFAULT_MAX_STEPS` in
+# myelin-core, tool calls before the answer is forced.
+TRAJECTORY_MAX_STEPS = 16
 
 
 def served_model(base_url: str) -> str:
@@ -425,8 +430,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--namespace", default=None)
     parser.add_argument("--k", type=int, default=6)
     parser.add_argument("--budget-tokens", type=int, default=2048)
-    parser.add_argument("--mode", choices=["recall", "investigate"], default="recall")
-    parser.add_argument("--max-steps", type=int, default=2)
+    parser.add_argument("--mode", choices=["recall", "investigate", "trajectories"], default="recall")
+    # Default per mode, resolved after parsing: investigate's measured peak,
+    # or the trajectory controller's own budget. One number for both would
+    # quietly cut M62's controller off after two tool calls.
+    parser.add_argument("--max-steps", type=int, default=None)
     # Retrieval width, recorded only. The server takes these from its own CLI
     # (`myelin-mcp --prefetch-limit --rerank-depth`); they are written to
     # `runtime_inputs/memory_config.json` so an operating point is
@@ -626,7 +634,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--evaluator-max-completion-tokens", type=int, default=4096)
 
     parser.add_argument("--shuffle-questions-seed", type=int, default=None)
-    return parser.parse_args()
+    args = parser.parse_args()
+    if args.max_steps is None:
+        args.max_steps = TRAJECTORY_MAX_STEPS if args.mode == "trajectories" else INVESTIGATE_MAX_STEPS
+    return args
 
 
 def parse_question_ids(raw: list[str] | None) -> list[str] | None:

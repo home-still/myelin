@@ -116,6 +116,41 @@ negation filter `digest_relevance` measured −4.4 and stays off.
 }
 ```
 
+### `trajectories` — agent-history retrieval (M62)
+
+For a memory built from **agent trajectories** (LME-V2). A controller model
+reads the stored trajectories state by state (see [Agent
+trajectories](#agent-trajectories-m62)) and returns spans of states as
+evidence, in the layout of the LME-V2 authors' own AgentRunbook-C.
+
+- **How it steps:** it is given the list of trajectories and the question.
+  Each step is one JSON action forced into a fixed form: `summary`, `grep`,
+  `read` or `answer`, each preceded by a thought. The rules are the authors'
+  instructions: triage first, shortlist, verify exactly, flag a false
+  premise, never substitute a nearby match.
+- **Bounded:** every tool output has a size cap, and the answer holds at
+  most 20 states.
+- **Mistakes go back to the model:** a misused tool, or a span the store
+  cannot honour, returns the error for the model to correct.
+- **Budget:** after `max_steps` (default 16) or a 48,000-token transcript,
+  the next step may only answer. An answer still refused is an error.
+
+**Parameters:**
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `question` | string | yes | — | The question to gather evidence for |
+| `tenant` | string | yes | — | Tenant id |
+| `namespace` | string | no | — | Namespace filter |
+| `max_steps` | int | no | 16 | Tool calls before the answer is forced |
+
+**Returns:** `{ items, record_ids, tokens, queries, trace }`.
+- `queries` lists every action taken (`grep: Save in t1`).
+- `trace` is `{ steps, stopped_because: "answered" | "budget", total_ms }`.
+- State items cite their trajectory's anchor record.
+- The controller's notes and the span list have a nil record id, because
+  they are a view.
+
 ### `remember` — write one statement
 
 Write one statement through the full write path: extract, consolidate against

@@ -28,6 +28,8 @@ use myelin_core::pipeline::ingest::Turn;
 use myelin_core::pipeline::compose::KindQuota;
 use myelin_core::pipeline::investigate::{InvestigateConfig, InvestigateTrace, Investigator};
 use myelin_core::pipeline::retrieve::{RecallTrace, RetrieveConfig, Retriever};
+use myelin_core::pipeline::trajectory_agent::{TrajectoryAgent, TrajectoryAgentConfig};
+use myelin_core::pipeline::trajectory_tools::TrajectoryTools;
 use myelin_core::pipeline::write::WritePath;
 use myelin_core::rerank::cross::CrossEncoder;
 use myelin_core::store::ledger::Ledger;
@@ -415,6 +417,57 @@ impl MyelinServer {
             tokens: evidence.tokens,
             queries: evidence.trace.iter().map(|t| t.query.clone()).collect(),
             trace,
+        }))
+    }
+
+    #[tool(
+        name = "trajectories",
+        description = "Agent-history retrieval (M62): a controller reads the stored agent \
+                       trajectories through bounded tools (summary, grep, read) and returns spans \
+                       of states as AgentRunbook-C lays them out, at most 20 states. For memories \
+                       built from agent trajectories; slower than investigate."
+    )]
+    async fn trajectories(
+        &self,
+        Parameters(params): Parameters<TrajectoriesParams>,
+    ) -> Result<Json<TrajectoriesResult>, ErrorData> {
+        let started = std::time::Instant::now();
+        let mut scope = ScopeFilter::tenant(&params.tenant);
+        scope.namespace = params.namespace.clone();
+        let config = TrajectoryAgentConfig {
+            max_steps: params
+                .max_steps
+                .unwrap_or(TrajectoryAgentConfig::default().max_steps),
+            ..TrajectoryAgentConfig::default()
+        };
+        let tools = TrajectoryTools::new(&self.backend.ledger, scope);
+        let evidence = TrajectoryAgent::new(&self.backend.llm, tools, config)
+            .run(&params.question)
+            .await
+            .map_err(mcp_err)?;
+        // An answer taken at or past the step budget was forced.
+        let forced = evidence
+            .trace
+            .last()
+            .is_some_and(|t| t.step >= config.max_steps);
+        Ok(Json(TrajectoriesResult {
+            items: evidence.to_wire(),
+            record_ids: evidence
+                .items
+                .iter()
+                .map(|i| i.record_id.to_string())
+                .collect(),
+            tokens: evidence.tokens,
+            queries: evidence
+                .trace
+                .iter()
+                .map(|t| format!("{}: {}", t.action, t.query))
+                .collect(),
+            trace: TrajectoriesTrace {
+                steps: evidence.trace.len(),
+                stopped_because: if forced { "budget" } else { "answered" }.into(),
+                total_ms: started.elapsed().as_millis(),
+            },
         }))
     }
 
@@ -815,6 +868,36 @@ fn apply_operating_point(
         cfg.compose.resolve_relative = false;
         cfg.compose.timeline = false;
     }
+}
+
+/// M62's agent-history retrieval.
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub struct TrajectoriesParams {
+    pub question: String,
+    pub tenant: String,
+    #[serde(default)]
+    pub namespace: Option<String>,
+    /// Tool calls before the answer is forced.
+    #[serde(default)]
+    pub max_steps: Option<usize>,
+}
+
+#[derive(Debug, Serialize, schemars::JsonSchema)]
+pub struct TrajectoriesResult {
+    pub items: Vec<WireItem>,
+    pub record_ids: Vec<String>,
+    pub tokens: usize,
+    /// Every action the controller took, in order (`grep: Save in t1`).
+    pub queries: Vec<String>,
+    pub trace: TrajectoriesTrace,
+}
+
+#[derive(Debug, Serialize, schemars::JsonSchema)]
+pub struct TrajectoriesTrace {
+    pub steps: usize,
+    /// `answered`, or `budget` when the step or context budget forced it.
+    pub stopped_because: String,
+    pub total_ms: u128,
 }
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]

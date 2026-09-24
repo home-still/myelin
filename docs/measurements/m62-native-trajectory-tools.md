@@ -172,5 +172,13 @@ stores are backfilled from the dataset with no re-embedding.
         only `answer`. An answer still refused twice is an error, never an
         invented evidence set.
       - Tested against a scripted model (5 tests).
-- [ ] **PR 5 — wiring and the pilot.** An MCP / adapter switch, then the
-      47-question pilot against M54's 82.98 when a GPU is free.
+- [x] **PR 5 — wiring.** The MCP tool `trajectories` runs the controller on
+      the server's model (for the pilot, the server's LLM URL points at
+      Bonsai, and the harness reader stays the 9B). `run_myelin.py --mode
+      trajectories` sends only the arguments that tool declares. `--max-steps`
+      now defaults per mode: 2 for `investigate` (the M7 step-curve peak), 16
+      for `trajectories`.
+- [ ] **Pilot.** The 47 questions of M54's pilot, against its 82.98, when a
+      GPU is free. Phase one builds the prompts with Bonsai as controller;
+      phase two reads them on the 9B as one 204,800-token slot, as M54's
+      reader did.
