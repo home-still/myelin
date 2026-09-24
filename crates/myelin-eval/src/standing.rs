@@ -974,8 +974,8 @@ fn bench_metrics(dir: &Path, agg_text: &str) -> Result<Vec<Ours>> {
         || run.reader_thinking != crate::bench::shipped_reader_thinking(&run.corpus)
         // M44 R2b's budget message, shipping off pending its arm.
         || run.reader_think_message
-        // M57's premise clause, shipping off pending its arm.
-        || run.reader_premise_clause
+        // M57's premise clause ships on LongMemEval_S only.
+        || run.reader_premise_clause != crate::bench::shipped_reader_premise_clause(&run.corpus)
         // M59's best-guess clause, shipping off pending its arm.
         || run.reader_best_guess
         // M47's presupposition check.
@@ -987,7 +987,10 @@ fn bench_metrics(dir: &Path, agg_text: &str) -> Result<Vec<Ours>> {
         || crate::bench::shipped_collection(&run.corpus).is_some_and(|c| c != run.collection)
         // M55: a run served any model but the shipped one measures that
         // model, not the system as shipped.
-        || served_another_model(run.llm_served_model.as_deref(), SHIPPED_LLM_MODEL);
+        || served_another_model(
+            run.llm_served_model.as_deref(),
+            crate::bench::shipped_llm_model(&run.corpus),
+        );
 
     // Does this run record its own operating point? Every key below defines
     // part of what the system does per query today. An artifact that does
@@ -1138,15 +1141,14 @@ fn bench_metrics(dir: &Path, agg_text: &str) -> Result<Vec<Ours>> {
     Ok(out)
 }
 
-/// The model file the shipped system is served (`ops/big/serve-models.sh`'s
-/// default reader), as `GET /v1/models` names it. A bench run that recorded
-/// a different `llm_served_model` is an arm (M55).
-const SHIPPED_LLM_MODEL: &str = "Qwen3.5-9B-UD-Q4_K_XL.gguf";
-
 /// The model every bench run written before `llm_served_model` existed was
 /// served: `serve-models.sh` could serve nothing else until M55. A fact about
 /// history, not a default — it stays this file when the shipped model moves.
-const PRE_FIELD_SERVED_MODEL: &str = "Qwen3.5-9B-UD-Q4_K_XL.gguf";
+const PRE_FIELD_SERVED_MODEL: &str = crate::bench::QWEN35_9B_GGUF;
+
+/// The corpus name `shipped_llm_model` knows LME-V2's harness runs by. The
+/// memory side of an LME-V2 run is served whatever ships there.
+const LME_V2_CORPUS: &str = "lme_v2_small";
 
 /// Whether a run was served a model other than `shipped`. An artifact
 /// without the field predates it and was served [`PRE_FIELD_SERVED_MODEL`].
@@ -1528,7 +1530,7 @@ const HARNESS_MODEL_KEYS: [&str; 2] = ["memory_llm_served_model", "reader_served
 /// Qwen3.5-9B (`10.48550/arXiv.2605.12493`), served here as this GGUF. It does
 /// not move with the shipped model — a stronger reader would compare our
 /// memory against published rows read by a weaker one.
-const LME_V2_READER_MODEL: &str = "Qwen3.5-9B-UD-Q4_K_XL.gguf";
+const LME_V2_READER_MODEL: &str = crate::bench::QWEN35_9B_GGUF;
 
 /// Which [`PAIR_KEYS`] this harness artifact does not record at all.
 ///
@@ -1681,7 +1683,8 @@ fn harness_arm(dir: &Path) -> Result<bool> {
     // M55: memory built by a model other than the shipped one, or read by
     // anything but the protocol's reader, measures that model.
     let model = |key: &str| params.get(key).and_then(Value::as_str);
-    let model_switched = served_another_model(model("memory_llm_served_model"), SHIPPED_LLM_MODEL)
+    let model_switched =
+        served_another_model(model("memory_llm_served_model"), crate::bench::shipped_llm_model(LME_V2_CORPUS))
         || served_another_model(model("reader_served_model"), LME_V2_READER_MODEL);
     Ok(switched || select_switched || digest_switched || widened || model_switched)
 }
@@ -2783,7 +2786,7 @@ mod tests {
         };
         let shipped = runs.join("shipped_9b");
         locomo_fixture(&shipped, false, true); // 1539 of 1540 correct
-        served(&shipped, Some(SHIPPED_LLM_MODEL));
+        served(&shipped, Some(crate::bench::shipped_llm_model("locomo")));
         let bigger = runs.join("bonsai_27b");
         locomo_fixture(&bigger, true, false); // 1540 of 1540: scores higher
         served(&bigger, Some("Ternary-Bonsai-2-27B-PTQ1_0.gguf"));
@@ -2832,6 +2835,30 @@ mod tests {
         let judged = &ours["locomo.judge_score.n1540"];
         assert!(judged.run.ends_with("shipped_store"), "{judged:?}");
         assert!(!judged.arm, "{judged:?}");
+    }
+
+    /// M57: the premise clause ships on LongMemEval_S and nowhere else, so a
+    /// LongMemEval_S run without it and a LoCoMo run with it are both arms.
+    #[test]
+    fn the_premise_clause_ships_per_corpus() {
+        use crate::bench::shipped_reader_premise_clause;
+        assert!(shipped_reader_premise_clause("longmemeval_s"));
+        assert!(!shipped_reader_premise_clause("locomo"));
+    }
+
+    /// M55: the model ships where it was measured. On LongMemEval_S a run
+    /// served the 9B — or a pre-field run, which was — is now an arm, and
+    /// the Bonsai run is where we stand; LoCoMo keeps the 9B.
+    #[test]
+    fn the_shipped_model_is_per_corpus() {
+        use crate::bench::{shipped_llm_model, BONSAI_27B_GGUF, QWEN35_9B_GGUF};
+        assert_eq!(shipped_llm_model("longmemeval_s"), BONSAI_27B_GGUF);
+        assert_eq!(shipped_llm_model("locomo"), QWEN35_9B_GGUF);
+        assert_eq!(shipped_llm_model(LME_V2_CORPUS), QWEN35_9B_GGUF);
+        let lme = shipped_llm_model("longmemeval_s");
+        assert!(served_another_model(None, lme), "a pre-field LongMemEval_S run was the 9B");
+        assert!(served_another_model(Some(QWEN35_9B_GGUF), lme));
+        assert!(!served_another_model(Some(BONSAI_27B_GGUF), lme));
     }
 
     #[test]
@@ -3865,6 +3892,10 @@ mod tests {
                 "resolve_dates": true, "timeline": true,
                 "select_sufficient": true, "item_digest": true, "digest_dates": true,
                 "reader_thinking": thinking,
+                // Served the corpus's shipped model, so thinking is the only
+                // thing this test varies (M55 made the model per corpus).
+                "llm_served_model": crate::bench::shipped_llm_model(corpus),
+                "reader_premise_clause": crate::bench::shipped_reader_premise_clause(corpus),
                 "questions": 1, "f1_answerable": 0.5, "em_answerable": 0.1,
                 "abstention_accuracy": 0.0, "by_category": [],
                 "query_p50_seconds": 0.2, "query_avg_seconds": 0.2
