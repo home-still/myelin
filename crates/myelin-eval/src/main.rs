@@ -307,6 +307,8 @@ enum GridName {
     /// The shipped width crossed over budget and selector — does the
     /// selector add anything the tight budget is not already doing? (M31).
     Interaction,
+    /// LoCoMo's shipped retrieval, one cell, for sweeping `k` (L3).
+    Shipped,
 }
 
 impl GridName {
@@ -316,6 +318,7 @@ impl GridName {
             GridName::Select => &myelin_eval::ablate::SELECT_GRID,
             GridName::Budget => &myelin_eval::ablate::BUDGET_GRID,
             GridName::Interaction => &myelin_eval::ablate::INTERACTION_GRID,
+            GridName::Shipped => &myelin_eval::ablate::SHIPPED_GRID,
         }
     }
 
@@ -327,6 +330,7 @@ impl GridName {
             GridName::Select => "select",
             GridName::Budget => "budget",
             GridName::Interaction => "interaction",
+            GridName::Shipped => "shipped",
         }
     }
 }
@@ -855,6 +859,9 @@ enum Command {
         /// Which grid `--width` sweeps.
         #[arg(long, value_enum, default_value_t = GridName::Width)]
         grid: GridName,
+        /// L1's lineage-aware dedupe in compose, for the width sweep.
+        #[arg(long, requires = "width")]
+        dedupe_lineage: bool,
     },
     /// Re-score a finished bench run under a different scorer. Pure CPU:
     /// `response_raw` and `answer_gold` are on disk, so no reader call and no
@@ -1178,6 +1185,7 @@ async fn main() -> anyhow::Result<()> {
             ref corpus,
             grid,
             holdout,
+            dedupe_lineage,
         } => {
             ablate_cmd(
                 dataset,
@@ -1191,6 +1199,7 @@ async fn main() -> anyhow::Result<()> {
                 corpus,
                 grid,
                 holdout,
+                dedupe_lineage,
             )
             .await
         }
@@ -1683,6 +1692,7 @@ async fn ablate_cmd(
     corpus: &str,
     grid: GridName,
     holdout: bool,
+    dedupe_lineage: bool,
 ) -> anyhow::Result<()> {
     // clap's value is the user's spelling; the rest of the crate keys on
     // the underscored slug `Corpus::slug` produces, so normalise once here
@@ -1727,11 +1737,21 @@ async fn ablate_cmd(
             grid.cells(),
             limit,
             holdout,
+            dedupe_lineage,
         )
         .await?;
         myelin_eval::ablate::print_width(&points, k, corpus);
         let slug = grid.slug();
-        myelin_eval::ablate::write_width(&points, Path::new(&format!("runs/{slug}_{corpus}")))?;
+        // The shipped grid is swept over `k` and compose switches, so each
+        // of its runs gets its own artifact.
+        let dir = match grid {
+            GridName::Shipped => format!(
+                "runs/{slug}_{corpus}_k{k}{}",
+                if dedupe_lineage { "_dedupe" } else { "" }
+            ),
+            _ => format!("runs/{slug}_{corpus}"),
+        };
+        myelin_eval::ablate::write_width(&points, Path::new(&dir))?;
         return Ok(());
     }
     let run = myelin_eval::ablate::ablate_locomo(

@@ -531,6 +531,15 @@ pub struct WidthPoint {
     pub select: bool,
     /// Gold-turn recall of the **emitted** evidence — what the reader sees.
     pub recall: f64,
+    /// Share of questions whose emitted evidence holds **every** gold turn.
+    ///
+    /// `recall` averages over turns, which hides how rarely a multi-turn
+    /// question gets all it needs: on `m19_locomo_full` multi-hop held
+    /// every gold turn on 22% of rows, and scored 86% there against 36%
+    /// with none held (the 2026-09-24 bottleneck review). L3 sizes `k`
+    /// on this, not on the average.
+    #[serde(default)]
+    pub all: f64,
     /// Gold-turn recall of the **reranked pool**, before `compose`
     /// truncates to `k`. The ceiling `recall` is measured against.
     pub pool_recall: f64,
@@ -660,6 +669,7 @@ pub async fn width_sweep(
     grid: &[(u64, usize, bool, usize)],
     limit: Option<usize>,
     holdout: bool,
+    dedupe_lineage: bool,
 ) -> Result<Vec<WidthPoint>> {
     let cfg = MyelinConfig::load().context("load myelin config")?;
     let ledger = Ledger::open(ledger_path).await.context("open ledger")?;
@@ -728,12 +738,14 @@ pub async fn width_sweep(
                 compose: myelin_core::pipeline::compose::ComposeConfig {
                     k,
                     max_tokens: budget_tokens,
+                    dedupe_lineage,
                     ..Default::default()
                 },
                 ..Default::default()
             });
 
         let mut recall_sum = 0.0;
+        let mut all_sum = 0.0;
         let mut pool_recall_sum = 0.0;
         let mut any_sum = 0.0;
         let mut pool_sum = 0.0;
@@ -767,7 +779,9 @@ pub async fn width_sweep(
                 .iter()
                 .map(|i| (i.record_id, i.value.clone()))
                 .collect();
-            recall_sum += gold_recall(&source, q, &emitted);
+            let held = gold_recall(&source, q, &emitted);
+            recall_sum += held;
+            all_sum += f64::from(u8::from(held >= 1.0 - f64::EPSILON));
             let pool = gold_recall(&source, q, &trace.pool);
             pool_recall_sum += pool;
             any_sum += f64::from(u8::from(pool > 0.0));
@@ -804,6 +818,7 @@ pub async fn width_sweep(
             k,
             select,
             recall: recall_sum / n,
+            all: all_sum / n,
             pool_recall: pool_recall_sum / n,
             any: any_sum / n,
             pool: pool_sum / n,
@@ -816,7 +831,7 @@ pub async fn width_sweep(
             mean_emitted_tokens: if emitted_n > 0.0 { emitted_tokens / emitted_n } else { 0.0 },
         };
         println!(
-            "  prefetch {:<4} depth {:<4} select {:<5} budget {:<6} recall@{k} {:.4}  \
+            "  prefetch {:<4} depth {:<4} select {:<5} budget {:<6} recall@{k} {:.4}  all {:.4}  \
              pool {:.4}  (trunc {:.4} / miss {:.4})  tok-drops {:.2}  rank {:.1}  \
              rec-tok {:.0}  p50 {}ms",
             point.prefetch_limit,
@@ -824,6 +839,7 @@ pub async fn width_sweep(
             point.select,
             point.budget_tokens,
             point.recall,
+            point.all,
             point.pool_recall,
             point.truncation_loss(),
             point.retrieval_loss(),
@@ -1003,6 +1019,11 @@ pub const SELECT_GRID: [(u64, usize, bool, usize); 4] = [
 /// axis nobody has ever varied.
 ///
 /// The shipped budget runs first, for [`WIDTH_GRID`]'s reason.
+/// LoCoMo's shipped retrieval, one cell: the default width at the 4,096-token
+/// budget `bench` composes under. For sweeping `k` and compose switches at
+/// fixed retrieval (L3, M65).
+pub const SHIPPED_GRID: [(u64, usize, bool, usize); 1] = [(50, 25, false, 4096)];
+
 pub const BUDGET_GRID: [(u64, usize, bool, usize); 4] = [
     (50, 25, false, 2048),
     (50, 25, false, 4096),
@@ -1491,6 +1512,7 @@ mod tests {
             k: 6,
             select: false,
             recall,
+            all: 0.0,
             pool_recall: pool,
             any: 1.0,
             pool: depth as f64,
