@@ -246,3 +246,46 @@ against ~2 per minute alone), so LoCoMo was paused at 380 of its 1,986
 rows (kept, resumed after) and LongMemEval_S ran alone. That changed the
 order, not the measurement.
 
+## Results — M55b, LoCoMo on Bonsai, measured 2026-09-23
+
+**Judge (categories 1–4): 69.87 → 66.69, −3.18 [−4.87, −1.49].** This is a
+significant loss. It fails the bar, and LoCoMo's standing row stays at
+`runs/m19_locomo_full`. The prediction had the direction backwards: the
+caution did not go away, it more than doubled.
+
+| stratum | n | 9B | Bonsai | Δ | 95% CI |
+|---|---|---|---|---|---|
+| judge, categories 1–4 | 1,540 | 69.87 | 66.69 | −3.18 | [−4.87, −1.49] |
+| multi-hop | 282 | 57.80 | 53.19 | −4.61 | [−9.22, −0.35] |
+| temporal | 321 | 60.44 | 56.39 | −4.05 | [−8.10, +0.00] |
+| open-domain | 96 | 29.17 | 23.96 | −5.21 | [−12.50, +2.08] |
+| single-hop | 841 | 82.16 | 80.02 | −2.14 | [−4.16, −0.12] |
+| adversarial | 446 | 69.96 | 92.83 | **+22.87** | [+18.83, +27.13] |
+
+**The whole difference is the decision to answer.** The evidence is the
+same: 1,732 rows hold a gold turn under the 9B and 1,736 under Bonsai (2
+lost, 7 gained). Declines on answerable rows went from 121 to 292. When
+Bonsai does answer, it is right 82.3% of the time (1,027 of 1,248) against
+the 9B's ~75.8%. It answers 171 fewer questions.
+
+- **Declined with the answer in hand.** 118 of Bonsai's 179 new declines had
+  a gold turn in its own evidence. Many are LoCoMo's inferential questions
+  ("Would Melanie be more interested in going to a national park or a theme
+  park?", "How many times has Melanie gone to the beach in 2023?"). The 9B
+  guesses and often lands: 38 of the 179 were exactly right.
+- **Adversarial.** The same caution is worth +22.87 on the 446 questions
+  about things that never happened.
+
+**Read with the full LongMemEval_S run, the two benchmarks move the decline
+decision in opposite directions.** On LongMemEval_S, thinking and
+investigating, Bonsai declines less (82 → 64) and gives back abstention
+rows. On LoCoMo, with the plain reader and no thinking, it declines far more
+(121 → 292) and gains adversarial ones. On both benchmarks the lever left
+is when to answer, not what the model knows. The LoCoMo reader prompt asks
+for "I don't know" when the memories do not state the answer, and Bonsai
+obeys it literally where LoCoMo's inferential questions need a guess.
+
+Artifacts: `runs/m55b_locomo_bonsai` (`aggregated_metrics.json`,
+`judge_verdicts.json`), `llm_served_model =
+Ternary-Bonsai-2-27B-PTQ1_0.gguf`.
+

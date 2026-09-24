@@ -1,0 +1,79 @@
+{
+  "corpus": "locomo",
+  "collection": "myelin_locomo",
+  "mode": "recall",
+  "k": 6,
+  "max_steps": 2,
+  "graph": false,
+  "chronological": false,
+  "question_date": false,
+  "timeline_ago": false,
+  "resolve_dates": true,
+  "timeline": true,
+  "profile": false,
+  "profile_clause": false,
+  "mmr": null,
+  "select_sufficient": false,
+  "select_call_failed_rate": 0.0,
+  "select_declined_rate": 0.0,
+  "budget_tokens": 4096,
+  "prefetch_limit": null,
+  "rerank_depth": null,
+  "rerank_pool": false,
+  "premise": false,
+  "typed_probes": false,
+  "self_ask": false,
+  "untrusted_max": null,
+  "item_digest": false,
+  "digest_dates": false,
+  "commit_answer": false,
+  "resumed_rows": 1986,
+  "commit_samples": null,
+  "commit_agree": null,
+  "digest_relevance": false,
+  "digest_role": false,
+  "reader_reasoning": false,
+  "premise_check": false,
+  "reader_thinking": false,
+  "reader_seed": null,
+  "reader_thinking_budget": null,
+  "reader_think_message": false,
+  "decompose": null,
+  "categories": [],
+  "llm_served_model": "Ternary-Bonsai-2-27B-PTQ1_0.gguf",
+  "scorer": "temporal",
+  "rescored_from": null,
+  "questions": 1986,
+  "f1_answerable": 0.5683084078905745,
+  "em_answerable": 0.37987012987012986,
+  "abstention_accuracy": 0.9282511210762332,
+  "by_category": [
+    {
+      "category": 1,
+      "count": 282,
+      "mean_score": 0.3889167820545009
+    },
+    {
+      "category": 2,
+      "count": 321,
+      "mean_score": 0.5829352717203184
+    },
+    {
+      "category": 3,
+      "count": 96,
+      "mean_score": 0.13456435898296362
+    },
+    {
+      "category": 4,
+      "count": 841,
+      "mean_score": 0.672390029640346
+    },
+    {
+      "category": 5,
+      "count": 446,
+      "mean_score": 0.9282511210762332
+    }
+  ],
+  "query_p50_seconds": 0.340704042,
+  "query_avg_seconds": 0.37557586661178277
+}
