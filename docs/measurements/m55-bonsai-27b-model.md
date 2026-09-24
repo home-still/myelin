@@ -164,3 +164,23 @@ no projector. Both are judged by the 9B, re-served afterwards.
 - **Falsifier.** Adversarial drops, meaning a stronger model answers what it
   should refuse.
 
+## LME-V2 plumbing (merged before any Bonsai LME-V2 row exists)
+
+The LME-V2 protocol fixes the reader to Qwen3.5-9B for every system it
+compares (`10.48550/arXiv.2605.12493`), so a Bonsai-served reader would
+compare our memory against published rows read by a weaker model. The
+comparable arm builds memory with Bonsai and reads with the 9B, in two
+phases on one card:
+
+1. `run_myelin.py --prompts-only` with Bonsai served. myelin's own calls
+   (select, digest) go to Bonsai, and the run stops once every prompt row
+   is saved.
+2. `run_myelin.py --reuse-prompts-from <phase-1 dir>` with the 9B served.
+   The harness reader and the judge are the 9B.
+
+Every LME-V2 artifact now records `memory_llm_served_model` and
+`reader_served_model`, each asked of its server, and a replay keeps the
+model that built the memory. `standing` treats memory built by a
+non-shipped model, or any reader but the protocol's 9B, as an arm. A
+domain whose memory Bonsai built never pairs with one the 9B built.
+

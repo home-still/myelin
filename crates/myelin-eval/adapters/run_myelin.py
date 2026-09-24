@@ -69,6 +69,51 @@ READER_PREFLIGHT_MAX_TOKENS = 1
 READER_PREFLIGHT_TEXT = "Reply with the single word: ok."
 READER_PREFLIGHT_TIMEOUT_S = 300.0
 
+# `GET /v1/models` answers at once on a live llama-server; a server that has
+# not answered in this long is not serving.
+SERVED_MODEL_TIMEOUT_S = 30.0
+
+
+def served_model(base_url: str) -> str:
+    """The model file an OpenAI-compatible server reports serving (M55).
+
+    The same measurement as `bench`'s `served_model`: llama-server answers
+    `GET /v1/models` with the GGUF path, and the file name is kept. Asked of
+    the server itself, not read from a flag, so an artifact names the model
+    that actually served it. An unreachable server refuses the run.
+    """
+    import urllib.request  # noqa: E402
+
+    url = base_url.rstrip("/") + "/models"
+    try:
+        with urllib.request.urlopen(url, timeout=SERVED_MODEL_TIMEOUT_S) as resp:
+            body = json.load(resp)
+    except (OSError, ValueError) as exc:
+        raise SystemExit(f"GET {url}: {exc}. Nothing was built.") from exc
+    try:
+        model_id = body["data"][0]["id"]
+    except (KeyError, IndexError, TypeError):
+        raise SystemExit(f"{url} reported no model id: {body}. Nothing was built.") from None
+    return Path(model_id).name
+
+
+def source_memory_model(source_dir: Path) -> str | None:
+    """The memory-side model a `--reuse-prompts-from` source recorded.
+
+    `None` when the source predates the field; `standing` reads that as the
+    model every such run was served (the 9B), so the absence is carried, not
+    guessed here.
+    """
+    path = source_dir / "runtime_inputs" / "memory_config.json"
+    if not path.exists():
+        raise SystemExit(f"--reuse-prompts-from: {path} does not exist. Nothing was built.")
+    params = json.loads(path.read_text(encoding="utf-8")).get("memory_params") or {}
+    return params.get("memory_llm_served_model")
+
+
+class PromptsBuilt(Exception):
+    """Raised in place of the reader call when `--prompts-only` is set."""
+
 
 def first_question_image(selected_questions: list[dict]) -> str | None:
     """The screenshot path of the first selected question that carries one.
@@ -507,6 +552,25 @@ def parse_args() -> argparse.Namespace:
         "LME-V2 run since M33 passed the old --undated.",
     )
 
+    # M55: the memory side and the harness reader can be different models.
+    # The LME-V2 protocol fixes the READER to Qwen3.5-9B for every system
+    # (`10.48550/arXiv.2605.12493`), so a stronger system model can only be
+    # compared there by building memory with it and reading with the 9B:
+    # phase one `--prompts-only` with the system model served, phase two
+    # `--reuse-prompts-from` with the 9B served.
+    parser.add_argument(
+        "--prompts-only",
+        action="store_true",
+        help="Build and save every prompt row, then stop before the reader (phase one of a "
+        "two-model run). Pair with --reuse-prompts-from <this output dir> in phase two.",
+    )
+    parser.add_argument(
+        "--memory-llm-url",
+        default=os.getenv("MEMORY_LLM_URL", "http://127.0.0.1:5810/v1"),
+        help="The endpoint the myelin MCP server's own LLM calls go to (its config's llm.url). "
+        "Asked once for the model it serves, recorded as memory_llm_served_model.",
+    )
+
     # Reader. Defaults are this project's tunnelled llama-server, not the
     # harness's `localhost:8023`, because a default that points at nothing is
     # a 10-minute debugging session every time.
@@ -621,6 +685,14 @@ def main() -> None:
         output_path=runtime_dir / "haystack.json",
     )
 
+    if args.prompts_only and (args.reuse_prompts_from or args.reuse_responses_from):
+        raise SystemExit("--prompts-only builds prompts and --reuse-* consume them; pass one. Nothing was built.")
+    if args.reuse_prompts_from:
+        memory_model = source_memory_model(Path(args.reuse_prompts_from).expanduser().resolve())
+    else:
+        memory_model = served_model(args.memory_llm_url)
+    print(f"memory side served by {memory_model or 'the 9B (source predates the record)'}", flush=True)
+
     tier_slug = f"lme_v2_{args.tier}"
     memory_config = {
         "memory_type": "myelin",
@@ -667,6 +739,12 @@ def main() -> None:
             # M52, unconditional for the reason `select` is. Not a memory
             # switch, but part of the operating point `standing` pairs on.
             "reader_thinking": args.reader_enable_thinking,
+            # M55, unconditional. Which model built the memory (select,
+            # digest) and which one read it, each asked of its server. A
+            # replayed memory keeps the model that built it; a prompts-only
+            # run reads nothing, so it records no reader.
+            "memory_llm_served_model": memory_model,
+            "reader_served_model": None if args.prompts_only else served_model(args.reader_base_url),
         },
     }
     memory_config_path = runtime_dir / "memory_config.json"
@@ -713,7 +791,12 @@ def main() -> None:
     harness_module.OPENAI_MAX_RETRIES = args.openai_max_retries
     qa_eval_metrics.OPENAI_MAX_RETRIES = args.openai_max_retries
 
-    if args.reader_enable_thinking:
+    if args.prompts_only:
+        async def stop_before_reader(_args, _rows):
+            raise PromptsBuilt()
+
+        harness_module.generate_all_reader_outputs = stop_before_reader
+    elif args.reader_enable_thinking:
         preflight_reader_thinking(args)
         enable_harness_thinking(harness_module)
     if args.reuse_prompts_from:
@@ -729,7 +812,8 @@ def main() -> None:
             runtime_dir,
             harness_module,
         )
-    preflight_reader_images(args, selected_questions, harness_module)
+    if not args.prompts_only:
+        preflight_reader_images(args, selected_questions, harness_module)
 
     harness_main = harness_module.main
 
@@ -737,6 +821,8 @@ def main() -> None:
     try:
         sys.argv = harness_argv
         harness_main()
+    except PromptsBuilt:
+        print(f"prompts built and saved to {output_dir}; stopped before the reader (--prompts-only)", flush=True)
     finally:
         sys.argv = old_argv
 
