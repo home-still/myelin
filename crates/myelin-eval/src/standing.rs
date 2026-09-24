@@ -2026,7 +2026,7 @@ pub fn compare(reg: &Registry, ours: &BTreeMap<String, Ours>) -> StandingReport 
                     Bar::GreaterThan => g > 0.0,
                 });
             if !ok {
-                gated_failures.push(gate_failure(row, &verdict, gap, ours_converted));
+                gated_failures.push(gate_failure(row, &verdict, gap, ours_converted, arm));
             }
         }
         rows.push(StandingRow {
@@ -2167,6 +2167,7 @@ fn gate_failure(
     verdict: &Verdict,
     gap: Option<f64>,
     ours: Option<f64>,
+    arm: bool,
 ) -> String {
     let why = match verdict {
         Verdict::NotComparableSource { provenance } => format!(
@@ -2186,6 +2187,19 @@ fn gate_failure(
                 "tied at {:.2}; this gate needs a strict improvement, and a tie is what a \
                  dominated submission scores",
                 row.value
+            ),
+            // Ahead on the number and still open: the row is caveated or
+            // the artifact is an arm. Say which. This used to fall through
+            // to "behind by -2.60" when M57 led MemPro-15's 80.80 on a
+            // `caveat-judge` row.
+            (Some(g), Some(o)) if g >= 0.0 => format!(
+                "ahead by {g:.2} (ours {o:.2}, theirs {:.2}), but {}",
+                row.value,
+                if arm {
+                    "backed by an arm; a gate is closed by the shipped configuration".to_string()
+                } else {
+                    format!("{}; a gate closes only on a comparable row", verdict.slug())
+                }
             ),
             (Some(g), Some(o)) => format!(
                 "behind by {:.2} (ours {o:.2}, gate needs {} {:.2})",
@@ -2588,6 +2602,39 @@ mod tests {
         assert_eq!(report.gated_failures.len(), 1);
         assert!(
             report.gated_failures[0].contains("unverifiable source"),
+            "{:?}",
+            report.gated_failures
+        );
+    }
+
+    /// Found shipping M57: 83.40 against MemPro-15's 80.80 gate row printed
+    /// "behind by -2.60". The gate is rightly open (a `caveat-judge` row
+    /// cannot close one); the message must say we lead and why it is open.
+    #[test]
+    fn an_open_gate_we_lead_says_ahead_and_why_it_is_open() {
+        let mut reg = row("longmemeval_s.judge_score.n500", 80.8, 500);
+        reg.gate = true;
+        let mut ours = mine("longmemeval_s.judge_score.n500", 83.4, 500);
+        ours.judge_class = JudgeClass::OpenWeightsLocal;
+        let map: BTreeMap<String, Ours> = [(ours.metric.clone(), ours)].into();
+        let registry = Registry {
+            schema: 1,
+            rows: vec![reg],
+        };
+        let report = compare(&registry, &map);
+        assert!(matches!(report.rows[0].verdict, Verdict::CaveatJudge { .. }));
+        assert_eq!(report.gated_failures.len(), 1);
+        let msg = &report.gated_failures[0];
+        assert!(msg.contains("ahead by 2.60"), "{msg}");
+        assert!(msg.contains("caveat-judge"), "{msg}");
+        assert!(!msg.contains("behind"), "{msg}");
+
+        let mut arm = mine("longmemeval_s.judge_score.n500", 83.4, 500);
+        arm.arm = true;
+        let map: BTreeMap<String, Ours> = [(arm.metric.clone(), arm)].into();
+        let report = compare(&registry, &map);
+        assert!(
+            report.gated_failures[0].contains("backed by an arm"),
             "{:?}",
             report.gated_failures
         );
