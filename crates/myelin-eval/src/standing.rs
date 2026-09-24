@@ -977,12 +977,8 @@ fn bench_metrics(dir: &Path, agg_text: &str) -> Result<Vec<Ours>> {
         // M47's presupposition check.
         || run.premise_check
         // M55: a run served any model but the shipped one measures that
-        // model, not the system as shipped. Absent = written before the
-        // field existed, and every such run was served the shipped model.
-        || run
-            .llm_served_model
-            .as_deref()
-            .is_some_and(|m| m != SHIPPED_LLM_MODEL);
+        // model, not the system as shipped.
+        || served_another_model(run.llm_served_model.as_deref(), SHIPPED_LLM_MODEL);
 
     // Does this run record its own operating point? Every key below defines
     // part of what the system does per query today. An artifact that does
@@ -1137,6 +1133,17 @@ fn bench_metrics(dir: &Path, agg_text: &str) -> Result<Vec<Ours>> {
 /// default reader), as `GET /v1/models` names it. A bench run that recorded
 /// a different `llm_served_model` is an arm (M55).
 const SHIPPED_LLM_MODEL: &str = "Qwen3.5-9B-UD-Q4_K_XL.gguf";
+
+/// The model every bench run written before `llm_served_model` existed was
+/// served: `serve-models.sh` could serve nothing else until M55. A fact about
+/// history, not a default — it stays this file when the shipped model moves.
+const PRE_FIELD_SERVED_MODEL: &str = "Qwen3.5-9B-UD-Q4_K_XL.gguf";
+
+/// Whether a run was served a model other than `shipped`. An artifact
+/// without the field predates it and was served [`PRE_FIELD_SERVED_MODEL`].
+fn served_another_model(recorded: Option<&str>, shipped: &str) -> bool {
+    recorded.unwrap_or(PRE_FIELD_SERVED_MODEL) != shipped
+}
 
 /// Keys a `bench` artifact must carry for its operating point to be
 /// recoverable from disk, in the order the report names them.
@@ -2703,6 +2710,23 @@ mod tests {
             !legacy_ours["locomo.judge_score.n1540"].arm,
             "an artifact without the field predates it and was served the shipped model"
         );
+    }
+
+    /// M55: the arm rule reads a missing `llm_served_model` as the model
+    /// those runs were actually served, not as "whatever ships now". Were
+    /// the shipped model to move, every pre-field run must turn into an arm
+    /// rather than keep speaking for a system that no longer serves it.
+    #[test]
+    fn a_pre_field_run_was_served_the_9b_whatever_ships_now() {
+        let bonsai = "Ternary-Bonsai-2-27B-PTQ1_0.gguf";
+        // Today: the 9B ships.
+        assert!(!served_another_model(None, PRE_FIELD_SERVED_MODEL));
+        assert!(!served_another_model(Some(PRE_FIELD_SERVED_MODEL), PRE_FIELD_SERVED_MODEL));
+        assert!(served_another_model(Some(bonsai), PRE_FIELD_SERVED_MODEL));
+        // Were Bonsai to ship: pre-field and 9B runs are arms, Bonsai's are not.
+        assert!(served_another_model(None, bonsai));
+        assert!(served_another_model(Some(PRE_FIELD_SERVED_MODEL), bonsai));
+        assert!(!served_another_model(Some(bonsai), bonsai));
     }
 
     #[test]
