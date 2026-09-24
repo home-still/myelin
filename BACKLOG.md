@@ -34,7 +34,21 @@ its history. Short version:
 
 ## SOTA push *(plan approved 2026-09-24)*
 
-The checklist lives in `docs/measurements/sota-push-checklist.md`.
+The checklist lives in `docs/measurements/sota-push-checklist.md`. The
+research behind the next builds is `docs/research/sota-catalog-2026-09-24.md`.
+
+**Bottlenecks measured 2026-09-24 PM:**
+- **LoCoMo.** The 9B loses 464 answerable rows, split evenly:
+  - *reading with the gold in hand* (233 rows): relative dates are
+    resolved ~2,000 chars from the phrase; ISO ranges are judged wrong;
+    Bonsai refuses 292;
+  - *retrieval* (~231): facts duplicating a selected episode waste a
+    slot on 72% of rows; multi-hop holds all its gold on only 22%.
+- **Next builds, in order:** L1 lineage-aware dedupe, L2 dates inline in
+  words, L3 k, and M61 a grounded refusal override on Bonsai
+  (commit-arm replay).
+- **M60 and M58 are deferred** (user, 16:40), so big goes to the M54
+  full pair after M62b. sib went offline at 16:32.
 - **LongMemEval_S:** M57 **shipped 83.40** (past the 80.80 row); M58 (the preference clause on top) runs next.
 - **Code first (user, 2026-09-24 ~14:15).** Every LongMemEval_S gain since
   M43 came from the model (thinking, Bonsai, a prompt clause), and LME-V2's
