@@ -59,6 +59,12 @@ fn sql(e: sqlx::Error) -> MyelinError {
     MyelinError::Store(e.to_string())
 }
 
+/// Every trajectory read joins `trajectory t CROSS JOIN record r`, and the
+/// states after them. `CROSS JOIN` fixes SQLite's join order: the planner left
+/// to itself starts from `record` (86k rows on LME-V2) through `record_live`,
+/// and a one-trajectory state read took 0.62 s against 0.001 s trajectory-first
+/// (measured on `data/lme_v2_small.ledger`, 2026-09-24).
+///
 /// The anchor-record predicate every trajectory read shares: the scope filter
 /// and the live, non-quarantined test [`Ledger::visible_of_kind`] applies to
 /// records. A macro so each query stays one `&'static str` (sqlx refuses SQL
@@ -814,7 +820,7 @@ impl Ledger {
     pub async fn trajectories(&self, filter: &ScopeFilter) -> Result<Vec<TrajectoryHeader>> {
         let now_s = fmt_time(Utc::now());
         let rows = sqlx::query(concat!(
-            "SELECT t.* FROM trajectory t JOIN record r ON r.id = t.record_id WHERE ",
+            "SELECT t.* FROM trajectory t CROSS JOIN record r ON r.id = t.record_id WHERE ",
             readable_anchor!(),
             " ORDER BY t.id"
         ))
@@ -841,9 +847,9 @@ impl Ledger {
         let now_s = fmt_time(Utc::now());
         let rows = sqlx::query(concat!(
             "SELECT s.state_index, s.step, s.url, s.action
-             FROM trajectory_state s
-             JOIN trajectory t ON t.tenant = s.tenant AND t.namespace = s.namespace AND t.id = s.trajectory
-             JOIN record r ON r.id = t.record_id
+             FROM trajectory t
+             CROSS JOIN record r ON r.id = t.record_id
+             CROSS JOIN trajectory_state s ON s.tenant = t.tenant AND s.namespace = t.namespace AND s.trajectory = t.id
              WHERE ",
             readable_anchor!(),
             " AND t.id = ? ORDER BY s.state_index"
@@ -891,9 +897,9 @@ impl Ledger {
         }
         let now_s = fmt_time(Utc::now());
         let rows = sqlx::query(concat!(
-            "SELECT s.* FROM trajectory_state s
-             JOIN trajectory t ON t.tenant = s.tenant AND t.namespace = s.namespace AND t.id = s.trajectory
-             JOIN record r ON r.id = t.record_id
+            "SELECT s.* FROM trajectory t
+             CROSS JOIN record r ON r.id = t.record_id
+             CROSS JOIN trajectory_state s ON s.tenant = t.tenant AND s.namespace = t.namespace AND s.trajectory = t.id
              WHERE ",
             readable_anchor!(),
             " AND t.id = ? AND s.state_index BETWEEN ? AND ? ORDER BY s.state_index"
@@ -941,9 +947,9 @@ impl Ledger {
         let pattern = format!("%{escaped}%");
         let now_s = fmt_time(Utc::now());
         let rows = sqlx::query(concat!(
-            "SELECT t.id AS trajectory_id, s.* FROM trajectory_state s
-             JOIN trajectory t ON t.tenant = s.tenant AND t.namespace = s.namespace AND t.id = s.trajectory
-             JOIN record r ON r.id = t.record_id
+            "SELECT t.id AS trajectory_id, s.* FROM trajectory t
+             CROSS JOIN record r ON r.id = t.record_id
+             CROSS JOIN trajectory_state s ON s.tenant = t.tenant AND s.namespace = t.namespace AND s.trajectory = t.id
              WHERE ",
             readable_anchor!(),
             " AND (? IS NULL OR t.id = ?)
