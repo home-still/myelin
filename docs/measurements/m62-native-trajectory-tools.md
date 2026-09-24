@@ -159,9 +159,18 @@ stores are backfilled from the dataset with no re-embedding.
       - Each state item cites its anchor record and `SourceRef::span`. The
         controller's notes are a view (nil record, mechanism source,
         weakest trust).
-- [ ] **PR 4 — the controller.** A trajectory-agent branch in
-      `investigate`: one schema-constrained action per step, AgentRunbook-C's
-      rules as the system prompt, spans turned into `EvidenceSet` items.
-      Unit-tested against a scripted model.
+- [x] **PR 4 — the controller.** `pipeline/trajectory_agent.rs`, its own
+      module rather than a branch inside `investigate`'s search loop.
+      - It opens with the trajectory list and the question. Each step is
+        one JSON action forced into `action_schema` (thought plus one of
+        `summary` / `grep` / `read` / `answer`).
+      - The system prompt is the authors' INSTRUCTION.md rules, rewritten
+        for these tools.
+      - A misused tool, or an answer the tools refuse, comes back as the
+        observation for the model to correct.
+      - Past 16 steps or a 48,000-token transcript, the next step allows
+        only `answer`. An answer still refused twice is an error, never an
+        invented evidence set.
+      - Tested against a scripted model (5 tests).
 - [ ] **PR 5 — wiring and the pilot.** An MCP / adapter switch, then the
       47-question pilot against M54's 82.98 when a GPU is free.

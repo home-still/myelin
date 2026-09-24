@@ -1,0 +1,374 @@
+//! M62: myelin's own trajectory controller
+//! (`docs/measurements/m62-native-trajectory-tools.md`).
+//!
+//! A model reads the stored agent trajectories through the bounded tools in
+//! [`super::trajectory_tools`] and ends by naming spans, which become the
+//! reader's evidence in AgentRunbook-C's layout. The rules it follows are the
+//! LME-V2 authors' own controller instructions
+//! (`vendor/longmemeval-v2/memory_modules/assets/agentrunbook_c/INSTRUCTION.md`,
+//! `10.48550/arXiv.2605.12493` §4.2), rewritten for these tools in place of
+//! a shell and files.
+//!
+//! **One schema-constrained action per step** (user decision, 2026-09-24).
+//! The server forces every reply into [`action_schema`], so an action always
+//! parses (grammar-constrained decoding: Geng et al., EMNLP 2023,
+//! `10.18653/v1/2023.emnlp-main.674`), and the model states a thought before
+//! each action (ReAct: Yao et al., ICLR 2023, `10.48550/arXiv.2210.03629`).
+//! This is the path `investigate`'s `reflect()` already runs on every query.
+//!
+//! What the model gets wrong is fed back, not papered over. A tool the model
+//! misuses (unknown trajectory, a state it lacks, a span over budget) answers
+//! with the error as its observation and the model may correct itself. When
+//! the step or context budget is spent the model must answer. An answer
+//! still refused after [`FORCED_ANSWER_ATTEMPTS`] is an error for the caller,
+//! never an empty or invented evidence set.
+
+use serde::Deserialize;
+
+use crate::error::{MyelinError, Result};
+use crate::llm::{complete_json, CompletionRequest, Llm, Message};
+use crate::model::evidence::{EvidenceSet, TraceStep};
+use crate::pipeline::ingest::approx_tokens;
+use crate::pipeline::trajectory_tools::{SpanRequest, TrajectoryTools, MAX_TOTAL_SPAN_STATES};
+
+/// Tool calls before the answer is forced.
+pub const DEFAULT_MAX_STEPS: usize = 16;
+/// Completion budget of one action. An action is a short JSON object; the
+/// answer carries the notes, so this is sized for the answer.
+pub const DEFAULT_MAX_TOKENS_PER_STEP: u32 = 2048;
+/// Transcript size at which exploration stops and the answer is forced, so
+/// the controller never runs into its server's context window mid-search.
+pub const DEFAULT_CONTEXT_BUDGET_TOKENS: usize = 48_000;
+/// Answers tried once the budget is spent: the first, and one correction.
+pub const FORCED_ANSWER_ATTEMPTS: usize = 2;
+/// Upper bound on the `thought` field. llama.cpp's grammar compiler rejects
+/// `maxLength` of 2000 and above (`myelin-eval` `build::MAX_SCHEMA_MAX_LENGTH`).
+const THOUGHT_MAX_CHARS: u64 = 1500;
+/// Separates alternatives in a `grep` pattern, as the authors'
+/// `inspect_trajectory.py --match "Delete Review|Previous"` does.
+const GREP_ALTERNATIVES: char = '|';
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TrajectoryAgentConfig {
+    pub max_steps: usize,
+    pub max_tokens_per_step: u32,
+    pub context_budget_tokens: usize,
+    /// Let the controller think before each action. Off, like `reflect()`:
+    /// the `thought` field is its reasoning channel.
+    pub thinking: bool,
+}
+
+impl Default for TrajectoryAgentConfig {
+    fn default() -> Self {
+        Self {
+            max_steps: DEFAULT_MAX_STEPS,
+            max_tokens_per_step: DEFAULT_MAX_TOKENS_PER_STEP,
+            context_budget_tokens: DEFAULT_CONTEXT_BUDGET_TOKENS,
+            thinking: false,
+        }
+    }
+}
+
+/// The authors' rules (INSTRUCTION.md), for these tools.
+const RULES: &str = "\
+You are a fast memory retrieval module. Recorded agent trajectories from a customized web \
+environment are stored; each is a goal, a start URL, an outcome, and ordered states (a page's \
+accessibility tree, the URL, and the action taken next). Collect the evidence a downstream reader \
+needs to answer the question, and nothing more. Be quick and do not over-explore.
+
+Each reply is one JSON action: state your thought, then pick one tool.
+- summary {trajectory}: that trajectory's goal, outcome and numbered actions, with the state each led to.
+- grep {pattern, trajectory?}: lines containing the text, case-insensitive; separate alternatives \
+with |. Name a trajectory to search only there.
+- read {trajectory, state, from_line?}: a window of one state's page.
+- answer {memory_markdown, spans}: finish.
+
+Workflow.
+1. Triage the question before opening anything. For a direct lookup, find one exact state showing the \
+requested field, value, button or page, and prefer a single clean span. For a comparison, find the \
+supporting state from one trajectory per side. For a procedure, stay within one workflow family unless \
+the question asks for a pattern shared across workflows.
+2. Shortlist a few likely trajectories from the list you are given (goal, start URL, outcome). Prefer \
+the exact same product, page or workflow family over merely related ones. Verify with summary, grep \
+within a shortlisted trajectory, and read.
+3. If the evidence contradicts the question, its premise may be wrong (a nonexistent feature, step or \
+procedure): say so plainly so the reader can abstain, and still include the contradicting evidence.
+4. If the exact evidence is missing, incomplete or contradictory, do not extrapolate from numeric \
+progressions, nearby rows, similar buttons or similar workflows. Preserve the uncertainty for the reader.
+
+Answer.
+- memory_markdown has two sections only. \"## Support Analysis\": where the supporting evidence is, \
+pointing to the spans, or that the premise is wrong and where. \"## Relevant Procedure and Hint Notes\": \
+relevant procedure and observations.
+- spans: zero-based inclusive state indices, most important first. Usually no more than 3 states per \
+span; at most 20 states across all spans. One span proves one point; avoid redundant trajectories.
+- Reject nearby-but-not-exact matches: never substitute a similar field, row, tab, header, button or state.
+- If you find no useful evidence, answer with a minimal memory_markdown and no spans.";
+
+/// The action form every reply is constrained to. `tools` names the tools
+/// allowed at this step: all of them while exploring, only `answer` once the
+/// budget is spent.
+pub fn action_schema(tools: &[&str]) -> serde_json::Value {
+    serde_json::json!({
+        "type": "object",
+        "properties": {
+            "thought": {"type": "string", "maxLength": THOUGHT_MAX_CHARS},
+            "tool": {"type": "string", "enum": tools},
+            "trajectory": {"type": "string"},
+            "state": {"type": "integer", "minimum": 0},
+            "from_line": {"type": "integer", "minimum": 0},
+            "pattern": {"type": "string"},
+            "memory_markdown": {"type": "string"},
+            "spans": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "trajectory": {"type": "string"},
+                        "first": {"type": "integer", "minimum": 0},
+                        "last": {"type": "integer", "minimum": 0}
+                    },
+                    "required": ["trajectory", "first", "last"]
+                }
+            }
+        },
+        "required": ["thought", "tool"]
+    })
+}
+
+const EXPLORE_TOOLS: [&str; 4] = ["summary", "grep", "read", "answer"];
+const ANSWER_ONLY: [&str; 1] = ["answer"];
+
+#[derive(Debug, Clone, Deserialize)]
+struct Action {
+    thought: String,
+    tool: String,
+    trajectory: Option<String>,
+    state: Option<u32>,
+    from_line: Option<u32>,
+    pattern: Option<String>,
+    memory_markdown: Option<String>,
+    spans: Option<Vec<SpanJson>>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct SpanJson {
+    trajectory: String,
+    first: u32,
+    last: u32,
+}
+
+/// What one action produced: an observation for the model, or the answer.
+enum Outcome {
+    Observation { text: String, hits: usize },
+    Answered(EvidenceSet),
+}
+
+pub struct TrajectoryAgent<'a> {
+    llm: &'a dyn Llm,
+    tools: TrajectoryTools<'a>,
+    config: TrajectoryAgentConfig,
+}
+
+impl<'a> TrajectoryAgent<'a> {
+    pub fn new(llm: &'a dyn Llm, tools: TrajectoryTools<'a>, config: TrajectoryAgentConfig) -> Self {
+        Self { llm, tools, config }
+    }
+
+    /// Explore, answer, and return the reader's evidence with the trace of
+    /// every action.
+    pub async fn run(&self, question: &str) -> Result<EvidenceSet> {
+        let listing = self.tools.list().await?;
+        let mut messages = vec![
+            Message::system(RULES),
+            Message::user(format!(
+                "<question>\n{question}\n</question>\n<trajectories>\n{listing}</trajectories>"
+            )),
+        ];
+        let mut trace: Vec<TraceStep> = Vec::new();
+
+        for step in 0..self.config.max_steps {
+            if transcript_tokens(&messages) > self.config.context_budget_tokens {
+                break;
+            }
+            let (action, raw) = self.next_action(&messages, &EXPLORE_TOOLS).await?;
+            match self.act(&action).await? {
+                Outcome::Answered(mut set) => {
+                    trace.push(trace_step(step, &action, 0));
+                    set.trace = trace;
+                    return Ok(set);
+                }
+                Outcome::Observation { text, hits } => {
+                    trace.push(trace_step(step, &action, hits));
+                    messages.push(Message::assistant(raw));
+                    messages.push(Message::user(text));
+                }
+            }
+        }
+
+        messages.push(Message::user(
+            "The exploration budget is spent. Answer now with the evidence you have.",
+        ));
+        let mut last_refusal = String::new();
+        for attempt in 0..FORCED_ANSWER_ATTEMPTS {
+            let step = self.config.max_steps + attempt;
+            let (action, raw) = self.next_action(&messages, &ANSWER_ONLY).await?;
+            match self.act(&action).await? {
+                Outcome::Answered(mut set) => {
+                    trace.push(trace_step(step, &action, 0));
+                    set.trace = trace;
+                    return Ok(set);
+                }
+                Outcome::Observation { text, .. } => {
+                    trace.push(trace_step(step, &action, 0));
+                    last_refusal = text.clone();
+                    messages.push(Message::assistant(raw));
+                    messages.push(Message::user(text));
+                }
+            }
+        }
+        Err(MyelinError::Store(format!(
+            "trajectory controller: no acceptable answer after {FORCED_ANSWER_ATTEMPTS} forced attempts; last: {last_refusal}"
+        )))
+    }
+
+    async fn next_action(&self, messages: &[Message], tools: &[&str]) -> Result<(Action, String)> {
+        let request = CompletionRequest::new(messages.to_vec())
+            .with_schema(action_schema(tools))
+            .with_max_tokens(self.config.max_tokens_per_step)
+            .with_thinking(self.config.thinking);
+        let action: Action = complete_json(self.llm, &request).await?;
+        if !tools.contains(&action.tool.as_str()) {
+            return Err(MyelinError::Store(format!(
+                "trajectory controller chose {:?}, outside the allowed {tools:?}: the server did not apply the schema",
+                action.tool
+            )));
+        }
+        // The transcript keeps the action as the model's own turn, re-serialised
+        // so every assistant message is one clean JSON object.
+        let raw = serde_json::to_string(&serde_json::json!({
+            "thought": action.thought,
+            "tool": action.tool,
+            "trajectory": action.trajectory,
+            "state": action.state,
+            "from_line": action.from_line,
+            "pattern": action.pattern,
+            "memory_markdown": action.memory_markdown,
+            "spans": action.spans.as_ref().map(|v| v.iter().map(|s| serde_json::json!({
+                "trajectory": s.trajectory, "first": s.first, "last": s.last
+            })).collect::<Vec<_>>()),
+        }))?;
+        Ok((action, raw))
+    }
+
+    /// Run one action. A misuse the model can correct comes back as an
+    /// observation; only a store failure is an error.
+    async fn act(&self, a: &Action) -> Result<Outcome> {
+        let observe = |text: String, hits: usize| Ok(Outcome::Observation { text, hits });
+        match a.tool.as_str() {
+            "summary" => match &a.trajectory {
+                Some(t) => self.tool_result(self.tools.summary(t).await),
+                None => observe("error: summary needs a trajectory".into(), 0),
+            },
+            "grep" => {
+                let Some(pattern) = a.pattern.as_deref() else {
+                    return observe("error: grep needs a pattern".into(), 0);
+                };
+                let mut out = String::new();
+                let mut hits = 0;
+                for alt in pattern.split(GREP_ALTERNATIVES).map(str::trim).filter(|p| !p.is_empty()) {
+                    match self.tools.grep(alt, a.trajectory.as_deref()).await {
+                        Ok(text) => {
+                            hits += text.lines().filter(|l| l.contains(" state ")).count();
+                            out.push_str(&text);
+                        }
+                        Err(e) => out.push_str(&format!("error: {e}\n")),
+                    }
+                }
+                if out.is_empty() {
+                    out = "error: grep needs a non-empty pattern".into();
+                }
+                observe(out, hits)
+            }
+            "read" => match (&a.trajectory, a.state) {
+                (Some(t), Some(s)) => {
+                    let from = a.from_line.unwrap_or(0) as usize;
+                    self.tool_result(self.tools.read(t, s, from).await)
+                }
+                _ => observe("error: read needs a trajectory and a state".into(), 0),
+            },
+            "answer" => {
+                let spans: Vec<SpanRequest> = a
+                    .spans
+                    .iter()
+                    .flatten()
+                    .map(|s| SpanRequest {
+                        trajectory: s.trajectory.clone(),
+                        first: s.first,
+                        last: s.last,
+                    })
+                    .collect();
+                let notes = a.memory_markdown.as_deref().unwrap_or("");
+                match self.tools.evidence(notes, &spans).await {
+                    Ok(set) => Ok(Outcome::Answered(set)),
+                    Err(MyelinError::Store(why)) => observe(
+                        format!(
+                            "error: the answer was refused: {why}. Correct the spans (at most {MAX_TOTAL_SPAN_STATES} states in all) and answer again."
+                        ),
+                        0,
+                    ),
+                    Err(e) => Err(e),
+                }
+            }
+            other => Err(MyelinError::Store(format!(
+                "trajectory controller chose unknown tool {other:?}: the server did not apply the schema"
+            ))),
+        }
+    }
+
+    /// A tool's misuse is the model's to correct; anything else propagates.
+    fn tool_result(&self, r: Result<String>) -> Result<Outcome> {
+        match r {
+            Ok(text) => Ok(Outcome::Observation { text, hits: 1 }),
+            Err(MyelinError::Store(why)) => Ok(Outcome::Observation {
+                text: format!("error: {why}"),
+                hits: 0,
+            }),
+            Err(e) => Err(e),
+        }
+    }
+}
+
+fn transcript_tokens(messages: &[Message]) -> usize {
+    messages.iter().map(|m| approx_tokens(&m.content)).sum()
+}
+
+fn trace_step(step: usize, a: &Action, hits: usize) -> TraceStep {
+    let query = match a.tool.as_str() {
+        "grep" => format!(
+            "{}{}",
+            a.pattern.as_deref().unwrap_or(""),
+            a.trajectory.as_deref().map(|t| format!(" in {t}")).unwrap_or_default()
+        ),
+        "read" => format!(
+            "{} state {} from {}",
+            a.trajectory.as_deref().unwrap_or("?"),
+            a.state.map_or("?".into(), |s| s.to_string()),
+            a.from_line.unwrap_or(0)
+        ),
+        "answer" => a
+            .spans
+            .iter()
+            .flatten()
+            .map(|s| format!("{}:{}-{}", s.trajectory, s.first, s.last))
+            .collect::<Vec<_>>()
+            .join(", "),
+        _ => a.trajectory.clone().unwrap_or_default(),
+    };
+    TraceStep {
+        step,
+        action: a.tool.clone(),
+        query,
+        hits,
+    }
+}
