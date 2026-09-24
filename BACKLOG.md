@@ -25,7 +25,8 @@ its history. Short version:
   clause). It is `caveat-judge`, so `standing` keeps that gate open. The climb
   since M32: 62.00 → 67.80 → 78.40 → 83.40.
 - **LoCoMo 69.87**, 7.98 behind 77.85. It is claimable against Mem0's
-  published 66.88 (+2.99). M59/M60 are next.
+  published 66.88 (+2.99). M59's best-guess clause measured −1.95 (Bonsai
+  ignores it: refusals 292 → 272); M60 is queued.
 - **LME-V2 38.80**, behind the 74.90 AgentRunbook-C gate. M54's local
   controller piloted at 82.98, and its full 451-question pair is running.
 
@@ -35,7 +36,18 @@ its history. Short version:
 
 The checklist lives in `docs/measurements/sota-push-checklist.md`.
 - **LongMemEval_S:** M57 **shipped 83.40** (past the 80.80 row); M58 (the preference clause on top) runs next.
-- **LoCoMo:** M59 (a best-guess clause on Bonsai), then M60 (+ thinking).
+- **Code first (user, 2026-09-24 ~14:15).** Every LongMemEval_S gain since
+  M43 came from the model (thinking, Bonsai, a prompt clause), and LME-V2's
+  +40 from the authors' method. From here the building effort goes into
+  myelin's memory code, and no new per-benchmark prompt clauses are added.
+  The model arms already queued (M60, M58) finish.
+- **LoCoMo:** M59 (best-guess clause) **did not ship: −1.95**. The clause
+  moved only 27 of 292 refusals, though 70% of those were right. M60 (+
+  thinking) is queued.
+- **M62, myelin's own agent-history reader: built** (PRs #94–#98, #100).
+  It stores trajectories state by state, has bounded tools and a
+  schema-constrained controller. Its pilot against AgentRunbook-C's 82.98
+  runs on big now.
 - **LME-V2:** M54's full pair on big (2 slots) plus sib, then adopt AgentRunbook-C as
   myelin's agent-history mode (labelled) and build a native version (M62).
 
