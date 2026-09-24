@@ -717,6 +717,11 @@ enum Command {
         /// tag. Recorded on the artifact; the harness cannot verify it.
         #[arg(long, requires = "reader_thinking")]
         reader_think_message: bool,
+        /// Tell the reader to answer a question built on an assumption the
+        /// memories do not support with "I don't know." first and the
+        /// correction after (M57).
+        #[arg(long)]
+        reader_premise_clause: bool,
         /// Cap how many `Untrusted` records the composed set may contain
         /// (M23 B1). A ceiling, not an exclusion: the quota never drops
         /// untrusted evidence to zero and never drops a trusted record.
@@ -1182,6 +1187,7 @@ async fn main() -> anyhow::Result<()> {
             reader_thinking,
             reader_seed,
             reader_think_message,
+            reader_premise_clause,
             untrusted_max,
             decompose,
             ref categories,
@@ -1229,6 +1235,7 @@ async fn main() -> anyhow::Result<()> {
                     reader_thinking,
                     reader_seed,
                     reader_think_message,
+                    reader_premise_clause,
                     untrusted_max,
                     decompose,
                     categories: categories.clone().unwrap_or_default(),
