@@ -18,61 +18,26 @@ Literature lives in home-still; the guidance this backlog was built from is
 ## Where we stand
 
 See [`BACKLOG_DONE.md`](BACKLOG_DONE.md#sota-standing) for the full table and
-its history. Short version: **one gate closed** (MINJA 7.50% ≤ 10%), one
-claimable row (LoCoMo beats Mem0's published 66.88 by +2.99), and three open
-gaps — LoCoMo −7.98, **LongMemEval_S −2.40** (M43 closed 5.80, **M44 R2
-closed 10.60**: 62.00 → 67.80 → 78.40 in one day), LME-V2 −20.02 at a
-undated configuration: **38.80** (web 43.75, enterprise 33.18), measured 2026-09-23 at today's memory defaults on the rebuilt store. M52 tested the harness's thinking reader on it: at
-a 1,024-token budget thinking *loses* on LME-V2 (web −2.08, abstention
-−9.72), so the gap is not our reader declining to think. M44 R1, M46 and M48 measured null with the veto
-firing; M48 closed the negation story; M45 closed decline recovery (AUROC
-0.59). Then R2 — native thinking, 1,024 tokens, two seeds at 78.40 —
-moved the two-fact stratum +18 and temporal reasoning +30, with abstention
-*up*. The reader was compute-limited all along.
-
----
-
-## M55 — Ternary Bonsai 2 27B as myelin's model *(LongMemEval_S +3.8 vetoed; LoCoMo −3.18; the lever is when to answer)*
-
-Every open gap points at the 9B: thinking was worth +10.6 on LongMemEval_S
-(compute-limited), LME-V2 misreads 36% of the answers it is handed, and
-LoCoMo's declines rose 121 → 197 at the shipped settings. The comparable SOTA
-row answers with Qwen3-30B-A3B. Bonsai 27B (ternary, 5.95 GB, local) is on
-big today. Plumbing merged first: bench records the served model
-(`llm_served_model`), `standing` treats a non-9B run as an arm, and
-`serve-models.sh` serves Bonsai with `MYELIN_READER_MODEL=bonsai-27b`.
-The pilot on the M50 100-question population measured **69.0 → 79.0,
-+10.0 [+3.0, +17.0]**, past its +5 gate: +36.8 on the 9B's declines, +20.5
-on two-session questions, at 1.4× the time per row. The full 500 measured **78.40 → 82.20, +3.8 [+1.2, +6.6]**:
-+4.7 on answerable. But abstention fell from 28/30 to 25/30, so the veto
-fired. Two of the lost rows are premise corrections ("You see Dr. Smith, not
-Dr. Johnson") that the string-rule abstention scorer cannot see. One is a
-real false-premise answer. LoCoMo on Bonsai (M55b) measured **−3.18
-[−4.87, −1.49]** with the same evidence. Declines on answerable rows went
-121 → 292 (118 with the gold turn in hand) and adversarial went +22.87. On
-both benchmarks Bonsai knows more; what is left is calibrating when it
-answers. The fix for the next arm is waiting on the user's choice
-(`docs/measurements/m55-bonsai-27b-model.md`).
+its history. Short version:
+- **One gate closed:** MINJA 7.50% ≤ 10%.
+- **LongMemEval_S is past the same-size SOTA row:** **83.40** against
+  MemPro-15 (Qwen3-30B) at 80.80, since M57 (Bonsai 27B plus the premise
+  clause). It is `caveat-judge`, so `standing` keeps that gate open. The climb
+  since M32: 62.00 → 67.80 → 78.40 → 83.40.
+- **LoCoMo 69.87**, 7.98 behind 77.85. It is claimable against Mem0's
+  published 66.88 (+2.99). M59/M60 are next.
+- **LME-V2 38.80**, behind the 74.90 AgentRunbook-C gate. M54's local
+  controller piloted at 82.98, and its full 451-question pair is running.
 
 ---
 
 ## SOTA push *(plan approved 2026-09-24)*
 
 The checklist lives in `docs/measurements/sota-push-checklist.md`.
-- **LongMemEval_S:** M57, then M58 (the preference clause on Bonsai).
+- **LongMemEval_S:** M57 **shipped 83.40** (past the 80.80 row); M58 (the preference clause on top) runs next.
 - **LoCoMo:** M59 (a best-guess clause on Bonsai), then M60 (+ thinking).
-- **LME-V2:** M54's full pair on big plus bmb, then adopt AgentRunbook-C as
+- **LME-V2:** M54's full pair on big (2 slots) plus sib, then adopt AgentRunbook-C as
   myelin's agent-history mode (labelled) and build a native version (M62).
-
----
-
-## M57 — "I don't know" first, then the correction *(pre-registered)*
-
-Bonsai with one reader clause: when the question assumes something the
-memories do not support, reply "I don't know." and then the correction. It
-targets the three abstention rows that vetoed M55 (82.20). Full 500 against
-the shipped 78.40, abstention ≥ 28/30
-(`docs/measurements/m57-decline-first.md`).
 
 ---
 

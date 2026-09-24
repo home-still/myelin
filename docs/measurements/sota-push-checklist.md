@@ -6,8 +6,8 @@ and every number that uses one says so. Plan approved by the user
 2026-09-24. Each item lands as its own PR; tick it here in that PR.
 
 ## A — LongMemEval_S (target 80.80)
-- [ ] M57 result written up (`m57-decline-first.md`); strata against shipped and against M55
-- [ ] If it clears: per-corpus shipped model and clause, standing / ratchet,
+- [x] M57 result written up (`m57-decline-first.md`); strata against shipped and against M55: **83.40, +5.0 [+2.2, +7.8], abstention 29/30**
+- [x] It cleared: per-corpus shipped model and clause, standing / ratchet,
       README and EVALUATION rows, BACKLOG → BACKLOG_DONE. **SOTA crossing
       recorded with its commit.**
 - [x] M58 pre-registered (`m58-bonsai-preference.md`)

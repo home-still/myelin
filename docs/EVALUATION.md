@@ -452,11 +452,14 @@ right.
 
 ### 6.4 Where we stand on these two, and how a number gets made
 
-The shipped `investigate` operating point on LongMemEval_S, as of M44 R2
-(2026-09-22): `--k 6 --budget-tokens 4096 --max-steps 2 --select-sufficient
---item-digest --digest-dates --reader-thinking --reader-seed <n>`, the
-reader served with `--reasoning-budget 1024`, judged by the local
-Qwen3.5-9B panel (thinking off for the judge).
+The shipped `investigate` operating point on LongMemEval_S, as of M57
+(2026-09-24): `--k 6 --budget-tokens 4096 --max-steps 2 --select-sufficient
+--item-digest --digest-dates --reader-thinking --reader-seed <n>
+--reader-premise-clause`, with the reader served as **Ternary Bonsai 2 27B**
+(`MYELIN_READER_MODEL=bonsai-27b`, `--reasoning-budget 1024`), judged by the
+local Qwen3.5-9B panel (thinking off for the judge). The model and the clause
+are per corpus (`shipped_llm_model`, `shipped_reader_premise_clause`):
+LoCoMo and LME-V2 still read with the 9B and no clause.
 
 | milestone | change | LongMemEval_S judged (n = 500) |
 |---|---|---|
@@ -464,8 +467,9 @@ Qwen3.5-9B panel (thinking off for the judge).
 | M32 | pool-level sufficiency selection ships on | **62.00** (+5.8, 95% CI [+2.8, +8.8]) |
 | M43 | one dated digest note per memory ships on | **67.80** (+5.8, 95% CI [+2.8, +8.8]) |
 | M44 R2 | the reader thinks — 1,024-token budget, sampled, two seeds | **78.40** (+10.6, 95% CI [+7.0, +14.2]; seed 2 identical) |
+| M57 | Bonsai 27B reads, and says "I don't know." before correcting a false premise | **83.40** (+5.0, 95% CI [+2.2, +7.8]; abstention 29/30) |
 
-Everything between and after those rows — M33–M42, M44 R1 — is a measured
+Everything between and after those rows — M33–M42, M44 R1, M55 — is a measured
 null, a significant negative, or a win vetoed on the abstention rows, and
 each is recorded in `docs/measurements/` with the number that stopped it.
 `BACKLOG_DONE.md` keeps the running standing table and the ratchet history;

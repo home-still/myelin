@@ -1389,6 +1389,40 @@ pub fn shipped_reader_thinking(corpus: &str) -> bool {
     corpus == "longmemeval_s"
 }
 
+/// Whether the shipped reader carries [`READER_PREMISE_CLAUSE`], per corpus
+/// (M57). On for LongMemEval_S, where it was measured with Bonsai 27B; off on
+/// LoCoMo, whose problem is the opposite (M55b: too many refusals). Read by
+/// `standing`, so a LongMemEval_S run without the clause is an arm of today's
+/// configuration and a LoCoMo run with it is one too.
+pub fn shipped_reader_premise_clause(corpus: &str) -> bool {
+    corpus == "longmemeval_s"
+}
+
+/// Qwen3.5-9B, as `GET /v1/models` names the file `ops/big/serve-models.sh`
+/// serves by default. The only model any run was served before M55.
+pub const QWEN35_9B_GGUF: &str = "Qwen3.5-9B-UD-Q4_K_XL.gguf";
+/// PrismML's Ternary Bonsai 2 27B (PTQ1_0), served with
+/// `MYELIN_READER_MODEL=bonsai-27b` (M55). Ternary weights after BitNet b1.58
+/// (Ma et al., `10.48550/arXiv.2402.17764`).
+pub const BONSAI_27B_GGUF: &str = "Ternary-Bonsai-2-27B-PTQ1_0.gguf";
+
+/// The model the shipped system is served, per corpus (M55).
+///
+/// **Bonsai 27B for LongMemEval_S since M57**, together with
+/// [`shipped_reader_premise_clause`]. M55 alone scored 82.20 but lost three
+/// abstention rows (28 → 25/30), and the veto held it back. M57 added the
+/// clause: 83.40 against the 9B's 78.40, +5.0 [+2.2, +7.8], abstention 29/30
+/// (`docs/measurements/m57-decline-first.md`). The model ships where it was
+/// measured, like [`shipped_reader_thinking`]: LoCoMo (M55b: −3.18) and
+/// LME-V2 keep the 9B until their own Bonsai runs clear. Read by `standing`,
+/// so a 9B LongMemEval_S run is an arm of today's configuration.
+pub fn shipped_llm_model(corpus: &str) -> &'static str {
+    match corpus {
+        "longmemeval_s" => BONSAI_27B_GGUF,
+        _ => QWEN35_9B_GGUF,
+    }
+}
+
 /// How the reader is asked (M44).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ReaderMode {
