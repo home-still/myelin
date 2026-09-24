@@ -109,4 +109,43 @@ Where each piece of the design lands today, so the build starts from facts.
     "traj": …, "a": 3, "b": 7}`, the path `reflect()` already uses on
     every `investigate` call.
 
-  This is the user's call, to be asked before the build starts.
+  **Decided by the user, 2026-09-24:** one schema-constrained action per
+  step. Each step's output is forced to match the action form (grammar-
+  constrained decoding, Geng et al., EMNLP 2023,
+  `10.18653/v1/2023.emnlp-main.674`), in a reason-then-act loop (ReAct, Yao
+  et al., ICLR 2023, `10.48550/arXiv.2210.03629`). This is the path
+  `reflect()` already runs on every `investigate` call.
+
+## Build plan *(2026-09-24, after the two decisions)*
+
+The user put the SOTA push on **code first** the same day. Model- and
+prompt-side arms stop at M58–M60, and the building goes into myelin's own
+memory. M62 is the first of those builds.
+
+**Second decision (user): agent histories get their own table.** Today the
+store keeps a trajectory only as merged search chunks. Step turns merge into
+episodes of up to ~512 tokens, and provenance keeps only the first turn's
+source, so a state's action cannot be read back exactly. M62 adds
+`trajectory` and `trajectory_state` tables to the ledger: one row per
+trajectory (goal, environment, start URL, outcome, and the id of its goal
+episode record, for lineage) and one row per state (index, step, URL,
+action, thought, accessibility tree). It sits beside the episodic records,
+which stay as they are for search. It is filled at build time, and existing
+stores are backfilled from the dataset with no re-embedding.
+
+- [x] **PR 1 — the store.** Schema (`CREATE TABLE IF NOT EXISTS`, so
+      existing ledgers gain it on open), model types, `Ledger` write and
+      scoped reads (list a tenant's trajectories; read one state or a
+      range), and tests.
+- [ ] **PR 2 — the write path.** `build_lmev2` fills the table; a
+      `backfill-trajectories` step fills already-built stores (no GPU, no
+      embeddings). Row counts are checked against the dataset.
+- [ ] **PR 3 — tools and rendering.** `shortlist` / `summary` / `state` /
+      `span` / `match`, with the authors' span format ported and cited
+      (`format_span_header`, `format_state_text`, at most 20 states).
+- [ ] **PR 4 — the controller.** A trajectory-agent branch in
+      `investigate`: one schema-constrained action per step, AgentRunbook-C's
+      rules as the system prompt, spans turned into `EvidenceSet` items.
+      Unit-tested against a scripted model.
+- [ ] **PR 5 — wiring and the pilot.** An MCP / adapter switch, then the
+      47-question pilot against M54's 82.98 when a GPU is free.

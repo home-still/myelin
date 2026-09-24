@@ -33,6 +33,7 @@ use uuid::Uuid;
 use crate::error::{MyelinError, Result};
 use crate::model::delta::{AppliedDelta, Delta};
 use crate::model::query::ScopeFilter;
+use crate::model::trajectory::{AgentTrajectory, TrajectoryHeader, TrajectoryState, TrajectoryStep};
 use crate::model::record::{
     ActorId, EntityRef, Link, LinkKind, MemoryRecord, Provenance, RecordKind, Salience, Scope,
     SourceRef, Trust, TrustTier, Validity,
@@ -56,6 +57,57 @@ fn parse_uuid(s: &str) -> Result<Uuid> {
 
 fn sql(e: sqlx::Error) -> MyelinError {
     MyelinError::Store(e.to_string())
+}
+
+/// The anchor-record predicate every trajectory read shares: the scope filter
+/// and the live, non-quarantined test [`Ledger::visible_of_kind`] applies to
+/// records. A macro so each query stays one `&'static str` (sqlx refuses SQL
+/// assembled at runtime). Binds, in order: tenant, namespace x2, agent x2,
+/// session x2, now x3.
+macro_rules! readable_anchor {
+    () => {
+        "r.tenant = ?
+               AND (? IS NULL OR r.namespace = ?)
+               AND (? IS NULL OR r.agent = ?)
+               AND (? IS NULL OR r.session = ?)
+               AND r.prov_source IS NOT NULL
+               AND r.trust_tier <> 'quarantined'
+               AND r.t_valid <= ?
+               AND (r.t_invalid IS NULL OR r.t_invalid > ?)
+               AND (r.t_expired IS NULL OR r.t_expired > ?)"
+    };
+}
+
+fn state_u32(row: &SqliteRow, column: &str) -> Result<u32> {
+    let v: i64 = row.get(column);
+    u32::try_from(v).map_err(|_| MyelinError::Store(format!("trajectory {column} {v} is out of range")))
+}
+
+fn row_to_trajectory_header(row: &SqliteRow) -> Result<TrajectoryHeader> {
+    Ok(TrajectoryHeader {
+        id: row.get("id"),
+        scope: Scope::new(
+            row.get::<String, _>("tenant"),
+            row.get::<String, _>("agent"),
+            row.get::<String, _>("namespace"),
+        ),
+        record_id: parse_uuid(row.get::<String, _>("record_id").as_str())?,
+        goal: row.get("goal"),
+        environment: row.get("environment"),
+        start_url: row.get("start_url"),
+        outcome: row.get("outcome"),
+    })
+}
+
+fn row_to_trajectory_state(row: &SqliteRow) -> Result<TrajectoryState> {
+    Ok(TrajectoryState {
+        state_index: state_u32(row, "state_index")?,
+        step: state_u32(row, "step")?,
+        url: row.get("url"),
+        action: row.get("action"),
+        thought: row.get("thought"),
+        accessibility_tree: row.get("accessibility_tree"),
+    })
 }
 
 /// One row of the append-only decision log (C10).
@@ -645,6 +697,254 @@ impl Ledger {
         rows.iter()
             .map(|r| parse_uuid(r.get::<String, _>("id").as_str()))
             .collect()
+    }
+
+    // ── Agent trajectories (M62) ────────────────────────────────
+
+    /// Store one agent trajectory, header and states, in one transaction.
+    ///
+    /// Refuses a trajectory that fails [`AgentTrajectory::validate`], one
+    /// whose anchor record is absent or lives in another tenant or namespace,
+    /// and one already stored under the same id: a stored trajectory is
+    /// never replaced (the schema's update triggers), so a second write is a
+    /// caller error, not an upsert. The write is logged against the anchor
+    /// record, so an export of the namespace carries it.
+    pub async fn put_trajectory(&self, traj: &AgentTrajectory, actor: &ActorId) -> Result<()> {
+        traj.validate()?;
+        let h = &traj.header;
+        let mut tx = self.pool.begin().await.map_err(sql)?;
+        let anchor = sqlx::query("SELECT tenant, namespace FROM record WHERE id = ?")
+            .bind(h.record_id.to_string())
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(sql)?;
+        let Some(anchor) = anchor else {
+            return Err(MyelinError::Store(format!(
+                "trajectory {}: anchor record {} is not in the ledger",
+                h.id, h.record_id
+            )));
+        };
+        let (tenant, namespace): (String, String) = (anchor.get("tenant"), anchor.get("namespace"));
+        if tenant != h.scope.tenant || namespace != h.scope.namespace {
+            return Err(MyelinError::Store(format!(
+                "trajectory {}: anchor record {} is in {tenant}/{namespace}, not {}/{}",
+                h.id, h.record_id, h.scope.tenant, h.scope.namespace
+            )));
+        }
+        let stored = sqlx::query("SELECT 1 FROM trajectory WHERE tenant = ? AND namespace = ? AND id = ?")
+            .bind(&h.scope.tenant)
+            .bind(&h.scope.namespace)
+            .bind(&h.id)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(sql)?;
+        if stored.is_some() {
+            return Err(MyelinError::Store(format!(
+                "trajectory {} is already stored in {}/{}",
+                h.id, h.scope.tenant, h.scope.namespace
+            )));
+        }
+        Self::insert_trajectory(&mut tx, traj).await?;
+        sqlx::query(
+            "INSERT INTO event (at, kind, record_id, actor, reason, detail) VALUES (?,?,?,?,?,?)",
+        )
+        .bind(fmt_time(Utc::now()))
+        .bind("trajectory_add")
+        .bind(h.record_id.to_string())
+        .bind(actor.as_str())
+        .bind("M62: agent trajectory stored state by state")
+        .bind(serde_json::json!({ "trajectory": h.id, "states": traj.states.len() }).to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(sql)?;
+        tx.commit().await.map_err(sql)?;
+        Ok(())
+    }
+
+    async fn insert_trajectory(
+        tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+        traj: &AgentTrajectory,
+    ) -> Result<()> {
+        let h = &traj.header;
+        sqlx::query(
+            "INSERT INTO trajectory (tenant, agent, namespace, id, record_id, goal, environment, start_url, outcome)
+             VALUES (?,?,?,?,?,?,?,?,?)",
+        )
+        .bind(&h.scope.tenant)
+        .bind(&h.scope.agent)
+        .bind(&h.scope.namespace)
+        .bind(&h.id)
+        .bind(h.record_id.to_string())
+        .bind(&h.goal)
+        .bind(&h.environment)
+        .bind(&h.start_url)
+        .bind(&h.outcome)
+        .execute(&mut **tx)
+        .await
+        .map_err(sql)?;
+        for st in &traj.states {
+            sqlx::query(
+                "INSERT INTO trajectory_state
+                    (tenant, namespace, trajectory, state_index, step, url, action, thought, accessibility_tree)
+                 VALUES (?,?,?,?,?,?,?,?,?)",
+            )
+            .bind(&h.scope.tenant)
+            .bind(&h.scope.namespace)
+            .bind(&h.id)
+            .bind(i64::from(st.state_index))
+            .bind(i64::from(st.step))
+            .bind(&st.url)
+            .bind(st.action.as_deref())
+            .bind(st.thought.as_deref())
+            .bind(&st.accessibility_tree)
+            .execute(&mut **tx)
+            .await
+            .map_err(sql)?;
+        }
+        Ok(())
+    }
+
+    /// The trajectories readable in scope, ordered by id.
+    ///
+    /// A trajectory is readable exactly when its anchor record is: the same
+    /// scope filter and the same live, non-quarantined predicate as
+    /// [`Ledger::visible_of_kind`] apply to the anchor. So a retracted or
+    /// quarantined goal record hides its trajectory, and there is one
+    /// visibility rule rather than two.
+    pub async fn trajectories(&self, filter: &ScopeFilter) -> Result<Vec<TrajectoryHeader>> {
+        let now_s = fmt_time(Utc::now());
+        let rows = sqlx::query(concat!(
+            "SELECT t.* FROM trajectory t JOIN record r ON r.id = t.record_id WHERE ",
+            readable_anchor!(),
+            " ORDER BY t.id"
+        ))
+        .bind(&filter.tenant)
+        .bind(filter.namespace.as_deref())
+        .bind(filter.namespace.as_deref())
+        .bind(filter.agent.as_deref())
+        .bind(filter.agent.as_deref())
+        .bind(filter.session.as_deref())
+        .bind(filter.session.as_deref())
+        .bind(&now_s)
+        .bind(&now_s)
+        .bind(&now_s)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(sql)?;
+        rows.iter().map(row_to_trajectory_header).collect()
+    }
+
+    /// One trajectory's steps without their pages, in state order: what a
+    /// trajectory summary lists. Empty when the trajectory is not readable in
+    /// scope.
+    pub async fn trajectory_steps(&self, filter: &ScopeFilter, id: &str) -> Result<Vec<TrajectoryStep>> {
+        let now_s = fmt_time(Utc::now());
+        let rows = sqlx::query(concat!(
+            "SELECT s.state_index, s.step, s.url, s.action
+             FROM trajectory_state s
+             JOIN trajectory t ON t.tenant = s.tenant AND t.namespace = s.namespace AND t.id = s.trajectory
+             JOIN record r ON r.id = t.record_id
+             WHERE ",
+            readable_anchor!(),
+            " AND t.id = ? ORDER BY s.state_index"
+        ))
+        .bind(&filter.tenant)
+        .bind(filter.namespace.as_deref())
+        .bind(filter.namespace.as_deref())
+        .bind(filter.agent.as_deref())
+        .bind(filter.agent.as_deref())
+        .bind(filter.session.as_deref())
+        .bind(filter.session.as_deref())
+        .bind(&now_s)
+        .bind(&now_s)
+        .bind(&now_s)
+        .bind(id)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(sql)?;
+        rows.iter()
+            .map(|r| {
+                Ok(TrajectoryStep {
+                    state_index: state_u32(r, "state_index")?,
+                    step: state_u32(r, "step")?,
+                    url: r.get("url"),
+                    action: r.get("action"),
+                })
+            })
+            .collect()
+    }
+
+    /// States `first..=last` of one trajectory, pages included, in order.
+    /// Empty when the trajectory is not readable in scope or the range holds
+    /// no state; a reversed range is a caller error.
+    pub async fn trajectory_states(
+        &self,
+        filter: &ScopeFilter,
+        id: &str,
+        first: u32,
+        last: u32,
+    ) -> Result<Vec<TrajectoryState>> {
+        if last < first {
+            return Err(MyelinError::Store(format!(
+                "trajectory {id}: state range {first}-{last} is reversed"
+            )));
+        }
+        let now_s = fmt_time(Utc::now());
+        let rows = sqlx::query(concat!(
+            "SELECT s.* FROM trajectory_state s
+             JOIN trajectory t ON t.tenant = s.tenant AND t.namespace = s.namespace AND t.id = s.trajectory
+             JOIN record r ON r.id = t.record_id
+             WHERE ",
+            readable_anchor!(),
+            " AND t.id = ? AND s.state_index BETWEEN ? AND ? ORDER BY s.state_index"
+        ))
+        .bind(&filter.tenant)
+        .bind(filter.namespace.as_deref())
+        .bind(filter.namespace.as_deref())
+        .bind(filter.agent.as_deref())
+        .bind(filter.agent.as_deref())
+        .bind(filter.session.as_deref())
+        .bind(filter.session.as_deref())
+        .bind(&now_s)
+        .bind(&now_s)
+        .bind(&now_s)
+        .bind(id)
+        .bind(i64::from(first))
+        .bind(i64::from(last))
+        .fetch_all(&self.pool)
+        .await
+        .map_err(sql)?;
+        rows.iter().map(row_to_trajectory_state).collect()
+    }
+
+    /// Every stored trajectory of a namespace, readable or not, for export:
+    /// like [`Ledger::records_in_namespace`], an export reproduces the stored
+    /// state, not what a read path would show.
+    pub async fn trajectories_in_namespace(&self, namespace: &str) -> Result<Vec<AgentTrajectory>> {
+        let headers = sqlx::query("SELECT * FROM trajectory WHERE namespace = ? ORDER BY tenant, id")
+            .bind(namespace)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(sql)?;
+        let mut out = Vec::with_capacity(headers.len());
+        for row in &headers {
+            let header = row_to_trajectory_header(row)?;
+            let states = sqlx::query(
+                "SELECT * FROM trajectory_state WHERE tenant = ? AND namespace = ? AND trajectory = ?
+                 ORDER BY state_index",
+            )
+            .bind(&header.scope.tenant)
+            .bind(&header.scope.namespace)
+            .bind(&header.id)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(sql)?
+            .iter()
+            .map(row_to_trajectory_state)
+            .collect::<Result<Vec<_>>>()?;
+            out.push(AgentTrajectory { header, states });
+        }
+        Ok(out)
     }
 
     // ── Quarantine (C4 / I3) ────────────────────────────────────
@@ -1262,6 +1562,11 @@ impl Ledger {
 
         for record in &bundle.records {
             Self::insert_record(&mut tx, record).await?;
+        }
+        // After the records: each trajectory's anchor must already exist.
+        for traj in &bundle.trajectories {
+            traj.validate()?;
+            Self::insert_trajectory(&mut tx, traj).await?;
         }
         for link in &bundle.links {
             sqlx::query("INSERT OR IGNORE INTO link (src, dst, relation, at) VALUES (?,?,?,?)")
