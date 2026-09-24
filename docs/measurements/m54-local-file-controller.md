@@ -268,3 +268,24 @@ instead of 96K. It is reported separately.
 
 **Smoke tests:** one question per new host before its first chunk.
 
+
+**big_mac dropped, 2026-09-24 12:49, before any big_mac chunk.** Its smoke
+question hit the 1,800-second controller timeout with **no memory written**.
+Its real decode on long agent contexts was 6.2–7.3 tok/s, with ~85 tok/s
+prefill, well below the 17.5 tok/s short test. A 24-question chunk would take
+most of a day, and one slow host holding a tail chunk would delay the finish.
+The server is stopped. **No big_mac-controlled chunk is in the measurement.**
+
+**sib passed its smoke question, 2026-09-24 12:58.** One question end to end
+in 916 seconds, with 9 memory items written, no failed attempts and no
+transport errors. Its decode on long agent contexts is 20–23 tok/s, with
+~240 tok/s prefill. The sib worker started at 12:58.
+
+**Chunks halved, 12:58, before sib's first chunk and big's 2-slot restart.**
+At ~15 minutes per question, a 24-question chunk on sib takes ~6 hours, and
+the last chunk still running sets the finish time. Each unstarted chunk was
+split into two halves of 10–12 questions (`web_c08` → `web_c08a` + `web_c08b`),
+so 15 chunks became 30. The question set is unchanged: the sorted
+question-id lists hash identically before and after the split. `ent_c00`
+and `ent_c01`, already done by big, are untouched. Chunking is only how the
+work is shared out; the pair is still scored once, over all 451 questions (the 47-question pilot plus these 404).
