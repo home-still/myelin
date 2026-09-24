@@ -44,6 +44,13 @@ pub const FORCED_ANSWER_ATTEMPTS: usize = 2;
 /// Upper bound on the `thought` field. llama.cpp's grammar compiler rejects
 /// `maxLength` of 2000 and above (`myelin-eval` `build::MAX_SCHEMA_MAX_LENGTH`).
 const THOUGHT_MAX_CHARS: u64 = 1500;
+/// Sent when the budget is spent. M62's pilot: 36 of 47 answers were forced
+/// and 19 named no span, several after the controller had found the right
+/// state and not finished reading it ("the exploration budget was exhausted
+/// before I could read the accessibility tree of state 2").
+pub const FORCED_ANSWER_MESSAGE: &str = "The exploration budget is spent. Answer now. Name the spans \
+of the states you identified, whether or not you finished reading them: the reader sees every named \
+state in full.";
 /// Separates alternatives in a `grep` pattern, as the authors'
 /// `inspect_trajectory.py --match "Delete Review|Previous"` does.
 const GREP_ALTERNATIVES: char = '|';
@@ -103,7 +110,10 @@ relevant procedure and observations.
 - spans: zero-based inclusive state indices, most important first. Usually no more than 3 states per \
 span; at most 20 states across all spans. One span proves one point; avoid redundant trajectories.
 - Reject nearby-but-not-exact matches: never substitute a similar field, row, tab, header, button or state.
-- If you find no useful evidence, answer with a minimal memory_markdown and no spans.";
+- If you find no useful evidence, answer with a minimal memory_markdown and no spans.
+- Naming a span is enough. The reader receives every state you name in full, so you do not need to \
+read a whole page before naming it: read only to choose between candidate states. A state you \
+identified but did not finish reading still belongs in your spans.";
 
 /// The action form every reply is constrained to. `tools` names the tools
 /// allowed at this step: all of them while exploring, only `answer` once the
@@ -164,6 +174,17 @@ enum Outcome {
     Answered(EvidenceSet),
 }
 
+/// What one controller run produced.
+#[derive(Debug, Clone)]
+pub struct AgentRun {
+    /// The reader's evidence, with the trace of every action.
+    pub evidence: EvidenceSet,
+    /// Whether the answer came from a budget-forced step.
+    pub forced: bool,
+    /// Observations that reported a misused tool or a refused answer.
+    pub tool_errors: usize,
+}
+
 pub struct TrajectoryAgent<'a> {
     llm: &'a dyn Llm,
     tools: TrajectoryTools<'a>,
@@ -176,8 +197,9 @@ impl<'a> TrajectoryAgent<'a> {
     }
 
     /// Explore, answer, and return the reader's evidence with the trace of
-    /// every action.
-    pub async fn run(&self, question: &str) -> Result<EvidenceSet> {
+    /// every action, whether the answer was forced, and how many tool errors
+    /// the model was shown.
+    pub async fn run(&self, question: &str) -> Result<AgentRun> {
         let listing = self.tools.list().await?;
         let mut messages = vec![
             Message::system(RULES),
@@ -186,6 +208,7 @@ impl<'a> TrajectoryAgent<'a> {
             )),
         ];
         let mut trace: Vec<TraceStep> = Vec::new();
+        let mut tool_errors = 0usize;
 
         for step in 0..self.config.max_steps {
             if transcript_tokens(&messages) > self.config.context_budget_tokens {
@@ -196,9 +219,10 @@ impl<'a> TrajectoryAgent<'a> {
                 Outcome::Answered(mut set) => {
                     trace.push(trace_step(step, &action, 0));
                     set.trace = trace;
-                    return Ok(set);
+                    return Ok(AgentRun { evidence: set, forced: false, tool_errors });
                 }
                 Outcome::Observation { text, hits } => {
+                    tool_errors += usize::from(is_error(&text));
                     trace.push(trace_step(step, &action, hits));
                     messages.push(Message::assistant(raw));
                     messages.push(Message::user(text));
@@ -207,7 +231,7 @@ impl<'a> TrajectoryAgent<'a> {
         }
 
         messages.push(Message::user(
-            "The exploration budget is spent. Answer now with the evidence you have.",
+            FORCED_ANSWER_MESSAGE,
         ));
         let mut last_refusal = String::new();
         for attempt in 0..FORCED_ANSWER_ATTEMPTS {
@@ -217,9 +241,10 @@ impl<'a> TrajectoryAgent<'a> {
                 Outcome::Answered(mut set) => {
                     trace.push(trace_step(step, &action, 0));
                     set.trace = trace;
-                    return Ok(set);
+                    return Ok(AgentRun { evidence: set, forced: true, tool_errors });
                 }
                 Outcome::Observation { text, .. } => {
+                    tool_errors += usize::from(is_error(&text));
                     trace.push(trace_step(step, &action, 0));
                     last_refusal = text.clone();
                     messages.push(Message::assistant(raw));
@@ -337,6 +362,12 @@ impl<'a> TrajectoryAgent<'a> {
             Err(e) => Err(e),
         }
     }
+}
+
+/// An observation that reports a misuse rather than tool output. `grep`
+/// joins several alternatives, so an error can start any of its lines.
+fn is_error(observation: &str) -> bool {
+    observation.lines().any(|l| l.starts_with("error:"))
 }
 
 fn transcript_tokens(messages: &[Message]) -> usize {
