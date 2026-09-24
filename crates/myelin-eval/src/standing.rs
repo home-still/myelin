@@ -1441,10 +1441,11 @@ const MYELIN_MEMORY: &str = "myelin";
 const AGENTRUNBOOK_C: &str = "agentrunbook_c";
 /// What makes two AgentRunbook-C domain runs one operating point: how the
 /// controller reads trajectories, which model drives it, and which model reads
-/// the result. The per-host mixture (`controller_hosts`, host and pack counts
-/// from the chunks' `controller.json`) is provenance, reported beside the
-/// number and never a pairing key: the M54 amendment scores the full pair as
-/// one run, and bmb's share differs between domains by construction.
+/// the result. The controller mixture (`controller_hosts`: host, slots and
+/// Codex budget per question, merged from the chunks' `controller.json` by
+/// `adapters/merge_arc_chunks.py`) is provenance, reported beside the number
+/// and never a pairing key: the M54 amendments score the full pair as one run,
+/// and each host's share differs between domains by construction.
 const AGENTRUNBOOK_C_KEYS: [&str; 3] = ["evidence_mode", "controller_model", "reader_served_model"];
 /// The evidence mode the M54 pre-registration fixes: the controller reads the
 /// accessibility tree, never screenshots.
@@ -3544,7 +3545,7 @@ mod tests {
                     "memory_params": {
                         "evidence_mode": AGENTRUNBOOK_C_EVIDENCE_MODE,
                         "controller_model": "Ternary Bonsai 2 27B",
-                        "controller_hosts": {"big/PTQ1_0": 200, "bmb/PQ2_0": 40},
+                        "controller_hosts": {"mixture": {"big/1x96000": 200, "sib/1x96000": 40}},
                         "reader_served_model": LME_V2_READER_MODEL,
                     }
                 })

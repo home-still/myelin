@@ -57,9 +57,9 @@ from data.public_data import (  # noqa: E402
 )
 
 
-# The controller model family both hosts serve (big: PTQ1_0 via llama-swap
-# `qwen3.8-27b`; bmb: PQ2_0 via `bonsai-2-27b`). The pack per question is in
-# `controller_hosts`.
+# The controller model every M54 host serves: one PTQ1_0 file, sha256-checked on
+# each host (amendment 2). Which host, slots and Codex budget built each
+# question's memory is in `controller_hosts` (`merge_arc_chunks.py`).
 CONTROLLER_MODEL = "Ternary Bonsai 2 27B"
 
 
