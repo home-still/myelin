@@ -1,0 +1,46 @@
+{
+ "jev_model": "typesafe/jev-1.13",
+ "policy": "docs/measurements/m56-verified-answers.md Step 0b",
+ "thresholds": {
+  "injection_max": 0.7,
+  "contradicts_min": 0.7,
+  "relevant_min": 0.45,
+  "evidence_min": 0.55
+ },
+ "longmemeval_s": {
+  "base": 82.2,
+  "simulated": 81.8,
+  "abstention": "26/30",
+  "declined_by_rule1": 4,
+  "overridden_by_rule2": 10,
+  "override_right": 5
+ },
+ "longmemeval_s_secondary": {
+  "base": 82.2,
+  "simulated": 80.4,
+  "abstention": "27/30",
+  "declined_by_rule1": 13,
+  "overridden_by_rule2": 10,
+  "override_right": 5
+ },
+ "locomo": {
+  "base_judge_1_4": 66.69,
+  "simulated_judge_1_4": 70.65,
+  "base_adversarial": 92.83,
+  "simulated_adversarial": 79.82,
+  "declined_by_rule1": 9,
+  "overridden_by_rule2": 214,
+  "override_right": 65
+ },
+ "locomo_secondary": {
+  "base_judge_1_4": 66.69,
+  "simulated_judge_1_4": 70.32,
+  "base_adversarial": 92.83,
+  "simulated_adversarial": 79.82,
+  "declined_by_rule1": 17,
+  "overridden_by_rule2": 214,
+  "override_right": 65
+ },
+ "new_calls": 15804,
+ "new_cost_usd": 0.4124
+}

@@ -66,13 +66,17 @@ the shipped 78.40, abstention ≥ 28/30
 
 ---
 
-## M56 — an external checker on when to answer *(Step 0 failed its gate; recorded)*
+## M56 — an external checker on when to answer *(0b, used per the manual: safe; LoCoMo 70.65, short of the gate)*
 
 Jev (TypeSafe's cloud decision model) replayed over existing answers:
 LongMemEval_S 82.20 → 59.80 simulated, LoCoMo 66.69 → 62.99. AUROC was
 0.65–0.74, better than self-agreement but not enough to gate on. A gate can
 only earn on abstention rows, and false alarms cost every time.
-`docs/measurements/m56-verified-answers.md`. Next: M57, the reader-prompt fix.
+Step 0 misused Jev against its own manual. Step 0b follows TypeSafe's per-passage
+recipe: LongMemEval_S 81.80, abstention 26/30 (flat). LoCoMo 66.69 → 70.65 by
+overriding refusals that had evidence in hand, with the 9B stand-in right 42% of
+the time. Next: Bonsai answering those refusals itself under a best-guess clause,
+with an adversarial guard (`docs/measurements/m56-verified-answers.md`).
 
 ---
 
