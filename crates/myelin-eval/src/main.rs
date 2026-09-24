@@ -541,6 +541,10 @@ enum Command {
         /// never tuned; the samples are recorded so it can be re-applied.
         #[arg(long, requires = "samples")]
         agree: Option<f64>,
+        /// M61: the grounded second pass — cite the memories that state the
+        /// answer about the entity the question names, then answer from those.
+        #[arg(long, conflicts_with = "samples")]
+        grounded: bool,
     },
     /// Score LoCoMo end-to-end: retrieve, read, and grade the answer with
     /// a deterministic scorer (no LLM judge). See `bench.rs`.
@@ -1084,18 +1088,23 @@ async fn main() -> anyhow::Result<()> {
             samples,
             seed,
             agree,
+            grounded,
         } => {
             let cfg = MyelinConfig::load().context("load myelin config")?;
-            let consensus = match (samples, agree) {
-                (Some(n), Some(a)) => Some(myelin_eval::bench::Consensus::new(n, seed, a)?),
-                _ => None,
+            let pass = match (samples, agree, grounded) {
+                (Some(n), Some(a), false) => myelin_eval::commit_arm::Pass::Consensus(
+                    myelin_eval::bench::Consensus::new(n, seed, a)?,
+                ),
+                (None, None, true) => myelin_eval::commit_arm::Pass::Grounded,
+                (None, None, false) => myelin_eval::commit_arm::Pass::Greedy,
+                _ => anyhow::bail!("--samples/--agree and --grounded are different second passes; pass one"),
             };
             let report = myelin_eval::commit_arm::run(
                 &cfg,
                 Path::new(run),
                 Path::new(dataset),
                 Path::new(out),
-                consensus,
+                pass,
             )
             .await?;
             println!(
@@ -1274,6 +1283,7 @@ async fn main() -> anyhow::Result<()> {
                     events_collection: events_collection.clone(),
                     events_ledger: events_ledger.clone(),
                     dedupe_lineage,
+                    commit_grounded: false,
                     untrusted_max,
                     decompose,
                     categories: categories.clone().unwrap_or_default(),

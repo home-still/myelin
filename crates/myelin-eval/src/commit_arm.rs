@@ -33,7 +33,8 @@ use myelin_core::config::MyelinConfig;
 use myelin_core::llm::openai::OpenAiLlm;
 
 use crate::bench::{
-    commit_answer, commit_consensus, is_abstention, Consensus, ScoredQuestion, READER_SYSTEM,
+    commit_answer, commit_consensus, commit_grounded, is_abstention, Consensus, ScoredQuestion,
+    READER_SYSTEM,
 };
 use crate::datasets::longmemeval;
 
@@ -58,8 +59,30 @@ impl CommitArmReport {
     }
 }
 
-/// Apply M42's second pass — or, with `consensus`, M45's sampled one — to
-/// every row of `base`, writing `out`.
+/// Which second pass the arm applies to a declining row.
+#[derive(Debug, Clone, Copy)]
+pub enum Pass {
+    /// M42: one greedy call, `{answer, evidence_absent}`.
+    Greedy,
+    /// M45: seeded samples clustered by meaning; commit the majority.
+    Consensus(Consensus),
+    /// M61: cite the memories that state the answer about the named entity,
+    /// then answer from those alone (`bench::commit_grounded`).
+    Grounded,
+}
+
+/// The corpora whose first-pass prompt this replays. The prompt must be the
+/// base's byte for byte, or the untouched rows are no longer an exact control:
+/// LongMemEval_S showed the reader `<today>`, and LoCoMo (without
+/// `--question-date`) did not.
+enum Prompt {
+    /// `<today>` per question, from the LongMemEval_S dataset.
+    WithToday(HashMap<String, String>),
+    NoToday,
+}
+
+/// Apply the second pass `pass` to every declining row of `base`, writing
+/// `out`.
 ///
 /// `None` is M42's arm byte for byte: one greedy call, no sampling keys.
 /// `Some` draws `samples` seeded answers per declining row, clusters them
@@ -71,7 +94,7 @@ pub async fn run(
     base: &Path,
     dataset: &Path,
     out: &Path,
-    consensus: Option<Consensus>,
+    pass: Pass,
 ) -> Result<CommitArmReport> {
     anyhow::ensure!(
         base != out,
@@ -80,14 +103,40 @@ pub async fn run(
     );
     let llm = OpenAiLlm::new(&cfg.llm.url, &cfg.llm.model).context("reader client")?;
 
-    // `question_date` is not carried on a scored row, and the reader's prompt
-    // includes it, so the second pass must be shown the same `<today>` the
-    // first one saw.
-    let dates: HashMap<String, String> = longmemeval::load(dataset)
-        .context("load corpus")?
-        .into_iter()
-        .map(|q| (q.question_id, q.question_date))
-        .collect();
+    let base_metrics: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(base.join("aggregated_metrics.json"))
+            .with_context(|| format!("read {}/aggregated_metrics.json", base.display()))?,
+    )
+    .context("parse the base's aggregated_metrics.json")?;
+    // The replay shows `READER_SYSTEM` alone. A base read with a clause
+    // appended would be replayed under a different system prompt, and its
+    // untouched rows would no longer be the base's.
+    for clause in ["profile_clause", "reader_premise_clause", "reader_best_guess"] {
+        anyhow::ensure!(
+            base_metrics.get(clause).and_then(serde_json::Value::as_bool) != Some(true),
+            "the base was read with `{clause}`; commit-arm replays READER_SYSTEM alone"
+        );
+    }
+    // `question_date` is not carried on a scored row, and LongMemEval_S's
+    // prompt includes it, so the second pass must be shown the same `<today>`
+    // the first one saw. LoCoMo's first pass showed none.
+    let prompt = match base_metrics.get("corpus").and_then(serde_json::Value::as_str) {
+        Some("longmemeval_s") => Prompt::WithToday(
+            longmemeval::load(dataset)
+                .context("load corpus")?
+                .into_iter()
+                .map(|q| (q.question_id, q.question_date))
+                .collect(),
+        ),
+        Some("locomo") => {
+            anyhow::ensure!(
+                base_metrics.get("question_date").and_then(serde_json::Value::as_bool) != Some(true),
+                "the LoCoMo base showed `<today>` (--question-date); commit-arm replays LoCoMo without it"
+            );
+            Prompt::NoToday
+        }
+        other => anyhow::bail!("commit-arm replays LongMemEval_S and LoCoMo runs; the base's corpus is {other:?}"),
+    };
 
     let rows_path = base.join("per_question.jsonl");
     let text = std::fs::read_to_string(&rows_path)
@@ -114,19 +163,32 @@ pub async fn run(
             .map(|(n, it)| format!("[{n}] {it}"))
             .collect::<Vec<_>>()
             .join("\n");
-        let today = dates.get(&row.question_id).map(String::as_str).unwrap_or("");
-        let user = format!(
-            "<memories>\n{context}\n</memories>\n<today>\n{today}\n</today>\n<question>\n{}\n</question>",
-            row.question_text
-        );
+        let user = match &prompt {
+            Prompt::WithToday(dates) => {
+                let today = dates.get(&row.question_id).map(String::as_str).unwrap_or("");
+                format!(
+                    "<memories>\n{context}\n</memories>\n<today>\n{today}\n</today>\n<question>\n{}\n</question>",
+                    row.question_text
+                )
+            }
+            Prompt::NoToday => format!(
+                "<memories>\n{context}\n</memories>\n<question>\n{}\n</question>",
+                row.question_text
+            ),
+        };
 
         let first = std::mem::take(&mut row.response_raw);
-        let (response, fired, committed) = match consensus {
-            None => {
+        let (response, fired, committed) = match pass {
+            Pass::Greedy => {
                 let (response, outcome) = commit_answer(&llm, READER_SYSTEM, &user, first).await;
                 (response, outcome.fired, outcome.committed)
             }
-            Some(c) => {
+            Pass::Grounded => {
+                let (response, outcome) =
+                    commit_grounded(&llm, READER_SYSTEM, &user, first, row.evidence.len()).await;
+                (response, outcome.fired, outcome.committed)
+            }
+            Pass::Consensus(c) => {
                 let (response, outcome) =
                     commit_consensus(&llm, READER_SYSTEM, &user, &row.question_text, first, c)
                         .await;
@@ -151,7 +213,7 @@ pub async fn run(
         out_rows.push(row);
     }
 
-    write_arm(base, out, &out_rows, consensus)?;
+    write_arm(base, out, &out_rows, pass)?;
     Ok(report)
 }
 
@@ -165,7 +227,7 @@ fn write_arm(
     base: &Path,
     out: &Path,
     rows: &[ScoredQuestion],
-    consensus: Option<Consensus>,
+    pass: Pass,
 ) -> Result<()> {
     std::fs::create_dir_all(out).with_context(|| format!("create {}", out.display()))?;
 
@@ -190,10 +252,16 @@ fn write_arm(
         );
         // M45's parameters, or nothing: an artifact without them is M42's
         // arm, and `standing` reads either as an arm of the defaults.
-        if let Some(c) = consensus {
-            obj.insert("commit_samples".into(), serde_json::json!(c.samples));
-            obj.insert("commit_seed".into(), serde_json::json!(c.seed));
-            obj.insert("commit_agree".into(), serde_json::json!(c.agree));
+        match pass {
+            Pass::Greedy => {}
+            Pass::Consensus(c) => {
+                obj.insert("commit_samples".into(), serde_json::json!(c.samples));
+                obj.insert("commit_seed".into(), serde_json::json!(c.seed));
+                obj.insert("commit_agree".into(), serde_json::json!(c.agree));
+            }
+            Pass::Grounded => {
+                obj.insert("commit_grounded".into(), serde_json::Value::Bool(true));
+            }
         }
     }
     std::fs::write(
