@@ -221,3 +221,12 @@ requests. **Passed 2026-09-24 11:30:** `edea0219` took 717 s and returned
 slower than big (median ~265 s). Each chunk also records the host's serving
 command (`controller_running.json`).
 
+**Withdrawn 2026-09-24 11:45, before any bmb chunk completed.** At about 12
+minutes per question, bmb added only ~1.5× throughput. Its Bonsai server
+held ~21 GB of that daily-driver Mac's memory, leaving 20% free. The user
+chose to stay local on big alone. bmb's one in-progress chunk (`web_c08`)
+was discarded and its claim released. **No bmb-controlled chunk is in the
+measurement**, so the controller is Bonsai PTQ1_0 on big throughout, exactly
+as first pre-registered. The claim-based worker stays; with one host it is
+the old sequential runner.
+

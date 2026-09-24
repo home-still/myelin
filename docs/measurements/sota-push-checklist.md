@@ -25,7 +25,8 @@ and every number that uses one says so. Plan approved by the user
 ## C — LME-V2 (target 74.90)
 - [x] M54 pre-registration amended (second controller, provenance)
 - [x] Claim-based chunk worker; bmb Codex home and shim; bmb smoke question passes (717 s, 5 items)
-- [ ] bmb worker running (started 11:32, chunk web_c08); big worker relaunched after the quick fixes
+- [x] ~~bmb worker~~ withdrawn 11:45 at the user's call (too slow, memory-heavy on a daily driver); no bmb chunk in the measurement
+- [ ] big worker relaunched after the quick fixes (held by `HOLD_big`; the queue releases it)
 - [x] `run_agentrunbook_c.py` records controller and reader served models
 - [x] `standing.rs` reads `memory_type` and has an `agentrunbook_c` mode,
       its pairing keys and a label; tests (`SHIPPED_LME_V2_MEMORY` stays `myelin` until adoption)
