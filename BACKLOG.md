@@ -142,7 +142,9 @@ declines and +11.6 on LoCoMo's. But at k = 6 they displace turns. On LoCoMo,
 74 rows lost a gold turn the base held against 17 that gained one, and the
 arm netted −0.13 (M50b). The untested design keeps k = 6 turns and adds the
 top events in a separate budget. Reader-side only, so the stores already
-built serve it. Pilot on the M50 population first.
+built serve it. Pilot on the M50 population first. Chronos keeps events in a
+separate index; three routes are written up, and one needs choosing before
+any code (`docs/measurements/m50c-events-beside-turns.md`).
 
 ---
 
