@@ -77,6 +77,11 @@ INVESTIGATE_MAX_STEPS = 2
 # M62's trajectory controller: `trajectory_agent::DEFAULT_MAX_STEPS` in
 # myelin-core, tool calls before the answer is forced.
 TRAJECTORY_MAX_STEPS = 16
+# Seconds one MCP tool call may take. A search call answers in seconds; a
+# trajectory-controller call runs up to TRAJECTORY_MAX_STEPS model calls, so
+# it gets M54's controller budget (`run_agentrunbook_c.py --codex-timeout-seconds`).
+SEARCH_CALL_TIMEOUT_S = 120.0
+TRAJECTORY_CALL_TIMEOUT_S = 1800.0
 
 
 def served_model(base_url: str) -> str:
@@ -435,6 +440,8 @@ def parse_args() -> argparse.Namespace:
     # or the trajectory controller's own budget. One number for both would
     # quietly cut M62's controller off after two tool calls.
     parser.add_argument("--max-steps", type=int, default=None)
+    parser.add_argument("--mcp-timeout-seconds", type=float, default=None,
+                        help="Per MCP call; default per mode (search 120, trajectories 1800).")
     # Retrieval width, recorded only. The server takes these from its own CLI
     # (`myelin-mcp --prefetch-limit --rerank-depth`); they are written to
     # `runtime_inputs/memory_config.json` so an operating point is
@@ -637,6 +644,10 @@ def parse_args() -> argparse.Namespace:
     args = parser.parse_args()
     if args.max_steps is None:
         args.max_steps = TRAJECTORY_MAX_STEPS if args.mode == "trajectories" else INVESTIGATE_MAX_STEPS
+    if args.mcp_timeout_seconds is None:
+        args.mcp_timeout_seconds = (
+            TRAJECTORY_CALL_TIMEOUT_S if args.mode == "trajectories" else SEARCH_CALL_TIMEOUT_S
+        )
     return args
 
 
@@ -718,6 +729,7 @@ def main() -> None:
             "tau_abstain": args.tau_abstain,
             "mode": args.mode,
             "max_steps": args.max_steps,
+            "timeout": args.mcp_timeout_seconds,
             # Written unconditionally as booleans, never omitted: these are
             # in `standing.rs::PAIR_KEYS`, and a key that appears only when
             # the flag is set would give one arm a `null` and the other a
