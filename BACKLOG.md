@@ -32,7 +32,7 @@ moved the two-fact stratum +18 and temporal reasoning +30, with abstention
 
 ---
 
-## M55 — Ternary Bonsai 2 27B as myelin's model *(full +3.8 [+1.2, +6.6], abstention veto fired; LoCoMo running)*
+## M55 — Ternary Bonsai 2 27B as myelin's model *(LongMemEval_S +3.8 vetoed; LoCoMo −3.18; the lever is when to answer)*
 
 Every open gap points at the 9B: thinking was worth +10.6 on LongMemEval_S
 (compute-limited), LME-V2 misreads 36% of the answers it is handed, and
@@ -47,8 +47,12 @@ on two-session questions, at 1.4× the time per row. The full 500 measured **78.
 +4.7 on answerable. But abstention fell from 28/30 to 25/30, so the veto
 fired. Two of the lost rows are premise corrections ("You see Dr. Smith, not
 Dr. Johnson") that the string-rule abstention scorer cannot see. One is a
-real false-premise answer. LoCoMo on Bonsai is running. The next arm has to
-recover the abstention row (`docs/measurements/m55-bonsai-27b-model.md`).
+real false-premise answer. LoCoMo on Bonsai (M55b) measured **−3.18
+[−4.87, −1.49]** with the same evidence. Declines on answerable rows went
+121 → 292 (118 with the gold turn in hand) and adversarial went +22.87. On
+both benchmarks Bonsai knows more; what is left is calibrating when it
+answers. The fix for the next arm is waiting on the user's choice
+(`docs/measurements/m55-bonsai-27b-model.md`).
 
 ---
 
