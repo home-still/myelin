@@ -36,3 +36,10 @@ names recommendation questions.
 
 **Falsifier.** The clause turns abstention rows into "suggestions", which
 would show as abstention falling below M57's.
+
+---
+
+**Deferred, 2026-09-24 ~16:40 (user).** Before any row. LME-V2 is
+GPU-bound and the push is code first, so big goes to the M54 full pair
+after M62b. M58 stays pre-registered as written, to run in a later
+window.

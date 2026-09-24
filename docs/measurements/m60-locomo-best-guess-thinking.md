@@ -32,3 +32,10 @@ Refusals no higher than M59's. About 3× M59's seconds per row.
 
 **Falsifier.** Thinking brings back the caution: answerable refusals rise
 by more than 30 over M59, as with M51's 9B.
+
+---
+
+**Deferred, 2026-09-24 ~16:40 (user).** Before any row. LME-V2 is
+GPU-bound and the push is code first, so big goes to the M54 full pair
+after M62b. M60 stays pre-registered as written, to run in a later
+window.
