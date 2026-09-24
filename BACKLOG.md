@@ -56,6 +56,16 @@ answers. The fix for the next arm is waiting on the user's choice
 
 ---
 
+## M57 — "I don't know" first, then the correction *(pre-registered)*
+
+Bonsai with one reader clause: when the question assumes something the
+memories do not support, reply "I don't know." and then the correction. It
+targets the three abstention rows that vetoed M55 (82.20). Full 500 against
+the shipped 78.40, abstention ≥ 28/30
+(`docs/measurements/m57-decline-first.md`).
+
+---
+
 ## M56 — an external checker on when to answer *(Step 0 failed its gate; recorded)*
 
 Jev (TypeSafe's cloud decision model) replayed over existing answers:

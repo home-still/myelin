@@ -124,6 +124,40 @@ A memory beginning [profile] states what the user is known to prefer; treat it a
 established about the user. Do not reply I don't know when the memories state a \
 relevant preference.";
 
+/// M57: how the reader answers a question built on an assumption the
+/// memories do not support.
+///
+/// M55 measured Bonsai 27B losing three LongMemEval_S abstention rows the 9B
+/// held. Two were *correct* premise corrections the scorer cannot see ("You see
+/// Dr. Smith, not Dr. Johnson." against a gold of "you mentioned Dr. Smith
+/// but not Dr. Johnson"), and one accepted the false premise and answered
+/// ("4"). (QA)² (Kim et al., ACL 2023, `10.18653/v1/2023.acl-long.472`)
+/// finds such questions "require a distinct answer strategy": address the
+/// assumption, do not answer through it. This clause asks for exactly that,
+/// in the one shape [`is_abstention`] already reads as a decline — the
+/// decline first, the correction after — so the helpful sentence survives
+/// and the row is scored as the abstention it is. Appended to
+/// [`READER_SYSTEM`], like [`READER_PREFERENCE_CLAUSE`], so the arm is the
+/// clause and nothing else. M56 showed an external checker cannot do this
+/// job on this data (`docs/measurements/m56-verified-answers.md`).
+const READER_PREMISE_CLAUSE: &str = " \
+If the question assumes something the memories do not state or that they contradict — \
+a person, place, event or detail that does not appear as the question describes it — \
+begin your reply with \"I don't know.\" and then say in a few words what the memories do state.";
+
+/// The reader's system prompt for a run: [`READER_SYSTEM`] plus whichever
+/// clauses the run's switches turn on, in a fixed order.
+fn reader_system(switches: &BenchSwitches) -> String {
+    let mut system = READER_SYSTEM.to_string();
+    if switches.profile_clause {
+        system.push_str(READER_PREFERENCE_CLAUSE);
+    }
+    if switches.reader_premise_clause {
+        system.push_str(READER_PREMISE_CLAUSE);
+    }
+    system
+}
+
 /// One scored question, written to `per_question.jsonl`.
 ///
 /// Field names match what `adapters/paired_ci.py` reads (`question_id`,
@@ -474,6 +508,10 @@ pub struct BenchRun {
     /// the caller asserted about the server it ran against.
     #[serde(default)]
     pub reader_think_message: bool,
+    /// M57: [`READER_PREMISE_CLAUSE`] was appended to the reader prompt.
+    /// Absent on every run before M57, which ran without it.
+    #[serde(default)]
+    pub reader_premise_clause: bool,
     /// M24's sub-query decomposition cap, mirroring
     /// `RetrieveConfig::decompose`. Ships off; absent on every run before
     /// M24.
@@ -619,6 +657,8 @@ pub struct BenchSwitches {
     /// (`MYELIN_READER_THINK_MESSAGE`) — M44 R2b. A declaration recorded on
     /// the artifact; see `BenchRun::reader_think_message`.
     pub reader_think_message: bool,
+    /// Append [`READER_PREMISE_CLAUSE`] to the reader prompt — M57.
+    pub reader_premise_clause: bool,
     /// Cap untrusted occupancy in the composed set — M23 B1,
     /// `ComposeConfig::untrusted_max`.
     ///
@@ -1776,11 +1816,7 @@ pub async fn bench_locomo(
     // Arm B rides on `READER_SYSTEM` rather than replacing it: the arm is the
     // clause, and swapping the whole prompt would confound it with the
     // abstention and date instructions every prior run carried.
-    let system = if switches.profile_clause {
-        format!("{READER_SYSTEM}{READER_PREFERENCE_CLAUSE}")
-    } else {
-        READER_SYSTEM.to_string()
-    };
+    let system = reader_system(switches);
     let system = system.as_str();
 
     'outer: for conv in &conversations {
@@ -2066,11 +2102,7 @@ pub async fn bench_longmemeval_s(
     let mut degradation = DegradationGuard::default();
     let mut commits = CommitTally::default();
     // See `bench_locomo`: the clause is appended, not substituted.
-    let system = if switches.profile_clause {
-        format!("{READER_SYSTEM}{READER_PREFERENCE_CLAUSE}")
-    } else {
-        READER_SYSTEM.to_string()
-    };
+    let system = reader_system(switches);
     let system = system.as_str();
 
     for item in &items {
@@ -2350,6 +2382,7 @@ fn finish_run(
         // run did not start; so a thinking artifact always carries it.
         reader_thinking_budget: spec.switches.reader_thinking.then_some(THINKING_BUDGET_TOKENS),
         reader_think_message: spec.switches.reader_think_message,
+        reader_premise_clause: spec.switches.reader_premise_clause,
         commit_answer: spec.switches.commit_answer,
         resumed_rows: resumed,
         commit_samples: None,
@@ -2533,6 +2566,7 @@ pub fn rescore_run(source: &Path, out_dir: &Path, scorer: Scorer) -> Result<Benc
             reader_thinking: flag("reader_thinking"),
             reader_seed: metrics.get("reader_seed").and_then(|v| v.as_u64()),
             reader_think_message: flag("reader_think_message"),
+            reader_premise_clause: flag("reader_premise_clause"),
             commit_answer: flag("commit_answer"),
             untrusted_max: metrics
                 .get("untrusted_max")
@@ -3278,6 +3312,28 @@ mod config_tests {
     /// Asserted field by field rather than with a derived equality, because
     /// the failure is a *missing* field and `..Default::default()` makes a
     /// missing field compile.
+    /// M57: the clause rides on `READER_SYSTEM` only when switched on, after
+    /// the preference clause, and the decline-first reply it asks for is read
+    /// by `is_abstention` as the decline it is.
+    #[test]
+    fn premise_clause_is_appended_only_when_on_and_its_reply_is_a_decline() {
+        let off = reader_system(&BenchSwitches::default());
+        assert_eq!(off, READER_SYSTEM);
+        let on = reader_system(&BenchSwitches {
+            reader_premise_clause: true,
+            ..Default::default()
+        });
+        assert!(on.starts_with(READER_SYSTEM) && on.ends_with(READER_PREMISE_CLAUSE));
+        let both = reader_system(&BenchSwitches {
+            profile_clause: true,
+            reader_premise_clause: true,
+            ..Default::default()
+        });
+        assert_eq!(both, format!("{READER_SYSTEM}{READER_PREFERENCE_CLAUSE}{READER_PREMISE_CLAUSE}"));
+        assert!(is_abstention("I don't know. You see Dr. Smith, not Dr. Johnson."));
+        assert!(!is_abstention("You see Dr. Smith, not Dr. Johnson."));
+    }
+
     #[test]
     fn every_switch_reaches_the_investigate_config() {
         let all_on = BenchSwitches {
