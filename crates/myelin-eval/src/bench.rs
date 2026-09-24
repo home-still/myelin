@@ -1289,6 +1289,23 @@ const THINKING_TEMPERATURE: f32 = 0.6;
 const THINKING_TOP_P: f32 = 0.95;
 const THINKING_TOP_K: u32 = 20;
 
+/// The store LoCoMo's shipped system reads: `bench --corpus locomo`'s default.
+pub const LOCOMO_COLLECTION: &str = "myelin_locomo";
+/// The store LongMemEval_S's shipped system reads.
+pub const LONGMEMEVAL_S_COLLECTION: &str = "myelin_longmemeval_s";
+
+/// The store the shipped system reads, per corpus. A bench run against any
+/// other store — M50's events copies, M20's preference store — measures that
+/// store, and `standing` treats it as an arm. `None` for a corpus `bench` does
+/// not run.
+pub fn shipped_collection(corpus: &str) -> Option<&'static str> {
+    match corpus {
+        "locomo" => Some(LOCOMO_COLLECTION),
+        "longmemeval_s" => Some(LONGMEMEVAL_S_COLLECTION),
+        _ => None,
+    }
+}
+
 /// Whether the shipped reader thinks, per corpus (M44 R2).
 ///
 /// **On for LongMemEval_S since M44 R2**: 67.80 → 78.4 / 78.4 on two seeds

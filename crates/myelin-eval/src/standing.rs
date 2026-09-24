@@ -916,9 +916,9 @@ fn bench_metrics(dir: &Path, agg_text: &str) -> Result<Vec<Ours>> {
     let verdicts = read_verdicts(dir)?;
     let mut out = Vec::new();
 
-    // Every myelin run is served by the local open-weights reader
-    // (`ops/big/serve-models.sh`); the bench artifact does not record the
-    // model, so this is stated rather than read.
+    // Every model `ops/big/serve-models.sh` can serve is open weights and
+    // local; which one served the run is `llm_served_model` (M55), tested
+    // below as part of the arm.
     let backbone = Class::OpenWeights;
     let scorer = if run.scorer.is_empty() {
         "token_f1"
@@ -976,6 +976,11 @@ fn bench_metrics(dir: &Path, agg_text: &str) -> Result<Vec<Ours>> {
         || run.reader_think_message
         // M47's presupposition check.
         || run.premise_check
+        // A run against another store (M50's events copies, M20's preference
+        // store) measures that store. Measured 2026-09-24: without this,
+        // M50b's null events arm was quoted as LoCoMo's abstention (71.08)
+        // and temporal (60.63) rows — the M22 defect, one mechanism later.
+        || crate::bench::shipped_collection(&run.corpus).is_some_and(|c| c != run.collection)
         // M55: a run served any model but the shipped one measures that
         // model, not the system as shipped.
         || served_another_model(run.llm_served_model.as_deref(), SHIPPED_LLM_MODEL);
@@ -2738,6 +2743,30 @@ mod tests {
     /// those runs were actually served, not as "whatever ships now". Were
     /// the shipped model to move, every pre-field run must turn into an arm
     /// rather than keep speaking for a system that no longer serves it.
+    /// A run against a store other than the corpus's shipped one is an arm,
+    /// and its numbers never become where we stand, however they score.
+    /// Measured 2026-09-24: M50b's events store was quoted for LoCoMo's
+    /// abstention and temporal rows before this.
+    #[test]
+    fn a_run_on_another_store_is_an_arm() {
+        let tmp = tempfile::tempdir().unwrap();
+        let runs = tmp.path().join("runs");
+        let shipped = runs.join("shipped_store");
+        locomo_fixture(&shipped, false, true); // 1539 of 1540 correct
+        let events = runs.join("events_store");
+        locomo_fixture(&events, true, false); // 1540 of 1540: scores higher
+        let path = events.join("aggregated_metrics.json");
+        let mut agg: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+        agg["collection"] = serde_json::json!("myelin_locomo_events");
+        std::fs::write(&path, agg.to_string()).unwrap();
+
+        let ours = collect(&runs, "/nonexistent/python").unwrap();
+        let judged = &ours["locomo.judge_score.n1540"];
+        assert!(judged.run.ends_with("shipped_store"), "{judged:?}");
+        assert!(!judged.arm, "{judged:?}");
+    }
+
     #[test]
     fn a_pre_field_run_was_served_the_9b_whatever_ships_now() {
         let bonsai = "Ternary-Bonsai-2-27B-PTQ1_0.gguf";
@@ -3523,7 +3552,7 @@ mod tests {
     #[test]
     fn a_bench_artifact_without_the_m19_keys_is_stale() {
         let pre_m19 = serde_json::json!({
-            "corpus": "locomo", "collection": "c", "mode": "recall", "k": 6,
+            "corpus": "locomo", "collection": crate::bench::LOCOMO_COLLECTION, "mode": "recall", "k": 6,
             "max_steps": 0, "questions": 10, "f1_answerable": 0.5,
             "em_answerable": 0.1, "abstention_accuracy": 0.7, "by_category": [],
             "query_p50_seconds": 1.0, "query_avg_seconds": 1.0
@@ -3570,7 +3599,7 @@ mod tests {
         // dated digest, so a base without it would be an arm already and
         // every assertion below would pass for the wrong reason.
         let base = serde_json::json!({
-            "corpus": "locomo", "collection": "c", "mode": "investigate", "k": 6,
+            "corpus": "locomo", "collection": crate::bench::LOCOMO_COLLECTION, "mode": "investigate", "k": 6,
             "max_steps": 2, "scorer": "temporal",
             "resolve_dates": true, "timeline": true,
             "select_sufficient": true, "item_digest": true, "digest_dates": true,
@@ -3666,7 +3695,7 @@ mod tests {
             // `select_sufficient` is under test here.
             let digest = mode == "investigate";
             let agg = serde_json::json!({
-                "corpus": "locomo", "collection": "c", "mode": mode, "k": 6,
+                "corpus": "locomo", "collection": crate::bench::LOCOMO_COLLECTION, "mode": mode, "k": 6,
                 "max_steps": 2, "scorer": "temporal",
                 "resolve_dates": true, "timeline": true,
                 "select_sufficient": select,
@@ -3710,7 +3739,7 @@ mod tests {
             let dir = tmp.path().join("runs/r");
             std::fs::create_dir_all(&dir).unwrap();
             let agg = serde_json::json!({
-                "corpus": corpus, "collection": "c", "mode": "investigate", "k": 6,
+                "corpus": corpus, "collection": crate::bench::shipped_collection(corpus).unwrap(), "mode": "investigate", "k": 6,
                 "max_steps": 2, "scorer": if corpus == "locomo" { "temporal" } else { "token_f1" },
                 "resolve_dates": true, "timeline": true,
                 "select_sufficient": true, "item_digest": true, "digest_dates": true,
@@ -3756,7 +3785,7 @@ mod tests {
             let dir = tmp.path().join("runs/r");
             std::fs::create_dir_all(&dir).unwrap();
             let agg = serde_json::json!({
-                "corpus": "locomo", "collection": "c", "mode": mode, "k": 6,
+                "corpus": "locomo", "collection": crate::bench::LOCOMO_COLLECTION, "mode": mode, "k": 6,
                 "max_steps": 2, "scorer": "temporal",
                 "resolve_dates": true, "timeline": true,
                 "select_sufficient": mode == "investigate",
