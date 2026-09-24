@@ -980,6 +980,8 @@ fn bench_metrics(dir: &Path, agg_text: &str) -> Result<Vec<Ours>> {
         || run.reader_best_guess
         // M50c's events block, shipping off pending its arm.
         || run.events_collection.is_some()
+        // L1's lineage-aware dedupe, shipping off pending its arm.
+        || run.dedupe_lineage
         // M47's presupposition check.
         || run.premise_check
         // A run against another store (M50's events copies, M20's preference
@@ -3824,6 +3826,8 @@ mod tests {
             serde_json::json!({"reader_best_guess": true}),
             // M50c: an events block appended after the evidence.
             serde_json::json!({"events_collection": "myelin_locomo_evonly"}),
+            // L1: lineage-aware dedupe in compose.
+            serde_json::json!({"dedupe_lineage": true}),
             serde_json::json!({"premise_check": true}),
             serde_json::json!({"timeline_ago": true}),
         ] {
