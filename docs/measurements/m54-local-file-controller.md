@@ -230,3 +230,41 @@ measurement**, so the controller is Bonsai PTQ1_0 on big throughout, exactly
 as first pre-registered. The claim-based worker stays; with one host it is
 the old sequential runner.
 
+## Amendment 2 — more controllers, same model *(pre-registered 2026-09-24, before any of their chunks)*
+
+The user asked for every machine that can help. The controller stays
+**the identical model file** on every host:
+`Ternary-Bonsai-2-27B-PTQ1_0.gguf`, sha256 prefix `53107f530aa52eb0`,
+checked on each host after copying. The flags are also identical: 96K
+context, q8_0 KV cache, temperature 1.0, top-p 0.95, top-k 20, min-p 0,
+repeat penalty 1.0, thinking budget 8,192, reasoning effort "medium", and
+the patched chat template, all copied from big's `run-qwen3.8.sh`.
+
+| host | hardware | runtime | measured decode | Codex budget |
+|---|---|---|---|---|
+| big | RTX 3090 | PrismML fork `1a07bfa` (CUDA), llama-swap `qwen3.8-27b` | 57.7 tok/s | 96,000 |
+| **sib** | RTX 3060 12 GB | the same CUDA build, copied from big | 27.1 tok/s | 96,000 |
+| **big_mac** | M1 Max | PrismML fork build 10709 (Metal) | 17.5 tok/s | 96,000 |
+| **big, 2 slots** (after the quick fixes) | RTX 3090 | the same build, our own server with `-np 2 -c 131072` | ~1.3× in total (measured on the 9B) | **64,000** |
+
+**Not on the new hosts:**
+- The vision projector is left off on sib and big_mac. Its only input is
+  images, and the Responses shim strips every image before it reaches a
+  controller.
+- sib's GPU held another agent's Ollama `qwen3:8b` (9.8 GB, pinned). The
+  user approved unloading it for this run.
+
+**Rules, unchanged from amendment 1:**
+- Chunks are claimed atomically. big works forward; sib and big_mac work
+  backward.
+- `controller.json` records host, slots and Codex budget for every chunk.
+- Transport failures are discarded and re-run. Anything else is the
+  controller's behaviour and is kept.
+- The pair is scored once, with accuracy also reported by host and
+  configuration, each with a 95% CI.
+
+The 2-slot mode is the one departure in configuration: 64K per question
+instead of 96K. It is reported separately.
+
+**Smoke tests:** one question per new host before its first chunk.
+

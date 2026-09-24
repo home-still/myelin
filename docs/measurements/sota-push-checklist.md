@@ -26,7 +26,9 @@ and every number that uses one says so. Plan approved by the user
 - [x] M54 pre-registration amended (second controller, provenance)
 - [x] Claim-based chunk worker; bmb Codex home and shim; bmb smoke question passes (717 s, 5 items)
 - [x] ~~bmb worker~~ withdrawn 11:45 at the user's call (too slow, memory-heavy on a daily driver); no bmb chunk in the measurement
-- [ ] big worker relaunched after the quick fixes (held by `HOLD_big`; the queue releases it)
+- [ ] big worker relaunched after the quick fixes (held by `HOLD_big`; the queue releases it), in 2-slot mode
+- [x] M54 amendment 2: sib (RTX 3060) and big_mac (M1 Max) as controllers, same model file (sha256-checked), same flags
+- [ ] sib and big_mac smoke questions pass; workers running
 - [x] `run_agentrunbook_c.py` records controller and reader served models
 - [x] `standing.rs` reads `memory_type` and has an `agentrunbook_c` mode,
       its pairing keys and a label; tests (`SHIPPED_LME_V2_MEMORY` stays `myelin` until adoption)
