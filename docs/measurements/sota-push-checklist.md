@@ -31,7 +31,7 @@ and every number that uses one says so. Plan approved by the user
       its pairing keys and a label; tests (`SHIPPED_LME_V2_MEMORY` stays `myelin` until adoption)
 - [ ] All 17 chunks done → merged prompt rows → reader pass → judged pair →
       write-up → adoption PR (if ≥ 74.90)
-- [ ] M62 design doc (myelin-native route 3)
+- [x] M62 design doc (`m62-native-trajectory-tools.md`)
 
 ## Always
 - [ ] Each arm's artifact records its served model, clause switches and
