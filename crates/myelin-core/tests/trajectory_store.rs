@@ -6,97 +6,21 @@
 //! replaced or edited; forgetting the anchor forgets it; and an export carries
 //! it. Hermetic: SQLite only.
 
-use chrono::{Duration, Utc};
+mod trajectory_fixture;
+
 use myelin_core::model::delta::Delta;
 use myelin_core::model::query::ScopeFilter;
-use myelin_core::model::record::{
-    ActorId, MemoryRecord, Provenance, RecordKind, Salience, Scope, SourceRef, Trust, Validity,
-};
-use myelin_core::model::trajectory::{AgentTrajectory, TrajectoryHeader, TrajectoryState};
+use myelin_core::model::record::{ActorId, Scope};
 use myelin_core::store::export::{export_namespace, import_namespace, MemoryConfigJson};
 use myelin_core::store::ids::record_id;
 use myelin_core::store::ledger::Ledger;
+use trajectory_fixture::{filter, goal_record, scope, t1, NS, TENANT};
 
-const TENANT: &str = "small/web";
-const NS: &str = "myelin";
-
-fn scope() -> Scope {
-    Scope::new(TENANT, "myelin", NS)
-}
-
-fn goal_record(sc: &Scope, traj: &str) -> MemoryRecord {
-    let now = Utc::now();
-    MemoryRecord {
-        id: record_id(sc, &format!("{traj}#goal")),
-        kind: RecordKind::Episodic,
-        scope: sc.clone(),
-        text: format!("goal: Goal: change the bio of {traj}"),
-        entities: Vec::new(),
-        validity: Validity {
-            t_valid: now - Duration::hours(1),
-            t_invalid: None,
-            t_ingested: now - Duration::hours(1),
-            t_expired: None,
-        },
-        provenance: Provenance {
-            source: SourceRef::doc(format!("{traj}:goal")),
-            contributed_by: ActorId::new("builder"),
-            written_by: ActorId::new("builder"),
-            derived_from: Vec::new(),
-        },
-        trust: Trust::asserted(),
-        salience: Salience::default(),
-        links: Vec::new(),
-    }
-}
-
-fn state(i: u32, action: Option<&str>) -> TrajectoryState {
-    TrajectoryState {
-        state_index: i,
-        step: i,
-        url: format!("http://localhost:9080/page{i}"),
-        action: action.map(str::to_string),
-        thought: action.map(|a| format!("I will {a}")),
-        accessibility_tree: format!("[1] RootWebArea 'Page {i}'\n[2] button 'Save'"),
-    }
-}
-
-fn trajectory(sc: &Scope, id: &str, anchor: uuid::Uuid) -> AgentTrajectory {
-    AgentTrajectory {
-        header: TrajectoryHeader {
-            id: id.to_string(),
-            scope: sc.clone(),
-            record_id: anchor,
-            goal: format!("change the bio of {id}"),
-            environment: "reddit".into(),
-            start_url: "http://localhost:9080/".into(),
-            outcome: "success".into(),
-        },
-        states: vec![
-            state(0, None),
-            state(1, Some("click('68')")),
-            state(2, Some("fill('116', 'I am a robot')")),
-            state(3, Some("click('250')")),
-        ],
-    }
-}
-
-/// A ledger holding trajectory `t1` in [`scope`], anchored on its goal record.
-async fn stored() -> (Ledger, AgentTrajectory) {
-    let ledger = Ledger::open_memory().await.unwrap();
-    let actor = ActorId::new("builder");
-    let goal = goal_record(&scope(), "t1");
-    let traj = trajectory(&scope(), "t1", goal.id);
-    ledger
-        .apply(&Delta::Add { record: Box::new(goal) }, &actor)
-        .await
-        .unwrap();
-    ledger.put_trajectory(&traj, &actor).await.unwrap();
-    (ledger, traj)
-}
-
-fn filter() -> ScopeFilter {
-    ScopeFilter::tenant(TENANT).with_namespace(NS)
+/// The fixture ledger, keeping only `t1` for the tests that follow one
+/// trajectory.
+async fn stored() -> (Ledger, myelin_core::model::trajectory::AgentTrajectory) {
+    let (ledger, t1, _t2) = trajectory_fixture::stored().await;
+    (ledger, t1)
 }
 
 #[tokio::test]
@@ -104,7 +28,9 @@ async fn a_trajectory_reads_back_exactly_and_in_state_order() {
     let (ledger, traj) = stored().await;
 
     let headers = ledger.trajectories(&filter()).await.unwrap();
-    assert_eq!(headers, vec![traj.header.clone()]);
+    let ids: Vec<&str> = headers.iter().map(|h| h.id.as_str()).collect();
+    assert_eq!(ids, vec!["t1", "t2"], "ordered by id");
+    assert_eq!(headers[0], traj.header);
 
     let steps = ledger.trajectory_steps(&filter(), "t1").await.unwrap();
     let indices: Vec<u32> = steps.iter().map(|s| s.state_index).collect();
@@ -147,7 +73,14 @@ async fn a_trajectory_is_visible_exactly_when_its_anchor_is() {
         )
         .await
         .unwrap();
-    assert!(ledger.trajectories(&filter()).await.unwrap().is_empty());
+    let left: Vec<String> = ledger
+        .trajectories(&filter())
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|h| h.id)
+        .collect();
+    assert_eq!(left, vec!["t2"], "only the retracted anchor's trajectory disappears");
     assert!(ledger.trajectory_steps(&filter(), "t1").await.unwrap().is_empty());
     assert!(ledger
         .trajectory_states(&filter(), "t1", 0, 3)
@@ -167,7 +100,8 @@ async fn bad_writes_are_refused() {
         "{again:?}"
     );
 
-    let orphan = trajectory(&scope(), "t2", record_id(&scope(), "nowhere"));
+    let mut orphan = t1(record_id(&scope(), "nowhere"));
+    orphan.header.id = "orphan".into();
     let refused = ledger.put_trajectory(&orphan, &actor).await;
     assert!(
         refused.as_ref().is_err_and(|e| e.to_string().contains("not in the ledger")),
@@ -182,15 +116,16 @@ async fn bad_writes_are_refused() {
         .apply(&Delta::Add { record: Box::new(foreign_goal) }, &actor)
         .await
         .unwrap();
-    let cross = ledger
-        .put_trajectory(&trajectory(&scope(), "t3", foreign_id), &actor)
-        .await;
+    let mut cross_traj = t1(foreign_id);
+    cross_traj.header.id = "t3".into();
+    let cross = ledger.put_trajectory(&cross_traj, &actor).await;
     assert!(
         cross.as_ref().is_err_and(|e| e.to_string().contains("is in small/enterprise")),
         "{cross:?}"
     );
 
-    let mut shuffled = trajectory(&scope(), "t4", traj.header.record_id);
+    let mut shuffled = t1(traj.header.record_id);
+    shuffled.header.id = "t4".into();
     shuffled.states.swap(1, 2);
     let unordered = ledger.put_trajectory(&shuffled, &actor).await;
     assert!(
@@ -198,7 +133,8 @@ async fn bad_writes_are_refused() {
         "{unordered:?}"
     );
 
-    let mut empty = trajectory(&scope(), "t5", traj.header.record_id);
+    let mut empty = t1(traj.header.record_id);
+    empty.header.id = "t5".into();
     empty.states.clear();
     assert!(ledger.put_trajectory(&empty, &actor).await.is_err());
 
@@ -209,7 +145,7 @@ async fn bad_writes_are_refused() {
     );
 
     // None of the refused writes left anything behind.
-    assert_eq!(ledger.trajectories(&filter()).await.unwrap().len(), 1);
+    assert_eq!(ledger.trajectories(&filter()).await.unwrap().len(), 2);
 }
 
 #[tokio::test]
@@ -236,8 +172,15 @@ async fn forgetting_the_anchor_forgets_the_trajectory() {
         .hard_delete(traj.header.record_id, &ActorId::new("user"), "forget me")
         .await
         .unwrap();
-    assert!(ledger.trajectories_in_namespace(NS).await.unwrap().is_empty());
-    let (states,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM trajectory_state")
+    let left: Vec<String> = ledger
+        .trajectories_in_namespace(NS)
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|t| t.header.id)
+        .collect();
+    assert_eq!(left, vec!["t2"], "only the forgotten anchor's trajectory goes");
+    let (states,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM trajectory_state WHERE trajectory = 't1'")
         .fetch_one(ledger.pool())
         .await
         .unwrap();
@@ -249,11 +192,12 @@ async fn an_export_carries_trajectories_and_reimports_them() {
     let (ledger, traj) = stored().await;
     let config = MemoryConfigJson::new("bge-m3", 1024);
     let bundle = export_namespace(&ledger, NS, &config).await.unwrap();
-    assert_eq!(bundle.trajectories, vec![traj.clone()]);
+    assert_eq!(bundle.trajectories.len(), 2);
+    assert_eq!(bundle.trajectories[0], traj);
 
     let fresh = Ledger::open_memory().await.unwrap();
     import_namespace(&fresh, &bundle, &config).await.unwrap();
-    assert_eq!(fresh.trajectories_in_namespace(NS).await.unwrap(), vec![traj]);
+    assert_eq!(fresh.trajectories_in_namespace(NS).await.unwrap(), bundle.trajectories);
     let again = export_namespace(&fresh, NS, &config).await.unwrap();
     assert_eq!(again, bundle, "export -> import -> export is byte-faithful");
 }
