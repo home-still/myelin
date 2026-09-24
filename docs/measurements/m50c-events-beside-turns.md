@@ -91,4 +91,41 @@ touched.
       collection, or a missing or empty index. The run records both, and
       standing treats a run with the block as an arm (test). The MCP switch
       comes with a ship.
-- [ ] Pilot pre-registered, then run: LoCoMo, full 1,986, 9B reader.
+- [x] Pilot pre-registered (below); it runs on big after the M62 pilot, before M60 (user, 2026-09-24).
+
+## Pilot — pre-registered *(2026-09-24 ~15:40, before any row)*
+
+**The arm.**
+- LoCoMo, the full 1,986, at the shipped LoCoMo settings: the Qwen3.5-9B
+  reader, `recall`, k = 6, `max_steps` 2, plain reader, store
+  `myelin_locomo`.
+- Plus the events block:
+  `bench --corpus locomo --mode recall --k 6 --max-steps 2 --events-collection myelin_locomo_evonly --events-ledger data/locomo_evonly.ledger`
+  → `runs/m50c_locomo_events`. That is m = 3 events and a 512-token block
+  budget.
+- Two shards on the 9B, merged and closed.
+- Judged by the 9B with `judge --seed runs/m19_locomo_full`, which reuses a
+  verdict only on a byte-identical answer.
+
+**Comparisons, paired over 1,986:**
+1. **To ship:** against `runs/m19_locomo_full` (69.87). The bar is +3.0 on
+   judge 1–4 with the 95% CI excluding zero. **Veto:** adversarial below
+   69.96.
+2. **Attribution:** against `runs/m50b_locomo_events` (events in the same
+   store, −0.13). This is the dual index against the combined one.
+
+**Predictions.**
+- Judge 1–4 **+1 to +3**.
+- Declines on 1–4 fall from 121 to about 90: M50b rescued +11.6 on the
+  121, and here the turns are kept too.
+- Temporal gains the most, because the events carry resolved dates.
+- Gold turns held are unchanged, by construction.
+
+**Diagnostics reported either way:**
+- how often the six base items match m19's, as a drift check on the
+  base retrieval;
+- rows with at least one event appended;
+- block tokens per row.
+
+**Falsifier.** A clear loss on questions the base answered (base-answered
+stratum down more than 2): the extra block distracts the 9B.
