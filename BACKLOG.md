@@ -56,7 +56,7 @@ answers. The fix for the next arm is waiting on the user's choice
 
 ---
 
-## M54 — a local file-reading controller for LME-V2 *(the LME-V2 lever)*
+## M54 — a local file-reading controller for LME-V2 *(pilot +40.4 [+25.5, +55.3]; full pair running)*
 
 M53 (`docs/measurements/m53-state-completion.md`) measured where LME-V2
 loses its answers — 45% of wrong phrase/list answers are in the haystack but
@@ -74,6 +74,12 @@ trajectories — `grep` over page text and thoughts, `open(traj, state)`,
 controller (big's 27B coding model, or the 9B), returning the evidence it
 gathered to the unchanged reader. Pilot on a stratified LME-V2 subset before
 any full pair. Design doc first.
+
+**Pilot measured 2026-09-24: 42.55 → 82.98, +40.43 [+25.53, +55.32]** on 47
+questions, with the paper's AgentRunbook-C driven by Bonsai 27B through Codex
+and the protocol's 9B reader. The full 451-question pair is running in
+resumable chunks (~27 GPU-hours)
+(`docs/measurements/m54-local-file-controller.md`).
 
 ---
 
