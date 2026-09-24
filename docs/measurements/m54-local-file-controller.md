@@ -1,4 +1,4 @@
-# M54 — a local file-reading controller for LME-V2 *(route chosen, pilot pre-registered 2026-09-23)*
+# M54 — a local file-reading controller for LME-V2 *(pilot measured 2026-09-24: +40.4, full pair running)*
 
 ## Why
 
@@ -124,4 +124,64 @@ not file-based retrieval — report the failure rate first.
   text-only as pre-registered. A captured failing request returns 200
   through it, and the question that died completes with 12 memory items.
 - **2026-09-23 23:50.** Relaunched from clean run directories.
+- **2026-09-24 03:53.** The first reader pass sent empty answers for two
+  web rows. Their controller contexts ran 162,125 and 198,651 tokens, over
+  the reader's 64k slots. The harness's own memory budget is 200,000 tokens
+  and Qwen3.5-9B's window is 262k, so the reader was re-served as one slot:
+  262,144 tokens ran out of VRAM beside big's other tenants, and 204,800 fit.
+  The 198,651-token prompt was probed through it, and both reader passes
+  then ran with zero overflows. The controller phase was not re-run: its
+  prompts were reused byte-identical (`--reuse-prompts-from`).
+
+## Results — pilot, measured 2026-09-24
+
+**42.55 → 82.98, +40.43 [+25.53, +55.32]** on the 47 pre-registered
+questions (web 24 + enterprise 23), against `m47_base_web` +
+`m47_base_ent` on the same questions. The gate was +5, so it passes by 35
+points.
+
+| stratum | n | myelin (M47 base) | AgentRunbook-C, local | Δ | 95% CI |
+|---|---|---|---|---|---|
+| combined | 47 | 42.55 | 82.98 | +40.43 | [+25.53, +55.32] |
+| answerable | 33 | 54.55 | 90.91 | +36.36 | [+18.18, +54.55] |
+| abstention | 14 | 14.29 | 64.29 | +50.00 | [+21.43, +78.57] |
+| static | 13 | 46.15 | 92.31 | +46.15 | [+7.69, +76.92] |
+| dynamic | 9 | 55.56 | 88.89 | +33.33 | [+0.00, +66.67] |
+| procedure | 7 | 85.71 | 100.00 | +14.29 | [+0.00, +42.86] |
+| gotchas | 4 | 25.00 | 75.00 | +50.00 | [+0.00, +100.00] |
+
+**The falsifier did not fire.** After the shim fix the controller returned
+a memory context for all 47 questions, with no refused requests.
+
+| controller | web | enterprise |
+|---|---|---|
+| questions with empty memory | 0 / 24 | 0 / 23 |
+| memory items per question, median | 7.5 | 8 |
+| minutes per question, median | 4.4 | 3.6 |
+| minutes per question, max | 12.0 | 17.0 |
+
+**No answer leakage.** The controller's sandbox holds the question text,
+`INSTRUCTION.md`, the inspection script and the question's haystack
+trajectories (102 for the first web question). The question record's
+`answer` field is not copied in.
+
+**What it means, with its caveats.** The paper's own finding reproduces
+locally, and more strongly: a coding agent that searches the trajectory
+files beats retrieval on this benchmark. The paper reports 72.5 against
+RAG's 48.5 with GPT-5.4-mini; here it is 82.98 against our RAG's 42.55
+with a local 27B. The comparison is a stratified pilot of 47 (the CI spans
+30 points) and is not the tier population, so it is not quotable against
+the 58.60 standing row. The full pair is the measurement that is.
+
+Artifacts: `runs/m54_arc_web`, `runs/m54_arc_ent` (reader phase, scored)
+and `runs/m54_arc_{web,ent}_prompts` (controller phase).
+
+## Full pair — running
+
+The remaining 404 questions (web 216, enterprise 188) run through the
+controller in 17 chunks of 24. A chunk writes its own prompt rows, so the
+run resumes chunk by chunk and can yield big between chunks. At ~4 minutes
+per question that is ~27 GPU-hours. Then one reader pass over all 451 (the
+pilot's 47 prompt rows merged with the chunks'), on the 204,800-token
+reader, judged by the 9B, paired against `m47_base_{web,ent}`.
 

@@ -150,7 +150,11 @@ showed thinking does not close that gap and [M53](docs/measurements/m53-state-co
 located it in retrieval. LoCoMo has resisted two arms: the LongMemEval_S
 settings ([M51](docs/measurements/m51-locomo-at-the-shipped-point.md), −4.81) and the events calendar
 ([M50b](docs/measurements/m50b-locomo-events.md), −0.13, events crowding turns out of k = 6).
-[M55](docs/measurements/m55-bonsai-27b-model.md) tests whether the 9B model itself is the shared ceiling.
+[M55](docs/measurements/m55-bonsai-27b-model.md) swapped in Bonsai 27B: LongMemEval_S rose
+to 82.20, but the abstention veto fired, and LoCoMo fell 3.18 as the model declined twice as often.
+On LME-V2, [M54](docs/measurements/m54-local-file-controller.md)'s local file-reading controller
+piloted at **82.98 against 42.55** on 47 questions. The full 451-question pair is running, and
+until it lands the 38.80 row stands.
 One row we claim outright: LoCoMo 69.87 beats Mem0's
 published 66.88 by +2.99.
 

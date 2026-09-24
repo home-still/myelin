@@ -1,0 +1,16 @@
+{
+  "memory_type": "agentrunbook_c",
+  "memory_params": {
+    "evidence_mode": "axtree",
+    "trajectory_pool_root": null,
+    "query_codex_params": {
+      "binary": "/opt/homebrew/bin/codex",
+      "model": "qwen3.8-27b",
+      "reasoning_effort": "medium",
+      "timeout_seconds": 1800.0,
+      "max_retries": 1,
+      "extra_config": [],
+      "extra_args": []
+    }
+  }
+}
