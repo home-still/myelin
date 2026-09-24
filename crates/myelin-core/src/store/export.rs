@@ -15,12 +15,14 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::{MyelinError, Result};
 use crate::model::record::MemoryRecord;
+use crate::model::trajectory::AgentTrajectory;
 use crate::store::ledger::{AclEdge, Event, IncidenceRow, Ledger, LinkRow, QuarantineRow};
 
 /// Bumped whenever the on-disk bundle shape changes. A mismatch is a hard
 /// error: silently importing an older bundle is how a "byte-faithful" claim
 /// quietly becomes false.
-pub const BUNDLE_VERSION: u32 = 1;
+/// 2: agent trajectories (M62).
+pub const BUNDLE_VERSION: u32 = 2;
 
 /// The pinned build configuration. Equality is checked on import (R3).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -77,6 +79,8 @@ pub struct ExportBundle {
     pub namespace: String,
     pub config: MemoryConfigJson,
     pub records: Vec<MemoryRecord>,
+    /// Structured agent histories (M62), each anchored on one of `records`.
+    pub trajectories: Vec<AgentTrajectory>,
     pub links: Vec<LinkRow>,
     pub incidence: Vec<IncidenceRow>,
     pub quarantine: Vec<QuarantineRow>,
@@ -100,6 +104,7 @@ pub async fn export_namespace(
     let records = ledger.records_in_namespace(namespace).await?;
     let ids: std::collections::HashSet<_> = records.iter().map(|r| r.id).collect();
 
+    let trajectories = ledger.trajectories_in_namespace(namespace).await?;
     let links = ledger.links(Some(namespace)).await?;
     let incidence = ledger.incidence(Some(namespace)).await?;
 
@@ -125,6 +130,7 @@ pub async fn export_namespace(
         namespace: namespace.to_string(),
         config: config.clone(),
         records,
+        trajectories,
         links,
         incidence,
         quarantine,

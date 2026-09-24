@@ -233,7 +233,9 @@ Hard deletion requires `confirm: true` and cannot be undone.
 | `actor` | string | no | `"mcp"` | Audit actor |
 
 **Returns:** `ForgetResult` — `{ mode, affected: [uuid] }`. For hard delete,
-`affected` includes all records in the descendant closure (C11 unlearning).
+`affected` includes all records in the descendant closure (C11 unlearning). Erasing a
+trajectory's goal record also erases the structured trajectory anchored on it
+(M62).
 
 ### `review_quarantine` — staged writes
 
@@ -329,6 +331,24 @@ The write path (`remember` / `observe`) runs: **ingest → extract → adjudicat
 
 5. **Index:** embed the record and upsert to Qdrant. The SQLite ledger records
    the provenance, lineage, and audit trail.
+
+### Agent trajectories (M62)
+
+An agent's history (the pages it saw, and each action and thought in order)
+is stored twice. The episodic records described above hold it as merged
+search chunks. The ledger's `trajectory` and `trajectory_state` tables hold
+it state by state, so a tool can open "state 7" or "states 3-9" exactly. That
+is what a file-reading controller needs, after the LongMemEval-V2 authors'
+AgentRunbook-C (arXiv 2605.12493 §4.2).
+
+- Each trajectory is **anchored on its goal episode record**. It is readable
+  exactly when that record is: the same scope filter, and the same live,
+  non-quarantined test.
+- It is **never edited**; database triggers refuse updates.
+- A `forget` in hard mode of the anchor erases it by cascade.
+- Exports carry it (bundle version 2).
+
+Nothing writes it yet; the LME-V2 build will, in M62 PR 2.
 
 ### Quarantine
 

@@ -126,3 +126,49 @@ CREATE TABLE IF NOT EXISTS quarantine (
     reason TEXT NOT NULL,
     at     TEXT NOT NULL
 );
+
+-- M62: agent histories, state by state. The episodic records keep a
+-- trajectory as merged search chunks, which cannot give one state back
+-- exactly; this is the structured copy the trajectory tools read, after the
+-- LongMemEval-V2 authors' file-reading memory (AgentRunbook-C,
+-- arXiv 2605.12493 §4.2). Anchored on the trajectory's goal episode record:
+-- C11 `hard_delete` of that record removes both tables' rows by cascade (I5).
+CREATE TABLE IF NOT EXISTS trajectory (
+    tenant      TEXT NOT NULL,
+    agent       TEXT NOT NULL,
+    namespace   TEXT NOT NULL,
+    id          TEXT NOT NULL,
+    record_id   TEXT NOT NULL REFERENCES record (id) ON DELETE CASCADE,
+    goal        TEXT NOT NULL,
+    environment TEXT NOT NULL,
+    start_url   TEXT NOT NULL,
+    outcome     TEXT NOT NULL,
+    PRIMARY KEY (tenant, namespace, id)
+);
+CREATE INDEX IF NOT EXISTS trajectory_record ON trajectory (record_id);
+
+CREATE TABLE IF NOT EXISTS trajectory_state (
+    tenant             TEXT NOT NULL,
+    namespace          TEXT NOT NULL,
+    trajectory         TEXT NOT NULL,
+    state_index        INTEGER NOT NULL,
+    step               INTEGER NOT NULL,
+    url                TEXT NOT NULL,
+    action             TEXT,
+    thought            TEXT,
+    accessibility_tree TEXT NOT NULL,
+    PRIMARY KEY (tenant, namespace, trajectory, state_index),
+    FOREIGN KEY (tenant, namespace, trajectory)
+        REFERENCES trajectory (tenant, namespace, id) ON DELETE CASCADE
+);
+
+-- Like a record's content (I1), a stored trajectory is never edited in place.
+CREATE TRIGGER IF NOT EXISTS trajectory_no_update BEFORE UPDATE ON trajectory
+BEGIN
+    SELECT RAISE(ABORT, 'M62: a stored trajectory is never mutated');
+END;
+
+CREATE TRIGGER IF NOT EXISTS trajectory_state_no_update BEFORE UPDATE ON trajectory_state
+BEGIN
+    SELECT RAISE(ABORT, 'M62: a stored trajectory state is never mutated');
+END;
