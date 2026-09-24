@@ -554,6 +554,9 @@ pub struct BenchRun {
     /// Absent on every run before L1, which ran without it.
     #[serde(default)]
     pub dedupe_lineage: bool,
+    /// M64: compose placed relative-date resolutions in place, in words.
+    #[serde(default)]
+    pub inline_dates: bool,
     /// M24's sub-query decomposition cap, mirroring
     /// `RetrieveConfig::decompose`. Ships off; absent on every run before
     /// M24.
@@ -710,6 +713,8 @@ pub struct BenchSwitches {
     pub events_ledger: Option<String>,
     /// L1: `ComposeConfig::dedupe_lineage`.
     pub dedupe_lineage: bool,
+    /// M64: `ComposeConfig::inline_dates`.
+    pub inline_dates: bool,
     /// M61: the second pass was the grounded one. Only `commit-arm --grounded`
     /// produces it; carried here so a rescore of that arm keeps the record.
     pub commit_grounded: bool,
@@ -2009,6 +2014,7 @@ pub async fn bench_locomo(
             mmr_lambda: switches.mmr,
             untrusted_max: switches.untrusted_max,
             dedupe_lineage: switches.dedupe_lineage,
+            inline_dates: switches.inline_dates,
             ..Default::default()
         },
         ..Default::default()
@@ -2321,6 +2327,7 @@ pub async fn bench_longmemeval_s(
             mmr_lambda: switches.mmr,
             untrusted_max: switches.untrusted_max,
             dedupe_lineage: switches.dedupe_lineage,
+            inline_dates: switches.inline_dates,
             ..Default::default()
         },
         ..Default::default()
@@ -2653,6 +2660,7 @@ fn finish_run(
         events_collection: spec.switches.events_collection.clone(),
         events_ledger: spec.switches.events_ledger.clone(),
         dedupe_lineage: spec.switches.dedupe_lineage,
+        inline_dates: spec.switches.inline_dates,
         commit_answer: spec.switches.commit_answer,
         commit_grounded: spec.switches.commit_grounded,
         resumed_rows: resumed,
@@ -2848,6 +2856,7 @@ pub fn rescore_run(source: &Path, out_dir: &Path, scorer: Scorer) -> Result<Benc
                 .and_then(serde_json::Value::as_str)
                 .map(str::to_string),
             dedupe_lineage: flag("dedupe_lineage"),
+            inline_dates: flag("inline_dates"),
             commit_grounded: flag("commit_grounded"),
             commit_answer: flag("commit_answer"),
             untrusted_max: metrics

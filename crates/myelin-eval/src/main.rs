@@ -748,6 +748,10 @@ enum Command {
         /// memory in compose; the higher-ranked copy keeps the slot.
         #[arg(long)]
         dedupe_lineage: bool,
+        /// M64: relative-date resolutions right after their phrase, in words
+        /// (`ComposeConfig::inline_dates`), instead of appended in ISO form.
+        #[arg(long)]
+        inline_dates: bool,
         #[arg(long, requires = "events_ledger")]
         events_collection: Option<String>,
         /// The ledger holding that index's event records (a copy of the base
@@ -1231,6 +1235,7 @@ async fn main() -> anyhow::Result<()> {
             ref events_collection,
             ref events_ledger,
             dedupe_lineage,
+            inline_dates,
             untrusted_max,
             decompose,
             ref categories,
@@ -1283,6 +1288,7 @@ async fn main() -> anyhow::Result<()> {
                     events_collection: events_collection.clone(),
                     events_ledger: events_ledger.clone(),
                     dedupe_lineage,
+                    inline_dates,
                     commit_grounded: false,
                     untrusted_max,
                     decompose,
