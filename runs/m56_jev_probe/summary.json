@@ -1,0 +1,44 @@
+{
+ "jev_model": "typesafe/jev-1.13",
+ "policy": "docs/measurements/m56-verified-answers.md Step 0",
+ "longmemeval_s_bonsai": {
+  "run": "/Users/ladvien/myelin/runs/m55_bonsai_s1_judged",
+  "rows": 500,
+  "base": 82.2,
+  "simulated": 59.8,
+  "abstention": "30/30",
+  "base_abstention": "25/30",
+  "answerable_declines": 180,
+  "rows_lost": 117,
+  "rows_gained": 5,
+  "jev_calls": 436,
+  "auroc_supported_vs_judged_correct": 0.704
+ },
+ "longmemeval_s_9b": {
+  "run": "/Users/ladvien/myelin/runs/m44_r2_s1_judged",
+  "rows": 500,
+  "base": 78.4,
+  "simulated": 57.0,
+  "abstention": "30/30",
+  "base_abstention": "28/30",
+  "answerable_declines": 188,
+  "rows_lost": 109,
+  "rows_gained": 2,
+  "jev_calls": 418,
+  "auroc_supported_vs_judged_correct": 0.743
+ },
+ "locomo_bonsai": {
+  "arm_run": "/Users/ladvien/myelin/runs/m55b_locomo_bonsai",
+  "proxy_run": "/Users/ladvien/myelin/runs/m19_locomo_full",
+  "base_judge_1_4": 66.69,
+  "simulated_judge_1_4": 62.99,
+  "base_adversarial": 92.83,
+  "simulated_adversarial": 95.96,
+  "answerable_declines": 355,
+  "adopted_stand_ins": 63,
+  "jev_calls": 1565,
+  "auroc_supported_vs_judged_correct": 0.653
+ },
+ "new_calls": 2385,
+ "new_cost_usd": 0.2241
+}
