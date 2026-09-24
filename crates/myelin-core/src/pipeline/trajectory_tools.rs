@@ -129,13 +129,17 @@ impl<'a> TrajectoryTools<'a> {
         let mut lines = Vec::new();
         let mut truncated = states.len() as u32 == GREP_MAX_STATES;
         'states: for (traj, st) in &states {
-            for line in state_lines(st) {
+            for (place, line) in state_lines(st) {
                 if line.to_lowercase().contains(&lower) {
                     if lines.len() == GREP_MAX_LINES {
                         truncated = true;
                         break 'states;
                     }
-                    lines.push(format!("{traj} state {}: {}", st.state_index, clip(line, GREP_LINE_MAX_CHARS)));
+                    lines.push(format!(
+                        "{traj} state {} {place}: {}",
+                        st.state_index,
+                        clip(line, GREP_LINE_MAX_CHARS)
+                    ));
                 }
             }
         }
@@ -170,10 +174,11 @@ impl<'a> TrajectoryTools<'a> {
         }
         let to = (from_line + READ_WINDOW_LINES).min(page.len());
         let mut out = format!(
-            "Trajectory {id} state {state} (step {})\nURL: {}\nAction: {}\nPage lines {from_line}-{} of {}:\n",
+            "Trajectory {id} state {state} (step {})\nURL: {}\nAction: {}\nThought: {}\nPage lines {from_line}-{} of {}:\n",
             st.step,
             st.url,
             st.action.as_deref().unwrap_or("<none>"),
+            st.thought.as_deref().map(one_line).unwrap_or_else(|| "<none>".into()),
             to.saturating_sub(1),
             page.len()
         );
@@ -315,11 +320,20 @@ fn clip(s: &str, max_chars: usize) -> String {
     }
 }
 
-/// The searchable lines of a state: its URL, its action, then its page.
-fn state_lines(st: &TrajectoryState) -> impl Iterator<Item = &str> {
-    std::iter::once(st.url.as_str())
-        .chain(st.action.as_deref())
-        .chain(st.accessibility_tree.lines())
+/// The searchable lines of a state with where each stands: `url`, `action`,
+/// `thought`, then `line <n>` of the page, the number `read` takes as
+/// `from_line`. So a hit can be opened where it is instead of paging from
+/// line 0 (M62c; the bottleneck review found grep hits had no position).
+fn state_lines(st: &TrajectoryState) -> impl Iterator<Item = (String, &str)> {
+    std::iter::once(("url".to_string(), st.url.as_str()))
+        .chain(st.action.as_deref().map(|a| ("action".to_string(), a)))
+        .chain(st.thought.as_deref().map(|t| ("thought".to_string(), t)))
+        .chain(
+            st.accessibility_tree
+                .lines()
+                .enumerate()
+                .map(|(n, l)| (format!("line {n}"), l)),
+        )
 }
 
 /// `codex.py` `format_actions`: every non-empty action, numbered.

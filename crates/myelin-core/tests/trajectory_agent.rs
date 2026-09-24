@@ -10,7 +10,8 @@ use async_trait::async_trait;
 use myelin_core::error::{MyelinError, Result};
 use myelin_core::llm::{Completion, CompletionRequest, Llm, Role, Usage};
 use myelin_core::pipeline::trajectory_agent::{
-    TrajectoryAgent, TrajectoryAgentConfig, FORCED_ANSWER_ATTEMPTS, FORCED_ANSWER_MESSAGE,
+    action_schema, ToolKind, TrajectoryAgent, TrajectoryAgentConfig, FORCED_ANSWER_ATTEMPTS,
+    FORCED_ANSWER_MESSAGE,
 };
 use myelin_core::pipeline::trajectory_tools::TrajectoryTools;
 use trajectory_fixture::{filter, stored};
@@ -57,13 +58,39 @@ impl Llm for Scripted {
     }
 }
 
+/// The tool names a request's schema allows: one strict object per tool,
+/// under `anyOf` when there is more than one.
 fn tools_of(req: &CompletionRequest) -> Vec<String> {
-    req.json_schema.as_ref().expect("every step is schema-constrained")["properties"]["tool"]["enum"]
-        .as_array()
-        .expect("enum")
+    let schema = req.json_schema.as_ref().expect("every step is schema-constrained");
+    let variants: Vec<&serde_json::Value> = match schema.get("anyOf") {
+        Some(v) => v.as_array().expect("anyOf").iter().collect(),
+        None => vec![schema],
+    };
+    variants
         .iter()
-        .map(|v| v.as_str().expect("str").to_string())
+        .map(|v| v["properties"]["tool"]["const"].as_str().expect("const tool").to_string())
         .collect()
+}
+
+/// M62c: M62b's flat schema let the model write `read` without `state` on
+/// 267 of 268 reads. Each tool is now its own strict object.
+#[test]
+fn each_tool_is_a_strict_object_with_its_own_required_fields() {
+    let explore = action_schema(&[ToolKind::Summary, ToolKind::Grep, ToolKind::Read, ToolKind::Answer]);
+    let variants = explore["anyOf"].as_array().expect("anyOf over the tools");
+    assert_eq!(variants.len(), 4);
+    let read = variants
+        .iter()
+        .find(|v| v["properties"]["tool"]["const"] == "read")
+        .expect("read");
+    let required: Vec<&str> = read["required"].as_array().unwrap().iter().map(|v| v.as_str().unwrap()).collect();
+    assert_eq!(required, vec!["thought", "tool", "trajectory", "state"]);
+    for v in variants {
+        assert_eq!(v["additionalProperties"], false, "no stray keys: {v}");
+    }
+    let forced = action_schema(&[ToolKind::Answer]);
+    assert!(forced.get("anyOf").is_none(), "one tool is one object");
+    assert_eq!(forced["properties"]["tool"]["const"], "answer");
 }
 
 #[tokio::test]
@@ -108,7 +135,8 @@ async fn a_search_read_answer_run_yields_the_spans_and_its_trace() {
     let third = &requests[2];
     assert_eq!(third.messages.len(), 6);
     assert_eq!(third.messages[2].role, Role::Assistant);
-    assert!(third.messages[3].content.contains("t1 state 2: [116] textbox 'Biography'"));
+    assert!(third.messages[3].content.contains("t1 state 2 line 1: [116] textbox 'Biography'"));
+    assert!(third.messages[3].content.ends_with("(steps left before you must answer: 15)"), "BATS budget line");
     assert!(third.messages[5].content.starts_with("Trajectory t1 state 2 (step 2)"));
 }
 
@@ -137,7 +165,7 @@ async fn a_misused_tool_or_refused_answer_is_fed_back_for_correction() {
         .skip(1)
         .map(|m| m.content.as_str())
         .collect();
-    assert_eq!(observations[0], "error: read needs a trajectory and a state");
+    assert!(observations[0].starts_with("error: read needs a trajectory and a state"));
     assert!(observations[1].starts_with("error: no trajectory \"t9\""), "{:?}", observations[1]);
     assert!(observations[2].contains("holds 2 of those 8 states"), "{:?}", observations[2]);
 }
