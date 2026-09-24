@@ -547,6 +547,10 @@ pub struct BenchRun {
     /// The ledger that events index read its records from.
     #[serde(default)]
     pub events_ledger: Option<String>,
+    /// L1: compose treated a fact and its source episode as duplicates.
+    /// Absent on every run before L1, which ran without it.
+    #[serde(default)]
+    pub dedupe_lineage: bool,
     /// M24's sub-query decomposition cap, mirroring
     /// `RetrieveConfig::decompose`. Ships off; absent on every run before
     /// M24.
@@ -701,6 +705,8 @@ pub struct BenchSwitches {
     pub events_collection: Option<String>,
     /// The ledger holding that collection's event records.
     pub events_ledger: Option<String>,
+    /// L1: `ComposeConfig::dedupe_lineage`.
+    pub dedupe_lineage: bool,
     /// Cap untrusted occupancy in the composed set — M23 B1,
     /// `ComposeConfig::untrusted_max`.
     ///
@@ -1884,6 +1890,7 @@ pub async fn bench_locomo(
             profile: switches.profile,
             mmr_lambda: switches.mmr,
             untrusted_max: switches.untrusted_max,
+            dedupe_lineage: switches.dedupe_lineage,
             ..Default::default()
         },
         ..Default::default()
@@ -2195,6 +2202,7 @@ pub async fn bench_longmemeval_s(
             profile: switches.profile,
             mmr_lambda: switches.mmr,
             untrusted_max: switches.untrusted_max,
+            dedupe_lineage: switches.dedupe_lineage,
             ..Default::default()
         },
         ..Default::default()
@@ -2526,6 +2534,7 @@ fn finish_run(
         reader_best_guess: spec.switches.reader_best_guess,
         events_collection: spec.switches.events_collection.clone(),
         events_ledger: spec.switches.events_ledger.clone(),
+        dedupe_lineage: spec.switches.dedupe_lineage,
         commit_answer: spec.switches.commit_answer,
         resumed_rows: resumed,
         commit_samples: None,
@@ -2719,6 +2728,7 @@ pub fn rescore_run(source: &Path, out_dir: &Path, scorer: Scorer) -> Result<Benc
                 .get("events_ledger")
                 .and_then(serde_json::Value::as_str)
                 .map(str::to_string),
+            dedupe_lineage: flag("dedupe_lineage"),
             commit_answer: flag("commit_answer"),
             untrusted_max: metrics
                 .get("untrusted_max")

@@ -740,6 +740,10 @@ enum Command {
         /// M50c: an events-only index (Qdrant collection) whose top events
         /// are appended after the evidence as an `[events]` block, beside
         /// the turns rather than instead of them. Needs `--events-ledger`.
+        /// L1: a fact and the episode it was abstracted from count as one
+        /// memory in compose; the higher-ranked copy keeps the slot.
+        #[arg(long)]
+        dedupe_lineage: bool,
         #[arg(long, requires = "events_ledger")]
         events_collection: Option<String>,
         /// The ledger holding that index's event records (a copy of the base
@@ -1217,6 +1221,7 @@ async fn main() -> anyhow::Result<()> {
             reader_best_guess,
             ref events_collection,
             ref events_ledger,
+            dedupe_lineage,
             untrusted_max,
             decompose,
             ref categories,
@@ -1268,6 +1273,7 @@ async fn main() -> anyhow::Result<()> {
                     reader_best_guess,
                     events_collection: events_collection.clone(),
                     events_ledger: events_ledger.clone(),
+                    dedupe_lineage,
                     untrusted_max,
                     decompose,
                     categories: categories.clone().unwrap_or_default(),

@@ -281,6 +281,23 @@ pub struct ComposeConfig {
     /// `docs/measurements/m35-*.md` for the verdict.
     #[serde(default)]
     pub kind_quota: Option<KindQuota>,
+    /// Treat a fact and the episode it was abstracted from as duplicates, and
+    /// keep the higher-ranked of the two, as step 1 already does for equal
+    /// text and near-equal vectors.
+    ///
+    /// Measured 2026-09-24 on `m19_locomo_full`: **2,806 of 6,651** emitted
+    /// facts (42%) came from an episode already in the same evidence set, so
+    /// at least one of the six slots repeated another on **1,424 of 1,986**
+    /// rows (72%). Multi-hop held every gold turn on only 22% of its rows,
+    /// and scored 86% when it did against 36% when it held none. A slot
+    /// spent restating a selected episode is a slot not spent on the next
+    /// distinct memory. Redundancy-aware selection is the principle of
+    /// maximal marginal relevance (Carbonell & Goldstein, SIGIR 1998,
+    /// `10.1145/290941.291025`). Here the redundancy is read from lineage
+    /// (`provenance.derived_from`, I4) rather than estimated from vectors.
+    /// Ships **off** until its arm (L1) is measured.
+    #[serde(default)]
+    pub dedupe_lineage: bool,
 }
 
 impl Default for ComposeConfig {
@@ -300,6 +317,7 @@ impl Default for ComposeConfig {
             mmr_lambda: None,
             untrusted_max: None,
             kind_quota: None,
+            dedupe_lineage: false,
         }
     }
 }
@@ -489,12 +507,21 @@ fn mmr_select(kept: Vec<Ranked>, lambda: f32, cfg: &ComposeConfig) -> (Vec<Ranke
     (selected, tokens)
 }
 
+/// One record was abstracted directly from the other (`derived_from`), so
+/// with both in the evidence the reader sees the same memory twice.
+fn lineage_related(a: &MemoryRecord, b: &MemoryRecord) -> bool {
+    a.provenance.derived_from.contains(&b.id) || b.provenance.derived_from.contains(&a.id)
+}
+
 pub fn compose(ranked: Vec<Ranked>, profile: &[MemoryRecord], cfg: &ComposeConfig) -> EvidenceSet {
     // 1. Dedup, keeping the higher-ranked copy.
     let mut kept: Vec<Ranked> = Vec::new();
     for candidate in ranked {
         let duplicate = kept.iter().any(|k| {
             if k.record.text == candidate.record.text {
+                return true;
+            }
+            if cfg.dedupe_lineage && lineage_related(&k.record, &candidate.record) {
                 return true;
             }
             match (&k.vector, &candidate.vector) {
@@ -817,6 +844,64 @@ mod tests {
                 vector: None,
             })
             .collect()
+    }
+
+    /// L1: a fact and the episode it came from are one memory. With the
+    /// switch on, the lower-ranked of the pair gives its slot to the next
+    /// distinct candidate; with it off the set is exactly as before.
+    #[test]
+    fn lineage_dedupe_keeps_the_higher_ranked_of_a_fact_and_its_episode() {
+        // `fact_first` puts the fact above its episode in rank order.
+        let fixture = |fact_first: bool| {
+            let mut items = ranked(&[
+                "Maria: I got a puppy two weeks ago! Her name's Coco.",
+                "Maria adopted a puppy named Coco.",
+                "John: I started a new job at the bank.",
+                "Maria volunteers at the shelter.",
+            ]);
+            let episode = items[0].record.id;
+            items[1].record.provenance.derived_from = vec![episode];
+            if fact_first {
+                items.swap(0, 1);
+            }
+            items
+        };
+        // Which memories take the slots; compose's output order is its own.
+        let texts = |set: &EvidenceSet| {
+            let mut v = set.items.iter().map(|i| i.value.clone()).collect::<Vec<_>>();
+            v.sort();
+            v
+        };
+        let cfg = ComposeConfig { k: 3, ..unstamped() };
+
+        let off = compose(fixture(false), &[], &cfg);
+        assert_eq!(
+            texts(&off),
+            vec![
+                "John: I started a new job at the bank.".to_string(),
+                "Maria adopted a puppy named Coco.".to_string(),
+                "Maria: I got a puppy two weeks ago! Her name's Coco.".to_string(),
+            ],
+            "off: both copies of the same memory take a slot"
+        );
+
+        let on_cfg = ComposeConfig { dedupe_lineage: true, ..cfg };
+        let on = compose(fixture(false), &[], &on_cfg);
+        assert_eq!(
+            texts(&on),
+            vec![
+                "John: I started a new job at the bank.".to_string(),
+                "Maria volunteers at the shelter.".to_string(),
+                "Maria: I got a puppy two weeks ago! Her name's Coco.".to_string(),
+            ],
+            "on: the fact under its episode yields its slot to the next distinct memory"
+        );
+
+        // Symmetric: a fact ranked above its episode keeps its place and the
+        // episode yields.
+        let on = compose(fixture(true), &[], &on_cfg);
+        assert!(texts(&on).contains(&"Maria adopted a puppy named Coco.".to_string()));
+        assert!(!texts(&on).iter().any(|t| t.starts_with("Maria: I got a puppy")));
     }
 
     /// `ranked`, but with kinds, so allocation can be tested.
