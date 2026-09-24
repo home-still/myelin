@@ -22,5 +22,6 @@ pub mod investigate;
 pub mod phrases;
 pub mod retrieve;
 pub mod select;
+pub mod trajectory_agent;
 pub mod trajectory_tools;
 pub mod write;

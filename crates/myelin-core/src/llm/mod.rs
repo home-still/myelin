@@ -54,6 +54,12 @@ impl Message {
             content: content.into(),
         }
     }
+    pub fn assistant(content: impl Into<String>) -> Self {
+        Self {
+            role: Role::Assistant,
+            content: content.into(),
+        }
+    }
 }
 
 /// A tool the model may call. Shape matches the OpenAI function-calling wire
