@@ -59,14 +59,14 @@ impl BenchCorpus {
         match self {
             Self::Locomo => BenchDefaults {
                 dataset: "data/locomo10.json",
-                collection: "myelin_locomo",
+                collection: myelin_eval::bench::LOCOMO_COLLECTION,
                 ledger: "data/locomo.ledger",
                 slug: "locomo",
                 scorer: myelin_eval::bench::Scorer::Temporal,
             },
             Self::LongmemevalS => BenchDefaults {
                 dataset: "data/longmemeval_s.json",
-                collection: "myelin_longmemeval_s",
+                collection: myelin_eval::bench::LONGMEMEVAL_S_COLLECTION,
                 ledger: "data/longmemeval_s.ledger",
                 slug: "lme_s",
                 scorer: myelin_eval::bench::Scorer::TokenF1,
