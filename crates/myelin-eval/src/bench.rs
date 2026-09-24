@@ -490,6 +490,9 @@ pub struct BenchRun {
     /// M42's decline-recovery second pass.
     #[serde(default)]
     pub commit_answer: bool,
+    /// M61: that second pass was the grounded one (`commit_grounded`).
+    #[serde(default)]
+    pub commit_grounded: bool,
     /// Rows inherited from an earlier attempt by `bench --resume`. Non-zero
     /// means the run's two halves may have been served by differently
     /// configured readers (slots, context): a greedy answer does not depend
@@ -707,6 +710,9 @@ pub struct BenchSwitches {
     pub events_ledger: Option<String>,
     /// L1: `ComposeConfig::dedupe_lineage`.
     pub dedupe_lineage: bool,
+    /// M61: the second pass was the grounded one. Only `commit-arm --grounded`
+    /// produces it; carried here so a rescore of that arm keeps the record.
+    pub commit_grounded: bool,
     /// Cap untrusted occupancy in the composed set — M23 B1,
     /// `ComposeConfig::untrusted_max`.
     ///
@@ -1065,6 +1071,118 @@ pub(crate) async fn commit_answer(
 fn accept_commit(text: &str) -> Option<String> {
     let parsed = serde_json::from_str::<CommitAnswer>(text).ok()?;
     if parsed.evidence_absent || parsed.answer.trim().is_empty() || is_abstention(&parsed.answer) {
+        return None;
+    }
+    Some(parsed.answer)
+}
+
+/// M61. The second pass, grounded: which memories state the answer, then the
+/// answer from those alone.
+///
+/// M42's pass (above) recovered answers the reader refused with the answer
+/// in hand, but it was vetoed on LongMemEval_S: two adversarial rows were
+/// talked out of refusing. M45 measured sample agreement as the gate and got
+/// AUROC 0.59. On LoCoMo the traps are mostly a swapped person, a Melanie
+/// fact asked of Caroline, so the gate here is *grounding*. The model must
+/// first cite the memories that state the answer **about the person, thing
+/// or event the question names**, and it may answer only if it cites one.
+/// The field order is the mechanism and is the reverse of M42's. The
+/// citation is emitted before the answer exists, so the answer is
+/// conditioned on it.
+///
+/// Grounded in *Sufficient Context* (Joren et al. 2024,
+/// `10.48550/arXiv.2411.06037`): smaller models refuse even with sufficient
+/// context, and a separate sufficiency decision should gate the answer. The
+/// user chose the reader itself as that gate (2026-09-24), so the number
+/// needs no cloud caveat.
+const READER_GROUNDED_SYSTEM: &str = "You are re-reading memories you just \
+declined to answer from. First list the numbers of the memories that state the answer \
+about exactly the person, thing or event the question names. A memory about someone \
+else, or one that only resembles the question, does not count. Then, only if that list \
+is not empty, answer in as few words as possible, using those memories alone. If no \
+memory states it, leave the list empty and the answer empty.";
+
+/// `{ supporting, answer }`, in that order; `supporting` indexes the
+/// `[n]` memories shown, `0..n_memories`.
+fn grounded_schema(n_memories: usize) -> serde_json::Value {
+    serde_json::json!({
+        "type": "object",
+        "properties": {
+            "supporting": {
+                "type": "array",
+                "items": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": n_memories.saturating_sub(1)
+                }
+            },
+            "answer": { "type": "string" }
+        },
+        "required": ["supporting", "answer"],
+        "additionalProperties": false
+    })
+}
+
+#[derive(Debug, Deserialize)]
+struct GroundedAnswer {
+    supporting: Vec<usize>,
+    answer: String,
+}
+
+/// Re-ask a declined row under [`grounded_schema`]. Like
+/// [`commit_answer`], abstention stays the default. A model error, an
+/// unparseable body, no valid citation, a blank answer, or an answer that is
+/// itself a decline all leave the original decline exactly as it was.
+pub(crate) async fn commit_grounded(
+    llm: &dyn Llm,
+    system: &str,
+    user: &str,
+    response: String,
+    n_memories: usize,
+) -> (String, CommitOutcome) {
+    if !is_abstention(&response) {
+        return (response, CommitOutcome::default());
+    }
+    let fired = CommitOutcome {
+        fired: true,
+        committed: false,
+    };
+    let Ok(second) = llm
+        .complete(
+            &CompletionRequest::new(vec![
+                Message::system(format!("{system}\n{READER_GROUNDED_SYSTEM}")),
+                Message::user(user.to_string()),
+            ])
+            .with_max_tokens(GROUNDED_MAX_TOKENS)
+            .with_schema(grounded_schema(n_memories)),
+        )
+        .await
+    else {
+        return (response, fired);
+    };
+    let Some(answer) = accept_grounded(&second.text, n_memories) else {
+        return (response, fired);
+    };
+    (
+        answer,
+        CommitOutcome {
+            fired: true,
+            committed: true,
+        },
+    )
+}
+
+/// Completion budget of the grounded pass: M42's 160 for the answer, plus
+/// room for the citation list.
+const GROUNDED_MAX_TOKENS: u32 = 200;
+
+/// What a grounded response commits to, or `None` when it does not: at
+/// least one citation inside `0..n_memories`, and a non-blank answer that is
+/// not a decline (`is_abstention` stays the single definition).
+fn accept_grounded(text: &str, n_memories: usize) -> Option<String> {
+    let parsed = serde_json::from_str::<GroundedAnswer>(text).ok()?;
+    let cited = parsed.supporting.iter().any(|&i| i < n_memories);
+    if !cited || parsed.answer.trim().is_empty() || is_abstention(&parsed.answer) {
         return None;
     }
     Some(parsed.answer)
@@ -2536,6 +2654,7 @@ fn finish_run(
         events_ledger: spec.switches.events_ledger.clone(),
         dedupe_lineage: spec.switches.dedupe_lineage,
         commit_answer: spec.switches.commit_answer,
+        commit_grounded: spec.switches.commit_grounded,
         resumed_rows: resumed,
         commit_samples: None,
         commit_agree: None,
@@ -2729,6 +2848,7 @@ pub fn rescore_run(source: &Path, out_dir: &Path, scorer: Scorer) -> Result<Benc
                 .and_then(serde_json::Value::as_str)
                 .map(str::to_string),
             dedupe_lineage: flag("dedupe_lineage"),
+            commit_grounded: flag("commit_grounded"),
             commit_answer: flag("commit_answer"),
             untrusted_max: metrics
                 .get("untrusted_max")
@@ -3498,6 +3618,28 @@ mod config_tests {
 
     /// M59: the best-guess clause rides on `READER_SYSTEM` only when on, after
     /// the premise clause, so a run with both reads in one fixed order.
+    /// M61: the grounded pass commits only with a real citation and a real
+    /// answer; every other response leaves the decline standing.
+    #[test]
+    fn a_grounded_answer_needs_a_citation_inside_the_evidence() {
+        let n = 6;
+        let ok = r#"{"supporting":[2],"answer":"7 May 2023"}"#;
+        assert_eq!(accept_grounded(ok, n).as_deref(), Some("7 May 2023"));
+        for refused in [
+            r#"{"supporting":[],"answer":"7 May 2023"}"#,   // nothing cited
+            r#"{"supporting":[6],"answer":"7 May 2023"}"#,  // outside 0..6
+            r#"{"supporting":[1],"answer":"   "}"#,         // blank
+            r#"{"supporting":[1],"answer":"I don't know."}"#, // a decline in disguise
+            r#"not json"#,
+        ] {
+            assert_eq!(accept_grounded(refused, n), None, "{refused}");
+        }
+        let schema = grounded_schema(n);
+        assert_eq!(schema["properties"]["supporting"]["items"]["maximum"], 5);
+        let keys: Vec<&str> = schema["required"].as_array().unwrap().iter().map(|v| v.as_str().unwrap()).collect();
+        assert_eq!(keys, vec!["supporting", "answer"], "the citation comes before the answer");
+    }
+
     #[test]
     fn best_guess_clause_is_appended_only_when_on_in_order() {
         assert_eq!(reader_system(&BenchSwitches::default()), READER_SYSTEM);
