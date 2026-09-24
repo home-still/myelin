@@ -1,6 +1,6 @@
 {
-  "commit": "b14cc261b5d25a9dabb4375450ae1c1f4058d6c5-dirty",
-  "generated_at": "2026-09-24T09:10:16.274117Z",
+  "commit": "7f17f9004664d7ca56266e367697f7f9a7830574-dirty",
+  "generated_at": "2026-09-24T16:35:32.746941Z",
   "rows": [
     {
       "registry_id": "locomo.judge.mempro15.gpt4omini",
@@ -1644,7 +1644,7 @@
       "run": "runs/m47_base_web",
       "source_doi": "10.48550/arXiv.2605.12493",
       "caveat": "G1's accuracy bar (PLAN.md 11.5). Two facts make this the cleanest comparison in the registry and one makes it dirtier. Clean: the reader is Qwen3.5-9B (L518, L525, L952) - the same open-weights model we serve - and the population is the same 451 questions we run (L77, Table 1 #Q L299), abstention and gotchas included. Dirty: the coding-agent family's controller is Codex + GPT-5.4-mini at xhigh reasoning (L656), where ours is the local reader, and free-form answers are graded by GPT-5.2 at medium reasoning (L974) where ours are graded by Qwen3.5-9B. The paper prints 0.749; recorded here on the pct_0_100 scale. The 240 web / 211 enterprise split is our harness's, not the paper's - it pools domains per tier (L1195).",
-      "detail": "question-weighted mean of m47_base_web (43.75 over 240) and m47_base_ent (33.18 over 211); mode=\"investigate\" k=25 budget_tokens=10000 max_steps=2 prefetch_limit=null rerank_depth=null select=true dated=false pool_rerank=false premise=false typed_probes=false decompose=null timeline_ago=false select_coverage=false self_ask=false commit_answer=false digest_relevance=false digest_role=false reader_reasoning=false reader_thinking=false reader_think_message=false premise_check=false item_digest=true digest_dates=true memory_llm_served_model=Qwen3.5-9B-UD-Q4_K_XL.gguf reader_served_model=Qwen3.5-9B-UD-Q4_K_XL.gguf",
+      "detail": "question-weighted mean of m47_base_web (43.75 over 240) and m47_base_ent (33.18 over 211); memory_type=myelin mode=\"investigate\" k=25 budget_tokens=10000 max_steps=2 prefetch_limit=null rerank_depth=null select=true dated=false pool_rerank=false premise=false typed_probes=false decompose=null timeline_ago=false select_coverage=false self_ask=false commit_answer=false digest_relevance=false digest_role=false reader_reasoning=false reader_thinking=false reader_think_message=false reader_premise_clause=false reader_best_guess=false premise_check=false item_digest=true digest_dates=true memory_llm_served_model=Qwen3.5-9B-UD-Q4_K_XL.gguf reader_served_model=Qwen3.5-9B-UD-Q4_K_XL.gguf",
       "candidates": [
         {
           "run": "runs/m47_base_web",
@@ -1699,7 +1699,7 @@
       "run": "runs/m47_base_web",
       "source_doi": "10.48550/arXiv.2605.12493",
       "caveat": "The RAG-family ceiling, and the closest published system to ours in kind: Qwen3.5-9B as both memory controller and reader with Qwen3-Embedding-8B for retrieval (L518). Only the judge differs from our protocol. 26.9 s per query.",
-      "detail": "question-weighted mean of m47_base_web (43.75 over 240) and m47_base_ent (33.18 over 211); mode=\"investigate\" k=25 budget_tokens=10000 max_steps=2 prefetch_limit=null rerank_depth=null select=true dated=false pool_rerank=false premise=false typed_probes=false decompose=null timeline_ago=false select_coverage=false self_ask=false commit_answer=false digest_relevance=false digest_role=false reader_reasoning=false reader_thinking=false reader_think_message=false premise_check=false item_digest=true digest_dates=true memory_llm_served_model=Qwen3.5-9B-UD-Q4_K_XL.gguf reader_served_model=Qwen3.5-9B-UD-Q4_K_XL.gguf",
+      "detail": "question-weighted mean of m47_base_web (43.75 over 240) and m47_base_ent (33.18 over 211); memory_type=myelin mode=\"investigate\" k=25 budget_tokens=10000 max_steps=2 prefetch_limit=null rerank_depth=null select=true dated=false pool_rerank=false premise=false typed_probes=false decompose=null timeline_ago=false select_coverage=false self_ask=false commit_answer=false digest_relevance=false digest_role=false reader_reasoning=false reader_thinking=false reader_think_message=false reader_premise_clause=false reader_best_guess=false premise_check=false item_digest=true digest_dates=true memory_llm_served_model=Qwen3.5-9B-UD-Q4_K_XL.gguf reader_served_model=Qwen3.5-9B-UD-Q4_K_XL.gguf",
       "candidates": [
         {
           "run": "runs/m47_base_web",
@@ -1754,7 +1754,7 @@
       "run": "runs/m47_base_web",
       "source_doi": "10.48550/arXiv.2605.12493",
       "caveat": "PLAN.md 11.5 recorded 69.3 at about 182 s/query, which is the abstract's tier-unspecific figure (L311); Table 2's tier-small row is 0.699 at 177.2 s and the medium row is 0.687 at 185.8 s (L659-671). The tier-small number is the comparable one and is what this row carries.",
-      "detail": "question-weighted mean of m47_base_web (43.75 over 240) and m47_base_ent (33.18 over 211); mode=\"investigate\" k=25 budget_tokens=10000 max_steps=2 prefetch_limit=null rerank_depth=null select=true dated=false pool_rerank=false premise=false typed_probes=false decompose=null timeline_ago=false select_coverage=false self_ask=false commit_answer=false digest_relevance=false digest_role=false reader_reasoning=false reader_thinking=false reader_think_message=false premise_check=false item_digest=true digest_dates=true memory_llm_served_model=Qwen3.5-9B-UD-Q4_K_XL.gguf reader_served_model=Qwen3.5-9B-UD-Q4_K_XL.gguf",
+      "detail": "question-weighted mean of m47_base_web (43.75 over 240) and m47_base_ent (33.18 over 211); memory_type=myelin mode=\"investigate\" k=25 budget_tokens=10000 max_steps=2 prefetch_limit=null rerank_depth=null select=true dated=false pool_rerank=false premise=false typed_probes=false decompose=null timeline_ago=false select_coverage=false self_ask=false commit_answer=false digest_relevance=false digest_role=false reader_reasoning=false reader_thinking=false reader_think_message=false reader_premise_clause=false reader_best_guess=false premise_check=false item_digest=true digest_dates=true memory_llm_served_model=Qwen3.5-9B-UD-Q4_K_XL.gguf reader_served_model=Qwen3.5-9B-UD-Q4_K_XL.gguf",
       "candidates": [
         {
           "run": "runs/m47_base_web",
@@ -1809,7 +1809,7 @@
       "run": "runs/m47_base_web",
       "source_doi": "10.48550/arXiv.2605.12493",
       "caveat": "The LAFS break-even bar: this is the reference frontier's fastest point (51.0 at 0.2 s), so any submission slower than 0.2 s must beat 51.0 to move the frontier at all (docs/EVALUATION.md 3.3). Our 45.0 at 11.06 s sits below it, which is why the LAFS gain is exactly 0.",
-      "detail": "question-weighted mean of m47_base_web (43.75 over 240) and m47_base_ent (33.18 over 211); mode=\"investigate\" k=25 budget_tokens=10000 max_steps=2 prefetch_limit=null rerank_depth=null select=true dated=false pool_rerank=false premise=false typed_probes=false decompose=null timeline_ago=false select_coverage=false self_ask=false commit_answer=false digest_relevance=false digest_role=false reader_reasoning=false reader_thinking=false reader_think_message=false premise_check=false item_digest=true digest_dates=true memory_llm_served_model=Qwen3.5-9B-UD-Q4_K_XL.gguf reader_served_model=Qwen3.5-9B-UD-Q4_K_XL.gguf",
+      "detail": "question-weighted mean of m47_base_web (43.75 over 240) and m47_base_ent (33.18 over 211); memory_type=myelin mode=\"investigate\" k=25 budget_tokens=10000 max_steps=2 prefetch_limit=null rerank_depth=null select=true dated=false pool_rerank=false premise=false typed_probes=false decompose=null timeline_ago=false select_coverage=false self_ask=false commit_answer=false digest_relevance=false digest_role=false reader_reasoning=false reader_thinking=false reader_think_message=false reader_premise_clause=false reader_best_guess=false premise_check=false item_digest=true digest_dates=true memory_llm_served_model=Qwen3.5-9B-UD-Q4_K_XL.gguf reader_served_model=Qwen3.5-9B-UD-Q4_K_XL.gguf",
       "candidates": [
         {
           "run": "runs/m47_base_web",
@@ -3086,6 +3086,10 @@
           "value": 168.47662386631066
         },
         {
+          "run": "runs/m54_arc_ent",
+          "value": 339.1043114692084
+        },
+        {
           "run": "runs/m22_nodate_ent",
           "value": 10.904980897107846
         },
@@ -3104,10 +3108,6 @@
         {
           "run": "runs/myelin_k25_enterprise_small",
           "value": 2.1204330713065533
-        },
-        {
-          "run": "runs/m54_arc_ent",
-          "value": 339.1043114692084
         }
       ]
     },
@@ -3153,6 +3153,10 @@
           "value": 23.494865303572233
         },
         {
+          "run": "runs/m54_arc_web",
+          "value": 273.1116079340475
+        },
+        {
           "run": "runs/m22_nodate_web",
           "value": 10.995170539757964
         },
@@ -3187,10 +3191,6 @@
         {
           "run": "runs/myelin_fast_web_small",
           "value": 2.098842330049956
-        },
-        {
-          "run": "runs/m54_arc_web",
-          "value": 273.1116079340475
         }
       ]
     },
@@ -3202,7 +3202,7 @@
       "judge_class": "open_weights_local",
       "backbone_class": "open_weights",
       "run": "runs/m47_base_web",
-      "detail": "question-weighted mean of m47_base_web (43.75 over 240) and m47_base_ent (33.18 over 211); mode=\"investigate\" k=25 budget_tokens=10000 max_steps=2 prefetch_limit=null rerank_depth=null select=true dated=false pool_rerank=false premise=false typed_probes=false decompose=null timeline_ago=false select_coverage=false self_ask=false commit_answer=false digest_relevance=false digest_role=false reader_reasoning=false reader_thinking=false reader_think_message=false premise_check=false item_digest=true digest_dates=true memory_llm_served_model=Qwen3.5-9B-UD-Q4_K_XL.gguf reader_served_model=Qwen3.5-9B-UD-Q4_K_XL.gguf",
+      "detail": "question-weighted mean of m47_base_web (43.75 over 240) and m47_base_ent (33.18 over 211); memory_type=myelin mode=\"investigate\" k=25 budget_tokens=10000 max_steps=2 prefetch_limit=null rerank_depth=null select=true dated=false pool_rerank=false premise=false typed_probes=false decompose=null timeline_ago=false select_coverage=false self_ask=false commit_answer=false digest_relevance=false digest_role=false reader_reasoning=false reader_thinking=false reader_think_message=false reader_premise_clause=false reader_best_guess=false premise_check=false item_digest=true digest_dates=true memory_llm_served_model=Qwen3.5-9B-UD-Q4_K_XL.gguf reader_served_model=Qwen3.5-9B-UD-Q4_K_XL.gguf",
       "incomplete": null,
       "arm": false,
       "unrecorded": [],
@@ -3267,6 +3267,10 @@
           "value": 31.753554502369667
         },
         {
+          "run": "runs/m54_arc_ent",
+          "value": 73.91304347826086
+        },
+        {
           "run": "runs/m22_sel_ent",
           "value": 36.018957345971565
         },
@@ -3285,10 +3289,6 @@
         {
           "run": "runs/myelin_k25_enterprise_small",
           "value": 34.59715639810427
-        },
-        {
-          "run": "runs/m54_arc_ent",
-          "value": 73.91304347826086
         }
       ]
     },
@@ -3334,6 +3334,10 @@
           "value": 14.285714285714285
         },
         {
+          "run": "runs/m54_arc_web",
+          "value": 91.66666666666666
+        },
+        {
           "run": "runs/m22_nodate_web",
           "value": 43.333333333333336
         },
@@ -3368,10 +3372,6 @@
         {
           "run": "runs/myelin_fast_web_small",
           "value": 30.833333333333336
-        },
-        {
-          "run": "runs/m54_arc_web",
-          "value": 91.66666666666666
         }
       ]
     },

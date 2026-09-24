@@ -1427,6 +1427,43 @@ fn harness_metrics(dir: &Path, agg: &Value) -> Result<(HarnessRun, Vec<Ours>)> {
     ))
 }
 
+/// The memory mode LME-V2's shipped system runs: the harness `memory_type`.
+///
+/// `myelin` until an AgentRunbook-C full pair clears the LME-V2 bar; the
+/// adoption decided by the user on 2026-09-24 moves it to
+/// [`AGENTRUNBOOK_C`] in that result's PR, and every myelin-memory LME-V2 run
+/// then reads as an arm. One constant, so the switch is one reviewed edit.
+const SHIPPED_LME_V2_MEMORY: &str = MYELIN_MEMORY;
+const MYELIN_MEMORY: &str = "myelin";
+/// The LME-V2 authors' own file-reading agent (`10.48550/arXiv.2605.12493`
+/// §4.2), run unmodified by `adapters/run_agentrunbook_c.py` with a local
+/// controller (M54).
+const AGENTRUNBOOK_C: &str = "agentrunbook_c";
+/// What makes two AgentRunbook-C domain runs one operating point: how the
+/// controller reads trajectories, which model drives it, and which model reads
+/// the result. The per-host mixture (`controller_hosts`, host and pack counts
+/// from the chunks' `controller.json`) is provenance, reported beside the
+/// number and never a pairing key: the M54 amendment scores the full pair as
+/// one run, and bmb's share differs between domains by construction.
+const AGENTRUNBOOK_C_KEYS: [&str; 3] = ["evidence_mode", "controller_model", "reader_served_model"];
+/// The evidence mode the M54 pre-registration fixes: the controller reads the
+/// accessibility tree, never screenshots.
+const AGENTRUNBOOK_C_EVIDENCE_MODE: &str = "axtree";
+/// Printed beside every AgentRunbook-C number, so the method is never
+/// mistaken for myelin's own memory.
+const AGENTRUNBOOK_C_LABEL: &str =
+    "method: AgentRunbook-C (10.48550/arXiv.2605.12493), run locally with a Bonsai 27B controller";
+
+/// A harness artifact's `memory_type`. Every harness run records one (the
+/// harness cannot start without it), so an artifact without it is refused,
+/// not guessed.
+fn memory_type(cfg: &Value, path: &Path) -> Result<String> {
+    cfg.get("memory_type")
+        .and_then(Value::as_str)
+        .map(str::to_string)
+        .with_context(|| format!("{} records no memory_type", path.display()))
+}
+
 /// The operating point a harness run was produced at, as a stable string.
 ///
 /// A run with no `runtime_inputs/memory_config.json` gets an unpairable
@@ -1439,13 +1476,21 @@ fn fingerprint(dir: &Path) -> Result<String> {
         return Ok(format!("unpairable:{}", dir.display()));
     }
     let cfg = read_json(&path)?;
+    let mode = memory_type(&cfg, &path)?;
     let params = cfg.get("memory_params").unwrap_or(&Value::Null);
-    let mut parts: Vec<String> = PAIR_KEYS
+    if mode == AGENTRUNBOOK_C {
+        let keys = AGENTRUNBOOK_C_KEYS
+            .iter()
+            .map(|k| format!("{k}={}", params.get(*k).unwrap_or(&Value::Null)));
+        return Ok(std::iter::once(format!("memory_type={mode}")).chain(keys).collect::<Vec<_>>().join(" "));
+    }
+    let mut parts: Vec<String> = std::iter::once(format!("memory_type={mode}"))
+        .chain(PAIR_KEYS
         .iter()
         .map(|k| {
             let v = params.get(*k).unwrap_or(&Value::Null);
             format!("{k}={v}")
-        })
+        }))
         .collect();
     // Every later switch joins the fingerprint too, NORMALISED: an absent key
     // reads as the value it had when the artifact was written (the shipped
@@ -1499,14 +1544,12 @@ fn unrecorded_pair_keys(dir: &Path) -> Result<Vec<&'static str>> {
         return Ok(Vec::new());
     }
     let cfg = read_json(&path)?;
+    let mode = memory_type(&cfg, &path)?;
     let Some(params) = cfg.get("memory_params") else {
         return Ok(Vec::new());
     };
-    Ok(PAIR_KEYS
-        .iter()
-        .filter(|k| params.get(**k).is_none())
-        .copied()
-        .collect())
+    let keys: &[&'static str] = if mode == AGENTRUNBOOK_C { &AGENTRUNBOOK_C_KEYS } else { &PAIR_KEYS };
+    Ok(keys.iter().filter(|k| params.get(**k).is_none()).copied().collect())
 }
 
 /// The **mode-independent** boolean switches in [`PAIR_KEYS`], and what the
@@ -1580,9 +1623,22 @@ fn harness_arm(dir: &Path) -> Result<bool> {
         return Ok(false);
     }
     let cfg = read_json(&path)?;
+    let mode = memory_type(&cfg, &path)?;
+    // A memory mode that does not ship measures that mode.
+    if mode != SHIPPED_LME_V2_MEMORY {
+        return Ok(true);
+    }
     let Some(params) = cfg.get("memory_params") else {
         return Ok(false);
     };
+    if mode == AGENTRUNBOOK_C {
+        // The shipped AgentRunbook-C point: accessibility-tree evidence, read
+        // by the protocol's reader. Anything else is an arm of it.
+        let evidence = params.get("evidence_mode").and_then(Value::as_str);
+        let reader = params.get("reader_served_model").and_then(Value::as_str);
+        return Ok(evidence != Some(AGENTRUNBOOK_C_EVIDENCE_MODE)
+            || served_another_model(reader, LME_V2_READER_MODEL));
+    }
     let switched = PAIR_SWITCH_DEFAULTS
         .iter()
         .any(|(key, shipped)| params.get(key).and_then(Value::as_bool) == Some(!shipped));
@@ -1718,7 +1774,11 @@ fn pair_metrics(harness: &[HarnessRun], python: &str) -> Vec<Ours> {
                 ent.acc,
                 ent.count,
                 web.fingerprint
-            ),
+            ) + if web.fingerprint.starts_with(&format!("memory_type={AGENTRUNBOOK_C}")) {
+                format!("; {AGENTRUNBOOK_C_LABEL}")
+            } else {
+                String::new()
+            }.as_str(),
             incomplete: None,
             arm: web.arm || ent.arm,
             // A pair is only as recoverable as its least-recorded half.
@@ -2371,7 +2431,7 @@ mod tests {
                 for (k, v) in e { m.insert(k.clone(), v.clone()); }
             }
             std::fs::write(dir.join("memory_config.json"),
-                serde_json::json!({"memory_params": params}).to_string()).expect("write");
+                serde_json::json!({"memory_type": "myelin", "memory_params": params}).to_string()).expect("write");
             root.join(name)
         };
         let base_old = write("base_old", serde_json::json!({}));
@@ -2850,7 +2910,7 @@ mod tests {
         .unwrap();
         std::fs::write(
             harness.join("runtime_inputs/memory_config.json"),
-            serde_json::json!({"memory_params": {"k": 25, "mode": "investigate"}}).to_string(),
+            serde_json::json!({"memory_type": "myelin", "memory_params": {"k": 25, "mode": "investigate"}}).to_string(),
         )
         .unwrap();
 
@@ -2984,7 +3044,7 @@ mod tests {
             .unwrap();
             std::fs::write(
                 dir.join("runtime_inputs/memory_config.json"),
-                serde_json::json!({"memory_params": {
+                serde_json::json!({"memory_type": "myelin", "memory_params": {
                     "mode": "investigate", "k": 25, "select": select, "dated": false
                 }})
                 .to_string(),
@@ -3047,7 +3107,7 @@ mod tests {
             .unwrap();
             std::fs::write(
                 dir.join("runtime_inputs/memory_config.json"),
-                serde_json::json!({"memory_params": {
+                serde_json::json!({"memory_type": "myelin", "memory_params": {
                     "mode": "investigate", "k": 25, "select": false, "dated": false,
                     "pool_rerank": rerank
                 }})
@@ -3116,7 +3176,7 @@ mod tests {
             .unwrap();
             std::fs::write(
                 dir.join("runtime_inputs/memory_config.json"),
-                serde_json::json!({"memory_params": {"mode": "investigate", "k": 25}}).to_string(),
+                serde_json::json!({"memory_type": "myelin", "memory_params": {"mode": "investigate", "k": 25}}).to_string(),
             )
             .unwrap();
         }
@@ -3155,7 +3215,7 @@ mod tests {
             .unwrap();
             std::fs::write(
                 dir.join("runtime_inputs/memory_config.json"),
-                serde_json::json!({"memory_params": {"mode": "investigate", "k": 25}}).to_string(),
+                serde_json::json!({"memory_type": "myelin", "memory_params": {"mode": "investigate", "k": 25}}).to_string(),
             )
             .unwrap();
         };
@@ -3209,7 +3269,7 @@ mod tests {
         .unwrap();
         std::fs::write(
             dir.join("runtime_inputs/memory_config.json"),
-            serde_json::json!({ "memory_params": params }).to_string(),
+            serde_json::json!({ "memory_type": "myelin", "memory_params": params }).to_string(),
         )
         .unwrap();
     }
@@ -3466,6 +3526,58 @@ mod tests {
             "a Bonsai-built web half paired with a 9B-built enterprise half: {:?}",
             ours.get("lme_v2_small.overall_full_set.combined")
         );
+    }
+
+    /// C3 (2026-09-24): an AgentRunbook-C pair has its own operating point.
+    /// It pairs on its own keys, never with a myelin-memory half. While myelin
+    /// memory ships, the pair is an arm. Its number always carries the method
+    /// label, so it is never read as myelin's own memory.
+    #[test]
+    fn agentrunbook_c_pairs_on_its_own_keys_is_an_arm_and_is_labelled() {
+        let arc = |runs: &Path, name: &str, domain: &str, count: usize, acc: f64| {
+            harness_run(runs, name, domain, count, acc, Value::Null);
+            let path = runs.join(name).join("runtime_inputs/memory_config.json");
+            std::fs::write(
+                &path,
+                serde_json::json!({
+                    "memory_type": AGENTRUNBOOK_C,
+                    "memory_params": {
+                        "evidence_mode": AGENTRUNBOOK_C_EVIDENCE_MODE,
+                        "controller_model": "Ternary Bonsai 2 27B",
+                        "controller_hosts": {"big/PTQ1_0": 200, "bmb/PQ2_0": 40},
+                        "reader_served_model": LME_V2_READER_MODEL,
+                    }
+                })
+                .to_string(),
+            )
+            .unwrap();
+        };
+        let tmp = tempfile::tempdir().unwrap();
+        let runs = tmp.path().join("runs");
+        arc(&runs, "arc_web", "web", 240, 0.80);
+        arc(&runs, "arc_ent", "enterprise", 211, 0.75);
+        // A myelin-memory half at the same size must not pair with them.
+        harness_run(&runs, "myelin_ent", "enterprise", 211, 0.40, full_params());
+        let ours = collect(&runs, "/nonexistent/python").unwrap();
+        let combined = &ours["lme_v2_small.overall_full_set.combined"];
+        assert!(combined.run.ends_with("arc_web"), "{combined:?}");
+        assert!(combined.arm, "myelin memory ships: an AgentRunbook-C pair is an arm");
+        assert!(combined.unrecorded.is_empty(), "{:?}", combined.unrecorded);
+        assert!(combined.detail.contains(AGENTRUNBOOK_C_LABEL), "{}", combined.detail);
+    }
+
+    /// A harness artifact without `memory_type` is refused, not guessed.
+    #[test]
+    fn a_harness_artifact_without_memory_type_is_refused() {
+        let tmp = tempfile::tempdir().unwrap();
+        let runs = tmp.path().join("runs");
+        harness_run(&runs, "web", "web", 240, 0.40, full_params());
+        std::fs::write(
+            runs.join("web/runtime_inputs/memory_config.json"),
+            serde_json::json!({"memory_params": full_params()}).to_string(),
+        )
+        .unwrap();
+        assert!(collect(&runs, "/nonexistent/python").is_err());
     }
 
     /// **A pair must read the same store, not merely the same switches.**

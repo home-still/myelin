@@ -26,9 +26,9 @@ and every number that uses one says so. Plan approved by the user
 - [x] M54 pre-registration amended (second controller, provenance)
 - [x] Claim-based chunk worker; bmb Codex home and shim; bmb smoke question passes (717 s, 5 items)
 - [ ] bmb worker running (started 11:32, chunk web_c08); big worker relaunched after the quick fixes
-- [ ] `run_agentrunbook_c.py` records controller and reader served models
-- [ ] `standing.rs` reads `memory_type` and has an `agentrunbook_c` mode,
-      its pairing keys and a label; tests
+- [x] `run_agentrunbook_c.py` records controller and reader served models
+- [x] `standing.rs` reads `memory_type` and has an `agentrunbook_c` mode,
+      its pairing keys and a label; tests (`SHIPPED_LME_V2_MEMORY` stays `myelin` until adoption)
 - [ ] All 17 chunks done → merged prompt rows → reader pass → judged pair →
       write-up → adoption PR (if ≥ 74.90)
 - [ ] M62 design doc (myelin-native route 3)
