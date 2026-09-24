@@ -722,6 +722,11 @@ enum Command {
         /// correction after (M57).
         #[arg(long)]
         reader_premise_clause: bool,
+        /// Tell the reader to give its most likely answer whenever the
+        /// memories bear on the question, and to decline only when nothing
+        /// in them does (M59).
+        #[arg(long)]
+        reader_best_guess: bool,
         /// Cap how many `Untrusted` records the composed set may contain
         /// (M23 B1). A ceiling, not an exclusion: the quota never drops
         /// untrusted evidence to zero and never drops a trusted record.
@@ -1188,6 +1193,7 @@ async fn main() -> anyhow::Result<()> {
             reader_seed,
             reader_think_message,
             reader_premise_clause,
+            reader_best_guess,
             untrusted_max,
             decompose,
             ref categories,
@@ -1236,6 +1242,7 @@ async fn main() -> anyhow::Result<()> {
                     reader_seed,
                     reader_think_message,
                     reader_premise_clause,
+                    reader_best_guess,
                     untrusted_max,
                     decompose,
                     categories: categories.clone().unwrap_or_default(),

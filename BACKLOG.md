@@ -56,6 +56,16 @@ answers. The fix for the next arm is waiting on the user's choice
 
 ---
 
+## SOTA push *(plan approved 2026-09-24)*
+
+The checklist lives in `docs/measurements/sota-push-checklist.md`.
+- **LongMemEval_S:** M57, then M58 (the preference clause on Bonsai).
+- **LoCoMo:** M59 (a best-guess clause on Bonsai), then M60 (+ thinking).
+- **LME-V2:** M54's full pair on big plus bmb, then adopt AgentRunbook-C as
+  myelin's agent-history mode (labelled) and build a native version (M62).
+
+---
+
 ## M57 — "I don't know" first, then the correction *(pre-registered)*
 
 Bonsai with one reader clause: when the question assumes something the

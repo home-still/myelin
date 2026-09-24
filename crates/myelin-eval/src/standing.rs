@@ -976,6 +976,8 @@ fn bench_metrics(dir: &Path, agg_text: &str) -> Result<Vec<Ours>> {
         || run.reader_think_message
         // M57's premise clause, shipping off pending its arm.
         || run.reader_premise_clause
+        // M59's best-guess clause, shipping off pending its arm.
+        || run.reader_best_guess
         // M47's presupposition check.
         || run.premise_check
         // A run against another store (M50's events copies, M20's preference
@@ -1525,7 +1527,7 @@ fn unrecorded_pair_keys(dir: &Path) -> Result<Vec<&'static str>> {
 /// §7.1 keeps it off for `recall` — so it cannot be a constant here. It is
 /// tested separately in [`harness_arm`] against
 /// [`shipped_select_sufficient`], which reads the library defaults.
-const PAIR_SWITCH_DEFAULTS: [(&str, bool); 15] = [
+const PAIR_SWITCH_DEFAULTS: [(&str, bool); 16] = [
     ("dated", false),
     ("timeline_ago", false),
     ("pool_rerank", false),
@@ -1549,6 +1551,7 @@ const PAIR_SWITCH_DEFAULTS: [(&str, bool); 15] = [
     ("reader_thinking", false),
     ("reader_think_message", false),
     ("reader_premise_clause", false),
+    ("reader_best_guess", false),
     ("premise_check", false),
     // `item_digest` and `digest_dates` are deliberately **absent**: M43
     // shipped both on for `investigate` only, so — like `select` — their
@@ -3629,6 +3632,7 @@ mod tests {
             serde_json::json!({"reader_thinking": true}),
             serde_json::json!({"reader_think_message": true}),
             serde_json::json!({"reader_premise_clause": true}),
+            serde_json::json!({"reader_best_guess": true}),
             serde_json::json!({"premise_check": true}),
             serde_json::json!({"timeline_ago": true}),
         ] {
