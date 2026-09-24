@@ -441,15 +441,11 @@ impl MyelinServer {
             ..TrajectoryAgentConfig::default()
         };
         let tools = TrajectoryTools::new(&self.backend.ledger, scope);
-        let evidence = TrajectoryAgent::new(&self.backend.llm, tools, config)
+        let run = TrajectoryAgent::new(&self.backend.llm, tools, config)
             .run(&params.question)
             .await
             .map_err(mcp_err)?;
-        // An answer taken at or past the step budget was forced.
-        let forced = evidence
-            .trace
-            .last()
-            .is_some_and(|t| t.step >= config.max_steps);
+        let evidence = run.evidence;
         Ok(Json(TrajectoriesResult {
             items: evidence.to_wire(),
             record_ids: evidence
@@ -465,7 +461,8 @@ impl MyelinServer {
                 .collect(),
             trace: TrajectoriesTrace {
                 steps: evidence.trace.len(),
-                stopped_because: if forced { "budget" } else { "answered" }.into(),
+                stopped_because: if run.forced { "budget" } else { "answered" }.into(),
+                tool_errors: run.tool_errors,
                 total_ms: started.elapsed().as_millis(),
             },
         }))
@@ -897,6 +894,8 @@ pub struct TrajectoriesTrace {
     pub steps: usize,
     /// `answered`, or `budget` when the step or context budget forced it.
     pub stopped_because: String,
+    /// Tool misuses and refused answers the model was shown to correct.
+    pub tool_errors: usize,
     pub total_ms: u128,
 }
 

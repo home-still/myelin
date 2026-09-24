@@ -466,7 +466,11 @@ class MyelinMemory(Memory):
             if self.namespace:
                 arguments_t["namespace"] = self.namespace
             result = self._session.call_tool(self.mode, arguments_t)
-            self._trace_local.trace = result.get("trace") or {}
+            # The controller's actions ride with its trace, so an artifact
+            # says what it searched and read, not only how many steps it took.
+            trace = dict(result.get("trace") or {})
+            trace["actions"] = result.get("queries") or []
+            self._trace_local.trace = trace
             items = result.get("items", [])
             require(isinstance(items, list), f"trajectories returned non-list items: {items!r}")
             return items
@@ -577,6 +581,10 @@ class MyelinMemory(Memory):
             # the wrong questions" -- the distinction M35 could only make
             # after the fact.
             "support": trace.get("support"),
+            # M62's trajectory controller: every action, and the misuses it
+            # was shown. Absent (None) in the search modes.
+            "actions": trace.get("actions"),
+            "tool_errors": trace.get("tool_errors"),
         }
 
     def clear_query_context(self) -> None:

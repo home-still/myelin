@@ -290,3 +290,35 @@ The +5 gate over the base also failed.
 It targets the 19 empty answers directly. If answers with spans still trail
 AgentRunbook-C, the next lever is thinking: M54's controller ran with
 reasoning effort "medium" and this one with thinking off.
+
+## M62b — pre-registered *(2026-09-24 ~16:15, before any row)*
+
+**One change of mechanism** (commit on `m62b-controller`):
+- the rules add "Naming a span is enough: the reader receives every state
+  you name in full; read only to choose between candidate states";
+- the forced-answer message asks for the spans of the states the
+  controller identified, read or not.
+
+The instrumentation that lands with it changes nothing the model sees:
+`AgentRun.forced` and `tool_errors`, and the action list in the artifact.
+
+**Run.** Identical to the M62 pilot in every other respect:
+- the same 47 questions;
+- Bonsai controller at 2 × 65,536, temperature 0, thinking off, 16
+  steps;
+- the same 9B reader at 1 × 204,800 plus the projector;
+- the same judge.
+
+**Comparisons:**
+1. Against M62 (31.91): the attribution of the rule.
+2. Against AgentRunbook-C (82.98): the replication gate is unchanged, at
+   least 77.98 and at least 74.90.
+
+**Predictions.**
+- Answers with no span fall from 19 to 5 or fewer.
+- The combined score rises by at least 10 over M62.
+- Replication is **not** expected: the answers with spans scored 54%
+  against AgentRunbook-C's 83%, and this arm does not address span choice.
+
+**Falsifier.** Empty answers stay at 10 or more, which would mean the rule
+does not reach the forced step.

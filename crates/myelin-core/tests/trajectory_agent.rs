@@ -10,7 +10,7 @@ use async_trait::async_trait;
 use myelin_core::error::{MyelinError, Result};
 use myelin_core::llm::{Completion, CompletionRequest, Llm, Role, Usage};
 use myelin_core::pipeline::trajectory_agent::{
-    TrajectoryAgent, TrajectoryAgentConfig, FORCED_ANSWER_ATTEMPTS,
+    TrajectoryAgent, TrajectoryAgentConfig, FORCED_ANSWER_ATTEMPTS, FORCED_ANSWER_MESSAGE,
 };
 use myelin_core::pipeline::trajectory_tools::TrajectoryTools;
 use trajectory_fixture::{filter, stored};
@@ -77,7 +77,10 @@ async fn a_search_read_answer_run_yields_the_spans_and_its_trace() {
             "spans": [{"trajectory": "t1", "first": 2, "last": 2}]}),
     ]);
     let agent = TrajectoryAgent::new(&llm, TrajectoryTools::new(&ledger, filter()), TrajectoryAgentConfig::default());
-    let set = agent.run("What bio did I set?").await.unwrap();
+    let run = agent.run("What bio did I set?").await.unwrap();
+    assert!(!run.forced);
+    assert_eq!(run.tool_errors, 0);
+    let set = run.evidence;
 
     assert_eq!(set.items[0].value, "## Support Analysis\nt1 state 2 shows the bio.\n");
     let state = set.items.iter().find(|i| i.value.starts_with("State 2 (step 2)")).expect("state 2");
@@ -121,7 +124,10 @@ async fn a_misused_tool_or_refused_answer_is_fed_back_for_correction() {
             "spans": [{"trajectory": "t1", "first": 2, "last": 3}]}),
     ]);
     let agent = TrajectoryAgent::new(&llm, TrajectoryTools::new(&ledger, filter()), TrajectoryAgentConfig::default());
-    let set = agent.run("q").await.unwrap();
+    let run = agent.run("q").await.unwrap();
+    assert_eq!(run.tool_errors, 3, "a read without a state, an unknown trajectory, a refused span");
+    assert!(!run.forced);
+    let set = run.evidence;
     assert!(set.items.iter().any(|i| i.value.starts_with("State 3 (step 3)")));
 
     let last = llm.requests().pop().expect("request").messages;
@@ -149,14 +155,20 @@ async fn a_spent_budget_forces_an_answer_only_step() {
         ..TrajectoryAgentConfig::default()
     };
     let agent = TrajectoryAgent::new(&llm, TrajectoryTools::new(&ledger, filter()), config);
-    let set = agent.run("q").await.unwrap();
+    let run = agent.run("q").await.unwrap();
+    assert!(run.forced);
+    let set = run.evidence;
     assert_eq!(set.items.len(), 1, "notes alone: no spans named");
 
     let requests = llm.requests();
     assert_eq!(tools_of(&requests[1]), vec!["summary", "grep", "read", "answer"]);
     assert_eq!(tools_of(&requests[2]), vec!["answer"], "the forced step allows only answer");
     let forced = &requests[2].messages;
-    assert!(forced.last().expect("msg").content.starts_with("The exploration budget is spent."));
+    assert_eq!(forced.last().expect("msg").content, FORCED_ANSWER_MESSAGE);
+    assert!(
+        requests[0].messages[0].content.contains("Naming a span is enough"),
+        "the rules tell the controller it need not read a whole page first"
+    );
 }
 
 #[tokio::test]
