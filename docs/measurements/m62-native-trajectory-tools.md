@@ -178,7 +178,7 @@ stores are backfilled from the dataset with no re-embedding.
       trajectories` sends only the arguments that tool declares. `--max-steps`
       now defaults per mode: 2 for `investigate` (the M7 step-curve peak), 16
       for `trajectories`.
-- [ ] **Pilot.** The 47 questions of M54's pilot, against its 82.98, when a
+- [x] **Pilot.** **31.91 against 82.98: fails** (result below). The 47 questions of M54's pilot, against its 82.98, when a
       GPU is free. Phase one builds the prompts with Bonsai as controller;
       phase two reads them on the 9B as one 204,800-token slot, as M54's
       reader did.
@@ -237,3 +237,56 @@ The user scheduled the pilot on big right after M59, ahead of M60 and M58
 - **Budget:** a 16-step budget.
 - **Images:** neither controller sees images. M54's shim replaced every
   image with a text note; the reader still gets the question image here.
+
+## Pilot result *(2026-09-24 16:07)* — **fails the replication gate: 31.91 against 82.98**
+
+`runs/m62_pilot_{web,ent}` (phase one `runs/m62_pilot_*_prompts`). The code
+is main at `21398c3`, plus the MCP timeout fix (#100) that landed before any
+row: the controller is Bonsai PTQ1_0 and the reader is the 9B at
+1 × 204,800. Both served models are confirmed from their endpoints.
+
+| paired over 47 | AgentRunbook-C (M54 pilot) | M62 | Δ | 95% CI |
+|---|---|---|---|---|
+| **combined** | 82.98 | **31.91** | **−51.06** | [−68.09, −31.91] |
+| answerable | 90.91 | 39.39 | −51.52 | [−72.73, −30.30] |
+| abstention | 64.29 | 14.29 | −50.00 | [−78.57, −14.29] |
+
+Against myelin's shipped LME-V2 memory on the same 47 (42.55), it is
+−10.64 [−27.66, +6.38], a null.
+
+**Gates.** Replication needs at least 77.98 and at least 74.90: it failed.
+The +5 gate over the base also failed.
+
+**Predictions.**
+- ✗ 70–85.
+- ✗ Abstention ≥ 50%.
+- ✗ Under 30% forced: **36 of 47 (77%)** were.
+- ✓ Zero schema failures: every reply parsed.
+
+**Where it lost:**
+- **19 answers named no span.** They scored 0/19. The controller's own
+  notes explain several of them. It had found the right trajectory and
+  state and not finished reading it: "the exploration budget was
+  exhausted before I could read the accessibility tree of state 2". It
+  believed it had to read a page whole before citing it, and a page is
+  ~34 KB while `read` shows 150 lines.
+- **Answers with spans scored 15/28 (54%)**, against 83% for
+  AgentRunbook-C. It chose worse spans as well as too few.
+- **Answers given before the budget scored 3/11.** Stopping early did not
+  mean it was sure.
+- **Some notes report "tool errors".** The adapter did not keep the action
+  list, so which errors they were cannot be told from this artifact.
+- **Speed was the one strength:** 80 s per question on web and 129 s on
+  enterprise (median), against about 5 minutes for M54's controller.
+
+**Next: M62b**, held on branch `m62b-controller` until this write-up:
+- the rules say that naming a span is enough, because the reader sees
+  every named state in full;
+- the forced-answer message asks for the spans of the states it
+  identified, read or not;
+- `AgentRun` reports whether the answer was forced and how many tool
+  errors there were, and the adapter keeps the action list.
+
+It targets the 19 empty answers directly. If answers with spans still trail
+AgentRunbook-C, the next lever is thinking: M54's controller ran with
+reasoning effort "medium" and this one with thinking off.

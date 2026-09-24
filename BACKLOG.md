@@ -46,8 +46,11 @@ The checklist lives in `docs/measurements/sota-push-checklist.md`.
   thinking) is queued.
 - **M62, myelin's own agent-history reader: built** (PRs #94–#98, #100).
   It stores trajectories state by state, has bounded tools and a
-  schema-constrained controller. Its pilot against AgentRunbook-C's 82.98
-  runs on big now.
+  schema-constrained controller. **Pilot: 31.91 against AgentRunbook-C's
+  82.98.** 36 of 47 answers were forced by the step budget, 19 named no
+  span (0/19), and answers with spans scored 54%. M62b gives it the rule
+  that naming a span is enough, and a forced answer that names the spans it
+  found.
 - **LME-V2:** M54's full pair on big (2 slots) plus sib, then adopt AgentRunbook-C as
   myelin's agent-history mode (labelled) and build a native version (M62).
 
