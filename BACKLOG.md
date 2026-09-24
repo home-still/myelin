@@ -56,6 +56,16 @@ answers. The fix for the next arm is waiting on the user's choice
 
 ---
 
+## M56 — an external checker on when to answer *(Step 0 failed its gate; recorded)*
+
+Jev (TypeSafe's cloud decision model) replayed over existing answers:
+LongMemEval_S 82.20 → 59.80 simulated, LoCoMo 66.69 → 62.99. AUROC was
+0.65–0.74, better than self-agreement but not enough to gate on. A gate can
+only earn on abstention rows, and false alarms cost every time.
+`docs/measurements/m56-verified-answers.md`. Next: M57, the reader-prompt fix.
+
+---
+
 ## M54 — a local file-reading controller for LME-V2 *(pilot +40.4 [+25.5, +55.3]; full pair running)*
 
 M53 (`docs/measurements/m53-state-completion.md`) measured where LME-V2
