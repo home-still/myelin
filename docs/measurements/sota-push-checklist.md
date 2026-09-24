@@ -34,7 +34,8 @@ and every number that uses one says so. Plan approved by the user
 - [x] `run_agentrunbook_c.py` records controller and reader served models
 - [x] `standing.rs` reads `memory_type` and has an `agentrunbook_c` mode,
       its pairing keys and a label; tests (`SHIPPED_LME_V2_MEMORY` stays `myelin` until adoption)
-- [ ] All 17 chunks done → merged prompt rows → reader pass → judged pair →
+- [x] Merge and by-controller report tooling (`merge_arc_chunks.py`, `arc_by_controller.py`), tried on the pilot
+- [ ] All 32 chunks done (2 + 30 halves) → merged prompt rows → reader pass → judged pair →
       write-up → adoption PR (if ≥ 74.90)
 - [x] M62 design doc (`m62-native-trajectory-tools.md`)
 

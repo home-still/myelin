@@ -289,3 +289,18 @@ so 15 chunks became 30. The question set is unchanged: the sorted
 question-id lists hash identically before and after the split. `ent_c00`
 and `ent_c01`, already done by big, are untouched. Chunking is only how the
 work is shared out; the pair is still scored once, over all 451 questions (the 47-question pilot plus these 404).
+
+**Merge and report tooling, 2026-09-24, before any merge.**
+- `adapters/merge_arc_chunks.py` writes each domain's merged prompt set:
+  every source's `prompt_rows.jsonl` plus a `controller_hosts.json` giving the
+  mixture and the configuration of every question (`big/1x96000`,
+  `big/2x64000`, `sib/1x96000`). It refuses a source without
+  `controller.json`, a repeated question, or a different model file. The
+  reader phase then refuses any merge that does not cover exactly the domain.
+- `adapters/arc_by_controller.py` prints the pre-registered by-configuration
+  breakdown, reading each question's configuration from the arm's own
+  `memory_config.json`. On the pilot, with a stand-in manifest, its "all"
+  row reproduces the pilot's result exactly (+40.43 [+25.53, +55.32]).
+- The pilot's two prompt directories gained a `controller.json` (big,
+  llama-swap `qwen3.8-27b`, 1 slot, 96,000), taken from their recorded Codex
+  parameters, so all 451 questions name their controller.

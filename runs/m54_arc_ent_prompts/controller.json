@@ -1,0 +1,1 @@
+{"host": "big", "worker": "big (llama-swap qwen3.8-27b)", "slots": 1, "codex_context_window": 96000, "model_file": "Ternary-Bonsai-2-27B-PTQ1_0.gguf", "model_sha256_prefix": "53107f530aa52eb0"}
