@@ -917,6 +917,65 @@ impl Ledger {
         rows.iter().map(row_to_trajectory_state).collect()
     }
 
+    /// States in scope whose URL, action or page contains `needle`, in
+    /// (trajectory, state) order, at most `limit`, optionally within one
+    /// trajectory. Case-insensitive for ASCII, as SQLite's `LIKE` is; `%` and
+    /// `_` in the needle match themselves. Readability as
+    /// [`Ledger::trajectories`].
+    pub async fn trajectory_states_containing(
+        &self,
+        filter: &ScopeFilter,
+        needle: &str,
+        trajectory: Option<&str>,
+        limit: u32,
+    ) -> Result<Vec<(String, TrajectoryState)>> {
+        if needle.trim().is_empty() {
+            return Err(MyelinError::Store(
+                "an empty search string matches every state".into(),
+            ));
+        }
+        let escaped = needle
+            .replace('\\', "\\\\")
+            .replace('%', "\\%")
+            .replace('_', "\\_");
+        let pattern = format!("%{escaped}%");
+        let now_s = fmt_time(Utc::now());
+        let rows = sqlx::query(concat!(
+            "SELECT t.id AS trajectory_id, s.* FROM trajectory_state s
+             JOIN trajectory t ON t.tenant = s.tenant AND t.namespace = s.namespace AND t.id = s.trajectory
+             JOIN record r ON r.id = t.record_id
+             WHERE ",
+            readable_anchor!(),
+            " AND (? IS NULL OR t.id = ?)
+              AND (s.url LIKE ? ESCAPE '\\' OR s.action LIKE ? ESCAPE '\\'
+                   OR s.accessibility_tree LIKE ? ESCAPE '\\')
+             ORDER BY t.id, s.state_index
+             LIMIT ?"
+        ))
+        .bind(&filter.tenant)
+        .bind(filter.namespace.as_deref())
+        .bind(filter.namespace.as_deref())
+        .bind(filter.agent.as_deref())
+        .bind(filter.agent.as_deref())
+        .bind(filter.session.as_deref())
+        .bind(filter.session.as_deref())
+        .bind(&now_s)
+        .bind(&now_s)
+        .bind(&now_s)
+        .bind(trajectory)
+        .bind(trajectory)
+        .bind(&pattern)
+        .bind(&pattern)
+        .bind(&pattern)
+        .bind(i64::from(limit))
+        .fetch_all(&self.pool)
+        .await
+        .map_err(sql)?;
+        rows.iter()
+            .map(|r| Ok((r.get::<String, _>("trajectory_id"), row_to_trajectory_state(r)?)))
+            .collect()
+    }
+
     /// Every stored trajectory of a namespace, readable or not, for export:
     /// like [`Ledger::records_in_namespace`], an export reproduces the stored
     /// state, not what a read path would show.

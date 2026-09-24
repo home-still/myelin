@@ -143,9 +143,22 @@ stores are backfilled from the dataset with no re-embedding.
       trajectories and 5,095 states on the small tier in 14 s, matching the
       release field for field (checked independently in Python); a re-run is
       idempotent.
-- [ ] **PR 3 — tools and rendering.** `shortlist` / `summary` / `state` /
-      `span` / `match`, with the authors' span format ported and cited
-      (`format_span_header`, `format_state_text`, at most 20 states).
+- [x] **PR 3 — tools and rendering.** `pipeline/trajectory_tools.rs`,
+      with every output bounded. On LME-V2 a state's page averages ~34 KB
+      (~8k tokens), so the controller searches and reads windows while the
+      reader gets whole spans.
+      - `list`: every trajectory, sorted by start URL.
+      - `summary`: numbered actions and the state each led to.
+      - `grep`: case-insensitive, at most 40 lines and 400 states, and it
+        says when it was cut.
+      - `read`: a 150-line window of one state.
+      - `evidence`: the authors' layout (notes, the span list,
+        `### Trajectory span k`, per-state `State i (step s)` with the
+        AXTree) and at most 20 states. A bad span is refused, so the
+        controller can correct it; the authors silently drop it.
+      - Each state item cites its anchor record and `SourceRef::span`. The
+        controller's notes are a view (nil record, mechanism source,
+        weakest trust).
 - [ ] **PR 4 — the controller.** A trajectory-agent branch in
       `investigate`: one schema-constrained action per step, AgentRunbook-C's
       rules as the system prompt, spans turned into `EvidenceSet` items.
