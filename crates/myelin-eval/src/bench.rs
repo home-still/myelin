@@ -145,6 +145,25 @@ If the question assumes something the memories do not state or that they contrad
 a person, place, event or detail that does not appear as the question describes it — \
 begin your reply with \"I don't know.\" and then say in a few words what the memories do state.";
 
+/// M59: when the memories bear on the question, answer — do not refuse.
+///
+/// M55b measured Bonsai 27B on LoCoMo refusing 292 answerable questions
+/// (the 9B: 121) with the evidence unchanged (gold turns held 1,736 vs
+/// 1,732): 132 of those refusals had every gold turn in the evidence. When
+/// it does answer it is right 82% of the time. `READER_SYSTEM`'s "If the
+/// memories do not contain the answer, reply exactly: I don't know" is read
+/// literally, and LoCoMo asks inferential questions ("would she prefer a
+/// national park or a theme park?") whose answer is supported but never
+/// stated. Calibration work (Kadavath et al., 2022, `10.48550/arXiv.2207.05221`)
+/// finds larger models know when they know; the instruction was keeping the
+/// answer back. Appended to [`READER_SYSTEM`] like the other clauses, so the
+/// arm is the clause alone.
+const READER_BEST_GUESS_CLAUSE: &str = " \
+When the memories contain information that bears on the question — even if the answer \
+must be inferred, or is not stated in the words the question uses — give your most likely \
+answer instead of \"I don't know\". Reply \"I don't know\" only when nothing in the memories \
+bears on the question.";
+
 /// The reader's system prompt for a run: [`READER_SYSTEM`] plus whichever
 /// clauses the run's switches turn on, in a fixed order.
 fn reader_system(switches: &BenchSwitches) -> String {
@@ -154,6 +173,9 @@ fn reader_system(switches: &BenchSwitches) -> String {
     }
     if switches.reader_premise_clause {
         system.push_str(READER_PREMISE_CLAUSE);
+    }
+    if switches.reader_best_guess {
+        system.push_str(READER_BEST_GUESS_CLAUSE);
     }
     system
 }
@@ -512,6 +534,10 @@ pub struct BenchRun {
     /// Absent on every run before M57, which ran without it.
     #[serde(default)]
     pub reader_premise_clause: bool,
+    /// M59: [`READER_BEST_GUESS_CLAUSE`] was appended to the reader prompt.
+    /// Absent on every run before M59, which ran without it.
+    #[serde(default)]
+    pub reader_best_guess: bool,
     /// M24's sub-query decomposition cap, mirroring
     /// `RetrieveConfig::decompose`. Ships off; absent on every run before
     /// M24.
@@ -659,6 +685,8 @@ pub struct BenchSwitches {
     pub reader_think_message: bool,
     /// Append [`READER_PREMISE_CLAUSE`] to the reader prompt — M57.
     pub reader_premise_clause: bool,
+    /// Append [`READER_BEST_GUESS_CLAUSE`] to the reader prompt — M59.
+    pub reader_best_guess: bool,
     /// Cap untrusted occupancy in the composed set — M23 B1,
     /// `ComposeConfig::untrusted_max`.
     ///
@@ -2383,6 +2411,7 @@ fn finish_run(
         reader_thinking_budget: spec.switches.reader_thinking.then_some(THINKING_BUDGET_TOKENS),
         reader_think_message: spec.switches.reader_think_message,
         reader_premise_clause: spec.switches.reader_premise_clause,
+        reader_best_guess: spec.switches.reader_best_guess,
         commit_answer: spec.switches.commit_answer,
         resumed_rows: resumed,
         commit_samples: None,
@@ -2567,6 +2596,7 @@ pub fn rescore_run(source: &Path, out_dir: &Path, scorer: Scorer) -> Result<Benc
             reader_seed: metrics.get("reader_seed").and_then(|v| v.as_u64()),
             reader_think_message: flag("reader_think_message"),
             reader_premise_clause: flag("reader_premise_clause"),
+            reader_best_guess: flag("reader_best_guess"),
             commit_answer: flag("commit_answer"),
             untrusted_max: metrics
                 .get("untrusted_max")
@@ -3332,6 +3362,24 @@ mod config_tests {
         assert_eq!(both, format!("{READER_SYSTEM}{READER_PREFERENCE_CLAUSE}{READER_PREMISE_CLAUSE}"));
         assert!(is_abstention("I don't know. You see Dr. Smith, not Dr. Johnson."));
         assert!(!is_abstention("You see Dr. Smith, not Dr. Johnson."));
+    }
+
+    /// M59: the best-guess clause rides on `READER_SYSTEM` only when on, after
+    /// the premise clause, so a run with both reads in one fixed order.
+    #[test]
+    fn best_guess_clause_is_appended_only_when_on_in_order() {
+        assert_eq!(reader_system(&BenchSwitches::default()), READER_SYSTEM);
+        let on = reader_system(&BenchSwitches {
+            reader_best_guess: true,
+            ..Default::default()
+        });
+        assert_eq!(on, format!("{READER_SYSTEM}{READER_BEST_GUESS_CLAUSE}"));
+        let both = reader_system(&BenchSwitches {
+            reader_premise_clause: true,
+            reader_best_guess: true,
+            ..Default::default()
+        });
+        assert_eq!(both, format!("{READER_SYSTEM}{READER_PREMISE_CLAUSE}{READER_BEST_GUESS_CLAUSE}"));
     }
 
     #[test]

@@ -185,3 +185,33 @@ per question that is ~27 GPU-hours. Then one reader pass over all 451 (the
 pilot's 47 prompt rows merged with the chunks'), on the 204,800-token
 reader, judged by the 9B, paired against `m47_base_{web,ent}`.
 
+## Amendment — a second controller host *(pre-registered 2026-09-24, before any of its chunks)*
+
+At about 4–7 minutes per question, the full pair is ~36 GPU-hours on big
+alone. The user approved bmb (M4 Pro) as a second controller:
+- **Model:** `bonsai-2-27b`, the same Ternary Bonsai 2 27B in its PQ2_0 pack
+  (2.13 bpw; big serves PTQ1_0 at 1.75 bpw), through bmb's llama-swap.
+- **Context:** 64K (big's: 96K). Codex is told so
+  (`model_context_window = 64000`).
+- **Path:** a second Responses shim on :5822.
+
+**Rules, fixed now:**
+1. Chunks are claimed atomically: one `mkdir` per chunk under
+   `scratchpad/m54_full/claims/`. big works forward and bmb backward, so no
+   chunk runs twice.
+2. Every chunk writes `controller.json`: host, model alias, pack. The two
+   chunks big finished before this amendment (`ent_c00`, `ent_c01`) are
+   recorded as big / `qwen3.8-27b` / PTQ1_0.
+3. The full pair is scored as one run. Accuracy is also reported **by
+   controller host**, with a 95% bootstrap CI for each. If the hosts differ
+   beyond their CIs, that is reported next to the headline; it is not
+   averaged away.
+4. The transport-failure rule applies to both hosts: a chunk with any
+   transport failure is discarded and re-run. A context-window overflow on
+   bmb is **not** transport. It is that controller's behaviour and stays in
+   the measurement, counted per host.
+
+**Smoke test** before bmb's first chunk: one question, run end to end
+through bmb, must produce a non-empty memory context with no refused
+requests.
+
