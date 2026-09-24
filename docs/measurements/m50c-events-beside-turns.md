@@ -1,4 +1,4 @@
-# M50c — events beside turns, not instead *(design; route not yet chosen)*
+# M50c — events beside turns, not instead *(route A chosen 2026-09-24; building)*
 
 ## What M50 and M50b measured
 
@@ -45,3 +45,50 @@ null would be attributable, and it is what the paper built.
 
 Pilot, once a route is chosen: the M50 100-question LongMemEval_S population
 against whichever model is shipped by then. Gate +5.
+
+## Decision and build plan *(2026-09-24 ~15:45)*
+
+**The user chose route A, the dual index.** It is also the first
+code-first build aimed at LoCoMo, the benchmark furthest from its
+finish-line row (69.87 against 77.85).
+
+**The events-only index needs no new write code.** `events-build` writes
+each event as a `semantic` record whose lineage points at its session's
+episodic turns. Those turns must already be in the ledger (I4). It indexes
+the events into whatever collection it is given. So the build is:
+1. copy `data/locomo.ledger` to `data/locomo_evonly.ledger`, so the turn
+   records are there for lineage;
+2. run `events-build` from the cache (`data/events/locomo.jsonl`, no
+   extraction) into a new, empty collection, `myelin_locomo_evonly`.
+
+That collection then holds only events. The base store and ledger are not
+touched.
+
+**The read path is the new code:**
+- A second retrieval over the events index with the same question.
+- It is reranked like the turns, and its top m = 3 go into their own
+  `[events]` block under their own 512-token budget.
+- Everything it adds comes after the base's k = 6 turns, which stay
+  exactly the base's. Measured against the unchanged base, the arm's delta
+  is the events alone.
+- One mechanism in `myelin-core`, used by `bench` and by the MCP `recall`
+  / `investigate` tools alike, and switched by naming the events index.
+
+**Checklist**
+- [x] Events-only index built: `myelin_locomo_evonly` and
+      `data/locomo_evonly.ledger`. 939 events from 272 cached sessions in
+      219 s. Qdrant holds 939 points, the ledger gained exactly 939
+      semantic records (5,108 − 4,169), and M50b's build wrote the same
+      939.
+- [x] Core: `pipeline/events_block.rs`. A second retriever runs over the
+      events index (reranked, no second `[timeline]`), appends the top 3
+      events after the base evidence under a 512-token budget, and opens
+      them with an `[events]` header view. Tested against scratch Qdrant:
+      the base items are byte-identical with the block on, the block holds
+      only events, and nothing is appended when no event is found.
+- [x] `bench --events-collection/--events-ledger`, in both LoCoMo and
+      LongMemEval_S paths. It refuses a half-given pair, a non-`myelin_*`
+      collection, or a missing or empty index. The run records both, and
+      standing treats a run with the block as an arm (test). The MCP switch
+      comes with a ship.
+- [ ] Pilot pre-registered, then run: LoCoMo, full 1,986, 9B reader.

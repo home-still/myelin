@@ -63,6 +63,7 @@ use myelin_core::embed::remote::RemoteEmbedder;
 use myelin_core::llm::openai::OpenAiLlm;
 use myelin_core::llm::{CompletionRequest, Llm, Message};
 use myelin_core::model::query::{Budget, Mode, Recall, ScopeFilter};
+use myelin_core::pipeline::events_block::{events_retrieve_config, EventsBlock};
 use myelin_core::pipeline::investigate::Investigator;
 use myelin_core::pipeline::retrieve::{RetrieveConfig, Retriever};
 use myelin_core::pipeline::select::Degradation;
@@ -538,6 +539,14 @@ pub struct BenchRun {
     /// Absent on every run before M59, which ran without it.
     #[serde(default)]
     pub reader_best_guess: bool,
+    /// M50c: the events-only index whose top events were appended as an
+    /// `[events]` block after the evidence. `None` on every run without the
+    /// block, which is every run before M50c.
+    #[serde(default)]
+    pub events_collection: Option<String>,
+    /// The ledger that events index read its records from.
+    #[serde(default)]
+    pub events_ledger: Option<String>,
     /// M24's sub-query decomposition cap, mirroring
     /// `RetrieveConfig::decompose`. Ships off; absent on every run before
     /// M24.
@@ -687,6 +696,11 @@ pub struct BenchSwitches {
     pub reader_premise_clause: bool,
     /// Append [`READER_BEST_GUESS_CLAUSE`] to the reader prompt — M59.
     pub reader_best_guess: bool,
+    /// M50c: append the top events of this events-only collection as an
+    /// `[events]` block (`myelin_core::pipeline::events_block`).
+    pub events_collection: Option<String>,
+    /// The ledger holding that collection's event records.
+    pub events_ledger: Option<String>,
     /// Cap untrusted occupancy in the composed set — M23 B1,
     /// `ComposeConfig::untrusted_max`.
     ///
@@ -1374,6 +1388,36 @@ pub fn shipped_collection(corpus: &str) -> Option<&'static str> {
     }
 }
 
+/// M50c's events-only index, opened once per run when a switch names one.
+struct EventsIndex {
+    store: QdrantStore,
+    ledger: Ledger,
+}
+
+/// Open the events index `switches` name, or `None` when they name none.
+/// Refused: one of the two switches without the other, a collection outside
+/// the `myelin_*` namespace, and a collection that does not exist or holds
+/// no events. An empty index would append nothing to every row, and the arm
+/// would score as a clean null for a mechanism that never ran.
+async fn open_events_index(cfg: &MyelinConfig, switches: &BenchSwitches) -> Result<Option<EventsIndex>> {
+    let (collection, ledger) = match (&switches.events_collection, &switches.events_ledger) {
+        (None, None) => return Ok(None),
+        (Some(c), Some(l)) => (c, l),
+        _ => anyhow::bail!("--events-collection and --events-ledger go together"),
+    };
+    anyhow::ensure!(
+        collection.starts_with("myelin_"),
+        "refusing events collection {collection:?}: collections must be myelin_*-prefixed"
+    );
+    let store = QdrantStore::with_collection(&cfg.qdrant, collection.clone()).context("events store")?;
+    anyhow::ensure!(store.exists().await?, "events collection {collection} does not exist; run events-build first");
+    let points = store.count().await?;
+    anyhow::ensure!(points > 0, "events collection {collection} holds no events");
+    eprintln!("events block: {collection} ({points} events), ledger {ledger}");
+    let ledger = Ledger::open(ledger).await.context("open events ledger")?;
+    Ok(Some(EventsIndex { store, ledger }))
+}
+
 /// Whether the shipped reader thinks, per corpus (M44 R2).
 ///
 /// **On for LongMemEval_S since M44 R2**: 67.80 → 78.4 / 78.4 on two seeds
@@ -1847,6 +1891,17 @@ pub async fn bench_locomo(
     if let Some(r) = reranker.as_ref() {
         retriever = retriever.with_reranker(r as &dyn Reranker);
     }
+    // M50c: the events block, when the run names an events index. Its own
+    // retriever over its own collection, reranked like the turns.
+    let events_index = open_events_index(&cfg, switches).await?;
+    let events_retriever = events_index.as_ref().map(|ix| {
+        let r = Retriever::new(&embedder, &ix.store, &ix.ledger).with_config(events_retrieve_config());
+        match reranker.as_ref() {
+            Some(rr) => r.with_reranker(rr as &dyn Reranker),
+            None => r,
+        }
+    });
+    let events_block = events_retriever.as_ref().map(EventsBlock::new);
     if switches.graph {
         retriever = retriever.with_graph(&graph_index);
     }
@@ -1947,7 +2002,7 @@ pub async fn bench_locomo(
             // M32 both branches ended in `.0` and the second half was
             // dropped, which is why a judged selecting arm could not show
             // its mechanism had run.
-            let (evidence, selection) = match mode {
+            let (mut evidence, selection) = match mode {
                 Mode::Investigate => {
                     let (ev, tr) = Investigator::new(&llm, &retriever)
                         .with_config(investigate_cfg)
@@ -1966,6 +2021,12 @@ pub async fn bench_locomo(
             };
             if switches.select_sufficient {
                 degradation.observe(selection.1)?;
+            }
+            if let Some(block) = events_block.as_ref() {
+                block
+                    .append(&query, &mut evidence)
+                    .await
+                    .with_context(|| format!("events block {tenant}#{i}"))?;
             }
             let elapsed = started.elapsed().as_secs_f64();
             latencies.push(elapsed);
@@ -2141,6 +2202,17 @@ pub async fn bench_longmemeval_s(
     if let Some(r) = reranker.as_ref() {
         retriever = retriever.with_reranker(r as &dyn Reranker);
     }
+    // M50c: the events block, when the run names an events index. Its own
+    // retriever over its own collection, reranked like the turns.
+    let events_index = open_events_index(&cfg, switches).await?;
+    let events_retriever = events_index.as_ref().map(|ix| {
+        let r = Retriever::new(&embedder, &ix.store, &ix.ledger).with_config(events_retrieve_config());
+        match reranker.as_ref() {
+            Some(rr) => r.with_reranker(rr as &dyn Reranker),
+            None => r,
+        }
+    });
+    let events_block = events_retriever.as_ref().map(EventsBlock::new);
     if switches.graph {
         retriever = retriever.with_graph(&graph_index);
     }
@@ -2192,7 +2264,7 @@ pub async fn bench_longmemeval_s(
         };
 
         let started = std::time::Instant::now();
-        let (evidence, selection) = match mode {
+        let (mut evidence, selection) = match mode {
             Mode::Investigate => {
                 let (ev, tr) = Investigator::new(&llm, &retriever)
                     .with_config(investigate_cfg)
@@ -2211,6 +2283,12 @@ pub async fn bench_longmemeval_s(
         };
         if switches.select_sufficient {
             degradation.observe(selection.1)?;
+        }
+        if let Some(block) = events_block.as_ref() {
+            block
+                .append(&query, &mut evidence)
+                .await
+                .with_context(|| format!("events block {}", item.question_id))?;
         }
         let elapsed = started.elapsed().as_secs_f64();
         latencies.push(elapsed);
@@ -2446,6 +2524,8 @@ fn finish_run(
         reader_think_message: spec.switches.reader_think_message,
         reader_premise_clause: spec.switches.reader_premise_clause,
         reader_best_guess: spec.switches.reader_best_guess,
+        events_collection: spec.switches.events_collection.clone(),
+        events_ledger: spec.switches.events_ledger.clone(),
         commit_answer: spec.switches.commit_answer,
         resumed_rows: resumed,
         commit_samples: None,
@@ -2631,6 +2711,14 @@ pub fn rescore_run(source: &Path, out_dir: &Path, scorer: Scorer) -> Result<Benc
             reader_think_message: flag("reader_think_message"),
             reader_premise_clause: flag("reader_premise_clause"),
             reader_best_guess: flag("reader_best_guess"),
+            events_collection: metrics
+                .get("events_collection")
+                .and_then(serde_json::Value::as_str)
+                .map(str::to_string),
+            events_ledger: metrics
+                .get("events_ledger")
+                .and_then(serde_json::Value::as_str)
+                .map(str::to_string),
             commit_answer: flag("commit_answer"),
             untrusted_max: metrics
                 .get("untrusted_max")
