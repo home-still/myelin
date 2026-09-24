@@ -47,7 +47,8 @@ use std::io::{BufRead, BufReader};
 use std::path::Path;
 
 use anyhow::{Context, Result};
-use myelin_core::model::record::SourceRef;
+use myelin_core::model::record::{Scope, SourceRef};
+use myelin_core::model::trajectory::{AgentTrajectory, TrajectoryHeader, TrajectoryState};
 use myelin_core::pipeline::ingest::Turn;
 use serde::Deserialize;
 
@@ -240,6 +241,36 @@ fn chunk_tree(tree: &str) -> Vec<String> {
     chunks
 }
 
+/// One trajectory as myelin stores it state by state (M62), anchored on its
+/// goal episode record `anchor`. Every field is copied as released; the
+/// screenshot is not stored, because the controller reads the accessibility
+/// tree (M54's pre-registration fixed `axtree` as the evidence mode).
+pub fn agent_trajectory(traj: &Trajectory, scope: &Scope, anchor: uuid::Uuid) -> AgentTrajectory {
+    AgentTrajectory {
+        header: TrajectoryHeader {
+            id: traj.id.clone(),
+            scope: scope.clone(),
+            record_id: anchor,
+            goal: traj.goal.clone(),
+            environment: traj.environment.clone(),
+            start_url: traj.start_url.clone(),
+            outcome: traj.outcome.clone(),
+        },
+        states: traj
+            .states
+            .iter()
+            .map(|s| TrajectoryState {
+                state_index: s.state_index,
+                step: s.step,
+                url: s.url.clone(),
+                action: s.action.clone(),
+                thought: s.thought.clone(),
+                accessibility_tree: s.accessibility_tree.clone(),
+            })
+            .collect(),
+    }
+}
+
 /// One trajectory as turns, in three unit kinds.
 ///
 /// The segmenter splits on unit change, so the unit string decides episode
@@ -335,6 +366,35 @@ mod tests {
                     screenshot: None,
                 },
             ],
+        }
+    }
+
+    /// M62: the stored copy is the release, field for field, so a span the
+    /// controller opens is the state the agent saw.
+    #[test]
+    fn the_stored_trajectory_is_the_release_field_for_field() {
+        let t = traj();
+        let scope = Scope::new("small/web", "myelin", "small");
+        let anchor = uuid::Uuid::nil();
+        let stored = agent_trajectory(&t, &scope, anchor);
+        stored.validate().unwrap();
+        assert_eq!(stored.header.id, "t1");
+        assert_eq!(stored.header.scope, scope);
+        assert_eq!(stored.header.record_id, anchor);
+        assert_eq!(
+            (stored.header.goal.as_str(), stored.header.environment.as_str()),
+            ("find the top post", "webarena-reddit")
+        );
+        assert_eq!(stored.header.start_url, "http://x/");
+        assert_eq!(stored.header.outcome, "success");
+        assert_eq!(stored.states.len(), 2);
+        for (got, want) in stored.states.iter().zip(&t.states) {
+            assert_eq!(got.state_index, want.state_index);
+            assert_eq!(got.step, want.step);
+            assert_eq!(got.url, want.url);
+            assert_eq!(got.action, want.action);
+            assert_eq!(got.thought, want.thought);
+            assert_eq!(got.accessibility_tree, want.accessibility_tree);
         }
     }
 

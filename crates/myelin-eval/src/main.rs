@@ -411,6 +411,13 @@ enum Command {
         /// the shipped store stays reproducible from the same command.
         #[arg(long)]
         pools: bool,
+        /// M62: store every haystack trajectory state by state in an LME-V2
+        /// ledger built before the trajectory tables existed. No model, no
+        /// embedder, no Qdrant: it copies the release into the ledger,
+        /// anchored on the goal records the episodic pass wrote. A fresh
+        /// episodic build already does this for every trajectory it ingests.
+        #[arg(long, conflicts_with = "pools")]
+        trajectories: bool,
         /// Accept a LongMemEval build in which some sessions carried no
         /// parseable date.
         ///
@@ -966,6 +973,7 @@ async fn main() -> anyhow::Result<()> {
             concurrency,
             ref lmev2_dir,
             pools,
+            trajectories,
             repair,
             allow_undated,
         } => {
@@ -978,6 +986,7 @@ async fn main() -> anyhow::Result<()> {
                 concurrency,
                 lmev2_dir,
                 pools,
+                trajectories,
                 repair,
                 allow_undated,
             )
@@ -1482,9 +1491,15 @@ async fn build_cmd(
     concurrency: usize,
     lmev2_dir: &str,
     pools: bool,
+    trajectories_only: bool,
     repair: bool,
     allow_undated: bool,
 ) -> anyhow::Result<()> {
+    anyhow::ensure!(
+        !trajectories_only || matches!(corpus, Corpus::LmeV2Small | Corpus::LmeV2Medium),
+        "--trajectories stores agent trajectories; {} has none",
+        corpus.slug()
+    );
     let collection = collection.map_or_else(|| corpus.collection(), str::to_string);
     let ledger = ledger.map_or_else(|| corpus.ledger(), str::to_string);
     anyhow::ensure!(
@@ -1537,7 +1552,21 @@ async fn build_cmd(
             for p in [&trajectories, &questions, &haystack] {
                 anyhow::ensure!(p.exists(), "missing {}", p.display());
             }
-            if pools {
+            if trajectories_only {
+                eprintln!(
+                    "storing {} trajectories state by state -> ledger {ledger}",
+                    corpus.slug()
+                );
+                myelin_eval::build::build_lmev2_trajectories(
+                    &trajectories,
+                    &haystack,
+                    &questions,
+                    corpus.slug(),
+                    Path::new(&ledger),
+                    limit,
+                )
+                .await?
+            } else if pools {
                 // D1 does not take `--concurrency`: the pool pass is one
                 // batched call per trajectory per pool, sequential, against
                 // a reader shared with a live household.

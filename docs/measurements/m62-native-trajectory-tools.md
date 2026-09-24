@@ -137,9 +137,12 @@ stores are backfilled from the dataset with no re-embedding.
       existing ledgers gain it on open), model types, `Ledger` write and
       scoped reads (list a tenant's trajectories; read one state or a
       range), and tests.
-- [ ] **PR 2 — the write path.** `build_lmev2` fills the table; a
-      `backfill-trajectories` step fills already-built stores (no GPU, no
-      embeddings). Row counts are checked against the dataset.
+- [x] **PR 2 — the write path.** `build_lmev2` fills the table;
+      `build --trajectories` fills already-built stores (no GPU, no
+      embeddings). Row counts are checked against the dataset. *Done:* 200
+      trajectories and 5,095 states on the small tier in 14 s, matching the
+      release field for field (checked independently in Python); a re-run is
+      idempotent.
 - [ ] **PR 3 — tools and rendering.** `shortlist` / `summary` / `state` /
       `span` / `match`, with the authors' span format ported and cited
       (`format_span_header`, `format_state_text`, at most 20 states).

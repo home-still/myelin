@@ -348,7 +348,12 @@ AgentRunbook-C (arXiv 2605.12493 §4.2).
 - A `forget` in hard mode of the anchor erases it by cascade.
 - Exports carry it (bundle version 2).
 
-Nothing writes it yet; the LME-V2 build will, in M62 PR 2.
+The LME-V2 build fills it for every trajectory it ingests. A store built
+before M62 is filled in place with `myelin-eval build --corpus lme-v2-small
+--trajectories`, which copies the release into the ledger. It needs no model,
+embedder or Qdrant; on the small tier it stored 200 trajectories and 5,095
+states in 14 s, and matched the release field for field. Re-running it
+checks each stored copy against the release and writes nothing.
 
 ### Quarantine
 
