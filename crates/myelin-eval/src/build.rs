@@ -15,6 +15,7 @@ use chrono::{DateTime, NaiveDate, NaiveDateTime, TimeZone, Utc};
 use myelin_core::config::MyelinConfig;
 use myelin_core::embed::remote::RemoteEmbedder;
 use myelin_core::llm::openai::OpenAiLlm;
+use myelin_core::model::query::ScopeFilter;
 use myelin_core::model::record::{ActorId, Scope, SourceRef};
 use myelin_core::pipeline::ingest::Turn;
 use myelin_core::pipeline::write::{WritePath, WriteStats};
@@ -411,6 +412,9 @@ pub async fn build_lmev2(
             .insert(&scope, &turns)
             .await
             .with_context(|| format!("ingest {}", traj.id))?;
+        // M62: the state-by-state copy, anchored on the goal episode the
+        // insert above just wrote.
+        store_trajectory(&ledger, &scope, &traj).await?;
 
         eprintln!(
             "  {:<10} {:<10} turns={:<5} episodes={:<5} add={:<5} dup={:<5} {:.1}s",
@@ -439,6 +443,142 @@ pub async fn build_lmev2(
 
     report.wall_secs = started.elapsed().as_secs_f64();
     check_drift(&ledger, &store, &embedder, tier, repair).await?;
+    Ok(report)
+}
+
+/// Whether [`store_trajectory`] wrote a trajectory or found it already held.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TrajectoryWrite {
+    Stored,
+    AlreadyStored,
+}
+
+/// Store one LME-V2 trajectory state by state (M62), anchored on its goal
+/// episode record, which the episodic pass must already have written.
+///
+/// Idempotent like the rest of the build: a re-run finds the trajectory held
+/// and checks it against the release, field for field. A stored copy that
+/// differs is an error, never replaced; the ledger's update triggers would
+/// refuse the edit anyway.
+pub async fn store_trajectory(
+    ledger: &Ledger,
+    scope: &Scope,
+    traj: &lmev2::Trajectory,
+) -> Result<TrajectoryWrite> {
+    let filter = ScopeFilter::tenant(&scope.tenant).with_namespace(&scope.namespace);
+    let goal_doc = format!("{}:goal", traj.id);
+    let anchors = ledger
+        .ids_from_source_docs(&filter, &goal_doc)
+        .await
+        .with_context(|| format!("find the goal record of {}", traj.id))?;
+    let [anchor] = anchors.as_slice() else {
+        anyhow::bail!(
+            "trajectory {}: expected one live goal record with source {goal_doc} in {}/{}, found {}",
+            traj.id,
+            scope.tenant,
+            scope.namespace,
+            anchors.len()
+        );
+    };
+    let wanted = lmev2::agent_trajectory(traj, scope, *anchor);
+    let held = ledger
+        .trajectories(&filter)
+        .await?
+        .into_iter()
+        .find(|h| h.id == traj.id);
+    let Some(header) = held else {
+        ledger
+            .put_trajectory(&wanted, &ActorId::new("myelin-eval"))
+            .await
+            .with_context(|| format!("store trajectory {}", traj.id))?;
+        return Ok(TrajectoryWrite::Stored);
+    };
+    let states = ledger
+        .trajectory_states(&filter, &traj.id, 0, u32::MAX)
+        .await?;
+    anyhow::ensure!(
+        header == wanted.header && states == wanted.states,
+        "trajectory {} is stored but differs from the release; a stored trajectory is never replaced",
+        traj.id
+    );
+    Ok(TrajectoryWrite::AlreadyStored)
+}
+
+/// M62: store every haystack trajectory state by state in an LME-V2 ledger
+/// that was built before the trajectory tables existed.
+///
+/// No model, no embedder, no Qdrant: the episodic pass already wrote the
+/// goal records the trajectories anchor on, and this only copies the
+/// release into the ledger through [`store_trajectory`], the same function
+/// a fresh [`build_lmev2`] calls. The count is checked like the build's.
+pub async fn build_lmev2_trajectories(
+    trajectories: &Path,
+    haystack_path: &Path,
+    questions_path: &Path,
+    tier: &str,
+    ledger_path: &Path,
+    limit: Option<usize>,
+) -> Result<BuildReport> {
+    let questions = lmev2::load_questions(questions_path)?;
+    let haystack = lmev2::load_haystack(haystack_path)?;
+    let by_domain = lmev2::haystacks_by_domain(&haystack, &questions)?;
+    let mut domain_of: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+    let mut wanted: std::collections::HashSet<String> = std::collections::HashSet::new();
+    for (domain, ids) in &by_domain {
+        for id in ids.iter().take(limit.unwrap_or(usize::MAX)) {
+            domain_of.insert(id.clone(), domain.clone());
+            wanted.insert(id.clone());
+        }
+    }
+    let ledger = Ledger::open(ledger_path).await.context("open ledger")?;
+    let started = Instant::now();
+    let mut report = BuildReport {
+        per_unit: Vec::new(),
+        total: WriteStats::default(),
+        wall_secs: 0.0,
+        sessions_total: 0,
+        sessions_without_date: 0,
+    };
+    // Streamed as in `build_lmev2`: the medium tier's trajectories do not
+    // fit in memory at once (~862 KB each).
+    let want_count = wanted.len();
+    let (tx, mut rx) = tokio::sync::mpsc::channel::<lmev2::Trajectory>(2);
+    let traj_path = trajectories.to_path_buf();
+    let reader = tokio::task::spawn_blocking(move || {
+        lmev2::for_each_trajectory(&traj_path, &wanted, |t| {
+            tx.blocking_send(t)
+                .map_err(|_| anyhow::anyhow!("storing stopped before the file was consumed"))
+        })
+    });
+    while let Some(traj) = rx.recv().await {
+        let domain = &domain_of[&traj.id];
+        let scope = Scope::new(format!("{tier}/{domain}"), "myelin", tier);
+        let write = store_trajectory(&ledger, &scope, &traj).await?;
+        // `added` / `duplicates` read as "stored now" / "already held".
+        let stats = WriteStats {
+            turns: traj.states.len(),
+            added: usize::from(write == TrajectoryWrite::Stored),
+            duplicates: usize::from(write == TrajectoryWrite::AlreadyStored),
+            ..WriteStats::default()
+        };
+        eprintln!(
+            "  {:<10} {:<10} states={:<4} {:?}",
+            traj.id,
+            domain,
+            traj.states.len(),
+            write
+        );
+        report.total.merge(&stats);
+        report.per_unit.push((traj.id.clone(), stats));
+    }
+    let found = reader.await.context("trajectory reader task")??;
+    if found != want_count || report.per_unit.len() != want_count {
+        anyhow::bail!(
+            "haystack names {want_count} trajectories; read {found}, stored {}",
+            report.per_unit.len()
+        );
+    }
+    report.wall_secs = started.elapsed().as_secs_f64();
     Ok(report)
 }
 
