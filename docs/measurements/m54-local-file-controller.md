@@ -106,3 +106,22 @@ the pilot** → a full pair (or a larger pilot, given ~2–5 min/question);
 **Falsifier.** If the controller mostly fails to produce spans (errors,
 timeouts, empty output), the result measures the harness under a small model,
 not file-based retrieval — report the failure rate first.
+
+## Run log
+
+- **2026-09-23 17:01.** First controller attempt: every question refused at
+  the door. The harness resolves trajectory screenshots even for `axtree`
+  evidence, and the official screenshot bundles were not downloaded. Fixed
+  by downloading them (all 5,095 references in the pilot's 200 trajectories
+  resolve).
+- **2026-09-23 23:14.** Second attempt: 5 of the first 9 web questions died
+  with HTTP 400 `Output of tool call should be 'Input text'`. Codex's
+  `view_image` tool returns its image inside the tool output, and llama.cpp's
+  `/v1/responses` accepts only text there. The harness then hands the reader
+  an empty memory context, which would have measured the plumbing, not the
+  controller. Stopped at 23:41. `adapters/responses_shim.py` now replaces an
+  image in a tool output with a text note, which keeps the controller
+  text-only as pre-registered. A captured failing request returns 200
+  through it, and the question that died completes with 12 memory items.
+- **2026-09-23 23:50.** Relaunched from clean run directories.
+

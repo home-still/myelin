@@ -1,0 +1,12 @@
+# Isolated Codex config for M54: controller = Ternary Bonsai 2 27B on big (local only).
+model = "qwen3.8-27b"
+model_provider = "big_bonsai"
+model_context_window = 96000
+[model_providers.big_bonsai]
+name = "Bonsai 27B via big's llama-swap (through the responses shim)"
+base_url = "http://127.0.0.1:5821/v1"
+wire_api = "responses"
+env_key = "MYELIN_LOCAL_KEY"
+
+[projects."<repo root>"]
+trust_level = "trusted"
