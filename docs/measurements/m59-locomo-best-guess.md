@@ -1,4 +1,4 @@
-# M59 — LoCoMo: answer when the memories bear on the question *(pre-registered 2026-09-24)*
+# M59 — LoCoMo: answer when the memories bear on the question *(pre-registered 2026-09-24)* — **result: 67.92, −1.95 vs the 9B; does not ship**
 
 ## Why
 
@@ -63,3 +63,52 @@ questions.
 - The newly answered rows are right less than 30% of the time: the clause
   converts refusals into wrong answers, not right ones.
 - Adversarial falls below 69.96.
+
+---
+
+## Result *(2026-09-24 15:13)* — **does not ship: −1.95 against the 9B; the clause barely moves Bonsai's refusals**
+
+`runs/m59_locomo_bonsai_bestguess` (1,986 rows; Bonsai PTQ1_0 recorded as the
+served model). Judged by the 9B: 1,268 fresh verdicts, none from cache.
+Declines are never sent to the judge.
+
+**1. To ship — against the 9B (`m19_locomo_full`, 69.87):**
+
+| stratum | n | 9B | M59 | Δ | 95% CI |
+|---|---|---|---|---|---|
+| **judge 1–4** | 1,540 | 69.87 | **67.92** | **−1.95** | **[−3.64, −0.26]** |
+| multi-hop | 282 | 57.80 | 55.32 | −2.48 | [−7.09, +2.13] |
+| temporal | 321 | 60.44 | 56.07 | −4.36 | [−8.41, −0.31] |
+| open-domain | 96 | 29.17 | 27.08 | −2.08 | [−9.38, +5.21] |
+| single-hop | 841 | 82.16 | 81.33 | −0.83 | [−2.85, +1.07] |
+| adversarial | 446 | 69.96 | 93.50 | +23.54 | [+19.51, +27.80] |
+
+It is a significant negative, so it does not ship.
+
+**2. Attribution — against Bonsai alone (M55b, 66.69):** judge 1–4
+**+1.23 [+0.32, +2.14]**, adversarial +0.67. The clause does something, but
+very little.
+
+**Predictions.**
+- ✗ Answerable refusals ≤ 150: they went 292 → **272**.
+- ✗ Judge 1–4 at 72–75: it is 67.92.
+- ✓ Adversarial ≥ 75: it is 93.50. The clause did not tip the model into
+  answering the unanswerable.
+- ~ The gain in open-domain and multi-hop runs +3.1 and +2.1, both with CIs
+  touching zero.
+
+**Falsifier: did not fire.** Of Bonsai's 292 refusals, only **27** became
+answers, and **19 of those 27 (70%) were right**, well above the 30% line.
+7 rows went the other way, from an answer to a refusal.
+
+**What it means.** Asking Bonsai in its prompt to give its best guess
+barely changes when it answers. 265 of the 292 refusals stand, with the
+evidence unchanged. When it can be moved, it is usually right, so the lever
+is real but the prompt is not how to pull it. This is the day's second
+prompt arm to move a model's calibration by only a few rows (M57's clause
+was worth +1.2 overall on its own).
+
+It is also the evidence behind the user's call, the same afternoon, to push
+**code first**: memory-side mechanisms, not reader instructions (see
+`BACKLOG.md`, "SOTA push"). M60 (the same clause plus thinking) still runs,
+because it was already queued.

@@ -63,6 +63,20 @@ first arm to question the measurement apparatus rather than the mechanism.
 
 ---
 
+## M59 — LoCoMo best-guess clause on Bonsai: **−1.95, does not ship**
+
+One reader clause telling Bonsai to answer when the memories bear on the
+question. Against the 9B's 69.87, judge 1–4 scored **67.92, −1.95
+[−3.64, −0.26]**, temporal −4.36, adversarial 93.50. Against Bonsai alone
+it gained +1.23 [+0.32, +2.14].
+
+The prediction was refusals down to 150 or fewer; they fell only 292 →
+272. Of the 27 rows the clause converted, 19 were right. Bonsai's
+calibration is barely moved by an instruction. That is part of why the user
+turned the push to code first (`docs/measurements/m59-locomo-best-guess.md`).
+
+---
+
 ## M57 — "I don't know" first, then the correction: **83.40, shipped** *(the M55 veto fixed)*
 
 Bonsai 27B with one reader clause: when the question assumes something the

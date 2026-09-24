@@ -16,7 +16,7 @@ and every number that uses one says so. Plan approved by the user
 ## B — LoCoMo (target 77.85)
 - [x] `READER_BEST_GUESS_CLAUSE` + `--reader-best-guess` switch, tests
 - [x] M59 pre-registered (`m59-locomo-best-guess.md`)
-- [ ] M59 run (full 1,986), judged, written up
+- [x] M59 run (full 1,986), judged, written up: **67.92, −1.95 [−3.64, −0.26] vs the 9B; does not ship.** Refusals 292 → 272 only
 - [x] M60 pre-registered (`m60-locomo-best-guess-thinking.md`)
 - [ ] M60 run, judged, written up
 - [ ] B3 (Jev gating of overrides) / B4 (wider k): decided from M59 and M60,
