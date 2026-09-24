@@ -359,6 +359,9 @@ impl Corpus {
     }
 }
 
+// One `Command` is parsed per process and never moved in a hot path, so the
+// size difference between `Bench` and the small variants costs nothing.
+#[allow(clippy::large_enum_variant)]
 #[derive(Subcommand)]
 enum Command {
     /// Download and checksum-pin the benchmark datasets
@@ -734,6 +737,15 @@ enum Command {
         /// in them does (M59).
         #[arg(long)]
         reader_best_guess: bool,
+        /// M50c: an events-only index (Qdrant collection) whose top events
+        /// are appended after the evidence as an `[events]` block, beside
+        /// the turns rather than instead of them. Needs `--events-ledger`.
+        #[arg(long, requires = "events_ledger")]
+        events_collection: Option<String>,
+        /// The ledger holding that index's event records (a copy of the base
+        /// ledger, for their lineage).
+        #[arg(long, requires = "events_collection")]
+        events_ledger: Option<String>,
         /// Cap how many `Untrusted` records the composed set may contain
         /// (M23 B1). A ceiling, not an exclusion: the quota never drops
         /// untrusted evidence to zero and never drops a trusted record.
@@ -1203,6 +1215,8 @@ async fn main() -> anyhow::Result<()> {
             reader_think_message,
             reader_premise_clause,
             reader_best_guess,
+            ref events_collection,
+            ref events_ledger,
             untrusted_max,
             decompose,
             ref categories,
@@ -1252,6 +1266,8 @@ async fn main() -> anyhow::Result<()> {
                     reader_think_message,
                     reader_premise_clause,
                     reader_best_guess,
+                    events_collection: events_collection.clone(),
+                    events_ledger: events_ledger.clone(),
                     untrusted_max,
                     decompose,
                     categories: categories.clone().unwrap_or_default(),
