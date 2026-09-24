@@ -81,3 +81,32 @@ whose loop already has a model deciding steps (`Investigator::investigate`,
   are documented to work on big (they back the omp coding agent), but they
   are unmeasured on this task. Before anything else, a smoke test of 5
   questions, counting tool-call parse failures.
+
+## Code map *(2026-09-24, before building)*
+
+Where each piece of the design lands today, so the build starts from facts.
+
+| piece | today | what M62 adds |
+|---|---|---|
+| step loop | `Investigator::investigate` (`myelin-core/src/pipeline/investigate.rs`): one action, *search*; the model decides by `reflect()`, a JSON-schema call returning `{sufficient, next_query, …}` | a trajectory-agent branch that fills `EvidenceSet.items` with spans and skips `compose` |
+| evidence | `EvidenceSet { items, tokens, trace, … }` (`model/evidence.rs`); `to_wire()` sends only `{type, value}` | nothing: one `Text` item per rendered span, with a real `record_id` and source, keeps the reader, harness and wire unchanged |
+| trajectories in the store | `datasets/lmev2.rs::turns_for` writes a goal turn (`{id}:goal`), step turns (`{id}:{state}`) and page chunks (`{id}:{state}:{chunk}`, 1,800 chars) per trajectory; the trajectory id lives only in `provenance.source.doc` | the index (goal, start URL, actions, outcome) is derived from these records, with no new store |
+| fetching one trajectory | `Ledger::ids_from_source_docs(scope, "{traj}:")` returns ids by UUID order, then one `get` per id | `records_by_source_prefix`, returning rows in state order in one query |
+| LLM tool calls | `ToolSpec` / `ToolCall` / `CompletionRequest.tools` exist and `openai.rs` sends and parses them, but nothing has ever called them, and `Message` is only `{role, content}` (no `tool_call_id`, no assistant `tool_calls`) | depends on the controller choice below |
+| span format | the authors' `format_span_header` / `format_state_text`, at most 20 states (`vendor/longmemeval-v2/memory_modules/codex.py`) | the same rendering, ported, with the source cited |
+| adapter | `MyelinMemory.query` returns `result["items"]` verbatim; `mode` is checked against an allowed set in `adapters/myelin.py` | a new `investigate` switch, not a new mode, so the adapter is untouched |
+
+**Two things the map changed.**
+- One steps record can cover several states, because step turns merge
+  into episodes of up to ~512 tokens. So `state(traj, i)` reads the
+  page-chunk records, not the steps record.
+- Native tool calls are unexercised plumbing in myelin. Two ways to drive
+  the controller:
+  - **Native tool calls**, as the design says. This needs `tool_call_id`
+    and assistant `tool_calls` on `Message`, plus the 5-question
+    parse-failure smoke test.
+  - **One schema-constrained action per step**, e.g. `{"tool": "span",
+    "traj": …, "a": 3, "b": 7}`, the path `reflect()` already uses on
+    every `investigate` call.
+
+  This is the user's call, to be asked before the build starts.
