@@ -1455,8 +1455,25 @@ fn fingerprint(dir: &Path) -> Result<String> {
         let v = params.get(key).and_then(Value::as_bool).unwrap_or(false);
         parts.push(format!("{key}={v}"));
     }
+    // M55: which models built and read the memory, normalised the same way
+    // (absent = the model every pre-field run was served), so a domain whose
+    // memory Bonsai built never pairs with one the 9B built.
+    for key in HARNESS_MODEL_KEYS {
+        let v = params.get(key).and_then(Value::as_str).unwrap_or(PRE_FIELD_SERVED_MODEL);
+        parts.push(format!("{key}={v}"));
+    }
     Ok(parts.join(" "))
 }
+
+/// The two models an LME-V2 harness artifact records (M55, `run_myelin.py`):
+/// the one the myelin MCP server's own calls went to, and the harness reader.
+const HARNESS_MODEL_KEYS: [&str; 2] = ["memory_llm_served_model", "reader_served_model"];
+
+/// The reader the LME-V2 protocol fixes for every system it compares:
+/// Qwen3.5-9B (`10.48550/arXiv.2605.12493`), served here as this GGUF. It does
+/// not move with the shipped model — a stronger reader would compare our
+/// memory against published rows read by a weaker one.
+const LME_V2_READER_MODEL: &str = "Qwen3.5-9B-UD-Q4_K_XL.gguf";
 
 /// Which [`PAIR_KEYS`] this harness artifact does not record at all.
 ///
@@ -1593,7 +1610,12 @@ fn harness_arm(dir: &Path) -> Result<bool> {
     let widened = ["prefetch_limit", "rerank_depth"]
         .iter()
         .any(|key| params.get(key).is_some_and(|v| !v.is_null()));
-    Ok(switched || select_switched || digest_switched || widened)
+    // M55: memory built by a model other than the shipped one, or read by
+    // anything but the protocol's reader, measures that model.
+    let model = |key: &str| params.get(key).and_then(Value::as_str);
+    let model_switched = served_another_model(model("memory_llm_served_model"), SHIPPED_LLM_MODEL)
+        || served_another_model(model("reader_served_model"), LME_V2_READER_MODEL);
+    Ok(switched || select_switched || digest_switched || widened || model_switched)
 }
 
 fn read_json(path: &Path) -> Result<Value> {
@@ -3364,6 +3386,51 @@ mod tests {
                 "{mode} + item_digest={digest:?} is {why}"
             );
         }
+    }
+
+    /// M55: an LME-V2 run records which model built its memory and which
+    /// read it. Memory built by anything but the shipped model is an arm,
+    /// and so is any reader but the protocol's 9B; absence is a pre-field
+    /// run, served the 9B on both sides. A domain whose memory Bonsai built
+    /// must not pair with one the 9B built.
+    #[test]
+    fn harness_models_are_arms_and_split_pairs() {
+        let bonsai = "Ternary-Bonsai-2-27B-PTQ1_0.gguf";
+        for (memory, reader, expect_arm, why) in [
+            (None, None, false, "a pre-field run: the 9B on both sides"),
+            (Some(PRE_FIELD_SERVED_MODEL), Some(LME_V2_READER_MODEL), false, "the shipped memory model, the protocol reader"),
+            (Some(bonsai), Some(LME_V2_READER_MODEL), true, "memory built by a model that does not ship"),
+            (Some(PRE_FIELD_SERVED_MODEL), Some(bonsai), true, "a reader the protocol does not use"),
+        ] {
+            let tmp = tempfile::tempdir().unwrap();
+            let runs = tmp.path().join("runs");
+            let mut params = full_params();
+            if let Some(m) = memory {
+                params["memory_llm_served_model"] = serde_json::json!(m);
+            }
+            if let Some(r) = reader {
+                params["reader_served_model"] = serde_json::json!(r);
+            }
+            harness_run(&runs, "web", "web", 240, 0.40, params.clone());
+            harness_run(&runs, "ent", "enterprise", 211, 0.40, params);
+            let ours = collect(&runs, "/nonexistent/python").unwrap();
+            let combined = &ours["lme_v2_small.overall_full_set.combined"];
+            assert_eq!(combined.arm, expect_arm, "memory={memory:?} reader={reader:?} is {why}");
+        }
+
+        // Pairing: web built by Bonsai, enterprise by the 9B, is no pair.
+        let tmp = tempfile::tempdir().unwrap();
+        let runs = tmp.path().join("runs");
+        let mut web = full_params();
+        web["memory_llm_served_model"] = serde_json::json!(bonsai);
+        harness_run(&runs, "web", "web", 240, 0.40, web);
+        harness_run(&runs, "ent", "enterprise", 211, 0.40, full_params());
+        let ours = collect(&runs, "/nonexistent/python").unwrap();
+        assert!(
+            !ours.contains_key("lme_v2_small.overall_full_set.combined"),
+            "a Bonsai-built web half paired with a 9B-built enterprise half: {:?}",
+            ours.get("lme_v2_small.overall_full_set.combined")
+        );
     }
 
     /// **A pair must read the same store, not merely the same switches.**
