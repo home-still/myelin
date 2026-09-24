@@ -17,14 +17,15 @@ and every number that uses one says so. Plan approved by the user
 - [x] `READER_BEST_GUESS_CLAUSE` + `--reader-best-guess` switch, tests
 - [x] M59 pre-registered (`m59-locomo-best-guess.md`)
 - [ ] M59 run (full 1,986), judged, written up
-- [ ] M60 pre-registered (M59 + thinking), run, judged, written up
+- [x] M60 pre-registered (`m60-locomo-best-guess-thinking.md`)
+- [ ] M60 run, judged, written up
 - [ ] B3 (Jev gating of overrides) / B4 (wider k): decided from M59 and M60,
       and recorded either way
 
 ## C — LME-V2 (target 74.90)
 - [x] M54 pre-registration amended (second controller, provenance)
-- [ ] Claim-based chunk worker; bmb Codex home and shim; bmb smoke question passes
-- [ ] bmb worker running; big worker relaunched after the quick fixes
+- [x] Claim-based chunk worker; bmb Codex home and shim; bmb smoke question passes (717 s, 5 items)
+- [ ] bmb worker running (started 11:32, chunk web_c08); big worker relaunched after the quick fixes
 - [ ] `run_agentrunbook_c.py` records controller and reader served models
 - [ ] `standing.rs` reads `memory_type` and has an `agentrunbook_c` mode,
       its pairing keys and a label; tests

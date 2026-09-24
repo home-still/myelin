@@ -191,8 +191,11 @@ At about 4–7 minutes per question, the full pair is ~36 GPU-hours on big
 alone. The user approved bmb (M4 Pro) as a second controller:
 - **Model:** `bonsai-2-27b`, the same Ternary Bonsai 2 27B in its PQ2_0 pack
   (2.13 bpw; big serves PTQ1_0 at 1.75 bpw), through bmb's llama-swap.
-- **Context:** 64K (big's: 96K). Codex is told so
-  (`model_context_window = 64000`).
+- **Context:** Codex is given the same budget as on big
+  (`model_context_window = 96000`). bmb's llama-swap turned out to serve
+  196,608 tokens, not the 64K its docs listed (read from its `/running`
+  at the first chunk), so the budget is Codex's and identical on both hosts.
+  The one difference between the controllers is the pack.
 - **Path:** a second Responses shim on :5822.
 
 **Rules, fixed now:**
@@ -213,5 +216,8 @@ alone. The user approved bmb (M4 Pro) as a second controller:
 
 **Smoke test** before bmb's first chunk: one question, run end to end
 through bmb, must produce a non-empty memory context with no refused
-requests.
+requests. **Passed 2026-09-24 11:30:** `edea0219` took 717 s and returned
+5 memory items, with 0 failures and 0 refused requests. That is about 2.7×
+slower than big (median ~265 s). Each chunk also records the host's serving
+command (`controller_running.json`).
 
