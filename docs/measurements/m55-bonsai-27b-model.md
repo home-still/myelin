@@ -1,4 +1,4 @@
-# M55 — a stronger local model: Ternary Bonsai 2 27B as myelin's model *(pilot measured 2026-09-23: +10.0, gate passed)*
+# M55 — a stronger local model: Ternary Bonsai 2 27B as myelin's model *(full run measured 2026-09-23: +3.8, abstention veto fired)*
 
 ## Why the model, and why now
 
@@ -183,4 +183,66 @@ Every LME-V2 artifact now records `memory_llm_served_model` and
 model that built the memory. `standing` treats memory built by a
 non-shipped model, or any reader but the protocol's 9B, as an arm. A
 domain whose memory Bonsai built never pairs with one the 9B built.
+
+## Results — full LongMemEval_S, measured 2026-09-23
+
+**78.40 → 82.20, +3.8 [+1.2, +6.6], p = 0.005.** The bar is +3.0 with the
+CI excluding zero, and this clears it. **But abstention fell from 28/30 to
+25/30, and the pre-registered veto fires:** "any drop on the 30 abstention
+rows vetoes" (`docs/EVALUATION.md`). Bonsai does not ship on this run, and
+the LongMemEval_S standing row stays at the 9B's 78.40. The 82.20 is an
+arm. It would sit +1.4 above MemPro-15's 80.80, and it is not quotable as
+where we stand.
+
+| stratum | n | 9B | Bonsai | Δ | 95% CI |
+|---|---|---|---|---|---|
+| overall | 500 | 78.4 | 82.2 | +3.8 | [+1.2, +6.6] |
+| answerable | 470 | 77.4 | 82.1 | +4.7 | [+1.9, +7.4] |
+| abstention (veto) | 30 | 93.3 | 83.3 | −10.0 | [−23.3, +0.0] |
+| two gold sessions | 229 | 80.3 | 88.2 | +7.9 | [+3.9, +12.2] |
+| three or more gold sessions | 71 | 53.5 | 59.2 | +5.6 | [−2.8, +14.1] |
+| multi-session | 133 | 69.2 | 76.7 | +7.5 | [+1.5, +14.3] |
+| temporal-reasoning | 133 | 78.2 | 84.2 | +6.0 | [+2.3, +10.5] |
+| knowledge-update | 78 | 84.6 | 87.2 | +2.6 | [−6.4, +11.5] |
+| single-session-preference | 30 | 26.7 | 23.3 | −3.3 | [−16.7, +10.0] |
+
+33 rows were gained and 14 lost. Declines fell from 82 to 64. The judge
+graded 231 rows and took 200 verdicts from the base's cache for identical
+answers. Seconds per row went from 11.2 to 35.3, a 3.2× cost against a
+base that ran alone. The pilot shrank from +10.0 to +3.8 at n = 500, as
+predicted, but past the low end of the +6 to +10 prediction.
+
+### Why abstention fell
+
+Abstention rows are not judged by the LLM. `bench` scores them with a string
+rule (`is_abstention`): an answer counts as a correct abstention only when it
+reads like "I don't know". Bonsai lost three rows the 9B held:
+
+| question | 9B | Bonsai |
+|---|---|---|
+| How often do I see Dr. Johnson? | I don't know. | You see Dr. Smith, not Dr. Johnson. |
+| How long have I been living in my current apartment in Shinjuku? | I don't know. | You live in Harajuku, not Shinjuku. |
+| How many engineers do I lead … as Software Engineer Manager? | I don't know. | 4 |
+
+The first two are premise corrections. Their gold explanations say the same
+thing ("You mentioned seeing Dr. Smith but not Dr. Johnson"), and the string
+rule cannot see that. The third is a real error: Bonsai accepted a false
+premise. Both models also fail the same two other rows (a price range and
+"Harvard University").
+
+**The veto fires under either reading.** Counting both premise corrections
+as correct gives Bonsai 27/30 against the 9B's 28/30, still a drop.
+Recorded as measured: the model is the largest lever measured on answerable
+questions (+4.7), and it gives back one genuine false-premise answer.
+
+Artifacts: `runs/m55_bonsai_s1` and `runs/m55_bonsai_s1_judged`
+(`aggregated_metrics.json`, `judge_verdicts.json`). The artifact records
+`llm_served_model = Ternary-Bonsai-2-27B-PTQ1_0.gguf`, and `standing` lists
+it as an arm.
+
+**Run note.** The full run and the LoCoMo arm were meant to share one
+Bonsai server. Co-running starved LongMemEval_S (9 rows in 21 minutes
+against ~2 per minute alone), so LoCoMo was paused at 380 of its 1,986
+rows (kept, resumed after) and LongMemEval_S ran alone. That changed the
+order, not the measurement.
 
