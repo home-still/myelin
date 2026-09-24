@@ -395,8 +395,8 @@ class MyelinMemory(Memory):
         self._trace_local = threading.local()
         self.mode = str(params.get("mode", "recall"))
         require(
-            self.mode in {"recall", "investigate"},
-            f"mode must be 'recall' or 'investigate', got {self.mode!r}",
+            self.mode in {"recall", "investigate", "trajectories"},
+            f"mode must be 'recall', 'investigate' or 'trajectories', got {self.mode!r}",
         )
         # 2 is the measured peak; see docs/measurements/m7-step-value-curve.md.
         self.max_steps = int(params.get("max_steps", 2))
@@ -453,6 +453,23 @@ class MyelinMemory(Memory):
         query: str,
         query_image: str | None = None,
     ) -> list[MemoryContextItem]:
+        # M62: the trajectory controller takes the question and its own step
+        # budget, and nothing the search modes take -- forwarding `k` or
+        # `select` to a schema that does not declare them is an
+        # invalid-params error, not a silent no-op.
+        if self.mode == "trajectories":
+            arguments_t: dict[str, Any] = {
+                "tenant": self.tenant,
+                "question": query,
+                "max_steps": self.max_steps,
+            }
+            if self.namespace:
+                arguments_t["namespace"] = self.namespace
+            result = self._session.call_tool(self.mode, arguments_t)
+            self._trace_local.trace = result.get("trace") or {}
+            items = result.get("items", [])
+            require(isinstance(items, list), f"trajectories returned non-list items: {items!r}")
+            return items
         # `investigate` names its question field differently: the tool takes
         # a question to reason about, not a search string to match.
         arguments: dict[str, Any] = {
