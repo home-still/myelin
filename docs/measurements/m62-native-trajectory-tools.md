@@ -322,3 +322,47 @@ The instrumentation that lands with it changes nothing the model sees:
 
 **Falsifier.** Empty answers stay at 10 or more, which would mean the rule
 does not reach the forced step.
+
+## M62c — pre-registered *(2026-09-24 ~17:10, before any row)*
+
+**The finding that motivates it.** M62b's first half recorded its actions.
+The web half issued 268 `read` actions, and **267 came back "read needs a
+trajectory and a state"** (e.g. `read: e9db8fea state ? from 0`, 15 times
+in a row on one question). The flat action schema made every field
+optional and allowed extra keys. The grammar let the model write `read`
+without `state` (or under another name), and it kept doing so. So **M62's
+reads almost never worked**, which is the "tool errors" in its notes, and
+its 31.91 partly measured a schema defect, not the design.
+
+**The change (commit on `m62c-strict-schema`):**
+- **A strict object per tool** under `anyOf`, each with its own required
+  fields and `additionalProperties: false`. A `read` without a state
+  cannot be written.
+- **grep hits say where they are:** `t1 state 2 line 41: …`, and `action`
+  / `thought` / `url`, so `read` can open at the hit.
+- **`read` shows the recorded thought.** The bottleneck review found the
+  thoughts were never surfaced.
+- **Every observation ends with the steps left** before the answer is
+  forced (BATS, Liu et al. 2025, arXiv 2511.17006).
+
+These are bundled because each fixes a defect or adds information, not
+because they are separate mechanisms. The attribution is against M62b.
+
+**Run.** Identical to M62 and M62b otherwise: the same 47 questions,
+Bonsai controller at 2 × 65,536 with temperature 0 and thinking off, 16
+steps, the 9B reader at 1 × 204,800, the same judge.
+
+**Comparisons:**
+1. Replication against AgentRunbook-C (82.98): at least 77.98 and at least
+   74.90.
+2. Attribution against M62b.
+
+**Predictions.**
+- Tool errors fall from ~11 per question to under 1.
+- Forced answers fall below 50%.
+- Combined score **≥ 55**, above AgentRunbook-R's local 58.6 being the
+  stretch.
+- Replication (≥ 77.98) is possible but not expected.
+
+**Falsifier.** Tool errors stay above 3 per question, which would mean the
+server did not apply the `anyOf` schema.

@@ -115,39 +115,102 @@ span; at most 20 states across all spans. One span proves one point; avoid redun
 read a whole page before naming it: read only to choose between candidate states. A state you \
 identified but did not finish reading still belongs in your spans.";
 
-/// The action form every reply is constrained to. `tools` names the tools
-/// allowed at this step: all of them while exploring, only `answer` once the
-/// budget is spent.
-pub fn action_schema(tools: &[&str]) -> serde_json::Value {
-    serde_json::json!({
-        "type": "object",
-        "properties": {
-            "thought": {"type": "string", "maxLength": THOUGHT_MAX_CHARS},
-            "tool": {"type": "string", "enum": tools},
-            "trajectory": {"type": "string"},
-            "state": {"type": "integer", "minimum": 0},
-            "from_line": {"type": "integer", "minimum": 0},
-            "pattern": {"type": "string"},
-            "memory_markdown": {"type": "string"},
-            "spans": {
-                "type": "array",
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "trajectory": {"type": "string"},
-                        "first": {"type": "integer", "minimum": 0},
-                        "last": {"type": "integer", "minimum": 0}
-                    },
-                    "required": ["trajectory", "first", "last"]
-                }
-            }
-        },
-        "required": ["thought", "tool"]
-    })
+/// The tools a controller step may name.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ToolKind {
+    Summary,
+    Grep,
+    Read,
+    Answer,
 }
 
-const EXPLORE_TOOLS: [&str; 4] = ["summary", "grep", "read", "answer"];
-const ANSWER_ONLY: [&str; 1] = ["answer"];
+impl ToolKind {
+    pub fn name(self) -> &'static str {
+        match self {
+            ToolKind::Summary => "summary",
+            ToolKind::Grep => "grep",
+            ToolKind::Read => "read",
+            ToolKind::Answer => "answer",
+        }
+    }
+
+    /// This tool's action: its own required fields and nothing else.
+    ///
+    /// M62 and M62b used one flat object with every field optional and extra
+    /// keys allowed. M62b's web half then issued 268 `read` actions, and 267
+    /// came back "read needs a trajectory and a state": the grammar let the
+    /// model omit `state` (or name it something else), and it did so again
+    /// and again. One strict object per tool makes a `read` without a state
+    /// unwritable (grammar-constrained decoding, Geng et al. 2023,
+    /// `10.18653/v1/2023.emnlp-main.674`).
+    fn schema(self) -> serde_json::Value {
+        let thought = serde_json::json!({"type": "string", "maxLength": THOUGHT_MAX_CHARS});
+        let (props, required): (serde_json::Value, Vec<&str>) = match self {
+            ToolKind::Summary => (
+                serde_json::json!({"trajectory": {"type": "string"}}),
+                vec!["trajectory"],
+            ),
+            ToolKind::Grep => (
+                serde_json::json!({"pattern": {"type": "string"}, "trajectory": {"type": "string"}}),
+                vec!["pattern"],
+            ),
+            ToolKind::Read => (
+                serde_json::json!({
+                    "trajectory": {"type": "string"},
+                    "state": {"type": "integer", "minimum": 0},
+                    "from_line": {"type": "integer", "minimum": 0}
+                }),
+                vec!["trajectory", "state"],
+            ),
+            ToolKind::Answer => (
+                serde_json::json!({
+                    "memory_markdown": {"type": "string"},
+                    "spans": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "trajectory": {"type": "string"},
+                                "first": {"type": "integer", "minimum": 0},
+                                "last": {"type": "integer", "minimum": 0}
+                            },
+                            "required": ["trajectory", "first", "last"],
+                            "additionalProperties": false
+                        }
+                    }
+                }),
+                vec!["memory_markdown", "spans"],
+            ),
+        };
+        let mut properties = serde_json::Map::new();
+        properties.insert("thought".into(), thought);
+        properties.insert("tool".into(), serde_json::json!({"const": self.name()}));
+        if let serde_json::Value::Object(extra) = props {
+            properties.extend(extra);
+        }
+        let mut req = vec!["thought", "tool"];
+        req.extend(required);
+        serde_json::json!({
+            "type": "object",
+            "properties": properties,
+            "required": req,
+            "additionalProperties": false
+        })
+    }
+}
+
+/// The action form every reply is constrained to: exactly one of `tools`'
+/// strict objects. All of them while exploring, only `answer` once the
+/// budget is spent.
+pub fn action_schema(tools: &[ToolKind]) -> serde_json::Value {
+    match tools {
+        [only] => only.schema(),
+        _ => serde_json::json!({"anyOf": tools.iter().map(|t| t.schema()).collect::<Vec<_>>()}),
+    }
+}
+
+const EXPLORE_TOOLS: [ToolKind; 4] = [ToolKind::Summary, ToolKind::Grep, ToolKind::Read, ToolKind::Answer];
+const ANSWER_ONLY: [ToolKind; 1] = [ToolKind::Answer];
 
 #[derive(Debug, Clone, Deserialize)]
 struct Action {
@@ -225,7 +288,11 @@ impl<'a> TrajectoryAgent<'a> {
                     tool_errors += usize::from(is_error(&text));
                     trace.push(trace_step(step, &action, hits));
                     messages.push(Message::assistant(raw));
-                    messages.push(Message::user(text));
+                    // BATS (Liu et al. 2025, `10.48550/arXiv.2511.17006`):
+                    // agents lack budget awareness, so each observation says
+                    // how many steps remain before the answer is forced.
+                    let left = self.config.max_steps - step - 1;
+                    messages.push(Message::user(format!("{text}\n(steps left before you must answer: {left})")));
                 }
             }
         }
@@ -257,16 +324,17 @@ impl<'a> TrajectoryAgent<'a> {
         )))
     }
 
-    async fn next_action(&self, messages: &[Message], tools: &[&str]) -> Result<(Action, String)> {
+    async fn next_action(&self, messages: &[Message], tools: &[ToolKind]) -> Result<(Action, String)> {
         let request = CompletionRequest::new(messages.to_vec())
             .with_schema(action_schema(tools))
             .with_max_tokens(self.config.max_tokens_per_step)
             .with_thinking(self.config.thinking);
         let action: Action = complete_json(self.llm, &request).await?;
-        if !tools.contains(&action.tool.as_str()) {
+        if !tools.iter().any(|t| t.name() == action.tool) {
             return Err(MyelinError::Store(format!(
-                "trajectory controller chose {:?}, outside the allowed {tools:?}: the server did not apply the schema",
-                action.tool
+                "trajectory controller chose {:?}, outside the allowed {:?}: the server did not apply the schema",
+                action.tool,
+                tools.iter().map(|t| t.name()).collect::<Vec<_>>()
             )));
         }
         // The transcript keeps the action as the model's own turn, re-serialised

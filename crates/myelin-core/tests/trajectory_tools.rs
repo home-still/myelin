@@ -50,8 +50,8 @@ async fn grep_finds_lines_case_insensitively_across_or_within_trajectories() {
     let tools = TrajectoryTools::new(&ledger, filter());
 
     let everywhere = tools.grep("BIOGRAPHY", None).await.unwrap();
-    assert!(everywhere.contains("t1 state 2: [116] textbox 'Biography'"), "{everywhere}");
-    assert!(everywhere.contains("t2 state 1: fill('5', 'biography')"), "{everywhere}");
+    assert!(everywhere.contains("t1 state 2 line 1: [116] textbox 'Biography'"), "{everywhere}");
+    assert!(everywhere.contains("t2 state 1 action: fill('5', 'biography')"), "{everywhere}");
 
     let within = tools.grep("biography", Some("t2")).await.unwrap();
     assert!(!within.contains("t1 state"), "{within}");
@@ -83,7 +83,7 @@ async fn grep_is_bounded_and_says_when_it_was_cut() {
 
     let tools = TrajectoryTools::new(&ledger, filter());
     let out = tools.grep("save draft", Some("long")).await.unwrap();
-    let hits = out.lines().filter(|l| l.starts_with("long state 0:")).count();
+    let hits = out.lines().filter(|l| l.starts_with("long state 0 ")).count();
     assert_eq!(hits, GREP_MAX_LINES);
     assert!(out.ends_with("(more matches not shown; narrow the search or name a trajectory)\n"));
 }
@@ -95,6 +95,7 @@ async fn read_returns_a_numbered_window_and_refuses_past_the_end() {
     let out = tools.read("t1", 2, 0).await.unwrap();
     assert!(out.starts_with("Trajectory t1 state 2 (step 2)\nURL: http://localhost:9080/page2\n"), "{out}");
     assert!(out.contains("Action: fill('116', 'I am a robot')"), "{out}");
+    assert!(out.contains("Thought: I will fill('116', 'I am a robot')"), "the recorded thought is shown: {out}");
     assert!(out.contains("Page lines 0-1 of 2:"), "{out}");
     assert!(out.contains("    1 [116] textbox 'Biography'"), "{out}");
     const { assert!(READ_WINDOW_LINES > 2) };
