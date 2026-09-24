@@ -1408,12 +1408,14 @@ pub const BONSAI_27B_GGUF: &str = "Ternary-Bonsai-2-27B-PTQ1_0.gguf";
 
 /// The model the shipped system is served, per corpus (M55).
 ///
-/// **Bonsai 27B for LongMemEval_S since M55**: the full 500-question run
-/// cleared its pre-registered bar against the 9B's 78.40
-/// (`docs/measurements/m55-bonsai-27b-model.md`). The model ships where it
-/// was measured, like [`shipped_reader_thinking`]: LoCoMo and LME-V2 keep the
-/// 9B until their own Bonsai runs clear. Read by `standing`, so a 9B
-/// LongMemEval_S run is an arm of today's configuration.
+/// **Bonsai 27B for LongMemEval_S since M57**, together with
+/// [`shipped_reader_premise_clause`]. M55 alone scored 82.20 but lost three
+/// abstention rows (28 → 25/30), and the veto held it back. M57 added the
+/// clause: 83.40 against the 9B's 78.40, +5.0 [+2.2, +7.8], abstention 29/30
+/// (`docs/measurements/m57-decline-first.md`). The model ships where it was
+/// measured, like [`shipped_reader_thinking`]: LoCoMo (M55b: −3.18) and
+/// LME-V2 keep the 9B until their own Bonsai runs clear. Read by `standing`,
+/// so a 9B LongMemEval_S run is an arm of today's configuration.
 pub fn shipped_llm_model(corpus: &str) -> &'static str {
     match corpus {
         "longmemeval_s" => BONSAI_27B_GGUF,

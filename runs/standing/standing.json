@@ -1,6 +1,6 @@
 {
-  "commit": "7f17f9004664d7ca56266e367697f7f9a7830574-dirty",
-  "generated_at": "2026-09-24T16:35:32.746941Z",
+  "commit": "97e807d8aab3e984ef1f7abfe08df17300549266-dirty",
+  "generated_at": "2026-09-24T18:52:37.638337Z",
   "rows": [
     {
       "registry_id": "locomo.judge.mempro15.gpt4omini",
@@ -173,9 +173,9 @@
       "metric": "longmemeval_s.judge_score.n500",
       "system": "MemPro-15",
       "theirs": 79.0,
-      "ours": 78.4,
+      "ours": 83.39999999999999,
       "ours_n": 500,
-      "gap": -0.5999999999999943,
+      "gap": 4.3999999999999915,
       "verdict": {
         "verdict": "caveat_judge",
         "ours": "open_weights_local",
@@ -184,22 +184,14 @@
       "claim_allowed": false,
       "gate": false,
       "arm": false,
-      "run": "runs/m44_r2_s1",
+      "run": "runs/m57_bonsai_premise_s1",
       "source_doi": "10.48550/arXiv.2606.00619",
       "caveat": "The LongMemEval Avg. is a micro-average over the six official question types: (77.44*133 + 73.68*133 + 83.33*78 + 98.57*70 + 60.71*56 + 86.67*30)/500 = 79.00 exactly, so n = 500 and the 30 `_abs` abstention items are inside those type counts rather than excluded. Judge prompt follows GAM (L122).",
-      "detail": "judge qwen3.5-9b : 392 of 500 correct (20 declines scored 0)",
+      "detail": "judge qwen3.5-9b : 417 of 500 correct (11 declines scored 0)",
       "candidates": [
         {
-          "run": "runs/m44_r2_s1",
-          "value": 78.4
-        },
-        {
-          "run": "runs/m44_r2_s2",
-          "value": 78.4
-        },
-        {
-          "run": "runs/m50_pilot_base_s1",
-          "value": 69.0
+          "run": "runs/m57_bonsai_premise_s1",
+          "value": 83.39999999999999
         },
         {
           "run": "runs/m55_bonsai_s1",
@@ -212,6 +204,14 @@
         {
           "run": "runs/m44_r2b_s2",
           "value": 79.80000000000001
+        },
+        {
+          "run": "runs/m44_r2_s1",
+          "value": 78.4
+        },
+        {
+          "run": "runs/m44_r2_s2",
+          "value": 78.4
         },
         {
           "run": "runs/m43_dated",
@@ -340,6 +340,10 @@
         {
           "run": "runs/m50_pilot_s1",
           "value": 73.0
+        },
+        {
+          "run": "runs/m50_pilot_base_s1",
+          "value": 69.0
         },
         {
           "run": "runs/m20_pref_armAB",
@@ -368,9 +372,9 @@
       "metric": "longmemeval_s.judge_score.n500",
       "system": "MemPro-15 (Qwen3-30B)",
       "theirs": 80.8,
-      "ours": 78.4,
+      "ours": 83.39999999999999,
       "ours_n": 500,
-      "gap": -2.3999999999999915,
+      "gap": 2.5999999999999943,
       "verdict": {
         "verdict": "caveat_judge",
         "ours": "open_weights_local",
@@ -379,22 +383,14 @@
       "claim_allowed": false,
       "gate": true,
       "arm": false,
-      "run": "runs/m44_r2_s1",
+      "run": "runs/m57_bonsai_premise_s1",
       "source_doi": "10.48550/arXiv.2606.00619",
       "caveat": "G2's LongMemEval_S bar (PLAN.md 11.5). Micro-average check: (71.43*133 + 75.94*133 + 82.05*78 + 92.86*70 + 98.21*56 + 80.00*30)/500 = 80.80. Note the open-weights backbone scores HIGHER here than gpt-4o-mini's 79.00 and lower on LoCoMo - cross-model comparison on these two benchmarks is not monotonic.",
-      "detail": "judge qwen3.5-9b : 392 of 500 correct (20 declines scored 0)",
+      "detail": "judge qwen3.5-9b : 417 of 500 correct (11 declines scored 0)",
       "candidates": [
         {
-          "run": "runs/m44_r2_s1",
-          "value": 78.4
-        },
-        {
-          "run": "runs/m44_r2_s2",
-          "value": 78.4
-        },
-        {
-          "run": "runs/m50_pilot_base_s1",
-          "value": 69.0
+          "run": "runs/m57_bonsai_premise_s1",
+          "value": 83.39999999999999
         },
         {
           "run": "runs/m55_bonsai_s1",
@@ -407,6 +403,14 @@
         {
           "run": "runs/m44_r2b_s2",
           "value": 79.80000000000001
+        },
+        {
+          "run": "runs/m44_r2_s1",
+          "value": 78.4
+        },
+        {
+          "run": "runs/m44_r2_s2",
+          "value": 78.4
         },
         {
           "run": "runs/m43_dated",
@@ -535,6 +539,10 @@
         {
           "run": "runs/m50_pilot_s1",
           "value": 73.0
+        },
+        {
+          "run": "runs/m50_pilot_base_s1",
+          "value": 69.0
         },
         {
           "run": "runs/m20_pref_armAB",
@@ -646,9 +654,9 @@
       "metric": "longmemeval_s.judge_score.n500",
       "system": "EverMemOS",
       "theirs": 83.0,
-      "ours": 78.4,
+      "ours": 83.39999999999999,
       "ours_n": 500,
-      "gap": -4.599999999999994,
+      "gap": 0.3999999999999915,
       "verdict": {
         "verdict": "caveat_judge",
         "ours": "open_weights_local",
@@ -657,22 +665,14 @@
       "claim_allowed": false,
       "gate": false,
       "arm": false,
-      "run": "runs/m44_r2_s1",
+      "run": "runs/m57_bonsai_premise_s1",
       "source_doi": "10.48550/arXiv.2601.02163",
       "caveat": "Supersedes MemPro's 79.00 as the best frontier-backbone LongMemEval_S number, and was not in PLAN.md 11.5's table. Population stated: \"LongMemEval (S-setting, ~115k tokens per conversation) evaluates 500 questions\" (L110), #Questions 500 (L613). Table 2's baselines are re-reported from the MemOS leaderboard rather than run by the authors (L586).",
-      "detail": "judge qwen3.5-9b : 392 of 500 correct (20 declines scored 0)",
+      "detail": "judge qwen3.5-9b : 417 of 500 correct (11 declines scored 0)",
       "candidates": [
         {
-          "run": "runs/m44_r2_s1",
-          "value": 78.4
-        },
-        {
-          "run": "runs/m44_r2_s2",
-          "value": 78.4
-        },
-        {
-          "run": "runs/m50_pilot_base_s1",
-          "value": 69.0
+          "run": "runs/m57_bonsai_premise_s1",
+          "value": 83.39999999999999
         },
         {
           "run": "runs/m55_bonsai_s1",
@@ -685,6 +685,14 @@
         {
           "run": "runs/m44_r2b_s2",
           "value": 79.80000000000001
+        },
+        {
+          "run": "runs/m44_r2_s1",
+          "value": 78.4
+        },
+        {
+          "run": "runs/m44_r2_s2",
+          "value": 78.4
         },
         {
           "run": "runs/m43_dated",
@@ -813,6 +821,10 @@
         {
           "run": "runs/m50_pilot_s1",
           "value": 73.0
+        },
+        {
+          "run": "runs/m50_pilot_base_s1",
+          "value": 69.0
         },
         {
           "run": "runs/m20_pref_armAB",
@@ -1006,7 +1018,7 @@
       "metric": "longmemeval_s.judge_score.n500",
       "system": "Mem0 (vendor)",
       "theirs": 94.4,
-      "ours": 78.4,
+      "ours": 83.39999999999999,
       "ours_n": 500,
       "gap": null,
       "verdict": {
@@ -1016,22 +1028,14 @@
       "claim_allowed": false,
       "gate": false,
       "arm": false,
-      "run": "runs/m44_r2_s1",
+      "run": "runs/m57_bonsai_premise_s1",
       "source_doi": "",
       "caveat": "mem0.ai blog, 2026. Same objection as the LoCoMo vendor row; note it exceeds every peer-reviewed LongMemEval_S number in this registry by more than 11 points.",
-      "detail": "judge qwen3.5-9b : 392 of 500 correct (20 declines scored 0)",
+      "detail": "judge qwen3.5-9b : 417 of 500 correct (11 declines scored 0)",
       "candidates": [
         {
-          "run": "runs/m44_r2_s1",
-          "value": 78.4
-        },
-        {
-          "run": "runs/m44_r2_s2",
-          "value": 78.4
-        },
-        {
-          "run": "runs/m50_pilot_base_s1",
-          "value": 69.0
+          "run": "runs/m57_bonsai_premise_s1",
+          "value": 83.39999999999999
         },
         {
           "run": "runs/m55_bonsai_s1",
@@ -1044,6 +1048,14 @@
         {
           "run": "runs/m44_r2b_s2",
           "value": 79.80000000000001
+        },
+        {
+          "run": "runs/m44_r2_s1",
+          "value": 78.4
+        },
+        {
+          "run": "runs/m44_r2_s2",
+          "value": 78.4
         },
         {
           "run": "runs/m43_dated",
@@ -1172,6 +1184,10 @@
         {
           "run": "runs/m50_pilot_s1",
           "value": 73.0
+        },
+        {
+          "run": "runs/m50_pilot_base_s1",
+          "value": 69.0
         },
         {
           "run": "runs/m20_pref_armAB",
@@ -1393,9 +1409,9 @@
       "metric": "longmemeval_s.judge_score.n500",
       "system": "Zep",
       "theirs": 71.2,
-      "ours": 78.4,
+      "ours": 83.39999999999999,
       "ours_n": 500,
-      "gap": 7.200000000000003,
+      "gap": 12.199999999999989,
       "verdict": {
         "verdict": "caveat_judge",
         "ours": "open_weights_local",
@@ -1404,22 +1420,14 @@
       "claim_allowed": false,
       "gate": false,
       "arm": false,
-      "run": "runs/m44_r2_s1",
+      "run": "runs/m57_bonsai_premise_s1",
       "source_doi": "10.48550/arxiv.2501.13956",
       "caveat": "Judge is GPT-4o with LongMemEval's own question-specific prompts, which is the protocol our judge rubric was written against. The paper never states a question count; 500 is LongMemEval_S's released size (docs/EVALUATION.md 6.2, probed).",
-      "detail": "judge qwen3.5-9b : 392 of 500 correct (20 declines scored 0)",
+      "detail": "judge qwen3.5-9b : 417 of 500 correct (11 declines scored 0)",
       "candidates": [
         {
-          "run": "runs/m44_r2_s1",
-          "value": 78.4
-        },
-        {
-          "run": "runs/m44_r2_s2",
-          "value": 78.4
-        },
-        {
-          "run": "runs/m50_pilot_base_s1",
-          "value": 69.0
+          "run": "runs/m57_bonsai_premise_s1",
+          "value": 83.39999999999999
         },
         {
           "run": "runs/m55_bonsai_s1",
@@ -1432,6 +1440,14 @@
         {
           "run": "runs/m44_r2b_s2",
           "value": 79.80000000000001
+        },
+        {
+          "run": "runs/m44_r2_s1",
+          "value": 78.4
+        },
+        {
+          "run": "runs/m44_r2_s2",
+          "value": 78.4
         },
         {
           "run": "runs/m43_dated",
@@ -1560,6 +1576,10 @@
         {
           "run": "runs/m50_pilot_s1",
           "value": 73.0
+        },
+        {
+          "run": "runs/m50_pilot_base_s1",
+          "value": 69.0
         },
         {
           "run": "runs/m20_pref_armAB",
@@ -1876,9 +1896,9 @@
       "metric": "longmemeval_s.judge_score.n500",
       "system": "NEMORI",
       "theirs": 74.6,
-      "ours": 78.4,
+      "ours": 83.39999999999999,
       "ours_n": 500,
-      "gap": 3.8000000000000114,
+      "gap": 8.799999999999997,
       "verdict": {
         "verdict": "caveat_judge",
         "ours": "open_weights_local",
@@ -1887,22 +1907,14 @@
       "claim_allowed": false,
       "gate": false,
       "arm": false,
-      "run": "runs/m44_r2_s1",
+      "run": "runs/m57_bonsai_premise_s1",
       "source_doi": "10.48550/arxiv.2508.03341",
       "caveat": "PLAN.md 11.5 recorded this as \"NEMORI @ gpt-4o\"; Table 8's two blocks are gpt-4o-mini (Average 64.2) and gpt-4.1-mini (Average 74.6) per L923, so 74.6 is the gpt-4.1-mini row. The Average is a micro-average over the six official type counts - (86.7*30 + 92.9*56 + 72.2*133 + 55.6*133 + 79.5*78 + 90.0*70)/500 = 74.60 - which independently confirms n = 500. The LongMemEval judge MODEL is never named: L480 says only that the LLM-judge prompts are adapted from Zep's task-specific set, so frontier_api is inferred from the paper's LoCoMo judge (gpt-4o-mini).",
-      "detail": "judge qwen3.5-9b : 392 of 500 correct (20 declines scored 0)",
+      "detail": "judge qwen3.5-9b : 417 of 500 correct (11 declines scored 0)",
       "candidates": [
         {
-          "run": "runs/m44_r2_s1",
-          "value": 78.4
-        },
-        {
-          "run": "runs/m44_r2_s2",
-          "value": 78.4
-        },
-        {
-          "run": "runs/m50_pilot_base_s1",
-          "value": 69.0
+          "run": "runs/m57_bonsai_premise_s1",
+          "value": 83.39999999999999
         },
         {
           "run": "runs/m55_bonsai_s1",
@@ -1915,6 +1927,14 @@
         {
           "run": "runs/m44_r2b_s2",
           "value": 79.80000000000001
+        },
+        {
+          "run": "runs/m44_r2_s1",
+          "value": 78.4
+        },
+        {
+          "run": "runs/m44_r2_s2",
+          "value": 78.4
         },
         {
           "run": "runs/m43_dated",
@@ -2043,6 +2063,10 @@
         {
           "run": "runs/m50_pilot_s1",
           "value": 73.0
+        },
+        {
+          "run": "runs/m50_pilot_base_s1",
+          "value": 69.0
         },
         {
           "run": "runs/m20_pref_armAB",
@@ -2276,9 +2300,9 @@
       "metric": "longmemeval_s.judge_score.n500",
       "system": "Memanto",
       "theirs": 89.8,
-      "ours": 78.4,
+      "ours": 83.39999999999999,
       "ours_n": 500,
-      "gap": -11.399999999999991,
+      "gap": -6.400000000000006,
       "verdict": {
         "verdict": "caveat_judge",
         "ours": "open_weights_local",
@@ -2287,22 +2311,14 @@
       "claim_allowed": false,
       "gate": false,
       "arm": false,
-      "run": "runs/m44_r2_s1",
+      "run": "runs/m57_bonsai_premise_s1",
       "source_doi": "10.48550/arXiv.2604.22085",
       "caveat": "n = 500 is stated, not assumed: \"the full 500-question suite under the standard S setting\". The judge is stated too - Claude Sonnet 4 - so this row's judge_class is read off the paper rather than inferred. The answer model is never named; the paper lists \"inference model selection\" as one of five ablation stages without saying which model the headline used.",
-      "detail": "judge qwen3.5-9b : 392 of 500 correct (20 declines scored 0)",
+      "detail": "judge qwen3.5-9b : 417 of 500 correct (11 declines scored 0)",
       "candidates": [
         {
-          "run": "runs/m44_r2_s1",
-          "value": 78.4
-        },
-        {
-          "run": "runs/m44_r2_s2",
-          "value": 78.4
-        },
-        {
-          "run": "runs/m50_pilot_base_s1",
-          "value": 69.0
+          "run": "runs/m57_bonsai_premise_s1",
+          "value": 83.39999999999999
         },
         {
           "run": "runs/m55_bonsai_s1",
@@ -2315,6 +2331,14 @@
         {
           "run": "runs/m44_r2b_s2",
           "value": 79.80000000000001
+        },
+        {
+          "run": "runs/m44_r2_s1",
+          "value": 78.4
+        },
+        {
+          "run": "runs/m44_r2_s2",
+          "value": 78.4
         },
         {
           "run": "runs/m43_dated",
@@ -2443,6 +2467,10 @@
         {
           "run": "runs/m50_pilot_s1",
           "value": 73.0
+        },
+        {
+          "run": "runs/m50_pilot_base_s1",
+          "value": 69.0
         },
         {
           "run": "runs/m20_pref_armAB",
@@ -2637,9 +2665,9 @@
       "metric": "longmemeval_s.judge_score.n500",
       "system": "APEX-MEM",
       "theirs": 86.2,
-      "ours": 78.4,
+      "ours": 83.39999999999999,
       "ours_n": 500,
-      "gap": -7.799999999999997,
+      "gap": -2.8000000000000114,
       "verdict": {
         "verdict": "caveat_judge",
         "ours": "open_weights_local",
@@ -2648,22 +2676,14 @@
       "claim_allowed": false,
       "gate": false,
       "arm": false,
-      "run": "runs/m44_r2_s1",
+      "run": "runs/m57_bonsai_premise_s1",
       "source_doi": "10.48550/arXiv.2604.14362",
       "caveat": "Companion figure to locomo.judge.apex_mem, from the same sentence. The PDF is converted (20 pages) but the conversion's retrievable text covers the front matter only - abstract, introduction, related work and the architecture section - so the quote is the abstract's results sentence rather than a table row, and neither the per-category cells, the question counts, the answer model nor the judge could be read. n is this registry's assumption from the benchmarks' own populations. Re-read the results section before this row is used for anything but context.",
-      "detail": "judge qwen3.5-9b : 392 of 500 correct (20 declines scored 0)",
+      "detail": "judge qwen3.5-9b : 417 of 500 correct (11 declines scored 0)",
       "candidates": [
         {
-          "run": "runs/m44_r2_s1",
-          "value": 78.4
-        },
-        {
-          "run": "runs/m44_r2_s2",
-          "value": 78.4
-        },
-        {
-          "run": "runs/m50_pilot_base_s1",
-          "value": 69.0
+          "run": "runs/m57_bonsai_premise_s1",
+          "value": 83.39999999999999
         },
         {
           "run": "runs/m55_bonsai_s1",
@@ -2676,6 +2696,14 @@
         {
           "run": "runs/m44_r2b_s2",
           "value": 79.80000000000001
+        },
+        {
+          "run": "runs/m44_r2_s1",
+          "value": 78.4
+        },
+        {
+          "run": "runs/m44_r2_s2",
+          "value": 78.4
         },
         {
           "run": "runs/m43_dated",
@@ -2804,6 +2832,10 @@
         {
           "run": "runs/m50_pilot_s1",
           "value": 73.0
+        },
+        {
+          "run": "runs/m50_pilot_base_s1",
+          "value": 69.0
         },
         {
           "run": "runs/m20_pref_armAB",
@@ -2832,9 +2864,9 @@
       "metric": "longmemeval_s.judge_score.n500",
       "system": "Chronos High",
       "theirs": 95.6,
-      "ours": 78.4,
+      "ours": 83.39999999999999,
       "ours_n": 500,
-      "gap": -17.19999999999999,
+      "gap": -12.200000000000003,
       "verdict": {
         "verdict": "caveat_judge",
         "ours": "open_weights_local",
@@ -2843,22 +2875,14 @@
       "claim_allowed": false,
       "gate": false,
       "arm": false,
-      "run": "runs/m44_r2_s1",
+      "run": "runs/m57_bonsai_premise_s1",
       "source_doi": "10.48550/arXiv.2603.16862",
       "caveat": "The highest LongMemEval_S number known to this project, and the population is stated: \"the LongMemEvalS benchmark comprising 500 questions across six categories\". It also reproduces arithmetically - the per-category cells the paper reports for Chronos High (98.57 ss-user, 100 ss-assistant, 100 ss-preference, 88.72 multi-session, 95.50 temporal-reasoning, 100 knowledge-update) micro-average over the official counts 70/56/30/133/133/78 to exactly 95.60, which independently confirms n = 500. Backbone is the paper's own definition of \"High\": \"High configurations refer to evaluations with advanced frontier models, such as Opus 4.6 and Gemini 3 Pro\"; Chronos Low, on \"GPT-4o, or similar\", is 92.60 on the same set. The **judge is never named** - the converted text contains no occurrence of \"judge\" or \"grader\" - so judge_class is inferred from the backbone class and must be treated as unverified. Chronos is also the published form of M19's mechanism: it \"decomposes raw dialogue into subject-verb-object event tuples with resolved datetime ranges\" at write time, and reports the events calendar alone as a 58.9% gain over its baseline.",
-      "detail": "judge qwen3.5-9b : 392 of 500 correct (20 declines scored 0)",
+      "detail": "judge qwen3.5-9b : 417 of 500 correct (11 declines scored 0)",
       "candidates": [
         {
-          "run": "runs/m44_r2_s1",
-          "value": 78.4
-        },
-        {
-          "run": "runs/m44_r2_s2",
-          "value": 78.4
-        },
-        {
-          "run": "runs/m50_pilot_base_s1",
-          "value": 69.0
+          "run": "runs/m57_bonsai_premise_s1",
+          "value": 83.39999999999999
         },
         {
           "run": "runs/m55_bonsai_s1",
@@ -2871,6 +2895,14 @@
         {
           "run": "runs/m44_r2b_s2",
           "value": 79.80000000000001
+        },
+        {
+          "run": "runs/m44_r2_s1",
+          "value": 78.4
+        },
+        {
+          "run": "runs/m44_r2_s2",
+          "value": 78.4
         },
         {
           "run": "runs/m43_dated",
@@ -3001,6 +3033,10 @@
           "value": 73.0
         },
         {
+          "run": "runs/m50_pilot_base_s1",
+          "value": 69.0
+        },
+        {
           "run": "runs/m20_pref_armAB",
           "value": 36.666666666666664
         },
@@ -3025,7 +3061,7 @@
   ],
   "gated_failures": [
     "locomo.judge.mempro15.qwen3_30b [locomo.judge_score.n1540] behind by 7.98 (ours 69.87, gate needs >= 77.85)",
-    "longmemeval_s.judge.mempro15.qwen3_30b [longmemeval_s.judge_score.n500] behind by 2.40 (ours 78.40, gate needs >= 80.80)",
+    "longmemeval_s.judge.mempro15.qwen3_30b [longmemeval_s.judge_score.n500] ahead by 2.60 (ours 83.40, theirs 80.80), but caveat-judge(open_weights_local vs frontier_api); a gate closes only on a comparable row",
     "lme_v2_small.agentrunbook_c [lme_v2_small.overall_full_set.combined] behind by 36.10 (ours 38.80, gate needs >= 74.90)",
     "lme_v2_small.lafs_gain.frontier [lme_v2_small.lafs_gain.small] artifact predates today's operating point (artifact does not record mode, max_steps, prefetch_limit, rerank_depth, select, dated, pool_rerank, premise, typed_probes, decompose; re-measure on this code before quoting it)"
   ],
@@ -3756,28 +3792,20 @@
     },
     {
       "metric": "longmemeval_s.judge_score.n500",
-      "value": 78.4,
+      "value": 83.39999999999999,
       "unit": "pct_0_100",
       "n": 500,
       "judge_class": "open_weights_local",
       "backbone_class": "open_weights",
-      "run": "runs/m44_r2_s1",
-      "detail": "judge qwen3.5-9b : 392 of 500 correct (20 declines scored 0)",
+      "run": "runs/m57_bonsai_premise_s1",
+      "detail": "judge qwen3.5-9b : 417 of 500 correct (11 declines scored 0)",
       "incomplete": null,
       "arm": false,
       "unrecorded": [],
       "candidates": [
         {
-          "run": "runs/m44_r2_s1",
-          "value": 78.4
-        },
-        {
-          "run": "runs/m44_r2_s2",
-          "value": 78.4
-        },
-        {
-          "run": "runs/m50_pilot_base_s1",
-          "value": 69.0
+          "run": "runs/m57_bonsai_premise_s1",
+          "value": 83.39999999999999
         },
         {
           "run": "runs/m55_bonsai_s1",
@@ -3790,6 +3818,14 @@
         {
           "run": "runs/m44_r2b_s2",
           "value": 79.80000000000001
+        },
+        {
+          "run": "runs/m44_r2_s1",
+          "value": 78.4
+        },
+        {
+          "run": "runs/m44_r2_s2",
+          "value": 78.4
         },
         {
           "run": "runs/m43_dated",
@@ -3920,6 +3956,10 @@
           "value": 73.0
         },
         {
+          "run": "runs/m50_pilot_base_s1",
+          "value": 69.0
+        },
+        {
           "run": "runs/m20_pref_armAB",
           "value": 36.666666666666664
         },
@@ -3943,28 +3983,28 @@
     },
     {
       "metric": "longmemeval_s.token_f1.n500",
-      "value": 56.36786339128417,
+      "value": 60.81649848682908,
       "unit": "pct_0_100",
       "n": 470,
       "judge_class": "deterministic",
       "backbone_class": "open_weights",
-      "run": "runs/m44_r2_s1",
+      "run": "runs/m57_bonsai_premise_s1",
       "detail": "aggregated_metrics.json f1_answerable over the 470 answerable rows, mode=investigate k=6",
       "incomplete": null,
       "arm": false,
       "unrecorded": [],
       "candidates": [
         {
-          "run": "runs/m44_r2_s1",
-          "value": 56.36786339128417
+          "run": "runs/m57_bonsai_premise_s1",
+          "value": 60.81649848682908
         },
         {
-          "run": "runs/m44_r2_s2",
-          "value": 55.66242422304121
+          "run": "runs/m57_bonsai_premise_s1.part1",
+          "value": 62.21297137771996
         },
         {
-          "run": "runs/m50_pilot_base_s1",
-          "value": 53.479854027515536
+          "run": "runs/m57_bonsai_premise_s1.part0",
+          "value": 59.42002559593816
         },
         {
           "run": "runs/m55_bonsai_s1",
@@ -3977,6 +4017,14 @@
         {
           "run": "runs/m44_r2b_s2",
           "value": 60.39886505261581
+        },
+        {
+          "run": "runs/m44_r2_s1",
+          "value": 56.36786339128417
+        },
+        {
+          "run": "runs/m44_r2_s2",
+          "value": 55.66242422304121
         },
         {
           "run": "runs/m44_r1",
@@ -4109,6 +4157,10 @@
         {
           "run": "runs/m50_pilot_s1",
           "value": 53.57354317003122
+        },
+        {
+          "run": "runs/m50_pilot_base_s1",
+          "value": 53.479854027515536
         },
         {
           "run": "runs/m21_ku_mmr07",
