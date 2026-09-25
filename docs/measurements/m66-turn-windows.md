@@ -99,3 +99,47 @@ retrieval.
   turns.
 - Single-hop falls by more than 2: ±2 turns cut context the answer needed
   (QueryLink's c = 0 failure at c = 2).
+
+## Stage 1 result *(2026-09-25, 17:26–18:21; reranker only, on big under a lease)*
+
+LoCoMo dev split, 997 questions, `ablate --width --grid shipped`:
+
+| cell | all (lineage) | **turn_all** (verbatim) | evidence tokens | p50 |
+|---|---|---|---|---|
+| whole episodes, k = 6 (shipped) | 0.8626 | **0.7924** | 1,304 | 172 ms |
+| whole episodes, k = 10 | 0.8937 | 0.8345 | 2,228 | 180 ms |
+| windows ±2, k = 6 | 0.8395 | 0.6991 | 447 | 919 ms |
+| windows ±2, k = 10 | 0.8776 | 0.7693 | 787 | 558 ms |
+| windows ±2, k = 14 | 0.8987 | **0.8154** | 1,186 | 525 ms |
+| windows ±2, k = 18 | 0.9147 | 0.8295 | 1,637 | 508 ms |
+
+**The pre-registered rule:**
+- K\* is the largest windowed K at or under 1,304 tokens, which is **k = 14**.
+- Go needs turn_all ≥ 0.7924 + 0.03 = 0.8224. At K\* it is **0.8154**,
+  short by 0.007.
+- **No-go: M66 fails at retrieval.** The reader arm is not run.
+
+**What the numbers do show:**
+- **Windows spend tokens far more efficiently.** At the same ~1,200 tokens,
+  windows hold every gold turn verbatim on 81.5% of questions. Whole
+  episodes get there only at k = 10, which costs 2,228 tokens.
+- **The only cell past the bar costs more tokens.** Windows at k = 18 reach
+  0.830 at 1,637 tokens (+26%), which is not length-neutral.
+- **`all` overstates windows.** The lineage metric rises to 0.915 at k = 18
+  while the verbatim one stays at 0.83. Lineage credits a windowed episode
+  whose window cut the gold turn out, which is why stage 1 was decided on
+  turn_all.
+- **Latency:** scoring every pooled turn costs ~0.5 s per query at the
+  median, against 0.18 s.
+
+**Instrument fix during the sweep** (PR #117): LoCoMo dia_ids restart in
+every conversation. The first cell's turn_all read 0.2487 until the gold
+text was keyed by (tenant, dia_id). No result from the bad metric was used.
+
+**What next, if anyone revisits:**
+- Radius 1, at the same k, would buy more windows per token.
+- A second rule that windows only the top-N episodes would cut the
+  latency.
+
+Neither is scheduled. Code-first effort moves to LME-V2 (M69), where the
+gap is far larger.

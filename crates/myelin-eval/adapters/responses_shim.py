@@ -79,6 +79,11 @@ class H(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
     def log_message(self, *a): pass
     def _forward(self, data):
+        # Optional timing trace (SHIM_TRACE_LOG): when, how long to the first
+        # byte and to the end, the status and the byte count of each request.
+        # Never the content, never the key.
+        import time as _t
+        trace, t0, first, nbytes = os.environ.get("SHIM_TRACE_LOG"), _t.time(), None, 0
         req = urllib.request.Request(UP + self.path, data=data, method=self.command)
         for k in ("Content-Type", "Authorization", "Accept"):
             if self.headers.get(k): req.add_header(k, self.headers[k])
@@ -89,11 +94,10 @@ class H(BaseHTTPRequestHandler):
         except urllib.error.HTTPError as e:
             resp = e
             # Keep every refused request for diagnosis (M54: llama.cpp 400s).
-            import os, time
             d = os.environ.get("SHIM_REJECT_DIR")
             if d and data:
                 os.makedirs(d, exist_ok=True)
-                open(f"{d}/{time.time():.3f}-{e.code}.json", "wb").write(data)
+                open(f"{d}/{_t.time():.3f}-{e.code}.json", "wb").write(data)
         self.send_response(resp.status if hasattr(resp, "status") else resp.code)
         for k, v in resp.headers.items():
             if k.lower() in ("content-length", "transfer-encoding", "connection"): continue
@@ -102,8 +106,16 @@ class H(BaseHTTPRequestHandler):
         while True:
             b = resp.read1(CHUNK) if hasattr(resp, "read1") else resp.read(CHUNK)
             if not b: break
+            if first is None: first = _t.time() - t0
+            nbytes += len(b)
             self.wfile.write(f"{len(b):X}\r\n".encode() + b + b"\r\n"); self.wfile.flush()
         self.wfile.write(b"0\r\n\r\n"); self.wfile.flush()
+        if trace:
+            status = resp.status if hasattr(resp, "status") else resp.code
+            with open(trace, "a") as fh:
+                fh.write(json.dumps({"t0": round(t0, 3), "path": self.path, "status": status,
+                                     "first_byte_s": None if first is None else round(first, 2),
+                                     "total_s": round(_t.time() - t0, 2), "bytes": nbytes}) + "\n")
     def do_POST(self):
         raw = self.rfile.read(int(self.headers.get("Content-Length", 0)))
         if self.path.endswith("/responses"):

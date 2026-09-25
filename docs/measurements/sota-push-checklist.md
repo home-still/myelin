@@ -31,7 +31,7 @@ and every number that uses one says so. Plan approved by the user
 - [x] M68b: MemPro's repo judge as a second reading (80.26); matched = lowest = 78.18, gate holds
 - [x] M70: LongMemEval's own grader: 78.60 (gate open, −2.20); found the stale-verdict defect (fixed, PR #119; M57 83.40 → 79.20)
 - [x] M66 retrieval sweep (stage 1): K* = 14, turn_all 0.8154 < 0.8224 — **no-go at retrieval** (written up in `m66-turn-windows.md`)
-- [ ] M66 reader arm (stage 2), judged, written up
+- [x] ~~M66 reader arm (stage 2)~~ not run: stage 1 was a no-go
 - [ ] M67 list rewrites unioned (reuses `decompose.rs`)
 - [ ] Temporal residuals (`time.rs`), then a fresh base
 
