@@ -15,11 +15,38 @@ that is not text ("Output of tool call should be 'Input text'", HTTP 400) —
 by pre-registration (evidence `axtree`), so an image in a tool output becomes
 a text note saying it was not shown; text parts pass through verbatim.
 Nothing else is rewritten.
+
+Cloud upstream (M54 amendment 4, 2026-09-25): when the controller is served
+by OpenRouter rather than our own llama-server, the settings llama-server
+carried as its defaults have to travel with each request instead. Four
+optional environment variables, all or none:
+  SHIM_UPSTREAM_KEY_FILE  a file holding one line OPENROUTER_API_KEY=<key>;
+                          the key replaces the client's Authorization header
+                          and is never printed or logged
+  SHIM_MODEL              the upstream model id, replacing Codex's alias
+  SHIM_PROVIDER           JSON provider routing, e.g. one pinned provider
+                          with no fallbacks
+  SHIM_SAMPLING           JSON fields merged into every /responses body: the
+                          pre-registered temperature, top_p and top_k
 usage: responses_shim.py <listen_port> <upstream_base e.g. http://127.0.0.1:5810>"""
-import json, sys, urllib.request
+import json, os, re, sys, urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 PORT, UP = int(sys.argv[1]), sys.argv[2].rstrip("/")
 CHUNK = 4096
+CLOUD_VARS = ("SHIM_UPSTREAM_KEY_FILE", "SHIM_MODEL", "SHIM_PROVIDER", "SHIM_SAMPLING")
+_set = [v for v in CLOUD_VARS if os.environ.get(v)]
+if _set and len(_set) != len(CLOUD_VARS):
+    sys.exit(f"responses_shim: a cloud upstream needs all of {CLOUD_VARS}; got only {_set}")
+CLOUD = bool(_set)
+if CLOUD:
+    _lines = [l.strip() for l in open(os.path.expanduser(os.environ["SHIM_UPSTREAM_KEY_FILE"]), encoding="utf-8") if l.strip()]
+    _m = re.match(r"^OPENROUTER_API_KEY=(\S+)$", _lines[0]) if len(_lines) == 1 else None
+    if not _m:
+        sys.exit("responses_shim: the key file must hold exactly one line OPENROUTER_API_KEY=<key>")
+    UP_KEY = _m.group(1)
+    UP_MODEL = os.environ["SHIM_MODEL"]
+    UP_PROVIDER = json.loads(os.environ["SHIM_PROVIDER"])
+    UP_SAMPLING = json.loads(os.environ["SHIM_SAMPLING"])
 def text_of(item):
     c = item.get("content")
     if isinstance(c, str): return c
@@ -55,6 +82,8 @@ class H(BaseHTTPRequestHandler):
         req = urllib.request.Request(UP + self.path, data=data, method=self.command)
         for k in ("Content-Type", "Authorization", "Accept"):
             if self.headers.get(k): req.add_header(k, self.headers[k])
+        if CLOUD:
+            req.add_header("Authorization", f"Bearer {UP_KEY}")
         try:
             resp = urllib.request.urlopen(req, timeout=1800)
         except urllib.error.HTTPError as e:
@@ -78,7 +107,12 @@ class H(BaseHTTPRequestHandler):
     def do_POST(self):
         raw = self.rfile.read(int(self.headers.get("Content-Length", 0)))
         if self.path.endswith("/responses"):
-            raw = json.dumps(fold(json.loads(raw))).encode()
+            body = fold(json.loads(raw))
+            if CLOUD:
+                body["model"] = UP_MODEL
+                body["provider"] = UP_PROVIDER
+                body.update(UP_SAMPLING)
+            raw = json.dumps(body).encode()
         self._forward(raw)
     def do_GET(self): self._forward(None)
 ThreadingHTTPServer(("127.0.0.1", PORT), H).serve_forever()

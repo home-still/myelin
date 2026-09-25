@@ -32,9 +32,24 @@ import json
 from pathlib import Path
 import sys
 
-# The one controller file every M54 chunk ran (amendment 2: sha256-checked on each host).
-CONTROLLER_MODEL_FILE = "Ternary-Bonsai-2-27B-PTQ1_0.gguf"
-CONTROLLER_SHA256_PREFIX = "53107f530aa52eb0"
+# The controllers M54 pre-registered, and nothing else:
+# - the local file every self-hosted chunk ran (amendment 2: sha256-checked on
+#   each host);
+# - the cloud endpoint amendment 4 added for the remaining chunks: OpenRouter's
+#   `prism-ml/ternary-bonsai-2-27b`, pinned to its one provider, which lists the
+#   model as int4 (whether that is a lossless repacking of the ternary weights is
+#   not stated). Each chunk names which one it ran.
+LOCAL_CONTROLLER = {"model_file": "Ternary-Bonsai-2-27B-PTQ1_0.gguf", "model_sha256_prefix": "53107f530aa52eb0"}
+CLOUD_CONTROLLER = {"served_model": "prism-ml/ternary-bonsai-2-27b", "provider": "Darkbloom", "quantization": "int4"}
+CONTROLLERS = (LOCAL_CONTROLLER, CLOUD_CONTROLLER)
+
+
+def controller_identity(controller: dict) -> dict | None:
+    """The pre-registered controller this chunk names, or None."""
+    for known in CONTROLLERS:
+        if all(controller.get(k) == v for k, v in known.items()):
+            return known
+    return None
 
 
 def configuration(controller: dict) -> str:
@@ -48,11 +63,8 @@ def read_source(src: Path) -> tuple[list[dict], dict]:
         if not path.is_file():
             raise SystemExit(f"{path} does not exist: every source must be a finished chunk with its controller named")
     controller = json.loads(ctrl_path.read_text(encoding="utf-8"))
-    if (controller.get("model_file"), controller.get("model_sha256_prefix")) != (
-        CONTROLLER_MODEL_FILE,
-        CONTROLLER_SHA256_PREFIX,
-    ):
-        raise SystemExit(f"{ctrl_path} names another controller model: {controller}")
+    if controller_identity(controller) is None:
+        raise SystemExit(f"{ctrl_path} names a controller M54 did not pre-register: {controller}")
     rows = [json.loads(line) for line in rows_path.read_text(encoding="utf-8").split("\n") if line.strip()]
     if not rows:
         raise SystemExit(f"{rows_path} holds no rows")
@@ -87,8 +99,7 @@ def main() -> None:
         for row in merged:
             fh.write(json.dumps(row) + "\n")
     manifest = {
-        "model_file": CONTROLLER_MODEL_FILE,
-        "model_sha256_prefix": CONTROLLER_SHA256_PREFIX,
+        "controllers": list(CONTROLLERS),
         "mixture": dict(sorted(Counter(per_question.values()).items())),
         "per_question": per_question,
         "sources": sources,

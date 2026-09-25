@@ -331,3 +331,54 @@ work is shared out; the pair is still scored once, over all 451 questions (the 4
   VRAM and ≥ 12 GiB of RAM are free.
 - **Progress at this amendment:** 180 of 404 full-pair questions done. sib
   runs from the back.
+
+## Amendment 4 — the cloud Bonsai finishes the run *(pre-registered 2026-09-25, before its smoke question and any of its chunks)*
+
+- **Why.** At 18:00 the local run was at 0 questions per hour. sib (the
+  kids' PC) went offline at 17:52. big had ~9.6 GB of VRAM free against the
+  ~11 GB the controller needs, with six other tenants' processes holding
+  ~14.6 GB. Measured levers could not rescue it:
+  - PTQ1_0 decoding is compute-bound, so 2 slots give 1.1×;
+  - no small draft model shares Bonsai's vocabulary, and Bonsai has no MTP
+    layers;
+  - mac_air is too slow.
+
+  **The user's call (2026-09-25):** OpenRouter's Bonsai finishes the
+  remaining questions.
+- **The controller.** `prism-ml/ternary-bonsai-2-27b` on OpenRouter, pinned
+  to its one provider (`Darkbloom`, no fallbacks). OpenRouter lists that
+  endpoint as **int4**, 262K context. It is Ternary Bonsai 2 27B, but **not
+  the local PTQ1_0 file**. Whether int4 is a lossless repacking of the
+  ternary weights is not stated anywhere we can check.
+- **The same settings, sent per request.** The Responses shim
+  (`adapters/responses_shim.py`, cloud mode) injects the pre-registered
+  sampling that llama-server carried as defaults: temperature 1.0, top-p
+  0.95, top-k 20. Codex sends reasoning effort "medium" as before.
+- **What differs:**
+  - the 8,192-token thinking budget is not enforced by this endpoint;
+  - the chat template is the provider's.
+- **Unchanged:**
+  - Codex budget 96,000;
+  - the harness and prompts;
+  - the 1,800-second per-question timeout;
+  - the claim directory, so no chunk runs twice.
+- **Transport rule.** A chunk with any transport failure is discarded and
+  re-run. For the cloud this also counts HTTP 429, 502, 503 and 504, which
+  are rate limits and gateway errors, not controller behaviour.
+- **Provenance.** Every cloud chunk's `controller.json` names host
+  `openrouter`, the served model, the provider and `int4`.
+  `merge_arc_chunks.py` accepts exactly the two pre-registered controllers
+  (the local PTQ1_0 file, and this endpoint) and refuses anything else.
+- **Scoring.** The pair is scored once over all 451 questions. It is also
+  reported by controller configuration, each with a 95% CI, as amendment 2
+  fixed.
+- **Caveat on the headline:** *controller partly cloud-served*. The 180
+  local questions stay as they are.
+- **Smoke test first.** One question (`edea0219`, as in amendment 1) run end
+  to end through the cloud must produce a non-empty memory context with no
+  refused request. The smoke output is not part of the measurement.
+- **Parallelism:** up to 4 cloud workers, sized to rate limits after the
+  smoke. The local workers (big, sib) may still claim chunks whenever their
+  hardware is free.
+- **Cost:** ~$8 for the remaining 224 questions, estimated from ~410K
+  cumulative input tokens and ~9.5K output tokens per question.
