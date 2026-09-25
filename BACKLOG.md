@@ -44,9 +44,16 @@ research behind the next builds is `docs/research/sota-catalog-2026-09-24.md`.
     Bonsai refuses 292;
   - *retrieval* (~231): facts duplicating a selected episode waste a
     slot on 72% of rows; multi-hop holds all its gold on only 22%.
-- **Next builds, in order:** L1 lineage-aware dedupe, L2 dates inline in
-  words, L3 k, and M61 a grounded refusal override on Bonsai
-  (commit-arm replay).
+- **Measured 2026-09-24 evening (none ships alone):**
+  - M61 grounded override: +3.38 on Bonsai, adversarial untouched, +0.19
+    vs the 9B;
+  - M64 dates in place: +0.78;
+  - M63 dedupe: **−4.81** (falsified);
+  - M50c events: vetoed (adversarial 62.11);
+  - M65 k = 10: retrieval all-gold +3.1 (reader arm pending);
+  - fresh LoCoMo base 70.52.
+- **LME-V2's native controller** (M62b 36.17, M62c 25.53) pauses; the GPU
+  goes to the M54 full pair (13/32 chunks).
 - **M60 and M58 are deferred** (user, 16:40), so big goes to the M54
   full pair after M62b. sib went offline at 16:32.
 - **LongMemEval_S:** M57 **shipped 83.40** (past the 80.80 row); M58 (the preference clause on top) runs next.

@@ -129,3 +129,29 @@ touched.
 
 **Falsifier.** A clear loss on questions the base answered (base-answered
 stratum down more than 2): the extra block distracts the 9B.
+
+---
+
+## Pilot result *(2026-09-24 19:07)* — **vetoed: adversarial 62.11**
+
+`runs/m50c_locomo_events`, 1,986 rows. It was judged by the 9B unseeded,
+because m19's verdicts predate the answers map `--seed` needs.
+
+| paired over 1,986 | m19 | M50c | Δ | 95% CI |
+|---|---|---|---|---|
+| judge 1–4 | 69.87 | 69.87 | +0.00 | [−1.56, +1.56] |
+| adversarial | 69.96 | **62.11** | **−7.85** | [−11.43, −4.26] |
+| declines on 1–4 | 121 | 112 | | |
+
+- **The veto fires.** The pre-registered falsifier's twin is what
+  happened: the dated events make the 9B answer the traps.
+- The temporal gain seen early (temporal scorer +11 of 180) does not
+  survive into judge 1–4 overall.
+- The drift check: the base items matched m19 on ~75% of rows, so part of
+  any delta against m19 is base drift. M63's fresh base (below, 70.52)
+  measures that drift at +0.65 over m19.
+
+**Verdict:** events beside turns do not help this reader on LoCoMo, and
+they cost the adversarial rows. Chronos's own ablation predicted a smaller
+gain for a stronger reader; here the reader is the weak one, and the gain
+still did not come.
