@@ -137,3 +137,26 @@ Neither is a clear win, and the doc says so. The margin is:
   open-domain by 34.4 under MemPro's own judge.
 - A +0.33 lead is inside the reader's variance, so LoCoMo work goes on:
   M66 turn windows (multi-hop coverage) is next.
+
+## M68b — a second reading of MemPro's protocol *(pre-registered 2026-09-25, before any verdict)*
+
+- **What else there is.** MemPro's paper cites LightMem and prints its
+  prompt (Fig. 10). MemPro's **public repo** grades LoCoMo with a paraphrase
+  of it: `wanghai673/MemPro@834b1ce:eval/locomo_test.py`
+  (`JUDGE_PROMPT_TEMPLATE`, `JUDGE_SCHEMA`, `call_llm_judge`).
+  - The rule is the same ("touches on the same topic → CORRECT").
+  - It has no Hawaii example.
+  - Its output is strict json_schema, with gpt-4o-mini at temperature 0.
+  - A judge failure scores WRONG. We refuse instead, so a transport error is
+    never mixed into the number.
+- **Both readings are runnable, and neither can be ruled out.**
+  `adapters/judge_matched.py` (renamed from `judge_lightmem.py`) carries both
+  as protocols. Its `--verify-upstream` checks each prompt byte for byte
+  against the pinned upstream file, and both pass.
+- **The user's rule (2026-09-25):** a gate closes only if we lead under
+  **every** runnable reading. `standing` publishes each reading, and the gate
+  row uses the lower.
+- **Prediction:** within ±1 of the LightMem reading (78.18), because the rule
+  and the model are the same.
+- **Falsifier.** If the MemPro reading lands below 77.85, the LoCoMo gate
+  reopens. This doc then says so.
