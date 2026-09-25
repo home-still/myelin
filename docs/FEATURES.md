@@ -390,6 +390,14 @@ embedder or Qdrant; on the small tier it stored 200 trajectories and 5,095
 states in 14 s, and matched the release field for field. Re-running it
 checks each stored copy against the release and writes nothing.
 
+### Trajectory export (M69)
+
+`myelin-eval trajectories-export --tenant <t> --out <dir> [--check <harness dir>]`
+writes every stored trajectory of a tenant as `<id>/trajectory.json`. The
+files are byte for byte what LongMemEval-V2's AgentRunbook-C harness writes:
+200 of 200 identical on LME-V2-Small. A file-reading controller can then work
+over myelin's own store.
+
 ### Quarantine
 
 Records that fail the trust gate or the injection adjudicator are staged in
