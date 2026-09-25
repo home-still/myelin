@@ -693,15 +693,21 @@ pub async fn width_sweep(
 
     // Each gold turn's text as its episode renders it, for `turn_all`. On
     // LoCoMo it comes from the same `turns_for` the build ingested, so a
-    // turn is found exactly when its whole line was emitted. LongMemEval_S
-    // gold is already turn text.
-    let mut turn_text: HashMap<String, String> = HashMap::new();
+    // turn is found exactly when its whole line was emitted. Keyed by
+    // (tenant, dia_id): LoCoMo's ids restart in every conversation (`D1:3`
+    // exists in all ten), so the id alone names ten different turns.
+    // LongMemEval_S gold is already turn text.
+    let mut turn_text: HashMap<(String, String), String> = HashMap::new();
     let (mut questions, source) = match corpus {
         "locomo" => {
             let split = select_split(path, units, holdout)?;
             for conv in &split {
+                let tenant = format!("locomo/{}", conv.sample_id);
                 for t in crate::build::turns_for(conv) {
-                    turn_text.insert(t.source.doc.clone(), format!("{}: {}", t.speaker, t.text));
+                    turn_text.insert(
+                        (tenant.clone(), t.source.doc.clone()),
+                        format!("{}: {}", t.speaker, t.text),
+                    );
                 }
             }
             let coverage = Coverage::build(&split, &ledger).await?;
@@ -816,7 +822,7 @@ pub async fn width_sweep(
             // never held, in every cell alike.
             let verbatim = q.gold.iter().all(|g| {
                 let text = match corpus {
-                    "locomo" => turn_text.get(g),
+                    "locomo" => turn_text.get(&(q.tenant.clone(), g.clone())),
                     _ => Some(g),
                 };
                 text.is_some_and(|t| evidence.items.iter().any(|i| i.value.contains(t.as_str())))
