@@ -392,3 +392,16 @@ the M54 full pair, 13 of 32 chunks done. The native controller's gap is
 not one fix away; Cao 2026 (arXiv 2603.20432) predicts that bespoke
 schema tools lose to a shell and files. M62 work pauses here, and the
 GPU goes to M54.
+
+## Fix: an unknown trajectory name is refused *(2026-09-25)*
+
+The Codex-vs-native trace comparison found that M62b passed `trajectory: ""`
+or `"all"` 27 times, meaning "everywhere". The ledger matched them as ids and
+answered "no state contains X". On 6 questions the answer was on the page:
+Codex got all six right and the native controller all six wrong.
+
+`grep` now refuses a name that is not a stored trajectory. The refusal says
+how to search everywhere, and the controller sees it as an `error:`
+observation it can correct. The input is never guessed at.
+
+Test: `grep_finds_lines_case_insensitively_across_or_within_trajectories`.
