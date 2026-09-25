@@ -348,18 +348,35 @@ pub struct Ranked {
     /// Dense vector, when available, for near-duplicate suppression. Without
     /// it dedup falls back to exact text equality.
     pub vector: Option<Vec<f32>>,
+    /// M66: the turns of an episode that are emitted, as byte ranges into
+    /// `record.text` ([`crate::pipeline::turn_windows`]). `None` emits the
+    /// whole record, which is every path but turn windows.
+    pub window: Option<Vec<std::ops::Range<usize>>>,
+}
+
+impl Ranked {
+    /// The text this candidate emits and is charged for: the record, or its
+    /// window with the elided turns marked.
+    pub fn text(&self) -> std::borrow::Cow<'_, str> {
+        match &self.window {
+            None => std::borrow::Cow::Borrowed(self.record.text.as_str()),
+            Some(w) => std::borrow::Cow::Owned(super::turn_windows::render(&self.record.text, w)),
+        }
+    }
 }
 
 /// Select, dedup, budget and bookend.
 ///
 /// Input must be sorted best-first; this function does not re-rank.
-/// The emitted text for one record.
+/// The emitted text for one record. `text` is the record's own text, or its
+/// turn window (M66); dates resolve against what is emitted, so a phrase in
+/// an elided turn is never annotated.
 ///
 /// `Verified` and `Asserted` pass through unchanged: labelling everything
 /// would make the label meaningless, which is the same failure as a poison
 /// filter that flags all text. Only material that crossed a trust boundary
 /// is marked.
-fn label(record: &MemoryRecord, cfg: &ComposeConfig) -> String {
+fn label(record: &MemoryRecord, text: &str, cfg: &ComposeConfig) -> String {
     let mut out = String::new();
     if cfg.stamp_valid_time {
         out.push_str(&format!(
@@ -371,7 +388,7 @@ fn label(record: &MemoryRecord, cfg: &ComposeConfig) -> String {
         out.push_str("[untrusted source] ");
     }
     let resolved = if cfg.resolve_relative && cfg.stamp_valid_time {
-        crate::time::resolve_relative(&record.text, record.validity.t_valid.date_naive())
+        crate::time::resolve_relative(text, record.validity.t_valid.date_naive())
     } else {
         Vec::new()
     };
@@ -379,10 +396,10 @@ fn label(record: &MemoryRecord, cfg: &ComposeConfig) -> String {
         // M64: each resolution in words, bracketed, right after its phrase.
         // The record itself is never rewritten (the ledger holds its words);
         // the bracket marks what the evidence adds to them.
-        out.push_str(&annotate_in_place(&record.text, &resolved));
+        out.push_str(&annotate_in_place(text, &resolved));
         return out;
     }
-    out.push_str(&record.text);
+    out.push_str(text);
     // The annotation rides *after* the text, not inside it: rewriting the
     // record's own words would make the evidence item no longer quote the
     // memory it came from, and the audit trail depends on that.
@@ -497,7 +514,7 @@ fn mmr_select(kept: Vec<Ranked>, lambda: f32, cfg: &ComposeConfig) -> (Vec<Ranke
     }
     let lambda = lambda.clamp(0.0, 1.0);
     let n = kept.len();
-    let costs: Vec<usize> = kept.iter().map(|r| approx_tokens(&r.record.text)).collect();
+    let costs: Vec<usize> = kept.iter().map(|r| approx_tokens(&r.text())).collect();
 
     // The first pick is `kept[0]` unconditionally, preserving the rank-order
     // path's guarantee that the single best item is admitted even when it
@@ -630,7 +647,7 @@ pub fn compose(ranked: Vec<Ranked>, profile: &[MemoryRecord], cfg: &ComposeConfi
                     k_bound = true;
                     break;
                 }
-                let cost = approx_tokens(&candidate.record.text);
+                let cost = approx_tokens(&candidate.text());
                 // Always admit the top item: returning nothing because the
                 // single best piece of evidence is large is worse than
                 // overrunning slightly.
@@ -663,7 +680,7 @@ pub fn compose(ranked: Vec<Ranked>, profile: &[MemoryRecord], cfg: &ComposeConfi
         .iter()
         .map(|r| EvidenceItem {
             kind: EvidenceKind::Text,
-            value: label(&r.record, cfg),
+            value: label(&r.record, &r.text(), cfg),
             record_id: r.record.id,
             source: r.record.provenance.source.clone(),
             score: r.score,
@@ -875,6 +892,65 @@ mod tests {
         }
     }
 
+    /// M66: a windowed episode emits only its window and is charged only
+    /// for it; a record without a window is emitted exactly as before.
+    #[test]
+    fn a_turn_window_is_what_is_emitted_and_what_is_charged() {
+        let text = "A: one\nB: two\nA: three\nB: four\nA: five";
+        let spans = crate::pipeline::turn_windows::turn_spans(text, &["A", "B"]);
+        let window = crate::pipeline::turn_windows::window_ranges(&spans, &[2], 0);
+        let whole = Ranked {
+            record: record(text),
+            score: 1.0,
+            vector: None,
+            window: None,
+        };
+        let windowed = Ranked {
+            record: record(text),
+            score: 1.0,
+            vector: None,
+            window: Some(window),
+        };
+        let out = compose(vec![whole], &[], &unstamped());
+        assert_eq!(out.items[0].value, text, "no window, the record verbatim");
+        let out = compose(vec![windowed], &[], &unstamped());
+        assert_eq!(out.items[0].value, "…\nA: three\n…");
+        assert_eq!(
+            out.tokens,
+            approx_tokens("…\nA: three\n…"),
+            "the window is charged, not the record"
+        );
+    }
+
+    /// A relative date in an elided turn is not annotated: the reader never
+    /// sees its phrase, so the resolution would point at nothing.
+    #[test]
+    fn dates_resolve_only_in_the_turns_a_window_keeps() {
+        let text = "A: I went yesterday\nB: nice\nA: tomorrow I rest";
+        let spans = crate::pipeline::turn_windows::turn_spans(text, &["A", "B"]);
+        let window = crate::pipeline::turn_windows::window_ranges(&spans, &[2], 0);
+        let mut r = record(text);
+        r.validity.t_valid = chrono::TimeZone::with_ymd_and_hms(&Utc, 2023, 5, 8, 12, 0, 0)
+            .single()
+            .expect("valid date");
+        let out = compose(
+            vec![Ranked {
+                record: r,
+                score: 1.0,
+                vector: None,
+                window: Some(window),
+            }],
+            &[],
+            &ComposeConfig {
+                timeline: false,
+                ..Default::default()
+            },
+        );
+        let value = &out.items[0].value;
+        assert!(value.contains("tomorrow = 2023-05-09"), "{value}");
+        assert!(!value.contains("yesterday"), "{value}");
+    }
+
     fn ranked(texts: &[&str]) -> Vec<Ranked> {
         texts
             .iter()
@@ -883,6 +959,7 @@ mod tests {
                 record: record(t),
                 score: 1.0 - i as f32 * 0.1,
                 vector: None,
+                window: None,
             })
             .collect()
     }
@@ -957,6 +1034,7 @@ mod tests {
                     record,
                     score: 1.0 - i as f32 * 0.01,
                     vector: None,
+                    window: None,
                 }
             })
             .collect()
@@ -1242,16 +1320,19 @@ mod tests {
                 record: record("the user moved to Berlin"),
                 score: 1.0,
                 vector: Some(vec![1.0, 0.0, 0.0]),
+                window: None,
             },
             Ranked {
                 record: record("the user relocated to Berlin"),
                 score: 0.9,
                 vector: Some(vec![0.999, 0.01, 0.0]),
+                window: None,
             },
             Ranked {
                 record: record("the user likes rye bread"),
                 score: 0.8,
                 vector: Some(vec![0.0, 1.0, 0.0]),
+                window: None,
             },
         ];
         let set = compose(items, &[], &unstamped());
@@ -1278,6 +1359,7 @@ mod tests {
                 record: record(text),
                 score: 1.0 - i as f32 * 0.1,
                 vector: Some(vector),
+                window: None,
             })
             .collect()
     }
@@ -1347,6 +1429,7 @@ mod tests {
                 record: record(&format!("{long}{i}")),
                 score: 1.0 - i as f32 * 0.1,
                 vector: None,
+                window: None,
             })
             .collect();
         let set = compose(items, &[], &cfg);
@@ -1374,6 +1457,7 @@ mod tests {
                 record: record(&huge),
                 score: 1.0,
                 vector: None,
+                window: None,
             }],
             &[],
             &cfg,
@@ -1413,6 +1497,7 @@ mod tests {
                 record: r,
                 score: 1.0,
                 vector: None,
+                window: None,
             }],
             &[],
             &ComposeConfig::default(),
@@ -1452,6 +1537,7 @@ mod tests {
                 record: r,
                 score: 1.0,
                 vector: None,
+                window: None,
             }],
             &[],
             &cfg,
@@ -1482,6 +1568,7 @@ mod tests {
                 record: r,
                 score: 1.0,
                 vector: None,
+                window: None,
             }]
         };
         let cfg = ComposeConfig {
@@ -1515,6 +1602,7 @@ mod tests {
                 record: r,
                 score: 1.0,
                 vector: None,
+                window: None,
             }]
         };
 
@@ -1585,6 +1673,7 @@ mod tests {
                     record: r,
                     score: 1.0 - i as f32 * 0.1,
                     vector: None,
+                    window: None,
                 });
             }
             out
@@ -1644,6 +1733,7 @@ mod tests {
                     record: r,
                     score: 1.0 - i as f32 * 0.1,
                     vector: None,
+                    window: None,
                 }
             })
             .collect::<Vec<_>>()
@@ -1798,6 +1888,7 @@ mod tests {
                 record: record(&format!("short record {i}")),
                 score: 1.0 - i as f32 * 0.01,
                 vector: None,
+                window: None,
             })
             .collect();
         let set = compose(input, &[], &ComposeConfig { k: 6, max_tokens: 2048, ..unstamped() });
@@ -1819,6 +1910,7 @@ mod tests {
                 record: record(&format!("{i} {body}")),
                 score: 1.0 - i as f32 * 0.01,
                 vector: None,
+                window: None,
             })
             .collect();
         let set = compose(input, &[], &ComposeConfig { k: 6, max_tokens: 250, ..unstamped() });
@@ -1836,7 +1928,7 @@ mod tests {
     #[test]
     fn the_single_best_item_survives_a_budget_it_cannot_fit() {
         let huge = "word ".repeat(5000);
-        let input = vec![Ranked { record: record(&huge), score: 1.0, vector: None }];
+        let input = vec![Ranked { record: record(&huge), score: 1.0, vector: None, window: None }];
         let set = compose(input, &[], &ComposeConfig { k: 6, max_tokens: 10, ..unstamped() });
         assert_eq!(set.items.len(), 1);
         assert_eq!(set.dropped_for_tokens, 0, "there was nothing after it to refuse");
@@ -1860,6 +1952,7 @@ mod tests {
                     record: record(t),
                     score: 1.0 - i as f32 * 0.01,
                     vector: None,
+                    window: None,
                 };
                 if t.starts_with('u') {
                     r.record.trust = Trust {
@@ -1915,6 +2008,7 @@ mod tests {
                     record: record(t),
                     score: 1.0 - i as f32 * 0.01,
                     vector: None,
+                    window: None,
                 };
                 if t.starts_with('u') {
                     r.record.trust = Trust {

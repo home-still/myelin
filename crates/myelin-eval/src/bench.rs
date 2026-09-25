@@ -557,6 +557,10 @@ pub struct BenchRun {
     /// M64: compose placed relative-date resolutions in place, in words.
     #[serde(default)]
     pub inline_dates: bool,
+    /// M66: episodes emitted as turn windows of this radius
+    /// (`RetrieveConfig::turn_windows`). Absent on every run before M66.
+    #[serde(default)]
+    pub turn_windows: Option<usize>,
     /// M24's sub-query decomposition cap, mirroring
     /// `RetrieveConfig::decompose`. Ships off; absent on every run before
     /// M24.
@@ -715,6 +719,8 @@ pub struct BenchSwitches {
     pub dedupe_lineage: bool,
     /// M64: `ComposeConfig::inline_dates`.
     pub inline_dates: bool,
+    /// M66: `RetrieveConfig::turn_windows`.
+    pub turn_windows: Option<usize>,
     /// M61: the second pass was the grounded one. Only `commit-arm --grounded`
     /// produces it; carried here so a rescore of that arm keeps the record.
     pub commit_grounded: bool,
@@ -2017,6 +2023,7 @@ pub async fn bench_locomo(
             inline_dates: switches.inline_dates,
             ..Default::default()
         },
+        turn_windows: switches.turn_windows,
         ..Default::default()
     });
     if let Some(r) = reranker.as_ref() {
@@ -2330,6 +2337,7 @@ pub async fn bench_longmemeval_s(
             inline_dates: switches.inline_dates,
             ..Default::default()
         },
+        turn_windows: switches.turn_windows,
         ..Default::default()
     });
     if let Some(r) = reranker.as_ref() {
@@ -2661,6 +2669,7 @@ fn finish_run(
         events_ledger: spec.switches.events_ledger.clone(),
         dedupe_lineage: spec.switches.dedupe_lineage,
         inline_dates: spec.switches.inline_dates,
+        turn_windows: spec.switches.turn_windows,
         commit_answer: spec.switches.commit_answer,
         commit_grounded: spec.switches.commit_grounded,
         resumed_rows: resumed,
@@ -2857,6 +2866,10 @@ pub fn rescore_run(source: &Path, out_dir: &Path, scorer: Scorer) -> Result<Benc
                 .map(str::to_string),
             dedupe_lineage: flag("dedupe_lineage"),
             inline_dates: flag("inline_dates"),
+            turn_windows: metrics
+                .get("turn_windows")
+                .and_then(serde_json::Value::as_u64)
+                .and_then(|n| usize::try_from(n).ok()),
             commit_grounded: flag("commit_grounded"),
             commit_answer: flag("commit_answer"),
             untrusted_max: metrics
