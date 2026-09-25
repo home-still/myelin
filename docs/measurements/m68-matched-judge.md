@@ -160,3 +160,18 @@ Neither is a clear win, and the doc says so. The margin is:
   and the model are the same.
 - **Falsifier.** If the MemPro reading lands below 77.85, the LoCoMo gate
   reopens. This doc then says so.
+
+### M68b result *(2026-09-25, ~$0.10)*
+
+| run | LightMem reading | MemPro repo reading | matched (lowest) | MemPro-15 Qwen3 |
+|---|---|---|---|---|
+| `m63_locomo_base` | 78.18 | **80.26** | **78.18** | 77.85 |
+| `m19_locomo_full` | 77.86 | 80.00 | 77.86 | 77.85 |
+
+- **The prediction missed.** MemPro's own repo judge is **more** lenient
+  than LightMem's prompt: +2.08, against a predicted ±1.
+- **The gate holds** under every runnable reading, on the lower one, by
+  0.33.
+- `standing` publishes both readings (`locomo.judge_score_lightmem.n1540`,
+  `locomo.judge_score_mempro.n1540`). The G2 LoCoMo gate is decided on
+  `locomo.judge_score_matched.n1540`, the lowest of the two.

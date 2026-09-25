@@ -48,6 +48,29 @@
       }
     },
     {
+      "id": "locomo.judge_matched.mempro15.gpt4omini",
+      "metric": "locomo.judge_score_matched.n1540",
+      "benchmark": "locomo",
+      "system": "MemPro-15",
+      "value": 84.93,
+      "unit": "pct_0_100",
+      "direction": "higher_is_better",
+      "n": 1540,
+      "backbone": "gpt-4o-mini",
+      "backbone_class": "frontier_api",
+      "judge_class": "frontier_api",
+      "provenance": "paper",
+      "gate": false,
+      "caveat": "MemPro-15 on gpt-4o-mini under the every-reading matched metric (LightMem's prompt and MemPro's repo judge, lowest of the two). The Avg. column reproduces exactly as the micro-average over the FULL official category counts (82.26*282 + 62.50*96 + 90.01*841 + 80.68*321)/1540 = 84.93, so the population is LoCoMo's 1,540 non-adversarial questions in their official proportions.",
+      "source": {
+        "doi": "10.48550/arXiv.2606.00619",
+        "stem": "10.48550_arxiv.2606.00619",
+        "locator": "Table 1, row MemPro-15 under the GPT-4o-mini backbone header, column LoCoMo Avg.",
+        "lines": "L190 (header L127-148, caption L241)",
+        "quote": "<td>MemPro-15</td><td>77.44</td><td>73.68</td><td>83.33</td><td>98.57</td><td>60.71</td><td>86.67</td><td>79.00</td><td>82.26</td><td>62.50</td><td>90.01</td><td>80.68</td><td>84.93</td>"
+      }
+    },
+    {
       "id": "locomo.judge.mempro15.qwen3_30b",
       "metric": "locomo.judge_score.n1540",
       "benchmark": "locomo",
@@ -84,9 +107,33 @@
       "backbone_class": "open_weights",
       "judge_class": "frontier_api",
       "provenance": "paper",
+      "gate": false,
+      "bar": "at_least",
+      "caveat": "G2's LoCoMo bar, graded the way it was graded (M68): GPT-4o-mini with LightMem's LoCoMo prompt (L122, Fig. 10), the protocol adapters/judge_lightmem.py reproduces byte for byte. One reading of MemPro's protocol; the gate is decided on locomo.judge_score_matched.n1540, the lowest of every runnable reading (M68b).",
+      "source": {
+        "doi": "10.48550/arXiv.2606.00619",
+        "stem": "10.48550_arxiv.2606.00619",
+        "locator": "Table 1, row MemPro-15 under the Qwen3-30B-A3B-Instruct-2507 backbone header, column LoCoMo Avg.",
+        "lines": "L235 (backbone header L193)",
+        "quote": "<td>MemPro-15</td><td>71.43</td><td>75.94</td><td>82.05</td><td>92.86</td><td>98.21</td><td>80.00</td><td>80.80</td><td>75.17</td><td>70.83</td><td>83.47</td><td>67.60</td><td>77.85</td>"
+      }
+    },
+    {
+      "id": "locomo.judge_matched.mempro15.qwen3_30b",
+      "metric": "locomo.judge_score_matched.n1540",
+      "benchmark": "locomo",
+      "system": "MemPro-15 (Qwen3-30B)",
+      "value": 77.85,
+      "unit": "pct_0_100",
+      "direction": "higher_is_better",
+      "n": 1540,
+      "backbone": "Qwen3-30B-A3B-Instruct-2507",
+      "backbone_class": "open_weights",
+      "judge_class": "frontier_api",
+      "provenance": "paper",
       "gate": true,
       "bar": "at_least",
-      "caveat": "G2's LoCoMo bar, graded the way it was graded (M68): GPT-4o-mini with LightMem's LoCoMo prompt (L122, Fig. 10), the protocol adapters/judge_lightmem.py reproduces byte for byte. Their number is a mean of 3 runs at temperature 0.7; ours is one run, and re-judging the same answers moved it by 2 of 1,540 rows (docs/measurements/m68-matched-judge.md). Avg. reproduces as (75.17*282 + 70.83*96 + 83.47*841 + 67.60*321)/1540 = 77.85.",
+      "caveat": "G2's LoCoMo bar under the every-reading rule (user, 2026-09-25): our number is the lowest of LightMem's prompt (what the paper cites, L122/Fig. 10) and MemPro's own repo judge (eval/locomo_test.py@834b1ce), both gpt-4o-mini. Their number is a mean of 3 runs at temperature 0.7; ours is one run. Avg. reproduces as (75.17*282 + 70.83*96 + 83.47*841 + 67.60*321)/1540 = 77.85.",
       "source": {
         "doi": "10.48550/arXiv.2606.00619",
         "stem": "10.48550_arxiv.2606.00619",
@@ -119,6 +166,29 @@
       }
     },
     {
+      "id": "longmemeval_s.judge_matched.mempro15.gpt4omini",
+      "metric": "longmemeval_s.judge_score_matched.n500",
+      "benchmark": "longmemeval_s",
+      "system": "MemPro-15",
+      "value": 79.0,
+      "unit": "pct_0_100",
+      "direction": "higher_is_better",
+      "n": 500,
+      "backbone": "gpt-4o-mini",
+      "backbone_class": "frontier_api",
+      "judge_class": "frontier_api",
+      "provenance": "paper",
+      "gate": false,
+      "caveat": "MemPro-15 on gpt-4o-mini, compared under LongMemEval's own grader (M70).",
+      "source": {
+        "doi": "10.48550/arXiv.2606.00619",
+        "stem": "10.48550_arxiv.2606.00619",
+        "locator": "Table 1, row MemPro-15 under the GPT-4o-mini backbone header, column LongMemEval Avg.",
+        "lines": "L190 (header L127-148)",
+        "quote": "<td>MemPro-15</td><td>77.44</td><td>73.68</td><td>83.33</td><td>98.57</td><td>60.71</td><td>86.67</td><td>79.00</td><td>82.26</td><td>62.50</td><td>90.01</td><td>80.68</td><td>84.93</td>"
+      }
+    },
+    {
       "id": "longmemeval_s.judge.mempro15.qwen3_30b",
       "metric": "longmemeval_s.judge_score.n500",
       "benchmark": "longmemeval_s",
@@ -131,9 +201,33 @@
       "backbone_class": "open_weights",
       "judge_class": "frontier_api",
       "provenance": "paper",
+      "gate": false,
+      "bar": "at_least",
+      "caveat": "G2's LongMemEval_S bar (PLAN.md 11.5). Micro-average check: (71.43*133 + 75.94*133 + 82.05*78 + 92.86*70 + 98.21*56 + 80.00*30)/500 = 80.80. Note the open-weights backbone scores HIGHER here than gpt-4o-mini's 79.00 and lower on LoCoMo - cross-model comparison on these two benchmarks is not monotonic. The gate is decided on longmemeval_s.judge_score_matched.n500 (M70): LongMemEval's own grader, the one runnable reading of MemPro's judge.",
+      "source": {
+        "doi": "10.48550/arXiv.2606.00619",
+        "stem": "10.48550_arxiv.2606.00619",
+        "locator": "Table 1, row MemPro-15 under the Qwen3-30B-A3B-Instruct-2507 backbone header, column LongMemEval Avg.",
+        "lines": "L235",
+        "quote": "<td>MemPro-15</td><td>71.43</td><td>75.94</td><td>82.05</td><td>92.86</td><td>98.21</td><td>80.00</td><td>80.80</td><td>75.17</td><td>70.83</td><td>83.47</td><td>67.60</td><td>77.85</td>"
+      }
+    },
+    {
+      "id": "longmemeval_s.judge_matched.mempro15.qwen3_30b",
+      "metric": "longmemeval_s.judge_score_matched.n500",
+      "benchmark": "longmemeval_s",
+      "system": "MemPro-15 (Qwen3-30B)",
+      "value": 80.8,
+      "unit": "pct_0_100",
+      "direction": "higher_is_better",
+      "n": 500,
+      "backbone": "Qwen3-30B-A3B-Instruct-2507",
+      "backbone_class": "open_weights",
+      "judge_class": "frontier_api",
+      "provenance": "paper",
       "gate": true,
       "bar": "at_least",
-      "caveat": "G2's LongMemEval_S bar (PLAN.md 11.5). Micro-average check: (71.43*133 + 75.94*133 + 82.05*78 + 92.86*70 + 98.21*56 + 80.00*30)/500 = 80.80. Note the open-weights backbone scores HIGHER here than gpt-4o-mini's 79.00 and lower on LoCoMo - cross-model comparison on these two benchmarks is not monotonic.",
+      "caveat": "G2's LongMemEval_S bar, graded the way LongMemEval grades (M70): the five official get_anscheck_prompt templates at xiaowu0162/LongMemEval@9e0b455 on gpt-4o-mini-2024-07-18, all 500 rows. MemPro says its judge 'follows GAM', which never published one; its Fig. 11 is a paraphrase without an abstention path and its repo grades summaries, so the benchmark's own grader is the one runnable reading.",
       "source": {
         "doi": "10.48550/arXiv.2606.00619",
         "stem": "10.48550_arxiv.2606.00619",

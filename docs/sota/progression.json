@@ -49,6 +49,18 @@
       "run": "runs/m63_locomo_base",
       "recorded": "2026-09-25"
     },
+    "locomo.judge_score_matched.n1540": {
+      "value": 78.18181818181819,
+      "n": 1540,
+      "run": "runs/m63_locomo_base",
+      "recorded": "2026-09-25"
+    },
+    "locomo.judge_score_mempro.n1540": {
+      "value": 80.25974025974027,
+      "n": 1540,
+      "run": "runs/m63_locomo_base",
+      "recorded": "2026-09-25"
+    },
     "locomo.temporal.n1540": {
       "value": 60.16407788234017,
       "n": 1540,
@@ -57,6 +69,18 @@
     },
     "longmemeval_s.judge_score.n500": {
       "value": 79.2,
+      "n": 500,
+      "run": "runs/m57_bonsai_premise_s1",
+      "recorded": "2026-09-25"
+    },
+    "longmemeval_s.judge_score_matched.n500": {
+      "value": 78.60000000000001,
+      "n": 500,
+      "run": "runs/m57_bonsai_premise_s1",
+      "recorded": "2026-09-25"
+    },
+    "longmemeval_s.judge_score_official.n500": {
+      "value": 78.60000000000001,
       "n": 500,
       "run": "runs/m57_bonsai_premise_s1",
       "recorded": "2026-09-25"

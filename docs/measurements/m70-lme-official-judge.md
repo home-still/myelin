@@ -50,3 +50,37 @@ stays the headline and decides every arm.
 **Falsifier.** If the official score is below 80.80, the LongMemEval_S lead
 exists only under our own judge. This doc then says so, and the gate stays
 open.
+
+## Result *(2026-09-25, 18:16; $0.012)*
+
+**78.60** (393/500) on `runs/m57_bonsai_premise_s1`, against MemPro-15
+Qwen3-30B's 80.80: **2.20 behind**. The falsifier fired: the LongMemEval_S
+lead existed only under our own judge.
+
+| type | n | official |
+|---|---|---|
+| single-session-user | 64 | 84.38 |
+| single-session-assistant | 56 | 89.29 |
+| single-session-preference | 30 | 43.33 |
+| multi-session | 121 | 74.38 |
+| temporal-reasoning | 127 | 76.38 |
+| knowledge-update | 72 | 84.72 |
+| abstention (`_abs`, 30) | 30 | 93.33 |
+
+**It also found a defect.** The disagreeing rows included decline-first
+answers that our strict judge had "passed". Their verdicts belonged to
+answers M57 no longer gives (a seed's). Fixed and corrected in PR #119
+(`docs/measurements/defect-2026-09-25-stale-verdicts.md`):
+- M57's strict score is **79.20**, not 83.40. The strict and official
+  graders now agree within 0.6.
+- The claim of 2026-09-24 that LongMemEval_S passed 80.80 was wrong, under
+  both graders.
+
+**Where the gap is under the official grader.**
+- Single-session-preference scores 43.33 (13 of 30). The official
+  preference template asks whether the response "recalls and utilizes the
+  user's personal information". Our reader's short answers often do not.
+- Multi-session is 74.38 and temporal-reasoning 76.38.
+
+`standing` gate: `longmemeval_s.judge_score_matched.n500` = 78.60, comparable,
+behind by 2.20.

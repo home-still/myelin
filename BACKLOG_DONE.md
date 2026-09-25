@@ -88,6 +88,31 @@ first arm to question the measurement apparatus rather than the mechanism.
 
 ---
 
+## M70 — LongMemEval_S graded the way LongMemEval grades: **78.60, 2.20 behind (gate open)**; it found the stale-verdict defect
+
+- **Built:** LongMemEval's own grader, byte for byte
+  (`xiaowu0162/LongMemEval@9e0b455`, five `get_anscheck_prompt` templates,
+  gpt-4o-mini-2024-07-18), in `adapters/judge_matched.py`.
+- **Result:** all 500 rows of the shipped run score **78.60** against
+  MemPro-15 Qwen3's 80.80.
+- **The defect it exposed:** stale seeded verdicts on declined answers
+  inflated 16 runs. M57 was 79.20, not 83.40
+  (`defect-2026-09-25-stale-verdicts.md`, PR #119).
+- **Where it loses:** single-session-preference 43.33, multi-session 74.38,
+  temporal 76.38.
+- `standing` gate: `longmemeval_s.judge_score_matched.n500`.
+- Docs: `m70-lme-official-judge.md`.
+
+## M68b — MemPro's own repo judge as a second LoCoMo reading: **80.26**; the gate holds on the lower reading (78.18)
+
+- **Built:** MemPro's repo judge (`wanghai673/MemPro@834b1ce:eval/locomo_test.py`),
+  verbatim.
+- **Result:** 80.26 on `m63_locomo_base`, and 80.00 on `m19`.
+- **The every-reading rule** (user, 2026-09-25): `locomo.judge_score_matched.n1540`
+  is the lowest reading, **78.18**, comparable, +0.33.
+- The adapter was renamed `judge_matched.py`. It carries all three
+  protocols, and `--verify-upstream` passes on each.
+
 ## M68 — LoCoMo graded the way MemPro's row was graded: **78.18, gate closed (comparable, +0.33)**
 
 - **Built:** `adapters/judge_lightmem.py`, which reproduces LightMem's

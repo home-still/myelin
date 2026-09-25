@@ -486,8 +486,32 @@ const METRICS: &[MetricDef] = &[
     MetricDef {
         id: "locomo.judge_score_lightmem.n1540",
         direction: Direction::HigherIsBetter,
-        command: "adapters/judge_lightmem.py --run runs/locomo_recall",
+        command: "adapters/judge_matched.py --protocol lightmem-locomo --run runs/locomo_recall",
         nominal_n: Some(1540),
+    },
+    MetricDef {
+        id: "locomo.judge_score_mempro.n1540",
+        direction: Direction::HigherIsBetter,
+        command: "adapters/judge_matched.py --protocol mempro-locomo --run runs/locomo_recall",
+        nominal_n: Some(1540),
+    },
+    MetricDef {
+        id: "locomo.judge_score_matched.n1540",
+        direction: Direction::HigherIsBetter,
+        command: "adapters/judge_matched.py, every LoCoMo protocol, on one run",
+        nominal_n: Some(1540),
+    },
+    MetricDef {
+        id: "longmemeval_s.judge_score_official.n500",
+        direction: Direction::HigherIsBetter,
+        command: "adapters/judge_matched.py --protocol longmemeval-official --run runs/lme_s_recall",
+        nominal_n: Some(500),
+    },
+    MetricDef {
+        id: "longmemeval_s.judge_score_matched.n500",
+        direction: Direction::HigherIsBetter,
+        command: "adapters/judge_matched.py, every LongMemEval protocol, on one run",
+        nominal_n: Some(500),
     },
     MetricDef {
         id: "locomo.token_f1.n1540",
@@ -920,7 +944,6 @@ fn bench_metrics(dir: &Path, agg_text: &str) -> Result<Vec<Ours>> {
         .with_context(|| format!("parse {} as a bench run", dir.display()))?;
     let rows = read_rows(dir)?;
     let verdicts = read_verdicts(dir)?;
-    let lightmem = read_lightmem_verdicts(dir)?;
     let mut out = Vec::new();
 
     // Every model `ops/big/serve-models.sh` can serve is open weights and
@@ -1090,19 +1113,10 @@ fn bench_metrics(dir: &Path, agg_text: &str) -> Result<Vec<Ours>> {
                     JudgeClass::OpenWeightsLocal,
                 ));
             }
-            // M68: the same answers under the grader MemPro's rows used
-            // (gpt-4o-mini, LightMem's prompt), a separate metric so the
-            // strict number above is never replaced by it.
-            if let Some(judge) = &lightmem {
-                out.push(judged(
-                    "locomo.judge_score_lightmem.n1540",
-                    dir,
-                    &stratum,
-                    judge,
-                    backbone,
-                    JudgeClass::FrontierApi,
-                ));
-            }
+            // M68/M68b: the same answers under each reading of the grader
+            // MemPro's rows used, as separate metrics, so the strict number
+            // above is never replaced by any of them.
+            out.extend(matched_metrics("locomo", dir, &stratum, backbone)?);
         }
         "longmemeval_s" => {
             let answerable: Vec<&ScoredQuestion> =
@@ -1148,6 +1162,9 @@ fn bench_metrics(dir: &Path, agg_text: &str) -> Result<Vec<Ours>> {
                     JudgeClass::OpenWeightsLocal,
                 ));
             }
+            // M70: the same 500 answers under LongMemEval's own grader.
+            let all: Vec<&ScoredQuestion> = rows.iter().collect();
+            out.extend(matched_metrics("longmemeval_s", dir, &all, backbone)?);
         }
         other => eprintln!(
             "warning: {} is corpus {other:?}, which has no metrics",
@@ -1343,57 +1360,181 @@ fn read_verdicts(dir: &Path) -> Result<Option<JudgeFile>> {
     ))
 }
 
-/// `adapters/judge_lightmem.py`'s output (M68).
-const LIGHTMEM_VERDICTS: &str = "judge_verdicts_lightmem.json";
-/// The protocol a LightMem verdict file must name, and the sha256 of
-/// LightMem's `ACCURACY_PROMPT` at `zjunlp/LightMem@8449d57`
-/// (`experiments/locomo/llm_judge.py`), the prompt MemPro's LoCoMo rows were
-/// graded with (arXiv 2606.00619, L122). Checked here, independently of the
-/// adapter that wrote the file, so a verdict file from any other grader can
-/// never be published under this metric.
-const LIGHTMEM_PROTOCOL: &str = "lightmem-locomo";
-const LIGHTMEM_PROMPT_SHA256: &str =
-    "62395dd312a631dfd9355026a0b69cc936018274c3198b6365b5c2a5c9bca9e0";
-const LIGHTMEM_JUDGE_MODEL: &str = "openai/gpt-4o-mini";
+/// A matched judge protocol: the grader a compared row was graded with,
+/// reproduced by `adapters/judge_matched.py` (M68, M68b, M70).
+///
+/// The prompt's sha256 and the judge model are pinned here, independently of
+/// the adapter that wrote the file, so a verdict file from any other grader
+/// can never be published under a protocol's metric.
+struct Protocol {
+    name: &'static str,
+    corpus: &'static str,
+    file: &'static str,
+    prompt_sha256: &'static str,
+    model: &'static str,
+    metric: &'static str,
+}
+
+const PROTOCOLS: &[Protocol] = &[
+    // LightMem's LoCoMo prompt at `zjunlp/LightMem@8449d57`, the one MemPro's
+    // paper cites and prints (arXiv 2606.00619, L122, Fig. 10).
+    Protocol {
+        name: "lightmem-locomo",
+        corpus: "locomo",
+        file: "judge_verdicts_lightmem.json",
+        prompt_sha256: "62395dd312a631dfd9355026a0b69cc936018274c3198b6365b5c2a5c9bca9e0",
+        model: "openai/gpt-4o-mini",
+        metric: "locomo.judge_score_lightmem.n1540",
+    },
+    // MemPro's own repo judge, `wanghai673/MemPro@834b1ce:eval/locomo_test.py`.
+    Protocol {
+        name: "mempro-locomo",
+        corpus: "locomo",
+        file: "judge_verdicts_mempro.json",
+        prompt_sha256: "caf0faa9f657d004d55181f41074eff6a5b7260fa792d8f1da37d0ecf553d10e",
+        model: "openai/gpt-4o-mini",
+        metric: "locomo.judge_score_mempro.n1540",
+    },
+    // LongMemEval's own grader, `xiaowu0162/LongMemEval@9e0b455`
+    // (`get_anscheck_prompt`), the one runnable reading of MemPro's
+    // "follows GAM" (M70).
+    Protocol {
+        name: "longmemeval-official",
+        corpus: "longmemeval_s",
+        file: "judge_verdicts_lme_official.json",
+        prompt_sha256: "140234c31249c1c446f9bdd57492d71ee8a906d9cae8db1a7551ee7c4917aaff",
+        model: "openai/gpt-4o-mini-2024-07-18",
+        metric: "longmemeval_s.judge_score_official.n500",
+    },
+];
+
+/// Per corpus, the metric a gate is decided on: the **lowest** of every
+/// runnable reading of the compared row's grader, present only when all of
+/// them are (the user's every-reading rule, 2026-09-25).
+const MATCHED: &[(&str, &str)] = &[
+    ("locomo", "locomo.judge_score_matched.n1540"),
+    ("longmemeval_s", "longmemeval_s.judge_score_matched.n500"),
+];
 
 #[derive(Deserialize)]
-struct LightmemProtocol {
+struct ProtocolRecord {
     name: String,
     prompt_sha256: String,
     model: String,
 }
 
 #[derive(Deserialize)]
-struct LightmemFile {
-    protocol: LightmemProtocol,
+struct ProtocolFile {
+    protocol: ProtocolRecord,
     #[serde(flatten)]
     judge: JudgeFile,
 }
 
-fn read_lightmem_verdicts(dir: &Path) -> Result<Option<JudgeFile>> {
-    let path = dir.join(LIGHTMEM_VERDICTS);
+fn read_protocol_verdicts(dir: &Path, p: &Protocol) -> Result<Option<JudgeFile>> {
+    let path = dir.join(p.file);
     if !path.exists() {
         return Ok(None);
     }
     let text =
         std::fs::read_to_string(&path).with_context(|| format!("read {}", path.display()))?;
-    let file: LightmemFile =
+    let file: ProtocolFile =
         serde_json::from_str(&text).with_context(|| format!("parse {}", path.display()))?;
-    let p = &file.protocol;
-    if p.name != LIGHTMEM_PROTOCOL
-        || p.prompt_sha256 != LIGHTMEM_PROMPT_SHA256
-        || p.model != LIGHTMEM_JUDGE_MODEL
-    {
+    let r = &file.protocol;
+    if r.name != p.name || r.prompt_sha256 != p.prompt_sha256 || r.model != p.model {
         bail!(
-            "{} names protocol {:?} (prompt {}, model {}), not LightMem's LoCoMo grader; \
-             refusing to publish it as locomo.judge_score_lightmem",
+            "{} names protocol {:?} (prompt {}, model {}), not {} (prompt {}, model {}); \
+             refusing to publish it as {}",
             path.display(),
+            r.name,
+            r.prompt_sha256,
+            r.model,
             p.name,
             p.prompt_sha256,
-            p.model
+            p.model,
+            p.metric
         );
     }
     Ok(Some(file.judge))
+}
+
+/// A protocol's score over a population, the way its source grader scores:
+/// every row is graded, declines and abstention items included, and a row
+/// counts by its verdict alone. Only a verdict given for the answer the row
+/// holds now counts (`judge::verdict_for`); anything else is a gap.
+fn protocol_judged(
+    p: &Protocol,
+    dir: &Path,
+    population: &[&ScoredQuestion],
+    judge: &JudgeFile,
+    backbone: Class,
+) -> Ours {
+    let mut correct = 0usize;
+    let mut covered = 0usize;
+    for row in population {
+        if let Some(v) = crate::judge::verdict_for(judge, row) {
+            covered += 1;
+            if v == 1 {
+                correct += 1;
+            }
+        }
+    }
+    let n = population.len();
+    Ours {
+        metric: p.metric.into(),
+        value: if n == 0 {
+            0.0
+        } else {
+            correct as f64 / n as f64 * 100.0
+        },
+        unit: Unit::PctZeroHundred,
+        n,
+        judge_class: JudgeClass::FrontierApi,
+        backbone_class: backbone,
+        run: dir.to_path_buf(),
+        detail: format!("protocol {} ({}): {correct} of {n} correct", p.name, p.model),
+        incomplete: (covered < n).then(|| format!("{covered}/{n} judged")),
+        arm: false,
+        unrecorded: Vec::new(),
+        candidates: Vec::new(),
+    }
+}
+
+/// Every protocol reading present for `corpus`, and the matched metric when
+/// all of them are.
+fn matched_metrics(
+    corpus: &str,
+    dir: &Path,
+    population: &[&ScoredQuestion],
+    backbone: Class,
+) -> Result<Vec<Ours>> {
+    let mut out = Vec::new();
+    let mut missing = false;
+    for p in PROTOCOLS.iter().filter(|p| p.corpus == corpus) {
+        match read_protocol_verdicts(dir, p)? {
+            Some(judge) => out.push(protocol_judged(p, dir, population, &judge, backbone)),
+            None => missing = true,
+        }
+    }
+    let matched = MATCHED.iter().find(|(c, _)| *c == corpus).map(|(_, m)| *m);
+    if let (false, Some(metric), Some(lowest)) = (
+        missing,
+        matched,
+        out.iter()
+            .min_by(|a, b| a.value.partial_cmp(&b.value).unwrap_or(std::cmp::Ordering::Equal)),
+    ) {
+        let readings: Vec<String> = out
+            .iter()
+            .map(|o| format!("{} {:.2}", o.metric, o.value))
+            .collect();
+        let incomplete: Vec<String> = out.iter().filter_map(|o| o.incomplete.clone()).collect();
+        out.push(Ours {
+            metric: metric.into(),
+            detail: format!("the lowest of every reading: {}", readings.join(", ")),
+            incomplete: (!incomplete.is_empty()).then(|| incomplete.join("; ")),
+            ..lowest.clone()
+        });
+    }
+    Ok(out)
 }
 
 // ---------------------------------------------------------------------------
@@ -3045,61 +3186,99 @@ mod tests {
         assert_eq!(judged.candidates.len(), 2, "both fixtures are candidates");
     }
 
-    /// M68: the LightMem-protocol verdicts are their own metric, graded by a
+    /// Write a protocol verdict file into a fixture run: every row graded,
+    /// correct on even ids, recorded for "an answer".
+    fn write_protocol(dir: &Path, p: &Protocol, sha: &str, correct_every: usize) {
+        let verdicts: BTreeMap<String, u8> = (0..1540)
+            .map(|i| (format!("q{i}"), u8::from(i % correct_every == 0)))
+            .collect();
+        let answers: BTreeMap<String, String> =
+            (0..1540).map(|i| (format!("q{i}"), "an answer".to_string())).collect();
+        let file = serde_json::json!({
+            "model": p.model,
+            "protocol": {"name": p.name, "prompt_sha256": sha, "model": p.model},
+            "verdicts": verdicts,
+            "answers": answers,
+        });
+        std::fs::write(dir.join(p.file), serde_json::to_string(&file).unwrap()).unwrap();
+    }
+
+    /// M68: a protocol's verdicts are their own metric, graded by a
     /// frontier-API judge, so they compare cleanly with MemPro's rows while
-    /// the strict number stays exactly what it was. A file naming any other
-    /// prompt is refused rather than published under LightMem's name.
+    /// the strict number stays what it was. A file naming any other prompt
+    /// is refused rather than published under the protocol's name.
     #[test]
-    fn a_lightmem_verdict_file_is_its_own_metric_and_must_name_the_pinned_prompt() {
+    fn a_protocol_verdict_file_is_its_own_metric_and_must_name_the_pinned_prompt() {
         let tmp = tempfile::tempdir().unwrap();
         let runs = tmp.path().join("runs");
         let dir = runs.join("locomo_matched");
         locomo_fixture(&dir, true, false);
-        let write = |sha: &str| {
-            let verdicts: BTreeMap<String, u8> = (0..1540)
-                .map(|i| (format!("q{i}"), u8::from(i % 2 == 0)))
-                .collect();
-            let file = serde_json::json!({
-                "model": LIGHTMEM_JUDGE_MODEL,
-                "protocol": {
-                    "name": LIGHTMEM_PROTOCOL,
-                    "prompt_sha256": sha,
-                    "model": LIGHTMEM_JUDGE_MODEL,
-                },
-                "verdicts": verdicts,
-                "answers": {},
-            });
-            std::fs::write(
-                dir.join(LIGHTMEM_VERDICTS),
-                serde_json::to_string(&file).unwrap(),
-            )
-            .unwrap();
-        };
-
-        write(LIGHTMEM_PROMPT_SHA256);
+        let lightmem = &PROTOCOLS[0];
+        write_protocol(&dir, lightmem, lightmem.prompt_sha256, 2);
         let ours = collect(&runs, "/nonexistent/python").unwrap();
-        let matched = &ours["locomo.judge_score_lightmem.n1540"];
+        let matched = &ours[lightmem.metric];
         assert!((matched.value - 50.0).abs() < 1e-9, "{matched:?}");
         assert_eq!(matched.judge_class, JudgeClass::FrontierApi);
         let strict = &ours["locomo.judge_score.n1540"];
-        assert!(
-            (strict.value - 100.0).abs() < 1e-9,
-            "the strict number is untouched: {strict:?}"
-        );
-        assert_eq!(strict.judge_class, JudgeClass::OpenWeightsLocal);
-        let mut reg = row("locomo.judge_score_lightmem.n1540", 40.0, 1540);
+        assert!((strict.value - 100.0).abs() < 1e-9, "the strict number is untouched: {strict:?}");
+        let mut reg = row(lightmem.metric, 40.0, 1540);
         reg.backbone_class = Class::OpenWeights;
-        // The fixture predates the operating-point keys; that staleness is
-        // another test's subject, and the judge class is this one's.
         let mut current = matched.clone();
         current.unrecorded.clear();
         assert_eq!(one(reg, vec![current]).verdict, Verdict::Comparable);
 
-        write("not-lightmems-prompt");
+        write_protocol(&dir, lightmem, "not-lightmems-prompt", 2);
         assert!(
             collect(&runs, "/nonexistent/python").is_err(),
             "a verdict file from another prompt is refused"
         );
+    }
+
+    /// The every-reading rule: the matched metric is the lowest reading and
+    /// exists only once every reading does.
+    #[test]
+    fn the_matched_metric_is_the_lowest_reading_and_needs_every_reading() {
+        let tmp = tempfile::tempdir().unwrap();
+        let runs = tmp.path().join("runs");
+        let dir = runs.join("locomo_matched");
+        locomo_fixture(&dir, true, false);
+        let (lightmem, mempro) = (&PROTOCOLS[0], &PROTOCOLS[1]);
+        write_protocol(&dir, lightmem, lightmem.prompt_sha256, 2);
+        let ours = collect(&runs, "/nonexistent/python").unwrap();
+        assert!(
+            !ours.contains_key("locomo.judge_score_matched.n1540"),
+            "one reading of two is not a matched number"
+        );
+        write_protocol(&dir, mempro, mempro.prompt_sha256, 4);
+        let ours = collect(&runs, "/nonexistent/python").unwrap();
+        let matched = &ours["locomo.judge_score_matched.n1540"];
+        assert!(
+            (matched.value - 25.0).abs() < 1e-9,
+            "the lower of 50 and 25: {matched:?}"
+        );
+        assert!(matched.detail.contains("locomo.judge_score_lightmem.n1540 50.00"), "{}", matched.detail);
+    }
+
+    /// A protocol grades every row its source grades, declines included: a
+    /// decline its judge passed counts, as it did in the source's number.
+    #[test]
+    fn a_protocol_counts_its_own_verdict_on_a_decline() {
+        let tmp = tempfile::tempdir().unwrap();
+        let runs = tmp.path().join("runs");
+        let dir = runs.join("locomo_decline");
+        // The last row declines ("I don't know.").
+        locomo_fixture(&dir, true, true);
+        let lightmem = &PROTOCOLS[0];
+        write_protocol(&dir, lightmem, lightmem.prompt_sha256, 1);
+        let path = dir.join(lightmem.file);
+        let mut file: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+        file["answers"]["q1539"] = serde_json::json!("I don't know.");
+        std::fs::write(&path, serde_json::to_string(&file).unwrap()).unwrap();
+        let ours = collect(&runs, "/nonexistent/python").unwrap();
+        let reading = &ours[lightmem.metric];
+        assert!((reading.value - 100.0).abs() < 1e-9, "{reading:?}");
+        let strict = &ours["locomo.judge_score.n1540"];
+        assert!((strict.value - 1539.0 / 1540.0 * 100.0).abs() < 1e-9, "strict still scores the decline 0");
     }
 
     /// M70's finding: a verdict file can carry a seed's "correct" for a row

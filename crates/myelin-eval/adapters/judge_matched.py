@@ -228,7 +228,9 @@ def read_key() -> str:
 
 
 def jsonl(path: Path) -> list[dict]:
-    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    # "\n" only: `str.splitlines` also breaks on U+2028 and friends, which
+    # occur inside JSON strings in LongMemEval answers.
+    return [json.loads(line) for line in path.read_text(encoding="utf-8").split("\n") if line.strip()]
 
 
 def load_verdict_file(path: Path, record: dict, what: str) -> dict | None:
@@ -396,9 +398,13 @@ def main() -> None:
     out_path = args.run / out_name
     known: dict[tuple[str, str], int] = {}
     existing = load_verdict_file(out_path, record, "cache")
+    served_before: dict[str, set[str]] = {"models": set(), "providers": set()}
     if existing:
         for qid, v in existing["verdicts"].items():
             known[(qid, existing["answers"][qid])] = v
+        # Reused verdicts keep the record of what served them.
+        for k in served_before:
+            served_before[k].update(existing.get("served", {}).get(k, []))
     for seed in args.seed:
         seeded = load_verdict_file(seed / out_name, record, f"seed {seed}")
         if seeded is None:
@@ -434,7 +440,10 @@ def main() -> None:
     file = {
         "model": p["model"],
         "protocol": record,
-        "served": {"models": sorted(judge.served_models), "providers": sorted(judge.providers)},
+        "served": {
+            "models": sorted(judge.served_models | served_before["models"]),
+            "providers": sorted(judge.providers | served_before["providers"]),
+        },
         "verdicts": dict(sorted(verdicts.items())),
         "answers": dict(sorted(answers.items())),
     }
