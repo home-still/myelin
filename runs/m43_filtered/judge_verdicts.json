@@ -114,7 +114,6 @@
     "55241a1f": 1,
     "561fabcd": 1,
     "577d4d32": 1,
-    "57f827a0": 0,
     "5809eb10": 1,
     "5831f84d": 1,
     "58470ed2": 1,
@@ -331,7 +330,6 @@
     "gpt4_15e38248": 0,
     "gpt4_18c2b244": 1,
     "gpt4_1916e0ea": 1,
-    "gpt4_194be4b3": 1,
     "gpt4_1a1dc16d": 1,
     "gpt4_1d4ab0c9": 1,
     "gpt4_1e4a8aeb": 1,
@@ -411,8 +409,7 @@
     "gpt4_f420262c": 0,
     "gpt4_f420262d": 0,
     "gpt4_f49edff3": 0,
-    "gpt4_fa19884c": 1,
-    "gpt4_fe651585": 1
+    "gpt4_fa19884c": 1
   },
   "answers": {
     "001be529": "Over a year.",
@@ -528,7 +525,6 @@
     "55241a1f": "33",
     "561fabcd": "Fissionator",
     "577d4d32": "7 pm",
-    "57f827a0": "2023-05-27",
     "5809eb10": "2014",
     "5831f84d": "15",
     "58470ed2": "\"The Library is a sphere whose exact center is any one of its hexagons and whose circumference is inaccessible.\"",
@@ -745,7 +741,6 @@
     "gpt4_15e38248": "2",
     "gpt4_18c2b244": "1. I used a Buy One Get One Free coupon on Luvs diapers at Walmart (2023-04-01)\n2. I redeemed $12 cashback for a $10 Amazon gift card from Ibotta (2023-04-10)\n3. I signed up for the rewards program at ShopRite (2023-04-15)",
     "gpt4_1916e0ea": "54",
-    "gpt4_194be4b3": "Four.",
     "gpt4_1a1dc16d": "Meeting with Rachel",
     "gpt4_1d4ab0c9": "24",
     "gpt4_1e4a8aeb": "6",
@@ -825,7 +820,6 @@
     "gpt4_f420262c": "United Airlines, American Airlines, American Airlines",
     "gpt4_f420262d": "JetBlue",
     "gpt4_f49edff3": "1. 2023-02-05\n2. 2023-02-10\n3. 2023-02-20",
-    "gpt4_fa19884c": "6",
-    "gpt4_fe651585": "Alex"
+    "gpt4_fa19884c": "6"
   }
 }

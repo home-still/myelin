@@ -27,6 +27,7 @@
   "item_digest": true,
   "digest_dates": true,
   "commit_answer": true,
+  "commit_grounded": false,
   "resumed_rows": 0,
   "commit_samples": null,
   "commit_agree": null,
@@ -37,13 +38,22 @@
   "reader_thinking": false,
   "reader_seed": null,
   "reader_thinking_budget": null,
+  "reader_think_message": false,
+  "reader_premise_clause": false,
+  "reader_best_guess": false,
+  "events_collection": null,
+  "events_ledger": null,
+  "dedupe_lineage": false,
+  "inline_dates": false,
+  "turn_windows": null,
   "decompose": null,
   "categories": [],
+  "llm_served_model": null,
   "scorer": "judge",
   "rescored_from": "runs/m45_consensus",
   "questions": 500,
-  "f1_answerable": 0.6659574468085107,
-  "em_answerable": 0.6659574468085107,
+  "f1_answerable": 0.6531914893617021,
+  "em_answerable": 0.6531914893617021,
   "abstention_accuracy": 0.8,
   "by_category": [
     {
@@ -54,27 +64,27 @@
     {
       "category": 2,
       "count": 56,
-      "mean_score": 0.9821428571428571
+      "mean_score": 0.9642857142857143
     },
     {
       "category": 3,
       "count": 30,
-      "mean_score": 0.4
+      "mean_score": 0.36666666666666664
     },
     {
       "category": 4,
       "count": 133,
-      "mean_score": 0.5939849624060151
+      "mean_score": 0.5864661654135338
     },
     {
       "category": 5,
       "count": 133,
-      "mean_score": 0.48120300751879697
+      "mean_score": 0.46616541353383456
     },
     {
       "category": 6,
       "count": 78,
-      "mean_score": 0.7948717948717948
+      "mean_score": 0.782051282051282
     }
   ],
   "query_p50_seconds": 7.082648292,

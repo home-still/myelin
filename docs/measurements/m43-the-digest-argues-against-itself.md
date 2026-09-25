@@ -1,5 +1,7 @@
 # M43 — the digest argues against itself
 
+> **Correction (2026-09-25):** 8 stale seeded verdicts inflated `m43_dated` (`defect-2026-09-25-stale-verdicts.md`). The corrected score is **66.20** (was 67.80).
+
 ## What M40 and M42 left
 
 `item_digest` measured **+2.40 (95% CI [−0.60, +5.60])** and stayed off. Its

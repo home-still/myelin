@@ -1,6 +1,6 @@
 {
-  "commit": "e41d6e35bf7d6a6e186dc4c625d71a7d3699e67e-dirty",
-  "generated_at": "2026-09-25T22:05:32.250233Z",
+  "commit": "e139f081618d161e6cdbf5952a675bb314588f59-dirty",
+  "generated_at": "2026-09-25T23:24:08.613699Z",
   "rows": [
     {
       "registry_id": "locomo.judge.mempro15.gpt4omini",
@@ -37,7 +37,7 @@
         },
         {
           "run": "runs/m63_locomo_inline",
-          "value": 71.29870129870129
+          "value": 70.71428571428572
         },
         {
           "run": "runs/m61_locomo_grounded",
@@ -60,12 +60,12 @@
           "value": 66.68831168831169
         },
         {
-          "run": "runs/m63_locomo_dedupe",
-          "value": 65.71428571428571
-        },
-        {
           "run": "runs/m51_locomo_s1",
           "value": 65.06493506493507
+        },
+        {
+          "run": "runs/m63_locomo_dedupe",
+          "value": 62.5974025974026
         },
         {
           "run": "runs/m21_mh_sel",
@@ -128,7 +128,7 @@
       "run": "runs/m63_locomo_base",
       "source_doi": "10.48550/arXiv.2606.00619",
       "caveat": "MemPro-15 on gpt-4o-mini, graded with LightMem's LoCoMo prompt on GPT-4o-mini (L122) - the protocol M68 reproduces. The Avg. column reproduces exactly as the micro-average over the FULL official category counts (82.26*282 + 62.50*96 + 90.01*841 + 80.68*321)/1540 = 84.93, so the population is LoCoMo's 1,540 non-adversarial questions in their official proportions.",
-      "detail": "judge openai/gpt-4o-mini : 1204 of 1540 correct (0 declines scored 0)",
+      "detail": "judge openai/gpt-4o-mini : 1204 of 1540 correct (116 declines scored 0)",
       "candidates": [
         {
           "run": "runs/m63_locomo_base",
@@ -175,7 +175,7 @@
         },
         {
           "run": "runs/m63_locomo_inline",
-          "value": 71.29870129870129
+          "value": 70.71428571428572
         },
         {
           "run": "runs/m61_locomo_grounded",
@@ -198,12 +198,12 @@
           "value": 66.68831168831169
         },
         {
-          "run": "runs/m63_locomo_dedupe",
-          "value": 65.71428571428571
-        },
-        {
           "run": "runs/m51_locomo_s1",
           "value": 65.06493506493507
+        },
+        {
+          "run": "runs/m63_locomo_dedupe",
+          "value": 62.5974025974026
         },
         {
           "run": "runs/m21_mh_sel",
@@ -264,7 +264,7 @@
       "run": "runs/m63_locomo_base",
       "source_doi": "10.48550/arXiv.2606.00619",
       "caveat": "G2's LoCoMo bar, graded the way it was graded (M68): GPT-4o-mini with LightMem's LoCoMo prompt (L122, Fig. 10), the protocol adapters/judge_lightmem.py reproduces byte for byte. Their number is a mean of 3 runs at temperature 0.7; ours is one run, and re-judging the same answers moved it by 2 of 1,540 rows (docs/measurements/m68-matched-judge.md). Avg. reproduces as (75.17*282 + 70.83*96 + 83.47*841 + 67.60*321)/1540 = 77.85.",
-      "detail": "judge openai/gpt-4o-mini : 1204 of 1540 correct (0 declines scored 0)",
+      "detail": "judge openai/gpt-4o-mini : 1204 of 1540 correct (116 declines scored 0)",
       "candidates": [
         {
           "run": "runs/m63_locomo_base",
@@ -281,9 +281,9 @@
       "metric": "longmemeval_s.judge_score.n500",
       "system": "MemPro-15",
       "theirs": 79.0,
-      "ours": 83.39999999999999,
+      "ours": 79.2,
       "ours_n": 500,
-      "gap": 4.3999999999999915,
+      "gap": 0.20000000000000284,
       "verdict": {
         "verdict": "caveat_judge",
         "ours": "open_weights_local",
@@ -295,51 +295,51 @@
       "run": "runs/m57_bonsai_premise_s1",
       "source_doi": "10.48550/arXiv.2606.00619",
       "caveat": "The LongMemEval Avg. is a micro-average over the six official question types: (77.44*133 + 73.68*133 + 83.33*78 + 98.57*70 + 60.71*56 + 86.67*30)/500 = 79.00 exactly, so n = 500 and the 30 `_abs` abstention items are inside those type counts rather than excluded. Judge prompt follows GAM (L122).",
-      "detail": "judge qwen3.5-9b : 417 of 500 correct (11 declines scored 0)",
+      "detail": "judge qwen3.5-9b : 396 of 500 correct (49 declines scored 0)",
       "candidates": [
         {
           "run": "runs/m57_bonsai_premise_s1",
-          "value": 83.39999999999999
+          "value": 79.2
         },
         {
           "run": "runs/m55_bonsai_s1",
-          "value": 82.19999999999999
+          "value": 80.0
         },
         {
           "run": "runs/m44_r2b_s1",
-          "value": 80.2
+          "value": 77.2
         },
         {
           "run": "runs/m44_r2b_s2",
-          "value": 79.80000000000001
+          "value": 76.0
         },
         {
           "run": "runs/m44_r2_s1",
-          "value": 78.4
+          "value": 75.0
         },
         {
           "run": "runs/m44_r2_s2",
-          "value": 78.4
-        },
-        {
-          "run": "runs/m43_dated",
-          "value": 67.80000000000001
-        },
-        {
-          "run": "runs/m48_role",
-          "value": 67.80000000000001
-        },
-        {
-          "run": "runs/m45_consensus",
-          "value": 67.4
-        },
-        {
-          "run": "runs/m46_ago",
-          "value": 67.4
+          "value": 74.8
         },
         {
           "run": "runs/m44_r1",
-          "value": 67.0
+          "value": 66.4
+        },
+        {
+          "run": "runs/m43_dated",
+          "value": 66.2
+        },
+        {
+          "run": "runs/m45_consensus",
+          "value": 66.2
+        },
+        {
+          "run": "runs/m46_ago",
+          "value": 66.0
+        },
+        {
+          "run": "runs/m48_role",
+          "value": 65.60000000000001
         },
         {
           "run": "runs/m40_digest",
@@ -351,7 +351,7 @@
         },
         {
           "run": "runs/m43_filtered",
-          "value": 63.4
+          "value": 63.0
         },
         {
           "run": "runs/m39_selfask",
@@ -443,14 +443,14 @@
         },
         {
           "run": "runs/m55_bonsai_pilot_s1",
-          "value": 79.0
-        },
-        {
-          "run": "runs/m50_pilot_s1",
-          "value": 73.0
+          "value": 77.0
         },
         {
           "run": "runs/m50_pilot_base_s1",
+          "value": 69.0
+        },
+        {
+          "run": "runs/m50_pilot_s1",
           "value": 69.0
         },
         {
@@ -480,9 +480,9 @@
       "metric": "longmemeval_s.judge_score.n500",
       "system": "MemPro-15 (Qwen3-30B)",
       "theirs": 80.8,
-      "ours": 83.39999999999999,
+      "ours": 79.2,
       "ours_n": 500,
-      "gap": 2.5999999999999943,
+      "gap": -1.5999999999999943,
       "verdict": {
         "verdict": "caveat_judge",
         "ours": "open_weights_local",
@@ -494,51 +494,51 @@
       "run": "runs/m57_bonsai_premise_s1",
       "source_doi": "10.48550/arXiv.2606.00619",
       "caveat": "G2's LongMemEval_S bar (PLAN.md 11.5). Micro-average check: (71.43*133 + 75.94*133 + 82.05*78 + 92.86*70 + 98.21*56 + 80.00*30)/500 = 80.80. Note the open-weights backbone scores HIGHER here than gpt-4o-mini's 79.00 and lower on LoCoMo - cross-model comparison on these two benchmarks is not monotonic.",
-      "detail": "judge qwen3.5-9b : 417 of 500 correct (11 declines scored 0)",
+      "detail": "judge qwen3.5-9b : 396 of 500 correct (49 declines scored 0)",
       "candidates": [
         {
           "run": "runs/m57_bonsai_premise_s1",
-          "value": 83.39999999999999
+          "value": 79.2
         },
         {
           "run": "runs/m55_bonsai_s1",
-          "value": 82.19999999999999
+          "value": 80.0
         },
         {
           "run": "runs/m44_r2b_s1",
-          "value": 80.2
+          "value": 77.2
         },
         {
           "run": "runs/m44_r2b_s2",
-          "value": 79.80000000000001
+          "value": 76.0
         },
         {
           "run": "runs/m44_r2_s1",
-          "value": 78.4
+          "value": 75.0
         },
         {
           "run": "runs/m44_r2_s2",
-          "value": 78.4
-        },
-        {
-          "run": "runs/m43_dated",
-          "value": 67.80000000000001
-        },
-        {
-          "run": "runs/m48_role",
-          "value": 67.80000000000001
-        },
-        {
-          "run": "runs/m45_consensus",
-          "value": 67.4
-        },
-        {
-          "run": "runs/m46_ago",
-          "value": 67.4
+          "value": 74.8
         },
         {
           "run": "runs/m44_r1",
-          "value": 67.0
+          "value": 66.4
+        },
+        {
+          "run": "runs/m43_dated",
+          "value": 66.2
+        },
+        {
+          "run": "runs/m45_consensus",
+          "value": 66.2
+        },
+        {
+          "run": "runs/m46_ago",
+          "value": 66.0
+        },
+        {
+          "run": "runs/m48_role",
+          "value": 65.60000000000001
         },
         {
           "run": "runs/m40_digest",
@@ -550,7 +550,7 @@
         },
         {
           "run": "runs/m43_filtered",
-          "value": 63.4
+          "value": 63.0
         },
         {
           "run": "runs/m39_selfask",
@@ -642,14 +642,14 @@
         },
         {
           "run": "runs/m55_bonsai_pilot_s1",
-          "value": 79.0
-        },
-        {
-          "run": "runs/m50_pilot_s1",
-          "value": 73.0
+          "value": 77.0
         },
         {
           "run": "runs/m50_pilot_base_s1",
+          "value": 69.0
+        },
+        {
+          "run": "runs/m50_pilot_s1",
           "value": 69.0
         },
         {
@@ -709,7 +709,7 @@
         },
         {
           "run": "runs/m63_locomo_inline",
-          "value": 71.29870129870129
+          "value": 70.71428571428572
         },
         {
           "run": "runs/m61_locomo_grounded",
@@ -732,12 +732,12 @@
           "value": 66.68831168831169
         },
         {
-          "run": "runs/m63_locomo_dedupe",
-          "value": 65.71428571428571
-        },
-        {
           "run": "runs/m51_locomo_s1",
           "value": 65.06493506493507
+        },
+        {
+          "run": "runs/m63_locomo_dedupe",
+          "value": 62.5974025974026
         },
         {
           "run": "runs/m21_mh_sel",
@@ -786,9 +786,9 @@
       "metric": "longmemeval_s.judge_score.n500",
       "system": "EverMemOS",
       "theirs": 83.0,
-      "ours": 83.39999999999999,
+      "ours": 79.2,
       "ours_n": 500,
-      "gap": 0.3999999999999915,
+      "gap": -3.799999999999997,
       "verdict": {
         "verdict": "caveat_judge",
         "ours": "open_weights_local",
@@ -800,51 +800,51 @@
       "run": "runs/m57_bonsai_premise_s1",
       "source_doi": "10.48550/arXiv.2601.02163",
       "caveat": "Supersedes MemPro's 79.00 as the best frontier-backbone LongMemEval_S number, and was not in PLAN.md 11.5's table. Population stated: \"LongMemEval (S-setting, ~115k tokens per conversation) evaluates 500 questions\" (L110), #Questions 500 (L613). Table 2's baselines are re-reported from the MemOS leaderboard rather than run by the authors (L586).",
-      "detail": "judge qwen3.5-9b : 417 of 500 correct (11 declines scored 0)",
+      "detail": "judge qwen3.5-9b : 396 of 500 correct (49 declines scored 0)",
       "candidates": [
         {
           "run": "runs/m57_bonsai_premise_s1",
-          "value": 83.39999999999999
+          "value": 79.2
         },
         {
           "run": "runs/m55_bonsai_s1",
-          "value": 82.19999999999999
+          "value": 80.0
         },
         {
           "run": "runs/m44_r2b_s1",
-          "value": 80.2
+          "value": 77.2
         },
         {
           "run": "runs/m44_r2b_s2",
-          "value": 79.80000000000001
+          "value": 76.0
         },
         {
           "run": "runs/m44_r2_s1",
-          "value": 78.4
+          "value": 75.0
         },
         {
           "run": "runs/m44_r2_s2",
-          "value": 78.4
-        },
-        {
-          "run": "runs/m43_dated",
-          "value": 67.80000000000001
-        },
-        {
-          "run": "runs/m48_role",
-          "value": 67.80000000000001
-        },
-        {
-          "run": "runs/m45_consensus",
-          "value": 67.4
-        },
-        {
-          "run": "runs/m46_ago",
-          "value": 67.4
+          "value": 74.8
         },
         {
           "run": "runs/m44_r1",
-          "value": 67.0
+          "value": 66.4
+        },
+        {
+          "run": "runs/m43_dated",
+          "value": 66.2
+        },
+        {
+          "run": "runs/m45_consensus",
+          "value": 66.2
+        },
+        {
+          "run": "runs/m46_ago",
+          "value": 66.0
+        },
+        {
+          "run": "runs/m48_role",
+          "value": 65.60000000000001
         },
         {
           "run": "runs/m40_digest",
@@ -856,7 +856,7 @@
         },
         {
           "run": "runs/m43_filtered",
-          "value": 63.4
+          "value": 63.0
         },
         {
           "run": "runs/m39_selfask",
@@ -948,14 +948,14 @@
         },
         {
           "run": "runs/m55_bonsai_pilot_s1",
-          "value": 79.0
-        },
-        {
-          "run": "runs/m50_pilot_s1",
-          "value": 73.0
+          "value": 77.0
         },
         {
           "run": "runs/m50_pilot_base_s1",
+          "value": 69.0
+        },
+        {
+          "run": "runs/m50_pilot_s1",
           "value": 69.0
         },
         {
@@ -1015,7 +1015,7 @@
         },
         {
           "run": "runs/m63_locomo_inline",
-          "value": 71.29870129870129
+          "value": 70.71428571428572
         },
         {
           "run": "runs/m61_locomo_grounded",
@@ -1038,12 +1038,12 @@
           "value": 66.68831168831169
         },
         {
-          "run": "runs/m63_locomo_dedupe",
-          "value": 65.71428571428571
-        },
-        {
           "run": "runs/m51_locomo_s1",
           "value": 65.06493506493507
+        },
+        {
+          "run": "runs/m63_locomo_dedupe",
+          "value": 62.5974025974026
         },
         {
           "run": "runs/m21_mh_sel",
@@ -1121,7 +1121,7 @@
         },
         {
           "run": "runs/m63_locomo_inline",
-          "value": 71.29870129870129
+          "value": 70.71428571428572
         },
         {
           "run": "runs/m61_locomo_grounded",
@@ -1144,12 +1144,12 @@
           "value": 66.68831168831169
         },
         {
-          "run": "runs/m63_locomo_dedupe",
-          "value": 65.71428571428571
-        },
-        {
           "run": "runs/m51_locomo_s1",
           "value": 65.06493506493507
+        },
+        {
+          "run": "runs/m63_locomo_dedupe",
+          "value": 62.5974025974026
         },
         {
           "run": "runs/m21_mh_sel",
@@ -1198,7 +1198,7 @@
       "metric": "longmemeval_s.judge_score.n500",
       "system": "Mem0 (vendor)",
       "theirs": 94.4,
-      "ours": 83.39999999999999,
+      "ours": 79.2,
       "ours_n": 500,
       "gap": null,
       "verdict": {
@@ -1211,51 +1211,51 @@
       "run": "runs/m57_bonsai_premise_s1",
       "source_doi": "",
       "caveat": "mem0.ai blog, 2026. Same objection as the LoCoMo vendor row; note it exceeds every peer-reviewed LongMemEval_S number in this registry by more than 11 points.",
-      "detail": "judge qwen3.5-9b : 417 of 500 correct (11 declines scored 0)",
+      "detail": "judge qwen3.5-9b : 396 of 500 correct (49 declines scored 0)",
       "candidates": [
         {
           "run": "runs/m57_bonsai_premise_s1",
-          "value": 83.39999999999999
+          "value": 79.2
         },
         {
           "run": "runs/m55_bonsai_s1",
-          "value": 82.19999999999999
+          "value": 80.0
         },
         {
           "run": "runs/m44_r2b_s1",
-          "value": 80.2
+          "value": 77.2
         },
         {
           "run": "runs/m44_r2b_s2",
-          "value": 79.80000000000001
+          "value": 76.0
         },
         {
           "run": "runs/m44_r2_s1",
-          "value": 78.4
+          "value": 75.0
         },
         {
           "run": "runs/m44_r2_s2",
-          "value": 78.4
-        },
-        {
-          "run": "runs/m43_dated",
-          "value": 67.80000000000001
-        },
-        {
-          "run": "runs/m48_role",
-          "value": 67.80000000000001
-        },
-        {
-          "run": "runs/m45_consensus",
-          "value": 67.4
-        },
-        {
-          "run": "runs/m46_ago",
-          "value": 67.4
+          "value": 74.8
         },
         {
           "run": "runs/m44_r1",
-          "value": 67.0
+          "value": 66.4
+        },
+        {
+          "run": "runs/m43_dated",
+          "value": 66.2
+        },
+        {
+          "run": "runs/m45_consensus",
+          "value": 66.2
+        },
+        {
+          "run": "runs/m46_ago",
+          "value": 66.0
+        },
+        {
+          "run": "runs/m48_role",
+          "value": 65.60000000000001
         },
         {
           "run": "runs/m40_digest",
@@ -1267,7 +1267,7 @@
         },
         {
           "run": "runs/m43_filtered",
-          "value": 63.4
+          "value": 63.0
         },
         {
           "run": "runs/m39_selfask",
@@ -1359,14 +1359,14 @@
         },
         {
           "run": "runs/m55_bonsai_pilot_s1",
-          "value": 79.0
-        },
-        {
-          "run": "runs/m50_pilot_s1",
-          "value": 73.0
+          "value": 77.0
         },
         {
           "run": "runs/m50_pilot_base_s1",
+          "value": 69.0
+        },
+        {
+          "run": "runs/m50_pilot_s1",
           "value": 69.0
         },
         {
@@ -1653,9 +1653,9 @@
       "metric": "longmemeval_s.judge_score.n500",
       "system": "Zep",
       "theirs": 71.2,
-      "ours": 83.39999999999999,
+      "ours": 79.2,
       "ours_n": 500,
-      "gap": 12.199999999999989,
+      "gap": 8.0,
       "verdict": {
         "verdict": "caveat_judge",
         "ours": "open_weights_local",
@@ -1667,51 +1667,51 @@
       "run": "runs/m57_bonsai_premise_s1",
       "source_doi": "10.48550/arxiv.2501.13956",
       "caveat": "Judge is GPT-4o with LongMemEval's own question-specific prompts, which is the protocol our judge rubric was written against. The paper never states a question count; 500 is LongMemEval_S's released size (docs/EVALUATION.md 6.2, probed).",
-      "detail": "judge qwen3.5-9b : 417 of 500 correct (11 declines scored 0)",
+      "detail": "judge qwen3.5-9b : 396 of 500 correct (49 declines scored 0)",
       "candidates": [
         {
           "run": "runs/m57_bonsai_premise_s1",
-          "value": 83.39999999999999
+          "value": 79.2
         },
         {
           "run": "runs/m55_bonsai_s1",
-          "value": 82.19999999999999
+          "value": 80.0
         },
         {
           "run": "runs/m44_r2b_s1",
-          "value": 80.2
+          "value": 77.2
         },
         {
           "run": "runs/m44_r2b_s2",
-          "value": 79.80000000000001
+          "value": 76.0
         },
         {
           "run": "runs/m44_r2_s1",
-          "value": 78.4
+          "value": 75.0
         },
         {
           "run": "runs/m44_r2_s2",
-          "value": 78.4
-        },
-        {
-          "run": "runs/m43_dated",
-          "value": 67.80000000000001
-        },
-        {
-          "run": "runs/m48_role",
-          "value": 67.80000000000001
-        },
-        {
-          "run": "runs/m45_consensus",
-          "value": 67.4
-        },
-        {
-          "run": "runs/m46_ago",
-          "value": 67.4
+          "value": 74.8
         },
         {
           "run": "runs/m44_r1",
-          "value": 67.0
+          "value": 66.4
+        },
+        {
+          "run": "runs/m43_dated",
+          "value": 66.2
+        },
+        {
+          "run": "runs/m45_consensus",
+          "value": 66.2
+        },
+        {
+          "run": "runs/m46_ago",
+          "value": 66.0
+        },
+        {
+          "run": "runs/m48_role",
+          "value": 65.60000000000001
         },
         {
           "run": "runs/m40_digest",
@@ -1723,7 +1723,7 @@
         },
         {
           "run": "runs/m43_filtered",
-          "value": 63.4
+          "value": 63.0
         },
         {
           "run": "runs/m39_selfask",
@@ -1815,14 +1815,14 @@
         },
         {
           "run": "runs/m55_bonsai_pilot_s1",
-          "value": 79.0
-        },
-        {
-          "run": "runs/m50_pilot_s1",
-          "value": 73.0
+          "value": 77.0
         },
         {
           "run": "runs/m50_pilot_base_s1",
+          "value": 69.0
+        },
+        {
+          "run": "runs/m50_pilot_s1",
           "value": 69.0
         },
         {
@@ -2140,9 +2140,9 @@
       "metric": "longmemeval_s.judge_score.n500",
       "system": "NEMORI",
       "theirs": 74.6,
-      "ours": 83.39999999999999,
+      "ours": 79.2,
       "ours_n": 500,
-      "gap": 8.799999999999997,
+      "gap": 4.6000000000000085,
       "verdict": {
         "verdict": "caveat_judge",
         "ours": "open_weights_local",
@@ -2154,51 +2154,51 @@
       "run": "runs/m57_bonsai_premise_s1",
       "source_doi": "10.48550/arxiv.2508.03341",
       "caveat": "PLAN.md 11.5 recorded this as \"NEMORI @ gpt-4o\"; Table 8's two blocks are gpt-4o-mini (Average 64.2) and gpt-4.1-mini (Average 74.6) per L923, so 74.6 is the gpt-4.1-mini row. The Average is a micro-average over the six official type counts - (86.7*30 + 92.9*56 + 72.2*133 + 55.6*133 + 79.5*78 + 90.0*70)/500 = 74.60 - which independently confirms n = 500. The LongMemEval judge MODEL is never named: L480 says only that the LLM-judge prompts are adapted from Zep's task-specific set, so frontier_api is inferred from the paper's LoCoMo judge (gpt-4o-mini).",
-      "detail": "judge qwen3.5-9b : 417 of 500 correct (11 declines scored 0)",
+      "detail": "judge qwen3.5-9b : 396 of 500 correct (49 declines scored 0)",
       "candidates": [
         {
           "run": "runs/m57_bonsai_premise_s1",
-          "value": 83.39999999999999
+          "value": 79.2
         },
         {
           "run": "runs/m55_bonsai_s1",
-          "value": 82.19999999999999
+          "value": 80.0
         },
         {
           "run": "runs/m44_r2b_s1",
-          "value": 80.2
+          "value": 77.2
         },
         {
           "run": "runs/m44_r2b_s2",
-          "value": 79.80000000000001
+          "value": 76.0
         },
         {
           "run": "runs/m44_r2_s1",
-          "value": 78.4
+          "value": 75.0
         },
         {
           "run": "runs/m44_r2_s2",
-          "value": 78.4
-        },
-        {
-          "run": "runs/m43_dated",
-          "value": 67.80000000000001
-        },
-        {
-          "run": "runs/m48_role",
-          "value": 67.80000000000001
-        },
-        {
-          "run": "runs/m45_consensus",
-          "value": 67.4
-        },
-        {
-          "run": "runs/m46_ago",
-          "value": 67.4
+          "value": 74.8
         },
         {
           "run": "runs/m44_r1",
-          "value": 67.0
+          "value": 66.4
+        },
+        {
+          "run": "runs/m43_dated",
+          "value": 66.2
+        },
+        {
+          "run": "runs/m45_consensus",
+          "value": 66.2
+        },
+        {
+          "run": "runs/m46_ago",
+          "value": 66.0
+        },
+        {
+          "run": "runs/m48_role",
+          "value": 65.60000000000001
         },
         {
           "run": "runs/m40_digest",
@@ -2210,7 +2210,7 @@
         },
         {
           "run": "runs/m43_filtered",
-          "value": 63.4
+          "value": 63.0
         },
         {
           "run": "runs/m39_selfask",
@@ -2302,14 +2302,14 @@
         },
         {
           "run": "runs/m55_bonsai_pilot_s1",
-          "value": 79.0
-        },
-        {
-          "run": "runs/m50_pilot_s1",
-          "value": 73.0
+          "value": 77.0
         },
         {
           "run": "runs/m50_pilot_base_s1",
+          "value": 69.0
+        },
+        {
+          "run": "runs/m50_pilot_s1",
           "value": 69.0
         },
         {
@@ -2369,7 +2369,7 @@
         },
         {
           "run": "runs/m63_locomo_inline",
-          "value": 71.29870129870129
+          "value": 70.71428571428572
         },
         {
           "run": "runs/m61_locomo_grounded",
@@ -2392,12 +2392,12 @@
           "value": 66.68831168831169
         },
         {
-          "run": "runs/m63_locomo_dedupe",
-          "value": 65.71428571428571
-        },
-        {
           "run": "runs/m51_locomo_s1",
           "value": 65.06493506493507
+        },
+        {
+          "run": "runs/m63_locomo_dedupe",
+          "value": 62.5974025974026
         },
         {
           "run": "runs/m21_mh_sel",
@@ -2568,9 +2568,9 @@
       "metric": "longmemeval_s.judge_score.n500",
       "system": "Memanto",
       "theirs": 89.8,
-      "ours": 83.39999999999999,
+      "ours": 79.2,
       "ours_n": 500,
-      "gap": -6.400000000000006,
+      "gap": -10.599999999999994,
       "verdict": {
         "verdict": "caveat_judge",
         "ours": "open_weights_local",
@@ -2582,51 +2582,51 @@
       "run": "runs/m57_bonsai_premise_s1",
       "source_doi": "10.48550/arXiv.2604.22085",
       "caveat": "n = 500 is stated, not assumed: \"the full 500-question suite under the standard S setting\". The judge is stated too - Claude Sonnet 4 - so this row's judge_class is read off the paper rather than inferred. The answer model is never named; the paper lists \"inference model selection\" as one of five ablation stages without saying which model the headline used.",
-      "detail": "judge qwen3.5-9b : 417 of 500 correct (11 declines scored 0)",
+      "detail": "judge qwen3.5-9b : 396 of 500 correct (49 declines scored 0)",
       "candidates": [
         {
           "run": "runs/m57_bonsai_premise_s1",
-          "value": 83.39999999999999
+          "value": 79.2
         },
         {
           "run": "runs/m55_bonsai_s1",
-          "value": 82.19999999999999
+          "value": 80.0
         },
         {
           "run": "runs/m44_r2b_s1",
-          "value": 80.2
+          "value": 77.2
         },
         {
           "run": "runs/m44_r2b_s2",
-          "value": 79.80000000000001
+          "value": 76.0
         },
         {
           "run": "runs/m44_r2_s1",
-          "value": 78.4
+          "value": 75.0
         },
         {
           "run": "runs/m44_r2_s2",
-          "value": 78.4
-        },
-        {
-          "run": "runs/m43_dated",
-          "value": 67.80000000000001
-        },
-        {
-          "run": "runs/m48_role",
-          "value": 67.80000000000001
-        },
-        {
-          "run": "runs/m45_consensus",
-          "value": 67.4
-        },
-        {
-          "run": "runs/m46_ago",
-          "value": 67.4
+          "value": 74.8
         },
         {
           "run": "runs/m44_r1",
-          "value": 67.0
+          "value": 66.4
+        },
+        {
+          "run": "runs/m43_dated",
+          "value": 66.2
+        },
+        {
+          "run": "runs/m45_consensus",
+          "value": 66.2
+        },
+        {
+          "run": "runs/m46_ago",
+          "value": 66.0
+        },
+        {
+          "run": "runs/m48_role",
+          "value": 65.60000000000001
         },
         {
           "run": "runs/m40_digest",
@@ -2638,7 +2638,7 @@
         },
         {
           "run": "runs/m43_filtered",
-          "value": 63.4
+          "value": 63.0
         },
         {
           "run": "runs/m39_selfask",
@@ -2730,14 +2730,14 @@
         },
         {
           "run": "runs/m55_bonsai_pilot_s1",
-          "value": 79.0
-        },
-        {
-          "run": "runs/m50_pilot_s1",
-          "value": 73.0
+          "value": 77.0
         },
         {
           "run": "runs/m50_pilot_base_s1",
+          "value": 69.0
+        },
+        {
+          "run": "runs/m50_pilot_s1",
           "value": 69.0
         },
         {
@@ -2797,7 +2797,7 @@
         },
         {
           "run": "runs/m63_locomo_inline",
-          "value": 71.29870129870129
+          "value": 70.71428571428572
         },
         {
           "run": "runs/m61_locomo_grounded",
@@ -2820,12 +2820,12 @@
           "value": 66.68831168831169
         },
         {
-          "run": "runs/m63_locomo_dedupe",
-          "value": 65.71428571428571
-        },
-        {
           "run": "runs/m51_locomo_s1",
           "value": 65.06493506493507
+        },
+        {
+          "run": "runs/m63_locomo_dedupe",
+          "value": 62.5974025974026
         },
         {
           "run": "runs/m21_mh_sel",
@@ -2904,7 +2904,7 @@
         },
         {
           "run": "runs/m63_locomo_inline",
-          "value": 71.29870129870129
+          "value": 70.71428571428572
         },
         {
           "run": "runs/m61_locomo_grounded",
@@ -2927,12 +2927,12 @@
           "value": 66.68831168831169
         },
         {
-          "run": "runs/m63_locomo_dedupe",
-          "value": 65.71428571428571
-        },
-        {
           "run": "runs/m51_locomo_s1",
           "value": 65.06493506493507
+        },
+        {
+          "run": "runs/m63_locomo_dedupe",
+          "value": 62.5974025974026
         },
         {
           "run": "runs/m21_mh_sel",
@@ -2981,9 +2981,9 @@
       "metric": "longmemeval_s.judge_score.n500",
       "system": "APEX-MEM",
       "theirs": 86.2,
-      "ours": 83.39999999999999,
+      "ours": 79.2,
       "ours_n": 500,
-      "gap": -2.8000000000000114,
+      "gap": -7.0,
       "verdict": {
         "verdict": "caveat_judge",
         "ours": "open_weights_local",
@@ -2995,51 +2995,51 @@
       "run": "runs/m57_bonsai_premise_s1",
       "source_doi": "10.48550/arXiv.2604.14362",
       "caveat": "Companion figure to locomo.judge.apex_mem, from the same sentence. The PDF is converted (20 pages) but the conversion's retrievable text covers the front matter only - abstract, introduction, related work and the architecture section - so the quote is the abstract's results sentence rather than a table row, and neither the per-category cells, the question counts, the answer model nor the judge could be read. n is this registry's assumption from the benchmarks' own populations. Re-read the results section before this row is used for anything but context.",
-      "detail": "judge qwen3.5-9b : 417 of 500 correct (11 declines scored 0)",
+      "detail": "judge qwen3.5-9b : 396 of 500 correct (49 declines scored 0)",
       "candidates": [
         {
           "run": "runs/m57_bonsai_premise_s1",
-          "value": 83.39999999999999
+          "value": 79.2
         },
         {
           "run": "runs/m55_bonsai_s1",
-          "value": 82.19999999999999
+          "value": 80.0
         },
         {
           "run": "runs/m44_r2b_s1",
-          "value": 80.2
+          "value": 77.2
         },
         {
           "run": "runs/m44_r2b_s2",
-          "value": 79.80000000000001
+          "value": 76.0
         },
         {
           "run": "runs/m44_r2_s1",
-          "value": 78.4
+          "value": 75.0
         },
         {
           "run": "runs/m44_r2_s2",
-          "value": 78.4
-        },
-        {
-          "run": "runs/m43_dated",
-          "value": 67.80000000000001
-        },
-        {
-          "run": "runs/m48_role",
-          "value": 67.80000000000001
-        },
-        {
-          "run": "runs/m45_consensus",
-          "value": 67.4
-        },
-        {
-          "run": "runs/m46_ago",
-          "value": 67.4
+          "value": 74.8
         },
         {
           "run": "runs/m44_r1",
-          "value": 67.0
+          "value": 66.4
+        },
+        {
+          "run": "runs/m43_dated",
+          "value": 66.2
+        },
+        {
+          "run": "runs/m45_consensus",
+          "value": 66.2
+        },
+        {
+          "run": "runs/m46_ago",
+          "value": 66.0
+        },
+        {
+          "run": "runs/m48_role",
+          "value": 65.60000000000001
         },
         {
           "run": "runs/m40_digest",
@@ -3051,7 +3051,7 @@
         },
         {
           "run": "runs/m43_filtered",
-          "value": 63.4
+          "value": 63.0
         },
         {
           "run": "runs/m39_selfask",
@@ -3143,14 +3143,14 @@
         },
         {
           "run": "runs/m55_bonsai_pilot_s1",
-          "value": 79.0
-        },
-        {
-          "run": "runs/m50_pilot_s1",
-          "value": 73.0
+          "value": 77.0
         },
         {
           "run": "runs/m50_pilot_base_s1",
+          "value": 69.0
+        },
+        {
+          "run": "runs/m50_pilot_s1",
           "value": 69.0
         },
         {
@@ -3180,9 +3180,9 @@
       "metric": "longmemeval_s.judge_score.n500",
       "system": "Chronos High",
       "theirs": 95.6,
-      "ours": 83.39999999999999,
+      "ours": 79.2,
       "ours_n": 500,
-      "gap": -12.200000000000003,
+      "gap": -16.39999999999999,
       "verdict": {
         "verdict": "caveat_judge",
         "ours": "open_weights_local",
@@ -3194,51 +3194,51 @@
       "run": "runs/m57_bonsai_premise_s1",
       "source_doi": "10.48550/arXiv.2603.16862",
       "caveat": "The highest LongMemEval_S number known to this project, and the population is stated: \"the LongMemEvalS benchmark comprising 500 questions across six categories\". It also reproduces arithmetically - the per-category cells the paper reports for Chronos High (98.57 ss-user, 100 ss-assistant, 100 ss-preference, 88.72 multi-session, 95.50 temporal-reasoning, 100 knowledge-update) micro-average over the official counts 70/56/30/133/133/78 to exactly 95.60, which independently confirms n = 500. Backbone is the paper's own definition of \"High\": \"High configurations refer to evaluations with advanced frontier models, such as Opus 4.6 and Gemini 3 Pro\"; Chronos Low, on \"GPT-4o, or similar\", is 92.60 on the same set. The **judge is never named** - the converted text contains no occurrence of \"judge\" or \"grader\" - so judge_class is inferred from the backbone class and must be treated as unverified. Chronos is also the published form of M19's mechanism: it \"decomposes raw dialogue into subject-verb-object event tuples with resolved datetime ranges\" at write time, and reports the events calendar alone as a 58.9% gain over its baseline.",
-      "detail": "judge qwen3.5-9b : 417 of 500 correct (11 declines scored 0)",
+      "detail": "judge qwen3.5-9b : 396 of 500 correct (49 declines scored 0)",
       "candidates": [
         {
           "run": "runs/m57_bonsai_premise_s1",
-          "value": 83.39999999999999
+          "value": 79.2
         },
         {
           "run": "runs/m55_bonsai_s1",
-          "value": 82.19999999999999
+          "value": 80.0
         },
         {
           "run": "runs/m44_r2b_s1",
-          "value": 80.2
+          "value": 77.2
         },
         {
           "run": "runs/m44_r2b_s2",
-          "value": 79.80000000000001
+          "value": 76.0
         },
         {
           "run": "runs/m44_r2_s1",
-          "value": 78.4
+          "value": 75.0
         },
         {
           "run": "runs/m44_r2_s2",
-          "value": 78.4
-        },
-        {
-          "run": "runs/m43_dated",
-          "value": 67.80000000000001
-        },
-        {
-          "run": "runs/m48_role",
-          "value": 67.80000000000001
-        },
-        {
-          "run": "runs/m45_consensus",
-          "value": 67.4
-        },
-        {
-          "run": "runs/m46_ago",
-          "value": 67.4
+          "value": 74.8
         },
         {
           "run": "runs/m44_r1",
-          "value": 67.0
+          "value": 66.4
+        },
+        {
+          "run": "runs/m43_dated",
+          "value": 66.2
+        },
+        {
+          "run": "runs/m45_consensus",
+          "value": 66.2
+        },
+        {
+          "run": "runs/m46_ago",
+          "value": 66.0
+        },
+        {
+          "run": "runs/m48_role",
+          "value": 65.60000000000001
         },
         {
           "run": "runs/m40_digest",
@@ -3250,7 +3250,7 @@
         },
         {
           "run": "runs/m43_filtered",
-          "value": 63.4
+          "value": 63.0
         },
         {
           "run": "runs/m39_selfask",
@@ -3342,14 +3342,14 @@
         },
         {
           "run": "runs/m55_bonsai_pilot_s1",
-          "value": 79.0
-        },
-        {
-          "run": "runs/m50_pilot_s1",
-          "value": 73.0
+          "value": 77.0
         },
         {
           "run": "runs/m50_pilot_base_s1",
+          "value": 69.0
+        },
+        {
+          "run": "runs/m50_pilot_s1",
           "value": 69.0
         },
         {
@@ -3376,7 +3376,7 @@
     }
   ],
   "gated_failures": [
-    "longmemeval_s.judge.mempro15.qwen3_30b [longmemeval_s.judge_score.n500] ahead by 2.60 (ours 83.40, theirs 80.80), but caveat-judge(open_weights_local vs frontier_api); a gate closes only on a comparable row",
+    "longmemeval_s.judge.mempro15.qwen3_30b [longmemeval_s.judge_score.n500] behind by 1.60 (ours 79.20, gate needs >= 80.80)",
     "lme_v2_small.agentrunbook_c [lme_v2_small.overall_full_set.combined] behind by 36.10 (ours 38.80, gate needs >= 74.90)",
     "lme_v2_small.lafs_gain.frontier [lme_v2_small.lafs_gain.small] artifact predates today's operating point (artifact does not record mode, max_steps, prefetch_limit, rerank_depth, select, dated, pool_rerank, premise, typed_probes, decompose; re-measure on this code before quoting it)"
   ],
@@ -4000,7 +4000,7 @@
         },
         {
           "run": "runs/m63_locomo_inline",
-          "value": 71.29870129870129
+          "value": 70.71428571428572
         },
         {
           "run": "runs/m61_locomo_grounded",
@@ -4023,12 +4023,12 @@
           "value": 66.68831168831169
         },
         {
-          "run": "runs/m63_locomo_dedupe",
-          "value": 65.71428571428571
-        },
-        {
           "run": "runs/m51_locomo_s1",
           "value": 65.06493506493507
+        },
+        {
+          "run": "runs/m63_locomo_dedupe",
+          "value": 62.5974025974026
         },
         {
           "run": "runs/m21_mh_sel",
@@ -4080,7 +4080,7 @@
       "judge_class": "frontier_api",
       "backbone_class": "open_weights",
       "run": "runs/m63_locomo_base",
-      "detail": "judge openai/gpt-4o-mini : 1204 of 1540 correct (0 declines scored 0)",
+      "detail": "judge openai/gpt-4o-mini : 1204 of 1540 correct (116 declines scored 0)",
       "incomplete": null,
       "arm": false,
       "unrecorded": [],
@@ -4330,60 +4330,60 @@
     },
     {
       "metric": "longmemeval_s.judge_score.n500",
-      "value": 83.39999999999999,
+      "value": 79.2,
       "unit": "pct_0_100",
       "n": 500,
       "judge_class": "open_weights_local",
       "backbone_class": "open_weights",
       "run": "runs/m57_bonsai_premise_s1",
-      "detail": "judge qwen3.5-9b : 417 of 500 correct (11 declines scored 0)",
+      "detail": "judge qwen3.5-9b : 396 of 500 correct (49 declines scored 0)",
       "incomplete": null,
       "arm": false,
       "unrecorded": [],
       "candidates": [
         {
           "run": "runs/m57_bonsai_premise_s1",
-          "value": 83.39999999999999
+          "value": 79.2
         },
         {
           "run": "runs/m55_bonsai_s1",
-          "value": 82.19999999999999
+          "value": 80.0
         },
         {
           "run": "runs/m44_r2b_s1",
-          "value": 80.2
+          "value": 77.2
         },
         {
           "run": "runs/m44_r2b_s2",
-          "value": 79.80000000000001
+          "value": 76.0
         },
         {
           "run": "runs/m44_r2_s1",
-          "value": 78.4
+          "value": 75.0
         },
         {
           "run": "runs/m44_r2_s2",
-          "value": 78.4
-        },
-        {
-          "run": "runs/m43_dated",
-          "value": 67.80000000000001
-        },
-        {
-          "run": "runs/m48_role",
-          "value": 67.80000000000001
-        },
-        {
-          "run": "runs/m45_consensus",
-          "value": 67.4
-        },
-        {
-          "run": "runs/m46_ago",
-          "value": 67.4
+          "value": 74.8
         },
         {
           "run": "runs/m44_r1",
-          "value": 67.0
+          "value": 66.4
+        },
+        {
+          "run": "runs/m43_dated",
+          "value": 66.2
+        },
+        {
+          "run": "runs/m45_consensus",
+          "value": 66.2
+        },
+        {
+          "run": "runs/m46_ago",
+          "value": 66.0
+        },
+        {
+          "run": "runs/m48_role",
+          "value": 65.60000000000001
         },
         {
           "run": "runs/m40_digest",
@@ -4395,7 +4395,7 @@
         },
         {
           "run": "runs/m43_filtered",
-          "value": 63.4
+          "value": 63.0
         },
         {
           "run": "runs/m39_selfask",
@@ -4487,14 +4487,14 @@
         },
         {
           "run": "runs/m55_bonsai_pilot_s1",
-          "value": 79.0
-        },
-        {
-          "run": "runs/m50_pilot_s1",
-          "value": 73.0
+          "value": 77.0
         },
         {
           "run": "runs/m50_pilot_base_s1",
+          "value": 69.0
+        },
+        {
+          "run": "runs/m50_pilot_s1",
           "value": 69.0
         },
         {

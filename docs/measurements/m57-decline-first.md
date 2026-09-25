@@ -1,5 +1,7 @@
 # M57 — "I don't know" first, then the correction *(pre-registered 2026-09-24; **shipped**: 83.40, +5.0 [+2.2, +7.8], abstention 29/30)*
 
+> **Correction (2026-09-25):** 83.40 was inflated by 21 stale seeded verdicts on declined answers (`defect-2026-09-25-stale-verdicts.md`). The corrected score is **79.20**; vs the 9B it is **+4.20 [+1.20, +7.40]** (was +5.0), so it still ships. It does **not** pass MemPro-15's 80.80: the 2026-09-24 SOTA claim was wrong.
+
 ## Why
 
 M55 put Bonsai 27B at **82.20** on LongMemEval_S, against the shipped 9B's

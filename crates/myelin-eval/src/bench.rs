@@ -2942,11 +2942,16 @@ fn judged_score(judge: &crate::judge::JudgeFile, row: &ScoredQuestion) -> Result
     if row.is_abstention_problem {
         return Ok(f64::from(u8::from(declined)));
     }
-    match judge.verdicts.get(&row.question_id) {
-        Some(v) => Ok(f64::from(u8::from(*v == 1))),
-        None if declined => Ok(0.0),
+    // A decline scores 0 whatever a verdict file says. The judge never grades
+    // one, so a verdict on a declined row belongs to some other answer (a
+    // seed's, before this run replaced it with "I don't know.").
+    if declined {
+        return Ok(0.0);
+    }
+    match crate::judge::verdict_for(judge, row) {
+        Some(v) => Ok(f64::from(u8::from(v == 1))),
         None => anyhow::bail!(
-            "question {} was answered but has no verdict from judge {}; \
+            "question {} was answered but has no verdict for this answer from judge {}; \
              re-run `myelin-eval judge` over the whole run before rescoring",
             row.question_id,
             judge.model

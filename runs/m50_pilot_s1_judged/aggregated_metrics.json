@@ -27,6 +27,7 @@
   "item_digest": true,
   "digest_dates": true,
   "commit_answer": false,
+  "commit_grounded": false,
   "resumed_rows": 0,
   "commit_samples": null,
   "commit_agree": null,
@@ -38,6 +39,13 @@
   "reader_seed": 1,
   "reader_thinking_budget": 1024,
   "reader_think_message": false,
+  "reader_premise_clause": false,
+  "reader_best_guess": false,
+  "events_collection": null,
+  "events_ledger": null,
+  "dedupe_lineage": false,
+  "inline_dates": false,
+  "turn_windows": null,
   "decompose": null,
   "categories": [],
   "question_ids": [
@@ -142,17 +150,18 @@
     "ac031881",
     "c7cf7dfd"
   ],
+  "llm_served_model": null,
   "scorer": "judge",
   "rescored_from": "runs/m50_pilot_s1",
   "questions": 100,
-  "f1_answerable": 0.7127659574468085,
-  "em_answerable": 0.7127659574468085,
+  "f1_answerable": 0.6702127659574468,
+  "em_answerable": 0.6702127659574468,
   "abstention_accuracy": 1.0,
   "by_category": [
     {
       "category": 1,
       "count": 14,
-      "mean_score": 1.0
+      "mean_score": 0.9285714285714286
     },
     {
       "category": 2,
@@ -167,12 +176,12 @@
     {
       "category": 4,
       "count": 27,
-      "mean_score": 0.5925925925925926
+      "mean_score": 0.5555555555555556
     },
     {
       "category": 5,
       "count": 27,
-      "mean_score": 0.7777777777777778
+      "mean_score": 0.7037037037037037
     },
     {
       "category": 6,

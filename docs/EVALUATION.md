@@ -465,9 +465,9 @@ LoCoMo and LME-V2 still read with the 9B and no clause.
 |---|---|---|
 | M19 | dates resolved *for* the reader; `[timeline]` view | 56.40 |
 | M32 | pool-level sufficiency selection ships on | **62.00** (+5.8, 95% CI [+2.8, +8.8]) |
-| M43 | one dated digest note per memory ships on | **67.80** (+5.8, 95% CI [+2.8, +8.8]) |
-| M44 R2 | the reader thinks — 1,024-token budget, sampled, two seeds | **78.40** (+10.6, 95% CI [+7.0, +14.2]; seed 2 identical) |
-| M57 | Bonsai 27B reads, and says "I don't know." before correcting a false premise | **83.40** (+5.0, 95% CI [+2.2, +7.8]; abstention 29/30) |
+| M43 | one dated digest note per memory ships on | **66.20** (+4.2, 95% CI [+1.0, +7.4] vs M32's 62.00); first reported as 67.80, corrected 2026-09-25 |
+| M44 R2 | the reader thinks — 1,024-token budget, sampled, two seeds | **75.00** (+8.80, 95% CI [+5.0, +12.8]; seed 2 74.80); first reported as 78.40, corrected 2026-09-25 |
+| M57 | Bonsai 27B reads, and says "I don't know." before correcting a false premise | **79.20** (+4.20, 95% CI [+1.20, +7.40]; abstention 29/30); first reported as 83.40, corrected 2026-09-25 (`defect-2026-09-25-stale-verdicts.md`) |
 
 Everything between and after those rows — M33–M42, M44 R1, M55 — is a measured
 null, a significant negative, or a win vetoed on the abstention rows, and

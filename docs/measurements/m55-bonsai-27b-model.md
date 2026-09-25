@@ -1,5 +1,7 @@
 # M55 — a stronger local model: Ternary Bonsai 2 27B as myelin's model *(full run measured 2026-09-23: +3.8, abstention veto fired)*
 
+> **Correction (2026-09-25):** 82.20 was inflated by 11 stale seeded verdicts (`defect-2026-09-25-stale-verdicts.md`). The corrected score is **80.00**; vs the 9B it is **+5.00 [+2.2, +8.0]**. The abstention veto is unchanged.
+
 ## Why the model, and why now
 
 Every measurement this week points at the 9B model as the ceiling that all
