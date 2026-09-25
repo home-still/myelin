@@ -519,6 +519,24 @@ enum Command {
         #[arg(long)]
         limit: Option<usize>,
     },
+    /// M69: write a tenant's stored trajectories as the files AgentRunbook-C's
+    /// controller reads (`<out>/<id>/trajectory.json`), byte for byte as the
+    /// harness writes them. With `--check`, compare every file against a
+    /// harness workspace's own and fail on any difference.
+    TrajectoriesExport {
+        #[arg(long, default_value = "data/lme_v2_small.ledger")]
+        ledger: String,
+        #[arg(long, default_value = "lme_v2_small")]
+        namespace: String,
+        /// e.g. `lme_v2_small/web`.
+        #[arg(long)]
+        tenant: String,
+        #[arg(long)]
+        out: String,
+        /// A harness `memory_workspace/shared/trajectories` directory.
+        #[arg(long)]
+        check: Option<String>,
+    },
     /// Apply M42's decline-recovery pass to a finished run, writing a new
     /// one. The mechanism is a pure function of the first response, so rows
     /// that answered come back byte-identical and the non-firing control is
@@ -982,6 +1000,7 @@ impl Command {
             Command::EventsBuild { .. } => "events-build",
             Command::Phrases { .. } => "phrases",
             Command::Reindex { .. } => "reindex",
+            Command::TrajectoriesExport { .. } => "trajectories-export",
             Command::CommitArm { .. } => "commit-arm",
             Command::Bench { .. } => "bench",
             Command::Attack { .. } => "attack",
@@ -1075,6 +1094,13 @@ async fn main() -> anyhow::Result<()> {
             );
             Ok(())
         }
+        Command::TrajectoriesExport {
+            ref ledger,
+            ref namespace,
+            ref tenant,
+            ref out,
+            ref check,
+        } => trajectories_export(ledger, namespace, tenant, out, check.as_deref()).await,
         Command::Reindex {
             corpus,
             ref ledger,
@@ -1780,6 +1806,55 @@ async fn ablate_cmd(
     )
     .await?;
     myelin_eval::ablate::print_table(&run, k);
+    Ok(())
+}
+
+/// M69: export a tenant's trajectories and, with `check`, compare them byte
+/// for byte against a harness workspace's own files.
+async fn trajectories_export(
+    ledger: &str,
+    namespace: &str,
+    tenant: &str,
+    out: &str,
+    check: Option<&str>,
+) -> anyhow::Result<()> {
+    use myelin_core::pipeline::trajectory_export::{export_tenant, TRAJECTORY_FILE};
+    let ledger = myelin_core::store::ledger::Ledger::open(Path::new(ledger))
+        .await
+        .context("open ledger")?;
+    let out = Path::new(out);
+    let n = export_tenant(&ledger, namespace, tenant, out).await?;
+    println!("wrote {n} trajectories under {}", out.display());
+    let Some(check) = check else { return Ok(()) };
+    let theirs = Path::new(check);
+    let (mut same, mut differ, mut missing) = (Vec::new(), Vec::new(), Vec::new());
+    for entry in std::fs::read_dir(theirs).with_context(|| format!("read {}", theirs.display()))? {
+        let dir = entry?.path();
+        if !dir.is_dir() {
+            continue;
+        }
+        let Some(id) = dir.file_name().map(|n| n.to_string_lossy().to_string()) else {
+            continue;
+        };
+        let reference = std::fs::read(dir.join(TRAJECTORY_FILE))
+            .with_context(|| format!("read {}", dir.join(TRAJECTORY_FILE).display()))?;
+        match std::fs::read(out.join(&id).join(TRAJECTORY_FILE)) {
+            Ok(ours) if ours == reference => same.push(id),
+            Ok(_) => differ.push(id),
+            Err(_) => missing.push(id),
+        }
+    }
+    println!(
+        "check against {}: {} byte-identical, {} differ, {} missing",
+        theirs.display(),
+        same.len(),
+        differ.len(),
+        missing.len()
+    );
+    anyhow::ensure!(
+        differ.is_empty() && missing.is_empty() && !same.is_empty(),
+        "export is not byte-identical to the harness: differ {differ:?}, missing {missing:?}"
+    );
     Ok(())
 }
 

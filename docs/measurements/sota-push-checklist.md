@@ -49,6 +49,7 @@ and every number that uses one says so. Plan approved by the user
 - [x] `standing.rs` reads `memory_type` and has an `agentrunbook_c` mode,
       its pairing keys and a label; tests (`SHIPPED_LME_V2_MEMORY` stays `myelin` until adoption)
 - [x] Merge and by-controller report tooling (`merge_arc_chunks.py`, `arc_by_controller.py`), tried on the pilot
+- [x] M69: myelin's ledger exports the trajectory files byte-identical to the harness (200/200)
 - [ ] All 32 chunks done (2 + 30 halves) → merged prompt rows → reader pass → judged pair →
       write-up → adoption PR (if ≥ 74.90)
 - [x] M62 design doc (`m62-native-trajectory-tools.md`)
