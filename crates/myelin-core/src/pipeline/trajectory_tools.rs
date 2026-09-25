@@ -121,6 +121,21 @@ impl<'a> TrajectoryTools<'a> {
     /// one. Bounded by [`GREP_MAX_LINES`] and [`GREP_MAX_STATES`], and says
     /// so when it was cut.
     pub async fn grep(&self, needle: &str, trajectory: Option<&str>) -> Result<String> {
+        // A named trajectory must exist. The M62b pilot passed `""` and
+        // `"all"` 27 times meaning "everywhere"; the ledger matched them as
+        // ids, and "no state contains X" came back on 6 questions whose
+        // answer was on the page (the 2026-09-25 trace comparison). An
+        // unknown name is refused with the way to search everywhere, never
+        // read as a guess.
+        if let Some(t) = trajectory {
+            let known = self.ledger.trajectories(&self.filter).await?;
+            if !known.iter().any(|h| h.id == t) {
+                return Err(MyelinError::Store(format!(
+                    "there is no trajectory {t:?}; name one from `list`, or leave `trajectory` \
+                     out to search every trajectory"
+                )));
+            }
+        }
         let states = self
             .ledger
             .trajectory_states_containing(&self.filter, needle, trajectory, GREP_MAX_STATES)

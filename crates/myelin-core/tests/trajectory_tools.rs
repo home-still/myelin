@@ -59,6 +59,12 @@ async fn grep_finds_lines_case_insensitively_across_or_within_trajectories() {
     let none = tools.grep("zebra", None).await.unwrap();
     assert_eq!(none, "no state contains \"zebra\"\n");
     assert!(tools.grep("   ", None).await.is_err(), "an empty search matches everything");
+    // M62b passed "" and "all" meaning everywhere, and got "no state
+    // contains" on pages that held the answer. An unknown name is refused.
+    for bogus in ["", "all", "*", "nope"] {
+        let err = tools.grep("biography", Some(bogus)).await.unwrap_err().to_string();
+        assert!(err.contains("leave `trajectory` out"), "{bogus:?}: {err}");
+    }
 }
 
 #[tokio::test]
