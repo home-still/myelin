@@ -1,0 +1,81 @@
+{
+  "abstention_accuracy": 0.9282511210762332,
+  "budget_tokens": 4096,
+  "by_category": [
+    {
+      "category": 1,
+      "count": 282,
+      "mean_score": 0.3889167820545009
+    },
+    {
+      "category": 2,
+      "count": 321,
+      "mean_score": 0.5829352717203184
+    },
+    {
+      "category": 3,
+      "count": 96,
+      "mean_score": 0.13456435898296362
+    },
+    {
+      "category": 4,
+      "count": 841,
+      "mean_score": 0.672390029640346
+    },
+    {
+      "category": 5,
+      "count": 446,
+      "mean_score": 0.9282511210762332
+    }
+  ],
+  "categories": [],
+  "chronological": false,
+  "collection": "myelin_locomo",
+  "commit_agree": null,
+  "commit_answer": true,
+  "commit_grounded": true,
+  "commit_samples": null,
+  "corpus": "locomo",
+  "decompose": null,
+  "derived_from": "runs/m55b_locomo_bonsai",
+  "digest_dates": false,
+  "digest_relevance": false,
+  "digest_role": false,
+  "em_answerable": 0.37987012987012986,
+  "f1_answerable": 0.5683084078905745,
+  "graph": false,
+  "item_digest": false,
+  "k": 6,
+  "llm_served_model": "Ternary-Bonsai-2-27B-PTQ1_0.gguf",
+  "max_steps": 2,
+  "mmr": null,
+  "mode": "recall",
+  "prefetch_limit": null,
+  "premise": false,
+  "premise_check": false,
+  "profile": false,
+  "profile_clause": false,
+  "query_avg_seconds": 0.3755758666117828,
+  "query_p50_seconds": 0.340704042,
+  "question_date": false,
+  "questions": 1986,
+  "reader_reasoning": false,
+  "reader_seed": null,
+  "reader_think_message": false,
+  "reader_thinking": false,
+  "reader_thinking_budget": null,
+  "rerank_depth": null,
+  "rerank_pool": false,
+  "rescored_from": null,
+  "resolve_dates": true,
+  "resumed_rows": 1986,
+  "scorer": "temporal",
+  "select_call_failed_rate": 0.0,
+  "select_declined_rate": 0.0,
+  "select_sufficient": false,
+  "self_ask": false,
+  "timeline": true,
+  "timeline_ago": false,
+  "typed_probes": false,
+  "untrusted_max": null
+}

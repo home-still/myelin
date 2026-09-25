@@ -304,3 +304,30 @@ work is shared out; the pair is still scored once, over all 451 questions (the 4
 - The pilot's two prompt directories gained a `controller.json` (big,
   llama-swap `qwen3.8-27b`, 1 slot, 96,000), taken from their recorded Codex
   parameters, so all 451 questions name their controller.
+
+## Amendment 3 — big rejoins at 1 slot, with a RAM cap *(2026-09-25, before any of its chunks)*
+
+- **What happened.** Overnight, big ran 10 half-chunks at 2 × 64K. At 09:31
+  a host-RAM OOM stopped both workers; `ent_c07a/b` were discarded under the
+  transport rule. Our Bonsai server held 10 GB of swap. Most of that was
+  llama-server's host-RAM prompt-state cache (`--cache-ram`, default
+  8 GiB; 183 evictions in its log).
+- **The 2 × 64K timeouts.** That setup produced all 11 of the full run's
+  1,800-second timeouts, 8 of them with empty memory. Each followed a Codex
+  history compaction; 1 × 96K compacted in only 2 of 95 questions. Those
+  rows stay in the measurement and are reported under their own
+  configuration, as amendment 2 fixed.
+- **big returns at 1 × 98,304**, the configuration first pre-registered
+  (Codex budget 96,000, worker `big1`, `codex_home_big1`), plus two
+  operational changes:
+  1. `--cache-ram 0` switches off only the host-RAM cache of saved prompt
+     states. The slot's own KV reuse within a question is untouched.
+  2. The server runs under `gpu-tenant run --mem 14G`, so an OOM kills our
+     server, not big.
+  Throughput at 1 slot matched 2 slots (~10 vs 10.3 q/h).
+- **When it starts.** big's GPU is held by other tenants. The user's call:
+  wait, and evict no one. `scratchpad/m54_big_wait.sh` polls
+  `gpu-tenant status` every 5 minutes and starts only once ≥ 11,000 MiB of
+  VRAM and ≥ 12 GiB of RAM are free.
+- **Progress at this amendment:** 180 of 404 full-pair questions done. sib
+  runs from the back.

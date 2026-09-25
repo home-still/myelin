@@ -21,12 +21,22 @@ and every number that uses one says so. Plan approved by the user
 - [ ] M60 run, judged, written up — **deferred 16:40 (user); big goes to M54**
 - [ ] B3 (Jev gating of overrides) / B4 (wider k): decided from M59 and M60,
       and recorded either way
+- [x] Round 2 (2026-09-25): loss anatomy on `m63_locomo_base`, research addendum
+      (`docs/research/sota-catalog-2026-09-25.md`)
+- [x] M68: LightMem-protocol judge (`adapters/judge_lightmem.py`), standing metric
+      `locomo.judge_score_lightmem.n1540`, gate moved to the matched MemPro row:
+      **78.18 vs 77.85, comparable, CLOSED** (strict 70.52 stays the headline)
+- [ ] M66 turn windows: switch + tests, turn-level all-gold metric, retrieval sweep,
+      pre-registered reader arm
+- [ ] M67 list rewrites unioned (reuses `decompose.rs`)
+- [ ] Temporal residuals (`time.rs`), then a fresh base
 
 ## C — LME-V2 (target 74.90)
 - [x] M54 pre-registration amended (second controller, provenance)
 - [x] Claim-based chunk worker; bmb Codex home and shim; bmb smoke question passes (717 s, 5 items)
 - [x] ~~bmb worker~~ withdrawn 11:45 at the user's call (too slow, memory-heavy on a daily driver); no bmb chunk in the measurement
-- [ ] big worker relaunched after the quick fixes (held by `HOLD_big`; the queue releases it), in 2-slot mode
+- [x] big ran 2-slot overnight 09-24 → 09-25 (10 half-chunks) until a host-RAM OOM at 09:31
+- [ ] big rejoins at 1 slot × 96K with `--cache-ram 0`, started by a waiter when other tenants leave room (user: wait, evict no one)
 - [x] M54 amendment 2: sib (RTX 3060) and big_mac (M1 Max) as controllers, same model file (sha256-checked), same flags
 - [x] ~~big_mac~~ dropped 12:49: smoke question timed out at 1,800 s with no memory (6–7 tok/s on long contexts); no big_mac chunk in the measurement
 - [x] sib smoke question passes (916 s, 9 memory items, 0 failures); sib worker running from 12:58

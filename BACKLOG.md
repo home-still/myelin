@@ -24,18 +24,60 @@ its history. Short version:
   MemPro-15 (Qwen3-30B) at 80.80, since M57 (Bonsai 27B plus the premise
   clause). It is `caveat-judge`, so `standing` keeps that gate open. The climb
   since M32: 62.00 → 67.80 → 78.40 → 83.40.
-- **LoCoMo 69.87**, 7.98 behind 77.85. It is claimable against Mem0's
-  published 66.88 (+2.99). M59's best-guess clause measured −1.95 (Bonsai
-  ignores it: refusals 292 → 272); M60 is queued.
+- **LoCoMo: the gate closes under MemPro's own judge (M68, 2026-09-25).**
+  - Graded the way the 77.85 row was graded (gpt-4o-mini, LightMem's
+    prompt), we score **78.18**, a `comparable` row, +0.33.
+  - Under the strict 9B judge, which still decides every arm, we score
+    70.52.
+  - The lead is inside reader variance. Multi-hop (−4.6) and open-domain
+    (−34.4) still trail MemPro under its own judge.
 - **LME-V2 38.80**, behind the 74.90 AgentRunbook-C gate. M54's local
   controller piloted at 82.98, and its full 451-question pair is running.
 
 ---
 
-## SOTA push *(plan approved 2026-09-24)*
+## SOTA push *(plan approved 2026-09-24; round 2 approved 2026-09-25)*
 
 The checklist lives in `docs/measurements/sota-push-checklist.md`. The
-research behind the next builds is `docs/research/sota-catalog-2026-09-24.md`.
+research behind the next builds is `docs/research/sota-catalog-2026-09-24.md`
+and its addendum `docs/research/sota-catalog-2026-09-25.md`.
+
+**Round 2, measured 2026-09-25 on `runs/m63_locomo_base`** (454 of 1,540
+lost under the strict judge):
+- **Multi-hop loses 114:** 63 hold only part of their gold (missing ~2 of
+  3.6 turns), 43 hold none, and 8 hold it all. The correct-rate is 87% with
+  all gold held, 59% with part, and 36% with none.
+- **The cause is granularity.** An episode is a 512-token segment of ~13
+  turns, so k = 6 reaches ~2.3 episodes plus ~3.7 facts. The pool holds the
+  gold (0.959) far more often than the kept set does (0.863).
+- **Single-hop loses 147.** About 60 of those pick a distractor inside the
+  13-turn chunk.
+- **Temporal loses 127**, of which ~45 are date handling.
+- **Open-domain loses 66.** 41 are speculative (reader capability) and 18
+  are entity→name mappings.
+- **About 40–60 rows are judge or label disagreements** that no memory change
+  recovers.
+
+**Next, in order:**
+1. **M66: turn windows** *(the user's first build)*. Each selected episode
+   is shown as its best turn ±2 neighbours, scored by the cross-encoder, and
+   k rises so that tokens per question stay flat.
+   - Measure retrieval first, with a new turn-level all-gold metric.
+   - Then one reader arm, paired vs `m63_locomo_base`.
+   - Research: QueryLink (±c turns), JustMem (fine units beat packs by
+     +10.7), MemPro's focused snippets, RECOMP, Du 2025.
+2. **M67: list questions, rewrites unioned.** A JustMem-style COMPOSE that
+   reuses `decompose.rs` (M24, built and never measured). The planner emits
+   an operation plus ≤2 answer-free rewrites.
+3. **Temporal residuals** in `time.rs`: 5 relative phrases left unresolved in
+   chunk turns, plus duration rendering. This lands before the next fresh
+   base.
+4. **Open-domain entity enrichment at write time** (QueryLink's implicit
+   view). It needs a rebuild, so it runs only if OD stays the largest
+   stratum.
+5. **LME-V2:** M54's full pair. 180/404 questions are done. sib runs; big
+   waits for room without evicting anyone (1 slot × 96K, `--cache-ram 0`
+   after the 09:31 OOM).
 
 **Bottlenecks measured 2026-09-24 PM:**
 - **LoCoMo.** The 9B loses 464 answerable rows, split evenly:

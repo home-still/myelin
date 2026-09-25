@@ -484,6 +484,12 @@ const METRICS: &[MetricDef] = &[
         nominal_n: Some(1540),
     },
     MetricDef {
+        id: "locomo.judge_score_lightmem.n1540",
+        direction: Direction::HigherIsBetter,
+        command: "adapters/judge_lightmem.py --run runs/locomo_recall",
+        nominal_n: Some(1540),
+    },
+    MetricDef {
         id: "locomo.token_f1.n1540",
         direction: Direction::HigherIsBetter,
         command: "myelin-eval bench --corpus locomo --out runs/locomo_recall",
@@ -914,6 +920,7 @@ fn bench_metrics(dir: &Path, agg_text: &str) -> Result<Vec<Ours>> {
         .with_context(|| format!("parse {} as a bench run", dir.display()))?;
     let rows = read_rows(dir)?;
     let verdicts = read_verdicts(dir)?;
+    let lightmem = read_lightmem_verdicts(dir)?;
     let mut out = Vec::new();
 
     // Every model `ops/big/serve-models.sh` can serve is open weights and
@@ -1079,6 +1086,20 @@ fn bench_metrics(dir: &Path, agg_text: &str) -> Result<Vec<Ours>> {
                     &stratum,
                     judge,
                     backbone,
+                    JudgeClass::OpenWeightsLocal,
+                ));
+            }
+            // M68: the same answers under the grader MemPro's rows used
+            // (gpt-4o-mini, LightMem's prompt), a separate metric so the
+            // strict number above is never replaced by it.
+            if let Some(judge) = &lightmem {
+                out.push(judged(
+                    "locomo.judge_score_lightmem.n1540",
+                    dir,
+                    &stratum,
+                    judge,
+                    backbone,
+                    JudgeClass::FrontierApi,
                 ));
             }
         }
@@ -1123,6 +1144,7 @@ fn bench_metrics(dir: &Path, agg_text: &str) -> Result<Vec<Ours>> {
                     &all,
                     judge,
                     backbone,
+                    JudgeClass::OpenWeightsLocal,
                 ));
             }
         }
@@ -1237,6 +1259,7 @@ fn judged(
     stratum: &[&ScoredQuestion],
     judge: &JudgeFile,
     backbone: Class,
+    judge_class: JudgeClass,
 ) -> Ours {
     let mut correct = 0usize;
     let mut covered = 0usize;
@@ -1278,7 +1301,7 @@ fn judged(
         },
         unit: Unit::PctZeroHundred,
         n,
-        judge_class: JudgeClass::OpenWeightsLocal,
+        judge_class,
         backbone_class: backbone,
         run: dir.to_path_buf(),
         detail: format!(
@@ -1316,6 +1339,59 @@ fn read_verdicts(dir: &Path) -> Result<Option<JudgeFile>> {
     Ok(Some(
         serde_json::from_str(&text).with_context(|| format!("parse {}", path.display()))?,
     ))
+}
+
+/// `adapters/judge_lightmem.py`'s output (M68).
+const LIGHTMEM_VERDICTS: &str = "judge_verdicts_lightmem.json";
+/// The protocol a LightMem verdict file must name, and the sha256 of
+/// LightMem's `ACCURACY_PROMPT` at `zjunlp/LightMem@8449d57`
+/// (`experiments/locomo/llm_judge.py`), the prompt MemPro's LoCoMo rows were
+/// graded with (arXiv 2606.00619, L122). Checked here, independently of the
+/// adapter that wrote the file, so a verdict file from any other grader can
+/// never be published under this metric.
+const LIGHTMEM_PROTOCOL: &str = "lightmem-locomo";
+const LIGHTMEM_PROMPT_SHA256: &str =
+    "62395dd312a631dfd9355026a0b69cc936018274c3198b6365b5c2a5c9bca9e0";
+const LIGHTMEM_JUDGE_MODEL: &str = "openai/gpt-4o-mini";
+
+#[derive(Deserialize)]
+struct LightmemProtocol {
+    name: String,
+    prompt_sha256: String,
+    model: String,
+}
+
+#[derive(Deserialize)]
+struct LightmemFile {
+    protocol: LightmemProtocol,
+    #[serde(flatten)]
+    judge: JudgeFile,
+}
+
+fn read_lightmem_verdicts(dir: &Path) -> Result<Option<JudgeFile>> {
+    let path = dir.join(LIGHTMEM_VERDICTS);
+    if !path.exists() {
+        return Ok(None);
+    }
+    let text =
+        std::fs::read_to_string(&path).with_context(|| format!("read {}", path.display()))?;
+    let file: LightmemFile =
+        serde_json::from_str(&text).with_context(|| format!("parse {}", path.display()))?;
+    let p = &file.protocol;
+    if p.name != LIGHTMEM_PROTOCOL
+        || p.prompt_sha256 != LIGHTMEM_PROMPT_SHA256
+        || p.model != LIGHTMEM_JUDGE_MODEL
+    {
+        bail!(
+            "{} names protocol {:?} (prompt {}, model {}), not LightMem's LoCoMo grader; \
+             refusing to publish it as locomo.judge_score_lightmem",
+            path.display(),
+            p.name,
+            p.prompt_sha256,
+            p.model
+        );
+    }
+    Ok(Some(file.judge))
 }
 
 // ---------------------------------------------------------------------------
@@ -2965,6 +3041,63 @@ mod tests {
             "{judged:?}"
         );
         assert_eq!(judged.candidates.len(), 2, "both fixtures are candidates");
+    }
+
+    /// M68: the LightMem-protocol verdicts are their own metric, graded by a
+    /// frontier-API judge, so they compare cleanly with MemPro's rows while
+    /// the strict number stays exactly what it was. A file naming any other
+    /// prompt is refused rather than published under LightMem's name.
+    #[test]
+    fn a_lightmem_verdict_file_is_its_own_metric_and_must_name_the_pinned_prompt() {
+        let tmp = tempfile::tempdir().unwrap();
+        let runs = tmp.path().join("runs");
+        let dir = runs.join("locomo_matched");
+        locomo_fixture(&dir, true, false);
+        let write = |sha: &str| {
+            let verdicts: BTreeMap<String, u8> = (0..1540)
+                .map(|i| (format!("q{i}"), u8::from(i % 2 == 0)))
+                .collect();
+            let file = serde_json::json!({
+                "model": LIGHTMEM_JUDGE_MODEL,
+                "protocol": {
+                    "name": LIGHTMEM_PROTOCOL,
+                    "prompt_sha256": sha,
+                    "model": LIGHTMEM_JUDGE_MODEL,
+                },
+                "verdicts": verdicts,
+                "answers": {},
+            });
+            std::fs::write(
+                dir.join(LIGHTMEM_VERDICTS),
+                serde_json::to_string(&file).unwrap(),
+            )
+            .unwrap();
+        };
+
+        write(LIGHTMEM_PROMPT_SHA256);
+        let ours = collect(&runs, "/nonexistent/python").unwrap();
+        let matched = &ours["locomo.judge_score_lightmem.n1540"];
+        assert!((matched.value - 50.0).abs() < 1e-9, "{matched:?}");
+        assert_eq!(matched.judge_class, JudgeClass::FrontierApi);
+        let strict = &ours["locomo.judge_score.n1540"];
+        assert!(
+            (strict.value - 100.0).abs() < 1e-9,
+            "the strict number is untouched: {strict:?}"
+        );
+        assert_eq!(strict.judge_class, JudgeClass::OpenWeightsLocal);
+        let mut reg = row("locomo.judge_score_lightmem.n1540", 40.0, 1540);
+        reg.backbone_class = Class::OpenWeights;
+        // The fixture predates the operating-point keys; that staleness is
+        // another test's subject, and the judge class is this one's.
+        let mut current = matched.clone();
+        current.unrecorded.clear();
+        assert_eq!(one(reg, vec![current]).verdict, Verdict::Comparable);
+
+        write("not-lightmems-prompt");
+        assert!(
+            collect(&runs, "/nonexistent/python").is_err(),
+            "a verdict file from another prompt is refused"
+        );
     }
 
     #[test]

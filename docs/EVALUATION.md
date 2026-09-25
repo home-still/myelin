@@ -17,7 +17,7 @@ Three gates, all on the same commit.
 | gate | statement | instrument |
 |---|---|---|
 | **G1 — agentic accuracy** | Positive **LAFS gain** against the released LongMemEval-V2 reference frontier, at ≥2 latency operating points, on a leaderboard-valid run | official LME-V2 harness + `leaderboard/compute_lafs.py` |
-| **G2 — conversational accuracy at open weights** | LongMemEval_S ≥ **80.80** and LoCoMo(n=1540) ≥ **77.85** — MemPro-15's own Qwen3-30B-A3B numbers, so the answer model class matches ours | `myelin-eval bench` |
+| **G2 — conversational accuracy at open weights** | LongMemEval_S ≥ **80.80** and LoCoMo(n=1540) ≥ **77.85** — MemPro-15's own Qwen3-30B-A3B numbers, so the answer model class matches ours (LoCoMo graded with MemPro's own judge protocol since M68: **78.18**, closed) | `myelin-eval bench` |
 | **G3 — robustness** | MINJA-style attack success ≤ 10% with pre-populated memory at k=6, and no cross-tenant leak on any read path | `myelin-eval attack` |
 
 G1 is the primary claim because LME-V2 is the only one of the three with a **public leaderboard, a pinned
@@ -493,8 +493,21 @@ floor.
 LongMemEval_S and LoCoMo row is judged by a frontier API; ours by a local
 9B. `standing` marks every such row `caveat-judge`, marks a row backed by an
 arm rather than the shipped defaults `(arm)`, and licenses a claim only on a
-`comparable` row we lead. One such row exists: LoCoMo 69.87 against Mem0's
-published 66.88.
+`comparable` row we lead.
+
+**LoCoMo under the grader MemPro used (M68).** The row we chase for G2,
+MemPro-15 on Qwen3-30B-A3B at 77.85, was graded by gpt-4o-mini with
+LightMem's LoCoMo prompt. `adapters/judge_lightmem.py` reproduces that grader
+byte for byte (pinned commit and prompt sha) and writes a separate
+`judge_verdicts_lightmem.json`. `standing` publishes it as
+`locomo.judge_score_lightmem.n1540` and refuses any file naming another
+prompt.
+
+On today's code it reads **78.18** (strict 70.52): a `comparable` row that
+leads by 0.33 and closes the LoCoMo gate. By the user's decision
+(2026-09-25), the strict 9B judge stays the headline and decides every arm;
+the matched number settles only the comparison
+(`docs/measurements/m68-matched-judge.md`).
 
 ---
 
