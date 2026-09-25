@@ -26,8 +26,10 @@ and every number that uses one says so. Plan approved by the user
 - [x] M68: LightMem-protocol judge (`adapters/judge_lightmem.py`), standing metric
       `locomo.judge_score_lightmem.n1540`, gate moved to the matched MemPro row:
       **78.18 vs 77.85, comparable, CLOSED** (strict 70.52 stays the headline)
-- [ ] M66 turn windows: switch + tests, turn-level all-gold metric, retrieval sweep,
-      pre-registered reader arm
+- [x] M66 turn windows built: switch + tests, turn-level all-gold metric (`turn_all`),
+      pre-registered (`m66-turn-windows.md`)
+- [ ] M66 retrieval sweep (stage 1) → K* and go/no-go
+- [ ] M66 reader arm (stage 2), judged, written up
 - [ ] M67 list rewrites unioned (reuses `decompose.rs`)
 - [ ] Temporal residuals (`time.rs`), then a fresh base
 

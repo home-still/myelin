@@ -1822,6 +1822,7 @@ impl<'a> Investigator<'a> {
                         record,
                         score: item.score,
                         vector: None,
+                        window: None,
                     });
                 }
             }
@@ -2414,6 +2415,7 @@ mod tests {
                 },
                 score: 1.0 - i as f32 * 0.1,
                 vector: None,
+                window: None,
             })
             .collect()
     }

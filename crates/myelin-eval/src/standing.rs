@@ -991,6 +991,7 @@ fn bench_metrics(dir: &Path, agg_text: &str) -> Result<Vec<Ours>> {
         || run.dedupe_lineage
         // M64's in-place dates in words, shipping off pending its arm.
         || run.inline_dates
+        || run.turn_windows.is_some()
         // M47's presupposition check.
         || run.premise_check
         // A run against another store (M50's events copies, M20's preference
@@ -3965,6 +3966,8 @@ mod tests {
             serde_json::json!({"dedupe_lineage": true}),
             // M64: dates in place, in words.
             serde_json::json!({"inline_dates": true}),
+            // M66: episodes as turn windows.
+            serde_json::json!({"turn_windows": 2}),
             serde_json::json!({"premise_check": true}),
             serde_json::json!({"timeline_ago": true}),
         ] {

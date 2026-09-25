@@ -540,6 +540,22 @@ pub struct WidthPoint {
     /// on this, not on the average.
     #[serde(default)]
     pub all: f64,
+    /// Share of questions whose emitted evidence holds every gold turn
+    /// **verbatim**: the turn's own text, as its episode renders it, appears
+    /// in some emitted item (M66).
+    ///
+    /// `all` counts a record as holding a turn through I4 lineage, which is
+    /// right for whole records and wrong for a turn window: a windowed
+    /// episode still has the gold turn's lineage when the window cut the
+    /// turn out. This is an independent text check. It does not credit a
+    /// fact that paraphrases the turn, so read it beside `all`, not instead
+    /// of it.
+    #[serde(default)]
+    pub turn_all: f64,
+    /// Mean evidence tokens per question, as `compose` charged them. M66
+    /// raises `k` and holds this flat.
+    #[serde(default)]
+    pub evidence_tokens: f64,
     /// Gold-turn recall of the **reranked pool**, before `compose`
     /// truncates to `k`. The ceiling `recall` is measured against.
     pub pool_recall: f64,
@@ -670,13 +686,24 @@ pub async fn width_sweep(
     limit: Option<usize>,
     holdout: bool,
     dedupe_lineage: bool,
+    turn_windows: Option<usize>,
 ) -> Result<Vec<WidthPoint>> {
     let cfg = MyelinConfig::load().context("load myelin config")?;
     let ledger = Ledger::open(ledger_path).await.context("open ledger")?;
 
+    // Each gold turn's text as its episode renders it, for `turn_all`. On
+    // LoCoMo it comes from the same `turns_for` the build ingested, so a
+    // turn is found exactly when its whole line was emitted. LongMemEval_S
+    // gold is already turn text.
+    let mut turn_text: HashMap<String, String> = HashMap::new();
     let (mut questions, source) = match corpus {
         "locomo" => {
             let split = select_split(path, units, holdout)?;
+            for conv in &split {
+                for t in crate::build::turns_for(conv) {
+                    turn_text.insert(t.source.doc.clone(), format!("{}: {}", t.speaker, t.text));
+                }
+            }
             let coverage = Coverage::build(&split, &ledger).await?;
             (collect_questions(&split), GoldSource::Lineage(coverage))
         }
@@ -741,11 +768,14 @@ pub async fn width_sweep(
                     dedupe_lineage,
                     ..Default::default()
                 },
+                turn_windows,
                 ..Default::default()
             });
 
         let mut recall_sum = 0.0;
         let mut all_sum = 0.0;
+        let mut turn_all_sum = 0.0;
+        let mut evidence_tokens_sum = 0.0;
         let mut pool_recall_sum = 0.0;
         let mut any_sum = 0.0;
         let mut pool_sum = 0.0;
@@ -782,6 +812,17 @@ pub async fn width_sweep(
             let held = gold_recall(&source, q, &emitted);
             recall_sum += held;
             all_sum += f64::from(u8::from(held >= 1.0 - f64::EPSILON));
+            // A gold id with no turn text (two LoCoMo ids name no turn) is
+            // never held, in every cell alike.
+            let verbatim = q.gold.iter().all(|g| {
+                let text = match corpus {
+                    "locomo" => turn_text.get(g),
+                    _ => Some(g),
+                };
+                text.is_some_and(|t| evidence.items.iter().any(|i| i.value.contains(t.as_str())))
+            });
+            turn_all_sum += f64::from(u8::from(verbatim));
+            evidence_tokens_sum += evidence.tokens as f64;
             let pool = gold_recall(&source, q, &trace.pool);
             pool_recall_sum += pool;
             any_sum += f64::from(u8::from(pool > 0.0));
@@ -819,6 +860,8 @@ pub async fn width_sweep(
             select,
             recall: recall_sum / n,
             all: all_sum / n,
+            turn_all: turn_all_sum / n,
+            evidence_tokens: evidence_tokens_sum / n,
             pool_recall: pool_recall_sum / n,
             any: any_sum / n,
             pool: pool_sum / n,
@@ -832,14 +875,16 @@ pub async fn width_sweep(
         };
         println!(
             "  prefetch {:<4} depth {:<4} select {:<5} budget {:<6} recall@{k} {:.4}  all {:.4}  \
-             pool {:.4}  (trunc {:.4} / miss {:.4})  tok-drops {:.2}  rank {:.1}  \
-             rec-tok {:.0}  p50 {}ms",
+             turn-all {:.4}  ev-tok {:.0}  pool {:.4}  (trunc {:.4} / miss {:.4})  tok-drops {:.2}  \
+             rank {:.1}  rec-tok {:.0}  p50 {}ms",
             point.prefetch_limit,
             point.rerank_depth,
             point.select,
             point.budget_tokens,
             point.recall,
             point.all,
+            point.turn_all,
+            point.evidence_tokens,
             point.pool_recall,
             point.truncation_loss(),
             point.retrieval_loss(),
@@ -1513,6 +1558,8 @@ mod tests {
             select: false,
             recall,
             all: 0.0,
+            turn_all: 0.0,
+            evidence_tokens: 0.0,
             pool_recall: pool,
             any: 1.0,
             pool: depth as f64,

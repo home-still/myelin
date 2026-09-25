@@ -23,11 +23,11 @@ use chrono::Utc;
 use serde::{Deserialize, Serialize};
 
 use crate::embed::Embedder;
-use crate::error::Result;
+use crate::error::{MyelinError, Result};
 use crate::llm::Llm;
 use crate::model::evidence::EvidenceSet;
 use crate::model::query::Recall;
-use crate::model::record::RecordKind;
+use crate::model::record::{MemoryRecord, RecordKind};
 use crate::rerank::Reranker;
 use crate::store::graph::{GraphIndex, DEFAULT_DAMPING, DEFAULT_ITERATIONS};
 use crate::store::ledger::Ledger;
@@ -38,6 +38,7 @@ use super::fuse::{rrf, RankedList, DEFAULT_RRF_K};
 use super::phrases::phrases;
 use super::decompose::Decomposer;
 use super::select::Selector;
+use super::turn_windows;
 
 /// Which retrieval channels participate. The ablation axis of M4.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -219,6 +220,16 @@ pub struct RetrieveConfig {
     /// forbids an LLM in that loop — so its home if it wins is
     /// `investigate`. Inert without [`Retriever::with_llm`].
     pub decompose: Option<usize>,
+    /// M66: emit episodes as turn windows, ranked turn by turn
+    /// ([`crate::pipeline::turn_windows`]). The value is the radius, the
+    /// neighbours kept on each side of a selected turn. `None`, the default,
+    /// emits whole episodes.
+    ///
+    /// The turns are scored by the same cross-encoder as the pool, so it
+    /// refuses to run without one. It also refuses to run with
+    /// [`RetrieveConfig::select_sufficient`], because the global turn ranking
+    /// would silently discard the selector's order.
+    pub turn_windows: Option<usize>,
     pub compose: ComposeConfig,
 }
 
@@ -237,6 +248,7 @@ impl Default for RetrieveConfig {
             graph_iterations: DEFAULT_ITERATIONS,
             select_sufficient: false,
             decompose: None,
+            turn_windows: None,
             compose: ComposeConfig::default(),
         }
     }
@@ -339,6 +351,12 @@ pub struct RecallTrace {
     pub subqueries: usize,
     #[serde(default)]
     pub decompose_ms: u128,
+    /// Turns the cross-encoder scored for [`RetrieveConfig::turn_windows`]
+    /// (M66), and what that cost. Zero when the switch is off.
+    #[serde(default)]
+    pub turns_scored: usize,
+    #[serde(default)]
+    pub turn_windows_ms: u128,
     /// The reranked pool in rank order, `(id, text)`, before `compose`
     /// truncates to `k`.
     ///
@@ -594,6 +612,8 @@ impl<'a> Retriever<'a> {
         // But the ledger check is cheap and local, so it runs first.
         let now = chrono::Utc::now();
         let mut admissible: Vec<(uuid::Uuid, f32, String)> = Vec::new();
+        let mut record_by_id: std::collections::HashMap<uuid::Uuid, MemoryRecord> =
+            std::collections::HashMap::new();
         for (id, score) in head {
             let Some(record) = self.ledger.get(id).await? else {
                 // In Qdrant, absent from the ledger: drift, not evidence.
@@ -629,6 +649,11 @@ impl<'a> Retriever<'a> {
                 .cloned()
                 .unwrap_or_else(|| record.text.clone());
             admissible.push((id, score, text));
+            if self.config.turn_windows.is_some() {
+                // M66 splits the record's turns, so it keeps the record it
+                // already read rather than reading it again.
+                record_by_id.insert(id, record);
+            }
         }
         trace.admitted = admissible.len();
 
@@ -737,16 +762,56 @@ impl<'a> Retriever<'a> {
 
         // 3x the emitted count: `compose` drops near-duplicates and
         // budget-busting items, so it needs slack to reach k.
+        let slots = compose_cfg.k * 3;
         let mut ranked = Vec::with_capacity(admissible.len());
-        for (id, score, _) in admissible.into_iter().take(compose_cfg.k * 3) {
-            if let Some(record) = self.ledger.get(id).await? {
+        if let Some(radius) = self.config.turn_windows {
+            let Some(reranker) = self.reranker else {
+                return Err(MyelinError::Config(
+                    "turn windows rank turns with the cross-encoder, and no reranker is wired"
+                        .into(),
+                ));
+            };
+            if self.config.select_sufficient {
+                return Err(MyelinError::Config(
+                    "turn windows rank the pool turn by turn, which would discard the \
+                     sufficiency selector's order; run one or the other"
+                        .into(),
+                ));
+            }
+            let t = std::time::Instant::now();
+            let pool: Vec<turn_windows::PoolItem> = admissible
+                .into_iter()
+                .filter_map(|(id, score, _)| {
+                    record_by_id
+                        .remove(&id)
+                        .map(|record| turn_windows::PoolItem { id, score, record })
+                })
+                .collect();
+            let (windowed, stats) =
+                turn_windows::select(reranker, &query.text, pool, compose_cfg.k, slots, radius)
+                    .await?;
+            trace.turns_scored = stats.turns_scored;
+            trace.turn_windows_ms = t.elapsed().as_millis();
+            for w in windowed {
                 ranked.push(Ranked {
-                    record,
-                    score,
-                    // `remove`, not `get`: each id reaches `compose` once, so
-                    // the vector can be moved rather than cloned.
-                    vector: vector_by_id.remove(&id),
+                    record: w.record,
+                    score: w.score,
+                    vector: vector_by_id.remove(&w.id),
+                    window: w.window,
                 });
+            }
+        } else {
+            for (id, score, _) in admissible.into_iter().take(slots) {
+                if let Some(record) = self.ledger.get(id).await? {
+                    ranked.push(Ranked {
+                        record,
+                        score,
+                        // `remove`, not `get`: each id reaches `compose` once,
+                        // so the vector can be moved rather than cloned.
+                        vector: vector_by_id.remove(&id),
+                        window: None,
+                    });
+                }
             }
         }
 

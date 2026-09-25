@@ -745,9 +745,6 @@ enum Command {
         /// in them does (M59).
         #[arg(long)]
         reader_best_guess: bool,
-        /// M50c: an events-only index (Qdrant collection) whose top events
-        /// are appended after the evidence as an `[events]` block, beside
-        /// the turns rather than instead of them. Needs `--events-ledger`.
         /// L1: a fact and the episode it was abstracted from count as one
         /// memory in compose; the higher-ranked copy keeps the slot.
         #[arg(long)]
@@ -756,6 +753,14 @@ enum Command {
         /// (`ComposeConfig::inline_dates`), instead of appended in ISO form.
         #[arg(long)]
         inline_dates: bool,
+        /// M66: episodes emitted as turn windows of this radius, ranked turn
+        /// by turn with the cross-encoder (`RetrieveConfig::turn_windows`).
+        /// `recall` mode only; refuses `--select-sufficient`.
+        #[arg(long)]
+        turn_windows: Option<usize>,
+        /// M50c: an events-only index (Qdrant collection) whose top events
+        /// are appended after the evidence as an `[events]` block, beside
+        /// the turns rather than instead of them. Needs `--events-ledger`.
         #[arg(long, requires = "events_ledger")]
         events_collection: Option<String>,
         /// The ledger holding that index's event records (a copy of the base
@@ -862,6 +867,9 @@ enum Command {
         /// L1's lineage-aware dedupe in compose, for the width sweep.
         #[arg(long, requires = "width")]
         dedupe_lineage: bool,
+        /// M66's turn windows, of this radius, for the width sweep.
+        #[arg(long, requires = "width")]
+        turn_windows: Option<usize>,
     },
     /// Re-score a finished bench run under a different scorer. Pure CPU:
     /// `response_raw` and `answer_gold` are on disk, so no reader call and no
@@ -1186,6 +1194,7 @@ async fn main() -> anyhow::Result<()> {
             grid,
             holdout,
             dedupe_lineage,
+            turn_windows,
         } => {
             ablate_cmd(
                 dataset,
@@ -1200,6 +1209,7 @@ async fn main() -> anyhow::Result<()> {
                 grid,
                 holdout,
                 dedupe_lineage,
+                turn_windows,
             )
             .await
         }
@@ -1245,6 +1255,7 @@ async fn main() -> anyhow::Result<()> {
             ref events_ledger,
             dedupe_lineage,
             inline_dates,
+            turn_windows,
             untrusted_max,
             decompose,
             ref categories,
@@ -1298,6 +1309,7 @@ async fn main() -> anyhow::Result<()> {
                     events_ledger: events_ledger.clone(),
                     dedupe_lineage,
                     inline_dates,
+                    turn_windows,
                     commit_grounded: false,
                     untrusted_max,
                     decompose,
@@ -1693,6 +1705,7 @@ async fn ablate_cmd(
     grid: GridName,
     holdout: bool,
     dedupe_lineage: bool,
+    turn_windows: Option<usize>,
 ) -> anyhow::Result<()> {
     // clap's value is the user's spelling; the rest of the crate keys on
     // the underscored slug `Corpus::slug` produces, so normalise once here
@@ -1738,6 +1751,7 @@ async fn ablate_cmd(
             limit,
             holdout,
             dedupe_lineage,
+            turn_windows,
         )
         .await?;
         myelin_eval::ablate::print_width(&points, k, corpus);
@@ -1746,8 +1760,9 @@ async fn ablate_cmd(
         // of its runs gets its own artifact.
         let dir = match grid {
             GridName::Shipped => format!(
-                "runs/{slug}_{corpus}_k{k}{}",
-                if dedupe_lineage { "_dedupe" } else { "" }
+                "runs/{slug}_{corpus}_k{k}{}{}",
+                if dedupe_lineage { "_dedupe" } else { "" },
+                turn_windows.map(|r| format!("_tw{r}")).unwrap_or_default()
             ),
             _ => format!("runs/{slug}_{corpus}"),
         };
