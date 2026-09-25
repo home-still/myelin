@@ -22,7 +22,8 @@ its history. Short version:
 - **One gate closed:** MINJA 7.50% ≤ 10%.
 - **LongMemEval_S is 1.60 behind the same-size SOTA row:** **79.20** (strict)
   against MemPro-15 (Qwen3-30B) at 80.80.
-  - LongMemEval's own grader gives 78.60 (M70).
+  - LongMemEval's own grader gives 78.60 (M70), so the matched gate is open,
+    2.20 behind.
   - We first reported 83.40 as past it. A judge defect inflated that
     (`docs/measurements/defect-2026-09-25-stale-verdicts.md`). The claim was
     wrong and is recorded as such.

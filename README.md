@@ -139,7 +139,8 @@ standing`; the full table with comparability verdicts is
 | gate | ours | best comparable | gap | since |
 |---|---|---|---|---|
 | `minja.asr.k6_prepopulated_defended` | **7.50%** | ≤10% | **CLOSED** | M15 |
-| `locomo.judge_score_lightmem.n1540` | **78.18** | 77.85 MemPro-15 (Qwen), same judge | **+0.33** § | M68 |
+| `locomo.judge_score_matched.n1540` | **78.18** | 77.85 MemPro-15 (Qwen), same judge | **+0.33** § | M68/M68b |
+| `longmemeval_s.judge_score_matched.n500` | 78.60 | 80.80 MemPro-15 (Qwen), LongMemEval's own judge | −2.20 | M70 |
 | `locomo.judge_score.n1540` (strict 9B judge) | 70.52 | 77.85 MemPro-15 (Qwen) | −7.33 ‡ | M63 base |
 | `longmemeval_s.judge_score.n500` | 79.20 | 80.80 MemPro-15 (Qwen) | −1.60 ‡ | M57 (corrected) |
 | `lme_v2_small.overall_full_set.combined` | 38.80 | 58.60 AgentRunbook-R | −19.80 | M47 base |
@@ -149,7 +150,9 @@ local Qwen3.5-9B (`caveat-judge`).
 § **LoCoMo, graded the way the row we chase was graded
 ([M68](docs/measurements/m68-matched-judge.md)):** MemPro's 77.85 came from
 gpt-4o-mini with LightMem's lenient prompt. The same grader, byte for byte,
-gives our answers **78.18**, a `comparable` row and a closed gate. The lead is
+gives our answers **78.18**. MemPro's own repo judge gives 80.26. The gate
+takes the lower reading (the every-reading rule), so it is a `comparable` row
+and a closed gate. The lead is
 only a hair: re-judging moves it by 2 rows, and a reader change moves 88. The
 strict 9B judge (70.52) stays the headline and still decides every arm, and
 under both graders we trail MemPro on multi-hop and open-domain. The LME-V2 row is measured at today's

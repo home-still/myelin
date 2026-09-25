@@ -137,3 +137,41 @@ Neither is a clear win, and the doc says so. The margin is:
   open-domain by 34.4 under MemPro's own judge.
 - A +0.33 lead is inside the reader's variance, so LoCoMo work goes on:
   M66 turn windows (multi-hop coverage) is next.
+
+## M68b — a second reading of MemPro's protocol *(pre-registered 2026-09-25, before any verdict)*
+
+- **What else there is.** MemPro's paper cites LightMem and prints its
+  prompt (Fig. 10). MemPro's **public repo** grades LoCoMo with a paraphrase
+  of it: `wanghai673/MemPro@834b1ce:eval/locomo_test.py`
+  (`JUDGE_PROMPT_TEMPLATE`, `JUDGE_SCHEMA`, `call_llm_judge`).
+  - The rule is the same ("touches on the same topic → CORRECT").
+  - It has no Hawaii example.
+  - Its output is strict json_schema, with gpt-4o-mini at temperature 0.
+  - A judge failure scores WRONG. We refuse instead, so a transport error is
+    never mixed into the number.
+- **Both readings are runnable, and neither can be ruled out.**
+  `adapters/judge_matched.py` (renamed from `judge_lightmem.py`) carries both
+  as protocols. Its `--verify-upstream` checks each prompt byte for byte
+  against the pinned upstream file, and both pass.
+- **The user's rule (2026-09-25):** a gate closes only if we lead under
+  **every** runnable reading. `standing` publishes each reading, and the gate
+  row uses the lower.
+- **Prediction:** within ±1 of the LightMem reading (78.18), because the rule
+  and the model are the same.
+- **Falsifier.** If the MemPro reading lands below 77.85, the LoCoMo gate
+  reopens. This doc then says so.
+
+### M68b result *(2026-09-25, ~$0.10)*
+
+| run | LightMem reading | MemPro repo reading | matched (lowest) | MemPro-15 Qwen3 |
+|---|---|---|---|---|
+| `m63_locomo_base` | 78.18 | **80.26** | **78.18** | 77.85 |
+| `m19_locomo_full` | 77.86 | 80.00 | 77.86 | 77.85 |
+
+- **The prediction missed.** MemPro's own repo judge is **more** lenient
+  than LightMem's prompt: +2.08, against a predicted ±1.
+- **The gate holds** under every runnable reading, on the lower one, by
+  0.33.
+- `standing` publishes both readings (`locomo.judge_score_lightmem.n1540`,
+  `locomo.judge_score_mempro.n1540`). The G2 LoCoMo gate is decided on
+  `locomo.judge_score_matched.n1540`, the lowest of the two.
