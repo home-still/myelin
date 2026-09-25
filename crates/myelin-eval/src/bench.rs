@@ -181,6 +181,21 @@ fn reader_system(switches: &BenchSwitches) -> String {
     system
 }
 
+/// The system prompt a finished run's reader was shown, rebuilt from the
+/// clause switches its `aggregated_metrics.json` records, through the same
+/// [`reader_system`] the run used. A replay of that run's rows (`commit-arm`)
+/// must show the identical prompt, or its untouched rows would no longer be
+/// the base's.
+pub fn reader_system_of_run(metrics: &serde_json::Value) -> String {
+    let flag = |key: &str| metrics.get(key).and_then(serde_json::Value::as_bool) == Some(true);
+    reader_system(&BenchSwitches {
+        profile_clause: flag("profile_clause"),
+        reader_premise_clause: flag("reader_premise_clause"),
+        reader_best_guess: flag("reader_best_guess"),
+        ..Default::default()
+    })
+}
+
 /// One scored question, written to `per_question.jsonl`.
 ///
 /// Field names match what `adapters/paired_ci.py` reads (`question_id`,
@@ -3624,6 +3639,25 @@ mod config_tests {
     /// M57: the clause rides on `READER_SYSTEM` only when switched on, after
     /// the preference clause, and the decline-first reply it asks for is read
     /// by `is_abstention` as the decline it is.
+    /// M71: a replay rebuilds the base's system prompt from its artifact,
+    /// clauses included, so its untouched rows stay the base's.
+    #[test]
+    fn a_runs_system_prompt_is_rebuilt_from_its_recorded_switches() {
+        let bare = reader_system_of_run(&serde_json::json!({"corpus": "longmemeval_s"}));
+        assert_eq!(bare, READER_SYSTEM);
+        let premise = reader_system_of_run(
+            &serde_json::json!({"corpus": "longmemeval_s", "reader_premise_clause": true}),
+        );
+        assert_eq!(
+            premise,
+            reader_system(&BenchSwitches {
+                reader_premise_clause: true,
+                ..Default::default()
+            })
+        );
+        assert!(premise.ends_with(READER_PREMISE_CLAUSE));
+    }
+
     #[test]
     fn premise_clause_is_appended_only_when_on_and_its_reply_is_a_decline() {
         let off = reader_system(&BenchSwitches::default());

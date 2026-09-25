@@ -34,7 +34,6 @@ use myelin_core::llm::openai::OpenAiLlm;
 
 use crate::bench::{
     commit_answer, commit_consensus, commit_grounded, is_abstention, Consensus, ScoredQuestion,
-    READER_SYSTEM,
 };
 use crate::datasets::longmemeval;
 
@@ -108,15 +107,10 @@ pub async fn run(
             .with_context(|| format!("read {}/aggregated_metrics.json", base.display()))?,
     )
     .context("parse the base's aggregated_metrics.json")?;
-    // The replay shows `READER_SYSTEM` alone. A base read with a clause
-    // appended would be replayed under a different system prompt, and its
-    // untouched rows would no longer be the base's.
-    for clause in ["profile_clause", "reader_premise_clause", "reader_best_guess"] {
-        anyhow::ensure!(
-            base_metrics.get(clause).and_then(serde_json::Value::as_bool) != Some(true),
-            "the base was read with `{clause}`; commit-arm replays READER_SYSTEM alone"
-        );
-    }
+    // The replay shows the base's own system prompt, clauses and all, rebuilt
+    // through the function the base was read with (M71: the shipped
+    // LongMemEval_S run carries the premise clause).
+    let system = crate::bench::reader_system_of_run(&base_metrics);
     // `question_date` is not carried on a scored row, and LongMemEval_S's
     // prompt includes it, so the second pass must be shown the same `<today>`
     // the first one saw. LoCoMo's first pass showed none.
@@ -180,17 +174,17 @@ pub async fn run(
         let first = std::mem::take(&mut row.response_raw);
         let (response, fired, committed) = match pass {
             Pass::Greedy => {
-                let (response, outcome) = commit_answer(&llm, READER_SYSTEM, &user, first).await;
+                let (response, outcome) = commit_answer(&llm, &system, &user, first).await;
                 (response, outcome.fired, outcome.committed)
             }
             Pass::Grounded => {
                 let (response, outcome) =
-                    commit_grounded(&llm, READER_SYSTEM, &user, first, row.evidence.len()).await;
+                    commit_grounded(&llm, &system, &user, first, row.evidence.len()).await;
                 (response, outcome.fired, outcome.committed)
             }
             Pass::Consensus(c) => {
                 let (response, outcome) =
-                    commit_consensus(&llm, READER_SYSTEM, &user, &row.question_text, first, c)
+                    commit_consensus(&llm, &system, &user, &row.question_text, first, c)
                         .await;
                 row.commit_samples = Some(outcome.samples.clone());
                 row.commit_agreement = Some(outcome.agreement);
