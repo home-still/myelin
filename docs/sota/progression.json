@@ -38,16 +38,22 @@
       "recorded": "2026-09-20"
     },
     "locomo.judge_score.n1540": {
-      "value": 69.87012987012987,
+      "value": 70.51948051948051,
       "n": 1540,
-      "run": "runs/m19_locomo_full",
-      "recorded": "2026-09-20"
+      "run": "runs/m63_locomo_base",
+      "recorded": "2026-09-25"
+    },
+    "locomo.judge_score_lightmem.n1540": {
+      "value": 78.18181818181819,
+      "n": 1540,
+      "run": "runs/m63_locomo_base",
+      "recorded": "2026-09-25"
     },
     "locomo.temporal.n1540": {
-      "value": 59.9825523240754,
+      "value": 60.16407788234017,
       "n": 1540,
-      "run": "runs/m19_locomo_full",
-      "recorded": "2026-09-20"
+      "run": "runs/m63_locomo_base",
+      "recorded": "2026-09-25"
     },
     "longmemeval_s.judge_score.n500": {
       "value": 83.39999999999999,

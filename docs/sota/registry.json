@@ -25,6 +25,29 @@
       }
     },
     {
+      "id": "locomo.judge_lightmem.mempro15.gpt4omini",
+      "metric": "locomo.judge_score_lightmem.n1540",
+      "benchmark": "locomo",
+      "system": "MemPro-15",
+      "value": 84.93,
+      "unit": "pct_0_100",
+      "direction": "higher_is_better",
+      "n": 1540,
+      "backbone": "gpt-4o-mini",
+      "backbone_class": "frontier_api",
+      "judge_class": "frontier_api",
+      "provenance": "paper",
+      "gate": false,
+      "caveat": "MemPro-15 on gpt-4o-mini, graded with LightMem's LoCoMo prompt on GPT-4o-mini (L122) - the protocol M68 reproduces. The Avg. column reproduces exactly as the micro-average over the FULL official category counts (82.26*282 + 62.50*96 + 90.01*841 + 80.68*321)/1540 = 84.93, so the population is LoCoMo's 1,540 non-adversarial questions in their official proportions.",
+      "source": {
+        "doi": "10.48550/arXiv.2606.00619",
+        "stem": "10.48550_arxiv.2606.00619",
+        "locator": "Table 1, row MemPro-15 under the GPT-4o-mini backbone header, column LoCoMo Avg.",
+        "lines": "L190 (header L127-148, caption L241)",
+        "quote": "<td>MemPro-15</td><td>77.44</td><td>73.68</td><td>83.33</td><td>98.57</td><td>60.71</td><td>86.67</td><td>79.00</td><td>82.26</td><td>62.50</td><td>90.01</td><td>80.68</td><td>84.93</td>"
+      }
+    },
+    {
       "id": "locomo.judge.mempro15.qwen3_30b",
       "metric": "locomo.judge_score.n1540",
       "benchmark": "locomo",
@@ -37,9 +60,33 @@
       "backbone_class": "open_weights",
       "judge_class": "frontier_api",
       "provenance": "paper",
+      "gate": false,
+      "bar": "at_least",
+      "caveat": "G2's LoCoMo bar (PLAN.md 11.5): MemPro's own open-weights backbone, so the answer-model class matches ours. The judge is still GPT-4o-mini (L122), which is the one asymmetry left in this comparison. Avg. reproduces as the micro-average over the full 1,540: (75.17*282 + 70.83*96 + 83.47*841 + 67.60*321)/1540 = 77.85. The gate moved to locomo.judge_lightmem.mempro15.qwen3_30b (M68, user 2026-09-25): the same row graded by the same judge. This strict-judge comparison stays published and caveat-judge.",
+      "source": {
+        "doi": "10.48550/arXiv.2606.00619",
+        "stem": "10.48550_arxiv.2606.00619",
+        "locator": "Table 1, row MemPro-15 under the Qwen3-30B-A3B-Instruct-2507 backbone header, column LoCoMo Avg.",
+        "lines": "L235 (backbone header L193)",
+        "quote": "<td>MemPro-15</td><td>71.43</td><td>75.94</td><td>82.05</td><td>92.86</td><td>98.21</td><td>80.00</td><td>80.80</td><td>75.17</td><td>70.83</td><td>83.47</td><td>67.60</td><td>77.85</td>"
+      }
+    },
+    {
+      "id": "locomo.judge_lightmem.mempro15.qwen3_30b",
+      "metric": "locomo.judge_score_lightmem.n1540",
+      "benchmark": "locomo",
+      "system": "MemPro-15 (Qwen3-30B)",
+      "value": 77.85,
+      "unit": "pct_0_100",
+      "direction": "higher_is_better",
+      "n": 1540,
+      "backbone": "Qwen3-30B-A3B-Instruct-2507",
+      "backbone_class": "open_weights",
+      "judge_class": "frontier_api",
+      "provenance": "paper",
       "gate": true,
       "bar": "at_least",
-      "caveat": "G2's LoCoMo bar (PLAN.md 11.5): MemPro's own open-weights backbone, so the answer-model class matches ours. The judge is still GPT-4o-mini (L122), which is the one asymmetry left in this comparison. Avg. reproduces as the micro-average over the full 1,540: (75.17*282 + 70.83*96 + 83.47*841 + 67.60*321)/1540 = 77.85.",
+      "caveat": "G2's LoCoMo bar, graded the way it was graded (M68): GPT-4o-mini with LightMem's LoCoMo prompt (L122, Fig. 10), the protocol adapters/judge_lightmem.py reproduces byte for byte. Their number is a mean of 3 runs at temperature 0.7; ours is one run, and re-judging the same answers moved it by 2 of 1,540 rows (docs/measurements/m68-matched-judge.md). Avg. reproduces as (75.17*282 + 70.83*96 + 83.47*841 + 67.60*321)/1540 = 77.85.",
       "source": {
         "doi": "10.48550/arXiv.2606.00619",
         "stem": "10.48550_arxiv.2606.00619",

@@ -76,3 +76,64 @@ compares it with the MemPro rows under the same metric.
 **Falsifier.** If the matched score is within ±1.5 of the strict one, the
 judge asymmetry is not what separates us from MemPro, and the whole gap is
 the system's.
+
+## Result *(measured 2026-09-25, 17:05–17:15; about $0.30 of judge calls in total)*
+
+| run | strict 9B judge | **LightMem protocol (gpt-4o-mini)** | MemPro-15 (Qwen3-30B) |
+|---|---|---|---|
+| `runs/m63_locomo_base` (shipped settings, today's code) | 70.52 | **78.18** (1,204 / 1,540) | 77.85 |
+| `runs/m19_locomo_full` (the M19 artifact) | 69.87 | **77.86** (1,199 / 1,540) | 77.85 |
+
+**The LoCoMo gate closes on a comparable row, by a hair:**
+- today's code: +0.33 over MemPro-15 on Qwen3-30B-A3B, same judge, same
+  prompt, same 1,540 questions;
+- the M19 artifact: +0.01.
+
+Neither is a clear win, and the doc says so. The margin is:
+- **larger than the judge's own noise.** Re-judging the base's identical
+  answers flipped 6 rows (net −2, so 78.05);
+- **far smaller than the reader's.** A date-rendering change alone flips 88
+  rows (M64);
+- **set against a different estimate.** MemPro's figure is a mean of 3 runs
+  at temperature 0.7; ours is one greedy run.
+
+**By category, matched protocol (base) vs MemPro-15 Qwen3:**
+
+| category | n | strict | matched | MemPro | matched − MemPro |
+|---|---|---|---|---|---|
+| multi-hop | 282 | 59.57 | 70.57 | 75.17 | **−4.60** |
+| temporal | 321 | 60.44 | 72.90 | 67.60 | +5.30 |
+| open-domain | 96 | 31.25 | 36.46 | 70.83 | **−34.37** |
+| single-hop | 841 | 82.52 | 87.51 | 83.47 | +4.04 |
+
+- **The two graders disagree on 134 of 1,540 rows.** 126 rows are wrong
+  under the strict rubric and right under LightMem's; 8 go the other way.
+  The 126 include:
+  - real equivalents (`Xeonoblade Chronicles` for `Xenoblade Chronicles`,
+    ISO ranges that are the gold week);
+  - generous passes (`2023-08-07` for "the week before 7 August 2023";
+    partly overlapping lists).
+- **No decline was passed:** 0 of 116.
+
+**Against the predictions:**
+- The range held: predicted 74–78, measured 78.18, at the top.
+- Multi-hop moved most (+11.0), as predicted: supersets of the gold list
+  "touch on the same topic".
+- Open-domain moved least (+5.2), **against** the prediction. Its losses
+  are declines and speculation misses, which no grader rescues.
+- The falsifier did not fire: the matched score is 7.66 points above the
+  strict one. The judge asymmetry was most of the LoCoMo gap.
+
+**What changes:**
+- `standing` publishes `locomo.judge_score_lightmem.n1540` beside the strict
+  metric, reading `judge_verdicts_lightmem.json` only when it names
+  LightMem's prompt sha, and refusing otherwise.
+- The G2 LoCoMo gate moved to the matched MemPro row (the user's call). The
+  strict comparison stays published as `caveat-judge`.
+- The strict 9B judge still decides every arm.
+
+**What it does not change:**
+- The losses are real under both graders. Multi-hop trails by 4.6 and
+  open-domain by 34.4 under MemPro's own judge.
+- A +0.33 lead is inside the reader's variance, so LoCoMo work goes on:
+  M66 turn windows (multi-hop coverage) is next.

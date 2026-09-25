@@ -139,12 +139,20 @@ standing`; the full table with comparability verdicts is
 | gate | ours | best comparable | gap | since |
 |---|---|---|---|---|
 | `minja.asr.k6_prepopulated_defended` | **7.50%** | ≤10% | **CLOSED** | M15 |
-| `locomo.judge_score.n1540` | 69.87 | 77.85 MemPro-15 (Qwen) | −7.98 | M32 |
+| `locomo.judge_score_lightmem.n1540` | **78.18** | 77.85 MemPro-15 (Qwen), same judge | **+0.33** § | M68 |
+| `locomo.judge_score.n1540` (strict 9B judge) | 70.52 | 77.85 MemPro-15 (Qwen) | −7.33 ‡ | M63 base |
 | `longmemeval_s.judge_score.n500` | **83.40** | 80.80 MemPro-15 (Qwen) | **+2.60** ‡ | M57 |
 | `lme_v2_small.overall_full_set.combined` | 38.80 | 58.60 AgentRunbook-R | −19.80 | M47 base |
 
 Every literature row is judged by a frontier API where we are judged by a
-local Qwen3.5-9B (`caveat-judge`). The LME-V2 row is measured at today's
+local Qwen3.5-9B (`caveat-judge`).
+§ **LoCoMo, graded the way the row we chase was graded
+([M68](docs/measurements/m68-matched-judge.md)):** MemPro's 77.85 came from
+gpt-4o-mini with LightMem's lenient prompt. The same grader, byte for byte,
+gives our answers **78.18**, a `comparable` row and a closed gate. The lead is
+only a hair: re-judging moves it by 2 rows, and a reader change moves 88. The
+strict 9B judge (70.52) stays the headline and still decides every arm, and
+under both graders we trail MemPro on multi-hop and open-domain. The LME-V2 row is measured at today's
 shipped point (undated, digest on, rebuilt store); [M52](docs/measurements/m52-lme-v2-reader-thinks.md)
 showed thinking does not close that gap and [M53](docs/measurements/m53-state-completion.md)
 located it in retrieval. LoCoMo has resisted two arms: the LongMemEval_S
@@ -162,8 +170,8 @@ ours a local 9B, so `standing` keeps that gate open.
 On LME-V2, [M54](docs/measurements/m54-local-file-controller.md)'s local file-reading controller
 piloted at **82.98 against 42.55** on 47 questions. The full 451-question pair is running, and
 until it lands the 38.80 row stands.
-One row we claim outright: LoCoMo 69.87 beats Mem0's
-published 66.88 by +2.99.
+Two gates close on `comparable` rows: MINJA's attack rate, and LoCoMo under
+MemPro's own judge (M68, by +0.33).
 
 ![myelin-eval standing output showing 30 comparison rows](docs/images/standing.png)
 
