@@ -141,7 +141,7 @@ standing`; the full table with comparability verdicts is
 | `minja.asr.k6_prepopulated_defended` | **7.50%** | ≤10% | **CLOSED** | M15 |
 | `locomo.judge_score_lightmem.n1540` | **78.18** | 77.85 MemPro-15 (Qwen), same judge | **+0.33** § | M68 |
 | `locomo.judge_score.n1540` (strict 9B judge) | 70.52 | 77.85 MemPro-15 (Qwen) | −7.33 ‡ | M63 base |
-| `longmemeval_s.judge_score.n500` | **83.40** | 80.80 MemPro-15 (Qwen) | **+2.60** ‡ | M57 |
+| `longmemeval_s.judge_score.n500` | 79.20 | 80.80 MemPro-15 (Qwen) | −1.60 ‡ | M57 (corrected) |
 | `lme_v2_small.overall_full_set.combined` | 38.80 | 58.60 AgentRunbook-R | −19.80 | M47 base |
 
 Every literature row is judged by a frontier API where we are judged by a
@@ -162,11 +162,14 @@ settings ([M51](docs/measurements/m51-locomo-at-the-shipped-point.md), −4.81) 
 to 82.20, but the abstention veto fired, and LoCoMo fell 3.18 as the model declined twice as often.
 **[M57](docs/measurements/m57-decline-first.md) fixed the veto with one reader clause.**
 When a question assumes something the memories don't support, the reader says
-"I don't know." first and gives the correction after. LongMemEval_S reached **83.40**:
-+5.0 [+2.2, +7.8] over the 9B, with abstention at 29/30. That passes the best
-same-size open-model row (MemPro-15 on Qwen3-30B, 80.80) and ships for LongMemEval_S.
-‡ It is ahead on the number, but `caveat-judge`: their judge is a frontier API and
-ours a local 9B, so `standing` keeps that gate open.
+"I don't know." first and gives the correction after. LongMemEval_S reached **79.20**:
++4.20 [+1.20, +7.40] over the 9B, with abstention at 29/30. It ships for LongMemEval_S.
+‡ **Correction (2026-09-25).** We first reported 83.40 and said it passed MemPro-15
+(80.80). A judge defect had counted seeded "correct" verdicts on answers M57 had
+replaced with "I don't know."
+([defect record](docs/measurements/defect-2026-09-25-stale-verdicts.md)). The
+corrected 79.20 is 1.60 **behind** that row. LongMemEval's own grader agrees: 78.60
+([M70](docs/measurements/m70-lme-official-judge.md)). The gate is open.
 On LME-V2, [M54](docs/measurements/m54-local-file-controller.md)'s local file-reading controller
 piloted at **82.98 against 42.55** on 47 questions. The full 451-question pair is running, and
 until it lands the 38.80 row stands.

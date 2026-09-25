@@ -118,7 +118,6 @@
     "505af2f5": 1,
     "50635ada": 1,
     "51a45a95": 1,
-    "51b23612": 1,
     "51c32626": 1,
     "54026fce": 0,
     "545bd2b5": 1,
@@ -175,7 +174,6 @@
     "720133ac": 1,
     "726462e0": 1,
     "72e3ee87": 1,
-    "73d42213": 0,
     "7401057b": 1,
     "7405e8b1": 1,
     "7527f7e2": 1,
@@ -416,12 +414,10 @@
     "gpt4_7f6b06db": 0,
     "gpt4_7fce9456": 0,
     "gpt4_8279ba02": 1,
-    "gpt4_8279ba03": 1,
     "gpt4_85da3956": 1,
     "gpt4_88806d6e": 0,
     "gpt4_8c8961ae": 1,
     "gpt4_8e165409": 1,
-    "gpt4_93159ced": 0,
     "gpt4_93f6379c": 1,
     "gpt4_98f46fc6": 1,
     "gpt4_9a159967": 0,
@@ -452,8 +448,7 @@
     "gpt4_f420262d": 1,
     "gpt4_f49edff3": 1,
     "gpt4_fa19884c": 1,
-    "gpt4_fa19884d": 0,
-    "gpt4_fe651585": 1
+    "gpt4_fa19884d": 0
   },
   "answers": {
     "001be529": "Over a year",
@@ -573,7 +568,6 @@
     "505af2f5": "Use unsweetened almond milk, alternative sweeteners like stevia, and add spices like cinnamon or nutmeg for flavor.",
     "50635ada": "Premier Silver",
     "51a45a95": "Target",
-    "51b23612": "Nu, pogodi!",
     "51c32626": "February 1st",
     "54026fce": "Virtual coffee breaks, online team activities, collaborative projects, social channels, recognition celebrations, and interest-based groups.",
     "545bd2b5": "2 hours",
@@ -630,7 +624,6 @@
     "720133ac": "$75",
     "726462e0": "10%",
     "72e3ee87": "50",
-    "73d42213": "1:00 PM",
     "7401057b": "Two",
     "7405e8b1": "Yes",
     "7527f7e2": "$800",
@@ -871,12 +864,10 @@
     "gpt4_7f6b06db": "Muir Woods day hike, Yosemite solo camping trip, Eastern Sierra trip planning",
     "gpt4_7fce9456": "1",
     "gpt4_8279ba02": "10 days ago",
-    "gpt4_8279ba03": "Smoker",
     "gpt4_85da3956": "3 weeks ago",
     "gpt4_88806d6e": "Mark and Sarah",
     "gpt4_8c8961ae": "Thailand",
     "gpt4_8e165409": "14",
-    "gpt4_93159ced": "4 years and 3 months",
     "gpt4_93f6379c": "Page Turners",
     "gpt4_98f46fc6": "charity bake sale",
     "gpt4_9a159967": "American Airlines",
@@ -907,7 +898,6 @@
     "gpt4_f420262d": "American Airlines",
     "gpt4_f49edff3": "nursery preparation, baby shower shopping, phone case order",
     "gpt4_fa19884c": "6 days",
-    "gpt4_fa19884d": "Max Richter",
-    "gpt4_fe651585": "Alex"
+    "gpt4_fa19884d": "Max Richter"
   }
 }

@@ -1,5 +1,7 @@
 # M64 — the date where the phrase is, in words *(L2; pre-registered 2026-09-24, before any row)*
 
+> **Correction (2026-09-25):** 9 stale seeded verdicts inflated the arm (`defect-2026-09-25-stale-verdicts.md`). The corrected score is **70.71**, **+0.19 [−1.04, +1.43]** vs the fresh base (was +0.78). Still null.
+
 ## Why
 
 The bottleneck review of `runs/m19_locomo_full` (69.87, the shipped 9B)

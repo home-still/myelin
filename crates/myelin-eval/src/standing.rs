@@ -1273,18 +1273,19 @@ fn judged(
             }
             continue;
         }
-        match judge.verdicts.get(&row.question_id) {
-            Some(v) => {
-                covered += 1;
-                if *v == 1 {
-                    correct += 1;
-                }
+        // A decline scores 0 before any verdict is consulted: the judge never
+        // grades one, so a verdict there was given for another answer. And a
+        // verdict counts only for the answer it was given (`verdict_for`).
+        if is_abstention(&row.response_raw) {
+            covered += 1;
+            declined += 1;
+            continue;
+        }
+        if let Some(v) = crate::judge::verdict_for(judge, row) {
+            covered += 1;
+            if v == 1 {
+                correct += 1;
             }
-            None if is_abstention(&row.response_raw) => {
-                covered += 1;
-                declined += 1;
-            }
-            None => {}
         }
     }
     let n = stratum.len();
@@ -3099,6 +3100,39 @@ mod tests {
             collect(&runs, "/nonexistent/python").is_err(),
             "a verdict file from another prompt is refused"
         );
+    }
+
+    /// M70's finding: a verdict file can carry a seed's "correct" for a row
+    /// this run answered "I don't know.". Scored verdict-first, that decline
+    /// counted as correct (M57's 83.40 was 79.20). A decline is 0 whatever
+    /// the file says, and a verdict counts only for the answer it graded.
+    #[test]
+    fn a_stale_verdict_never_scores_a_decline_or_a_changed_answer() {
+        let tmp = tempfile::tempdir().unwrap();
+        let runs = tmp.path().join("runs");
+        let dir = runs.join("locomo_stale");
+        // Every row judged 1 for "an answer"; the last row declines.
+        locomo_fixture(&dir, true, true);
+        let path = dir.join("judge_verdicts.json");
+        let mut file: JudgeFile = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+        for id in file.verdicts.keys() {
+            file.answers.insert(id.clone(), "an answer".into());
+        }
+        std::fs::write(&path, serde_json::to_string(&file).unwrap()).unwrap();
+        let ours = collect(&runs, "/nonexistent/python").unwrap();
+        let judged = &ours["locomo.judge_score.n1540"];
+        assert!(
+            (judged.value - 1539.0 / 1540.0 * 100.0).abs() < 1e-9,
+            "the declined row scores 0 despite its stale verdict: {judged:?}"
+        );
+
+        // A verdict recorded for another answer is no verdict: the row is a
+        // judge gap, not a correct answer.
+        file.answers.insert("q0".into(), "a different answer".into());
+        std::fs::write(&path, serde_json::to_string(&file).unwrap()).unwrap();
+        let ours = collect(&runs, "/nonexistent/python").unwrap();
+        let judged = &ours["locomo.judge_score.n1540"];
+        assert_eq!(judged.incomplete.as_deref(), Some("1539/1540 judged"), "{judged:?}");
     }
 
     #[test]

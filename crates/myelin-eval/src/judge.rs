@@ -62,6 +62,32 @@ pub struct JudgeFile {
     pub answers: BTreeMap<String, String>,
 }
 
+/// Whether a cached or seeded verdict may stand for a row, given the answer it
+/// was recorded for (`cached`) and the answer the row holds now if the row is
+/// still judged (`now`; `None` for a decline or an abstention item).
+fn reusable(cached: Option<&str>, now: Option<&str>) -> bool {
+    match (cached, now) {
+        (Some(cached), Some(now)) => cached == now,
+        // No recorded answer: a pre-M42 own cache, trusted in place for a row
+        // that is still judged.
+        (None, Some(_)) => true,
+        (_, None) => false,
+    }
+}
+
+/// The verdict `judge` gave for the answer `row` holds now, if any.
+///
+/// A verdict recorded for a different answer is no verdict: it graded
+/// something this run no longer says. A file written before M42 has no
+/// `answers` map and is trusted in place, as `judge_run` trusts it.
+pub fn verdict_for(judge: &JudgeFile, row: &ScoredQuestion) -> Option<u8> {
+    let verdict = *judge.verdicts.get(&row.question_id)?;
+    match judge.answers.get(&row.question_id) {
+        Some(answer) if *answer != row.response_raw => None,
+        _ => Some(verdict),
+    }
+}
+
 /// The grading rubric, verbatim and pinned.
 ///
 /// The date clauses are explicit because they are the thing in dispute: a
@@ -175,18 +201,23 @@ pub async fn judge_run(
             }
         }
     }
-    // Drop anything whose answer has since changed — the whole point.
+    // Keep a verdict only for a row this run still sends to the judge, and
+    // only if it was given for the answer that row holds now.
+    //
+    // A row outside the docket is a decline or an abstention item, and never
+    // has a verdict. Keeping one there is not harmless: every scorer looked
+    // the verdict up before the decline rule. So a seed's "correct" for an
+    // answer this run replaced with "I don't know." was counted as correct.
+    // Found 2026-09-25 (M70): 16 seeded runs since M43 carried such verdicts,
+    // M57 among them with 21 (its 83.40 was 79.20).
     let current: BTreeMap<&str, &str> = docket
         .iter()
         .map(|r| (r.question_id.as_str(), r.response_raw.as_str()))
         .collect();
-    verdicts.retain(|id, _| match (answers.get(id), current.get(id.as_str())) {
-        (Some(cached), Some(now)) => cached == now,
-        // No recorded answer: a pre-M42 own cache, trusted as before.
-        (None, _) => true,
-        // Judged row no longer in the docket; harmless, keep it.
-        (_, None) => true,
+    verdicts.retain(|id, _| {
+        reusable(answers.get(id).map(String::as_str), current.get(id.as_str()).copied())
     });
+    answers.retain(|id, _| verdicts.contains_key(id));
 
     let cached = docket
         .iter()
@@ -325,4 +356,32 @@ mod tests {
              base's response"
         );
     }
+
+    /// M70's finding: a seed's verdict must not survive on a row this run
+    /// declined. It is not in the docket, so it can never be re-checked.
+    #[test]
+    fn a_verdict_survives_only_for_the_answer_it_graded_on_a_row_still_judged() {
+        assert!(reusable(Some("Instant Pot"), Some("Instant Pot")));
+        assert!(!reusable(Some("Instant Pot"), Some("a slow cooker")));
+        assert!(!reusable(Some("Instant Pot"), None), "the row now declines");
+        assert!(reusable(None, Some("Instant Pot")), "pre-M42 own cache, row still judged");
+        assert!(!reusable(None, None));
+    }
+
+    #[test]
+    fn verdict_for_refuses_a_verdict_recorded_for_another_answer() {
+        let judge = file(&[("q", 1, "Instant Pot")]);
+        let row = |answer: &str| -> ScoredQuestion {
+            serde_json::from_value(serde_json::json!({
+                "question_id": "q", "tenant": "t", "category": 1,
+                "question_text": "?", "answer_gold": "g", "response_raw": answer,
+                "score": 0.0, "exact_match": 0.0, "is_abstention_problem": false,
+                "retrieved_items": 6, "memory_query_duration_seconds": 0.1
+            }))
+            .expect("row")
+        };
+        assert_eq!(verdict_for(&judge, &row("Instant Pot")), Some(1));
+        assert_eq!(verdict_for(&judge, &row("I don't know.")), None);
+    }
+
 }

@@ -20,10 +20,13 @@ Literature lives in home-still; the guidance this backlog was built from is
 See [`BACKLOG_DONE.md`](BACKLOG_DONE.md#sota-standing) for the full table and
 its history. Short version:
 - **One gate closed:** MINJA 7.50% ≤ 10%.
-- **LongMemEval_S is past the same-size SOTA row:** **83.40** against
-  MemPro-15 (Qwen3-30B) at 80.80, since M57 (Bonsai 27B plus the premise
-  clause). It is `caveat-judge`, so `standing` keeps that gate open. The climb
-  since M32: 62.00 → 67.80 → 78.40 → 83.40.
+- **LongMemEval_S is 1.60 behind the same-size SOTA row:** **79.20** (strict)
+  against MemPro-15 (Qwen3-30B) at 80.80.
+  - LongMemEval's own grader gives 78.60 (M70).
+  - We first reported 83.40 as past it. A judge defect inflated that
+    (`docs/measurements/defect-2026-09-25-stale-verdicts.md`). The claim was
+    wrong and is recorded as such.
+  - The climb since M32, corrected: 62.00 → 66.20 → 75.00 → 79.20.
 - **LoCoMo: the gate closes under MemPro's own judge (M68, 2026-09-25).**
   - Graded the way the 77.85 row was graded (gpt-4o-mini, LightMem's
     prompt), we score **78.18**, a `comparable` row, +0.33.
@@ -98,7 +101,7 @@ lost under the strict judge):
   goes to the M54 full pair (13/32 chunks).
 - **M60 and M58 are deferred** (user, 16:40), so big goes to the M54
   full pair after M62b. sib went offline at 16:32.
-- **LongMemEval_S:** M57 **shipped 83.40** (past the 80.80 row); M58 (the preference clause on top) runs next.
+- **LongMemEval_S:** M57 shipped at 83.40, corrected on 2026-09-25 to **79.20**. That is not past the 80.80 row (defect record). M58 (the preference clause on top) was deferred.
 - **Code first (user, 2026-09-24 ~14:15).** Every LongMemEval_S gain since
   M43 came from the model (thinking, Bonsai, a prompt clause), and LME-V2's
   +40 from the authors' method. From here the building effort goes into

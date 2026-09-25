@@ -27,6 +27,7 @@
   "item_digest": true,
   "digest_dates": true,
   "commit_answer": false,
+  "commit_grounded": false,
   "resumed_rows": 0,
   "commit_samples": null,
   "commit_agree": null,
@@ -38,6 +39,13 @@
   "reader_seed": 1,
   "reader_thinking_budget": 1024,
   "reader_think_message": false,
+  "reader_premise_clause": false,
+  "reader_best_guess": false,
+  "events_collection": null,
+  "events_ledger": null,
+  "dedupe_lineage": false,
+  "inline_dates": false,
+  "turn_windows": null,
   "decompose": null,
   "categories": [],
   "question_ids": [
@@ -146,14 +154,14 @@
   "scorer": "judge",
   "rescored_from": "runs/m55_bonsai_pilot_s1",
   "questions": 100,
-  "f1_answerable": 0.7872340425531915,
-  "em_answerable": 0.7872340425531915,
+  "f1_answerable": 0.7659574468085106,
+  "em_answerable": 0.7659574468085106,
   "abstention_accuracy": 0.8333333333333334,
   "by_category": [
     {
       "category": 1,
       "count": 14,
-      "mean_score": 0.9285714285714286
+      "mean_score": 0.8571428571428571
     },
     {
       "category": 2,
@@ -173,7 +181,7 @@
     {
       "category": 5,
       "count": 27,
-      "mean_score": 0.8888888888888888
+      "mean_score": 0.8518518518518519
     },
     {
       "category": 6,

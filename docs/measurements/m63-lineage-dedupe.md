@@ -1,5 +1,7 @@
 # M63 — a fact and its episode are one memory *(L1; pre-registered 2026-09-24, before any row)*
 
+> **Correction (2026-09-25):** 48 stale seeded verdicts inflated the arm (`defect-2026-09-25-stale-verdicts.md`). The corrected score is **62.60**, **−7.92 [−9.68, −6.17]** vs the fresh base (was −4.81). Still falsified, and worse.
+
 ## Why
 
 The bottleneck review (`docs/research/sota-catalog-2026-09-24.md`, BACKLOG
