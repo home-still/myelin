@@ -429,6 +429,19 @@ After fusion, the top `rerank_depth` (default 25) candidates are scored by a
 cross-encoder (`bge-reranker-v2-m3`). This is the highest-leverage stage: MS
 MARCO MRR@10 goes 18.7 → 36.5 with a cross-encoder over BM25.
 
+**Turn windows** (`RetrieveConfig::turn_windows`, default OFF, pending its
+arm — M66):
+- Every turn of every episode in the reranked pool is scored on its own, and
+  turns compete with facts best-first.
+- An episode is emitted as its best turns ±2 neighbours, with `…` where
+  turns were cut. The stored record is never rewritten.
+- `k` counts windows as well as records, so a larger `k` buys more sessions
+  at the same token cost. The whole-episode path loses exactly that on
+  LoCoMo's list questions: an episode is ~13 turns, and k = 6 reaches ~2.3
+  of them.
+- CLI: `bench`/`ablate --turn-windows 2`.
+- It refuses to run without a cross-encoder or with `select_sufficient`.
+
 ### Compose
 
 `compose` selects the final evidence set from the reranked pool:
