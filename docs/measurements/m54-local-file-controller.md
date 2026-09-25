@@ -396,3 +396,19 @@ Codex turn took 83–210 s. The shim now logs per-request timing
 (`SHIM_TRACE_LOG`: first byte and total, never content) to find where the
 time goes. The four cloud workers started at 18:36 on `ent_c07a`,
 `ent_c07b`, `web_c00a` and `web_c00b`.
+
+**The reader pass stays local (user, 2026-09-25).** The pre-registered
+reader (the 9B at 1 × 204,800 + projector) needs ~23 GB on big. The user
+chose to wait for big rather than use bmb or a cloud reader, and to evict no
+one. `scratchpad/m54_finish_full.sh` runs the end unattended:
+1. wait for all 32 chunks;
+2. merge each domain (the pilot plus its chunks) with `merge_arc_chunks.py`;
+3. poll big's own `gpu-tenant status` until ≥ 23,000 MiB of VRAM are free;
+4. read and judge both domains under a renewed lease;
+5. write the pre-registered pair (`lmev2_strata.py` vs `m47_base`) and the
+   by-controller breakdown (`arc_by_controller.py`).
+
+**Cloud throughput as measured.** Four workers share the one provider.
+Per-request latency is ~30 s at the median with four in flight, against
+~12 s alone, so the provider is throughput-bound and more workers do not
+help. That is ~20 questions an hour.
