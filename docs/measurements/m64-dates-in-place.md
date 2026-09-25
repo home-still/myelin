@@ -56,3 +56,31 @@ This is TReMu's resolved timeline (Ge et al. 2025,
 **Falsifier.** Temporal does not rise, or the reader starts answering with
 the bracketed range for questions that asked something else (single-hop
 falls by more than 1).
+
+---
+
+## Result *(2026-09-24 20:13)* — **null, in the predicted direction: +0.78**
+
+The arm ran as `runs/m63_locomo_inline`, **not** the `runs/m64_locomo_inline`
+this document named: it shared M63's window and loop. It is paired against
+M63's fresh base (70.52) and judged seeded from it.
+
+| paired over 1,986, vs the fresh base | base | M64 | Δ | 95% CI |
+|---|---|---|---|---|
+| **judge 1–4** | 70.52 | **71.30** | **+0.78** | [−0.45, +1.95] |
+| temporal | 60.44 | 63.86 | +3.43 | [−1.25, +8.10] |
+| multi-hop | 59.57 | 59.22 | −0.35 | [−2.84, +1.77] |
+| single-hop | 82.52 | 82.76 | +0.24 | [−0.71, +1.19] |
+| adversarial | 67.94 | 67.49 | −0.45 | [−2.47, +1.57] |
+
+**Against the pre-registration.**
+- ~ Temporal rose +3.43, below the predicted +5–9, with a CI touching
+  zero.
+- ✓ The other categories were flat.
+- ✓ Overall +0.78, inside the predicted +1–2 band's lower edge. It was
+  never expected to clear +3.0 alone.
+- The falsifier did not fire: single-hop did not fall.
+
+**Verdict:** does not ship alone. It is the cleanest of the evening's
+LoCoMo mechanisms: positive, touching nothing else. It is the first
+candidate to bundle once another mechanism validates.

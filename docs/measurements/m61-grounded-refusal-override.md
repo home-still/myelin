@@ -62,3 +62,39 @@ A prompt instruction does not move them. M59's best-guess clause converted
   mean grounding is not selecting answerable rows.
 - Adversarial falls more than 15 points, which would mean the citation
   does not bind the entity.
+
+---
+
+## Result *(2026-09-24 19:07)* — **safe, and too small to ship: +0.19 against the 9B, +3.38 against Bonsai, adversarial untouched**
+
+`runs/m61_locomo_grounded`: the exact-control replay over M55b, 1,986 rows.
+- 706 rows declined, and the grounded pass re-asked them; 124 committed an
+  answer. The other 1,862 are byte-identical to M55b.
+- Judged by the 9B, seeded: 92 fresh verdicts.
+
+| paired over 1,986 | base | M61 | Δ | 95% CI |
+|---|---|---|---|---|
+| **vs the 9B** (m19), judge 1–4 | 69.87 | 70.06 | **+0.19** | [−1.43, +1.82] |
+| vs Bonsai (M55b), judge 1–4 | 66.69 | 70.06 | **+3.38** | [+2.53, +4.29] |
+| vs Bonsai, adversarial | 92.83 | **92.83** | 0.00 | 0 flips |
+| vs Bonsai, the 292 declines | 0.00 | 17.81 | +17.81 | [+13.36, +22.26] |
+
+Every category rises against Bonsai: multi-hop +3.55, temporal +4.67,
+open-domain +5.21, single-hop +2.62.
+
+**Against the pre-registration.**
+- ✗ Bar: +0.19 against the 9B's 69.87. It does not ship.
+- ✓ Veto: adversarial 92.83, with **not one adversarial row answered**.
+  Grounding held perfectly.
+- ✗ "45–65% of declines re-answered": it was ~124 of 706 declines
+  (answerable and adversarial together), with 52 answerable rows turned
+  right. Of the 292 answerable declines, 17.8% became right.
+- ✗ 74–78: it is 70.06.
+- Falsifiers: neither fired. Adversarial fell 0, not 15. The committed
+  answers were right well above 40%.
+
+**What it means.** An entity-bound citation is a safe gate. It is the
+adversarial guard M42 lacked, and the mechanism is worth keeping. But
+Bonsai cites a supporting memory for only a minority of its refusals; for
+the rest it still sees none. The lever is real and small, +3.38 on Bonsai.
+To reach 77.85 it has to be stacked with evidence the reader can cite.

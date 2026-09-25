@@ -366,3 +366,29 @@ steps, the 9B reader at 1 × 204,800, the same judge.
 
 **Falsifier.** Tool errors stay above 3 per question, which would mean the
 server did not apply the `anyOf` schema.
+
+## M62b and M62c results *(2026-09-24 18:24)* — **36.17 and 25.53; the native controller stays far behind**
+
+| paired over 47, vs AgentRunbook-C 82.98 | score | Δ | forced | empty answers | tool errors | actions |
+|---|---|---|---|---|---|---|
+| M62 | 31.91 | −51.06 | 36 | 19 | (not recorded) | (not recorded) |
+| **M62b** (naming a span is enough) | **36.17** | −46.81 | 34 | 6 | 459 | grep 119, read 455, summary 29 |
+| **M62c** (strict per-tool schema) | **25.53** | −57.45 | 0 | 18 | 0 | **summary 248, answer 47** |
+
+- **M62b** did its job on empty answers (19 → 6) and scored +4.3 over M62.
+  Its instrumentation found the flat-schema defect: 459 of its reads
+  failed for want of a `state`.
+- **M62c** removed the errors, but the controller then **never used `grep`
+  or `read`**. It answered from summaries alone, and 18 answers named no
+  span. M62c vs M62b: −10.64 [−25.53, +4.26].
+  - Zero uses of two of the four tools, in 47 questions, looks like the
+    `anyOf` grammar not really offering those branches rather than a
+    choice. This is unverified: the server's grammar was not inspected.
+- **Every M62 prediction failed.** No variant came within 45 points of
+  replication.
+
+**What it means for LME-V2.** The path to 74.90 is AgentRunbook-C itself:
+the M54 full pair, 13 of 32 chunks done. The native controller's gap is
+not one fix away; Cao 2026 (arXiv 2603.20432) predicts that bespoke
+schema tools lose to a shell and files. M62 work pauses here, and the
+GPU goes to M54.
