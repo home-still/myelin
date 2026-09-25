@@ -88,6 +88,18 @@ first arm to question the measurement apparatus rather than the mechanism.
 
 ---
 
+## M66 — turn windows: **no-go at retrieval** (turn_all 0.8154 at K\*=14 vs the 0.8224 bar)
+
+- **Built:** PRs #116 and #117. Turns are ranked across the pool by the
+  cross-encoder, and each episode is emitted as its best turns ±2.
+- **Stage 1 (dev split):**
+  - Windows hold every gold turn verbatim on 81.5% of questions at 1,186
+    tokens, against whole episodes' 79.2% at 1,304.
+  - That misses the pre-registered +3-point bar by 0.7.
+  - Only k = 18 passes, at +26% tokens.
+- **No reader arm.** The switch stays off.
+- Doc: `m66-turn-windows.md`.
+
 ## M70 — LongMemEval_S graded the way LongMemEval grades: **78.60, 2.20 behind (gate open)**; it found the stale-verdict defect
 
 - **Built:** LongMemEval's own grader, byte for byte

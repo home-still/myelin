@@ -382,3 +382,17 @@ work is shared out; the pair is still scored once, over all 451 questions (the 4
   hardware is free.
 - **Cost:** ~$8 for the remaining 224 questions, estimated from ~410K
   cumulative input tokens and ~9.5K output tokens per question.
+
+**Amendment 4 smoke test passed, 2026-09-25 18:30.** `edea0219` went end
+to end through the cloud controller:
+- status finished;
+- 5 memory items (8,303 tokens), one span (`2e8f6477:6-6`);
+- no refused requests, no transport failures;
+- 1,239 s, under the 1,800-second timeout.
+
+That is slow for a provider that answers a 13K-token, tool-bearing,
+streamed request in ~12 s and decodes at ~63 tok/s (measured directly). A
+Codex turn took 83–210 s. The shim now logs per-request timing
+(`SHIM_TRACE_LOG`: first byte and total, never content) to find where the
+time goes. The four cloud workers started at 18:36 on `ent_c07a`,
+`ent_c07b`, `web_c00a` and `web_c00b`.
