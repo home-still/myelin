@@ -12,6 +12,13 @@ and every number that uses one says so. Plan approved by the user
       recorded with its commit.**
 - [x] M58 pre-registered (`m58-bonsai-preference.md`)
 - [ ] M58 run, judged, written up — **deferred 16:40 (user); big goes to M54**
+- [x] Round-4 loss anatomy and research catalog (`docs/research/sota-catalog-2026-09-26.md`)
+- [ ] Defect fixes: event dates resolved once; `step_k` follows `budget.k`
+- [ ] M20b ranked profile block: stage 0, pre-registration, stratum arm
+- [ ] M73b question-dated events: extraction (8 haystacks), stage 0, stratum arm
+- [ ] M74 selector passage view: pre-registration, arm
+- [ ] M72b and M71b repairs: pre-registration, stratum arms
+- [ ] Bundle arm (every switch that passed), both judge readings
 
 ## B — LoCoMo (target 77.85)
 - [x] `READER_BEST_GUESS_CLAUSE` + `--reader-best-guess` switch, tests
