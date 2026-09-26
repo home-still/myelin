@@ -69,3 +69,44 @@ It waits for big to have room, since nothing is evicted
   the way it guarded LoCoMo's swapped people.
 - Commits land below 50% right: the pass converts declines into wrong
   answers, not recovered ones.
+
+## Result *(2026-09-25 22:48–22:55; Bonsai on big, then the 9B to judge)*
+
+`runs/m71_lme_grounded`, paired against `runs/m57_bonsai_premise_s1`:
+
+| | base | arm | Δ (95% CI) |
+|---|---|---|---|
+| strict 9B, all 500 | 79.20 | **80.40** | **+1.20 [+0.2, +2.4]** |
+| non-abstention (470) | 78.1 | 79.6 | +1.5 [+0.4, +2.8] |
+| abstention (30) | **29/30** | **28/30** | **−1: veto** |
+| LongMemEval's own grader | 78.60 | 79.40 | +0.80 |
+
+**It does not ship.**
+- **Bar:** +1.20 is under +3.0, though the CI excludes zero.
+- **Veto:** one abstention row was talked out of refusing.
+
+**What the pass did:**
+- **It fired on all 78 declining rows and committed on 14** (predicted
+  20–30). With 14 commits the arm could not have reached the bar even at
+  100% precision.
+- **The 13 answerable commits:** 7 right and 6 wrong, **54% precision**,
+  below the falsifier's 50% line only in spirit. On LoCoMo (M61) the same
+  pass was right far more often.
+- **The abstention flip** was `6456829e_abs`: "How many plants did I
+  initially plant for tomatoes **and chili**?" The memories name tomatoes
+  and never chili. The grounded list cited the tomato memories, because
+  part of the question's entity *was* stated, and the pass answered "5
+  tomato plants".
+- **So the first falsifier fired.** Grounding on "memories about the named
+  thing" does not catch a false premise that names two things when the
+  memories hold one. LoCoMo's traps swap the person, while LongMemEval's
+  traps add an unstated detail.
+
+**What it leaves standing:**
+- The 20 gold-in-hand declines are real losses. This pass recovers a third
+  of them at the price of one trap.
+- A version that required **every** entity the question names to be
+  cited might keep the veto, but that is a new mechanism with its own
+  pre-registration.
+- Next is M72, aggregation depth, which targets the larger loss (26
+  undercounted multi-session questions).
