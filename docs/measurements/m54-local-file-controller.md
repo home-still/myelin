@@ -412,3 +412,24 @@ one. `scratchpad/m54_finish_full.sh` runs the end unattended:
 Per-request latency is ~30 s at the median with four in flight, against
 ~12 s alone, so the provider is throughput-bound and more workers do not
 help. That is ~20 questions an hour.
+
+## Amendment 4b — the cloud controller could search the web; its chunks are discarded *(2026-09-25 21:35, before any cloud chunk was accepted)*
+
+- **What happened.** Codex sends its built-in hosted `web_search` tool with
+  every request. Our llama-server never exposed it to the model. OpenRouter
+  executes it server-side as `openrouter:web_search`.
+  - The first cloud chunk to finish, `web_c00a`, failed on eight such calls
+    ("Server tool "openrouter:web_search" failed: upstream returned 502").
+  - So the cloud controller *could* reach the web: outside knowledge on a
+    memory benchmark.
+- **What is kept and what is not.**
+  - None of the 15 accepted chunks, and neither pilot, contains a single
+    `web_search` mention in its traces. All ran on local controllers.
+  - The four cloud chunks in flight (`ent_c07a`, `ent_c07b`, `web_c00a`,
+    `web_c00b`) were stopped and moved aside as `*.discarded.websearch`.
+  - Their claims were released. No cloud row is in the measurement.
+- **The fix.** The shim's cloud mode forwards only `function` tools, exactly
+  what llama-server offers the model. Each request's trace line records the
+  tool types it dropped (`dropped_tools`).
+- **Before the cloud workers resume,** a new smoke question must show
+  `web_search` dropped from its requests and no web search in its trace.
