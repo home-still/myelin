@@ -181,6 +181,22 @@ fn reader_system(switches: &BenchSwitches) -> String {
     system
 }
 
+/// The depth and token budget one question is retrieved with: the run's,
+/// or M72's aggregation depth when the switch is set and the question counts
+/// or sums across occurrences. MemPro's adaptive retrieval depth (Liu et al.
+/// 2026, arXiv 2606.00619, App. A.1) and JustMem's aggregate operation (Chen
+/// et al. 2026, arXiv 2609.19877) are the grounds.
+fn depth_for(question: &str, k: usize, budget_tokens: usize, switches: &BenchSwitches) -> (usize, usize) {
+    match (switches.aggregation_k, switches.aggregation_budget_tokens) {
+        (Some(ak), Some(ab))
+            if myelin_core::pipeline::query_shape::is_aggregation_question(question) =>
+        {
+            (ak, ab)
+        }
+        _ => (k, budget_tokens),
+    }
+}
+
 /// The system prompt a finished run's reader was shown, rebuilt from the
 /// clause switches its `aggregated_metrics.json` records, through the same
 /// [`reader_system`] the run used. A replay of that run's rows (`commit-arm`)
@@ -576,6 +592,13 @@ pub struct BenchRun {
     /// (`RetrieveConfig::turn_windows`). Absent on every run before M66.
     #[serde(default)]
     pub turn_windows: Option<usize>,
+    /// M72: the depth and token budget a counting or summing question
+    /// (`query_shape::is_aggregation_question`) was retrieved with. Absent
+    /// on every run before M72.
+    #[serde(default)]
+    pub aggregation_k: Option<usize>,
+    #[serde(default)]
+    pub aggregation_budget_tokens: Option<usize>,
     /// M24's sub-query decomposition cap, mirroring
     /// `RetrieveConfig::decompose`. Ships off; absent on every run before
     /// M24.
@@ -736,6 +759,10 @@ pub struct BenchSwitches {
     pub inline_dates: bool,
     /// M66: `RetrieveConfig::turn_windows`.
     pub turn_windows: Option<usize>,
+    /// M72: a counting or summing question is retrieved with this `k` and
+    /// token budget instead of the run's (both or neither).
+    pub aggregation_k: Option<usize>,
+    pub aggregation_budget_tokens: Option<usize>,
     /// M61: the second pass was the grounded one. Only `commit-arm --grounded`
     /// produces it; carried here so a rescore of that arm keeps the record.
     pub commit_grounded: bool,
@@ -2134,12 +2161,13 @@ pub async fn bench_locomo(
             let gold = gold_answer(qa.answer.as_ref());
             let adversarial = qa.category == 5;
 
+            let (qk, qtokens) = depth_for(&qa.question, k, budget_tokens, switches);
             let query = Recall {
                 scope: ScopeFilter::tenant(&tenant).with_namespace("locomo"),
                 text: qa.question.clone(),
                 budget: Budget {
-                    k,
-                    tokens: budget_tokens,
+                    k: qk,
+                    tokens: qtokens,
                     max_steps,
                 },
                 mode,
@@ -2402,13 +2430,14 @@ pub async fn bench_longmemeval_s(
         }
         let adversarial = item.is_abstention();
         let gold = item.answer_text();
+        let (qk, qtokens) = depth_for(&item.question, k, budget_tokens, switches);
         let query = Recall {
             scope: ScopeFilter::tenant(format!("lme_s/{}", item.question_id))
                 .with_namespace("longmemeval_s"),
             text: item.question.clone(),
             budget: Budget {
-                k,
-                tokens: budget_tokens,
+                k: qk,
+                tokens: qtokens,
                 max_steps,
             },
             mode,
@@ -2685,6 +2714,8 @@ fn finish_run(
         dedupe_lineage: spec.switches.dedupe_lineage,
         inline_dates: spec.switches.inline_dates,
         turn_windows: spec.switches.turn_windows,
+        aggregation_k: spec.switches.aggregation_k,
+        aggregation_budget_tokens: spec.switches.aggregation_budget_tokens,
         commit_answer: spec.switches.commit_answer,
         commit_grounded: spec.switches.commit_grounded,
         resumed_rows: resumed,
@@ -2883,6 +2914,14 @@ pub fn rescore_run(source: &Path, out_dir: &Path, scorer: Scorer) -> Result<Benc
             inline_dates: flag("inline_dates"),
             turn_windows: metrics
                 .get("turn_windows")
+                .and_then(serde_json::Value::as_u64)
+                .and_then(|n| usize::try_from(n).ok()),
+            aggregation_k: metrics
+                .get("aggregation_k")
+                .and_then(serde_json::Value::as_u64)
+                .and_then(|n| usize::try_from(n).ok()),
+            aggregation_budget_tokens: metrics
+                .get("aggregation_budget_tokens")
                 .and_then(serde_json::Value::as_u64)
                 .and_then(|n| usize::try_from(n).ok()),
             commit_grounded: flag("commit_grounded"),
@@ -3639,6 +3678,22 @@ mod config_tests {
     /// M57: the clause rides on `READER_SYSTEM` only when switched on, after
     /// the preference clause, and the decline-first reply it asks for is read
     /// by `is_abstention` as the decline it is.
+    /// M72: only a counting or summing question gets the aggregation depth,
+    /// and only when both halves of the switch are set.
+    #[test]
+    fn aggregation_depth_applies_to_counting_questions_only() {
+        let on = BenchSwitches {
+            aggregation_k: Some(18),
+            aggregation_budget_tokens: Some(8192),
+            ..Default::default()
+        };
+        assert_eq!(depth_for("How many doctors did I visit?", 6, 4096, &on), (18, 8192));
+        assert_eq!(depth_for("What brand of shampoo do I use?", 6, 4096, &on), (6, 4096));
+        assert_eq!(depth_for("How many days ago did I move?", 6, 4096, &on), (6, 4096));
+        let off = BenchSwitches::default();
+        assert_eq!(depth_for("How many doctors did I visit?", 6, 4096, &off), (6, 4096));
+    }
+
     /// M71: a replay rebuilds the base's system prompt from its artifact,
     /// clauses included, so its untouched rows stay the base's.
     #[test]
