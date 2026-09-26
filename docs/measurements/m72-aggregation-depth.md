@@ -88,3 +88,46 @@ gold.
   - Knowledge-update falls by more than 5: deeper evidence is stale
     evidence.
 - **Order.** It queues behind M71 for big.
+
+## Stage 2 result *(2026-09-25 23:55 → 09-26 01:26; Bonsai on big, then the 9B to judge)*
+
+`runs/m72_lme_agg`: the 137 flagged questions were re-read at k = 18 and
+8,192 tokens, and the other 363 rows are the base's own.
+
+| | base (M57) | arm | Δ (95% CI) |
+|---|---|---|---|
+| strict 9B, all 500 | 79.20 | **80.20** | **+1.0 [−0.2, +2.2]** |
+| abstention (30) | 29/30 | 29/30 | 0 |
+| LongMemEval's own grader | 78.60 | 79.00 | +0.40 |
+
+**By stratum (strict, correct rows):**
+
+| stratum | n | base | arm |
+|---|---|---|---|
+| multi-session, counting | 90 | 69 | **74 (+5)** |
+| knowledge-update, counting | 30 | 28 | 28 |
+| single-session, counting | 17 | 15 | 15 |
+| every unflagged question | 363 | unchanged | unchanged |
+
+**It does not ship.** +1.0 is under the +3.0 bar, and the CI spans zero.
+
+**Against the predictions:**
+- **Multi-session +5 (strict), predicted +8 to +14.** Evidence per counting
+  question grew from 7.9 to 13.4 items, and retrieval had shown 20 more
+  points of every-mention coverage. The reader turned that into 5 more
+  right answers: 58 counting answers changed, 7 for the better and 2 for
+  the worse.
+- **The first falsifier fired in part.** The reader does not count what it
+  is given. Coverage was the smaller half of the problem.
+- **Knowledge-update did not fall** (28 → 28), so the stale-evidence risk
+  did not materialise.
+
+**What it says about the next lever.** Retrieval now delivers most of the
+mentions, and the loss is in turning them into a count. The candidates are:
+- enumeration before counting (Chain-of-Note, Yu et al. 2024,
+  `10.18653/v1/2024.emnlp-main.813`);
+- counting in code over structured items (APEX-MEM's SQL COUNT, Banerjee
+  et al. 2026, `10.18653/v1/2026.acl-long.749`).
+
+Each would be its own pre-registered arm, and the enumeration one runs
+into the code-first rule if it is a prompt clause.

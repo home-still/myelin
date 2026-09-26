@@ -88,6 +88,17 @@ first arm to question the measurement apparatus rather than the mechanism.
 
 ---
 
+## M72 — aggregation depth: **+1.0 strict [−0.2, +2.2]**; does not ship
+
+- **Stage 1:** counting questions hold every mention 64% → 84% at k = 18
+  and 8,192 tokens.
+- **Stage 2:** the 137 counting questions were re-read; multi-session
+  counting went 69 → 74 of 90, and nothing else moved.
+  - Official: 78.60 → 79.00.
+  - Abstention unchanged.
+- **Verdict:** under the bar. Coverage rose far more than the counts did.
+- Doc: `m72-aggregation-depth.md`.
+
 ## M71 — the grounded second pass on LongMemEval_S: **+1.20 strict, vetoed (abstention 29 → 28)**; does not ship
 
 - **Design:** M61's grounded pass, replayed over the shipped run's 78
