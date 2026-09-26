@@ -111,7 +111,7 @@ fn bench_out_dir(
         .map(|lambda| format!("_mmr{}", (lambda * 100.0).round() as u32))
         .unwrap_or_default();
     format!(
-        "runs/{slug}_{}{}{}{}{mmr}{}{}{}{cats}{}",
+        "runs/{slug}_{}{}{}{}{mmr}{}{}{}{}{cats}{}",
         mode_slug(mode),
         if switches.graph { "_graph" } else { "" },
         if switches.chronological {
@@ -125,7 +125,16 @@ fn bench_out_dir(
         } else {
             ""
         },
-        if switches.profile { "_prof" } else { "" },
+        if switches.profile_ledger.is_some() {
+            "_prof"
+        } else {
+            ""
+        },
+        if switches.events_ledger.is_some() {
+            "_events"
+        } else {
+            ""
+        },
         if switches.profile_clause {
             "_pclause"
         } else {
@@ -203,7 +212,7 @@ mod tests {
                     question_date: true,
                     mmr: Some(0.7),
                     select_sufficient: true,
-                    profile: true,
+                    profile_ledger: Some("data/p.ledger".into()),
                     ..Default::default()
                 },
                 Scorer::Judge
@@ -222,7 +231,7 @@ mod tests {
                 "lme_s",
                 Mode::Recall,
                 &BenchSwitches {
-                    profile,
+                    profile_ledger: profile.then(|| "data/p.ledger".to_string()),
                     profile_clause,
                     categories: vec![3],
                     ..Default::default()
@@ -630,10 +639,6 @@ enum Command {
         /// carries one; this adds LoCoMo's last session date.
         #[arg(long)]
         question_date: bool,
-        /// Compose a `[profile]` block of the tenant's stored dispositions,
-        /// fetched by scope rather than by relevance (M20 arm A).
-        #[arg(long)]
-        profile: bool,
         /// Tell the reader to answer recommendation questions from the
         /// user's stated preferences (M20 arm B).
         #[arg(long)]
@@ -782,15 +787,16 @@ enum Command {
         aggregation_k: Option<usize>,
         #[arg(long, requires = "aggregation_k")]
         aggregation_budget_tokens: Option<usize>,
-        /// M50c: an events-only index (Qdrant collection) whose top events
-        /// are appended after the evidence as an `[events]` block, beside
-        /// the turns rather than instead of them. Needs `--events-ledger`.
-        #[arg(long, requires = "events_ledger")]
-        events_collection: Option<String>,
-        /// The ledger holding that index's event records (a copy of the base
-        /// ledger, for their lineage).
-        #[arg(long, requires = "events_collection")]
+        /// M73b: a ledger of events (`events-build`). When the question names
+        /// a past day, the events dated inside it are ranked by the
+        /// cross-encoder and the top 3 appended as an `[events]` block.
+        #[arg(long)]
         events_ledger: Option<String>,
+        /// M20b: a ledger of profile records. On an advice request, the
+        /// user's dispositions are ranked by the cross-encoder and the top 8
+        /// appended as a `[profile]` block.
+        #[arg(long)]
+        profile_ledger: Option<String>,
         /// Cap how many `Untrusted` records the composed set may contain
         /// (M23 B1). A ceiling, not an exclusion: the quota never drops
         /// untrusted evidence to zero and never drops a trusted record.
@@ -1263,7 +1269,6 @@ async fn main() -> anyhow::Result<()> {
             chronological,
             question_date,
             timeline_ago,
-            profile,
             profile_clause,
             mmr,
             select_sufficient,
@@ -1283,8 +1288,8 @@ async fn main() -> anyhow::Result<()> {
             reader_think_message,
             reader_premise_clause,
             reader_best_guess,
-            ref events_collection,
             ref events_ledger,
+            ref profile_ledger,
             dedupe_lineage,
             inline_dates,
             turn_windows,
@@ -1319,7 +1324,6 @@ async fn main() -> anyhow::Result<()> {
                     chronological,
                     question_date,
                     timeline_ago,
-                    profile,
                     profile_clause,
                     mmr,
                     select_sufficient,
@@ -1339,8 +1343,8 @@ async fn main() -> anyhow::Result<()> {
                     reader_think_message,
                     reader_premise_clause,
                     reader_best_guess,
-                    events_collection: events_collection.clone(),
                     events_ledger: events_ledger.clone(),
+                    profile_ledger: profile_ledger.clone(),
                     dedupe_lineage,
                     inline_dates,
                     turn_windows,

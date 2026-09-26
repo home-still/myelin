@@ -294,6 +294,61 @@ pub fn is_interval_question(text: &str) -> bool {
     CUES.iter().any(|c| lower.contains(c))
 }
 
+/// Weekday names, lowercased: a phrase naming one points at a single day.
+const WEEKDAY_WORDS: [&str; 7] = [
+    "monday",
+    "tuesday",
+    "wednesday",
+    "thursday",
+    "friday",
+    "saturday",
+    "sunday",
+];
+
+/// Does a resolved phrase name a past *point* ("10 days ago", "last
+/// Saturday", "past weekend", "yesterday") rather than a period ("last
+/// month", "this year")?
+///
+/// M73 measured the difference on LongMemEval_S
+/// (`docs/measurements/m73-question-dates.md`): 13 of 18 point phrases held
+/// their gold session inside the window, and 6 of 15 period phrases did,
+/// because "last month" usually means the past 30 days and not the calendar
+/// month the grammar returns.
+fn is_point_phrase(phrase: &str) -> bool {
+    phrase.ends_with(" ago")
+        || phrase.ends_with(" back")
+        || phrase == "yesterday"
+        || phrase.contains("weekend")
+        || WEEKDAY_WORDS.iter().any(|d| phrase.contains(d))
+}
+
+/// The past day, or run of days, a question names relative to its own date:
+/// "What did I buy **10 days ago**?" asked on 2023-03-25 is 2023-03-15.
+///
+/// M73b's gate for the dated events block. LongMemEval's authors measured
+/// time-aware query expansion on their own benchmark (Wu et al. 2024, arXiv
+/// 2410.10813, §5.4): with GPT-4o extracting the range, temporal
+/// recall@10 rose 0.550 → 0.722; with Llama 3.1 8B it vanished, because the
+/// small model hallucinates ranges. Here the range comes from
+/// [`resolve_relative`]'s closed grammar, which fails closed.
+///
+/// `None` unless exactly one window is named, by a point phrase
+/// ([`is_point_phrase`]), lying strictly before `asked_on`. So a period
+/// ("last month"), the future ("this weekend"), today, and a question naming
+/// two different past days all get no window, rather than a guess.
+pub fn question_window(question: &str, asked_on: NaiveDate) -> Option<DayRange> {
+    let mut windows = resolve_relative(question, asked_on)
+        .into_iter()
+        .filter(|r| is_point_phrase(&r.phrase) && r.range.hi < asked_on)
+        .map(|r| r.range);
+    let first = windows.next()?;
+    if windows.all(|w| w == first) {
+        Some(first)
+    } else {
+        None
+    }
+}
+
 // ---------------------------------------------------------------- tokenizing
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1293,6 +1348,44 @@ mod tests {
             super::ago_phrase(d(2023, 1, 31), d(2023, 3, 3)),
             "31 days ago; 4 weeks; 1 month"
         );
+    }
+
+    /// M73's target questions, anchored at their own question dates.
+    #[test]
+    fn a_question_names_its_own_past_day() {
+        let d = |y, m, dd| NaiveDate::from_ymd_opt(y, m, dd).unwrap();
+        let w = |q: &str, on| question_window(q, on);
+        assert_eq!(
+            w("What kitchen appliance did I buy 10 days ago?", d(2023, 3, 25)),
+            Some(DayRange::day(d(2023, 3, 15)))
+        );
+        assert_eq!(
+            w("Who did I go with to the music event last Saturday?", d(2023, 4, 22)),
+            Some(DayRange::day(d(2023, 4, 15)))
+        );
+        assert_eq!(
+            w("Which bike did I fixed or serviced the past weekend?", d(2023, 3, 21)),
+            Some(DayRange::new(d(2023, 3, 18), d(2023, 3, 19)))
+        );
+        assert_eq!(
+            w("What did I do with Rachel on the Wednesday two months ago?", d(2023, 4, 1)),
+            Some(DayRange::new(d(2023, 2, 1), d(2023, 2, 28)))
+        );
+    }
+
+    /// A period, the future, today, or no phrase at all: no window.
+    #[test]
+    fn periods_the_future_and_today_name_no_window() {
+        let d = |y, m, dd| NaiveDate::from_ymd_opt(y, m, dd).unwrap();
+        let on = d(2023, 5, 30);
+        for q in [
+            "What certification did I complete last month?",
+            "Can you recommend some interesting cultural events happening around me this weekend?",
+            "What is the order of airlines I flew with from earliest to latest before today?",
+            "What degree did I graduate with?",
+        ] {
+            assert_eq!(question_window(q, on), None, "{q}");
+        }
     }
 
     use super::*;
