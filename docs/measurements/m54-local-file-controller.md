@@ -433,3 +433,30 @@ help. That is ~20 questions an hour.
   tool types it dropped (`dropped_tools`).
 - **Before the cloud workers resume,** a new smoke question must show
   `web_search` dropped from its requests and no web search in its trace.
+
+## Amendment 4c — the cloud controller cannot hold a long agent context; the run finishes locally *(2026-09-25 22:15)*
+
+- **The fix worked.** After 4b, every cloud request dropped `web_search`,
+  and no trace mentions it.
+- **The route did not.** Both post-fix smoke questions failed on the
+  provider, not on the harness:
+  - "inference generation failed", then rate limits;
+  - later, requests that failed identically after ~86 s, retried
+    unchanged.
+- **The cause, measured directly against the provider:**
+  - Darkbloom re-reads the whole prompt on every call. It reported 0 cached
+    tokens, and a Codex question resends a growing 30–50K-token history
+    every turn.
+  - At ~400 tokens/s of prefill, a 31K-token request took 65 s and a
+    48K-token one 116 s.
+  - The failures cluster where those turns end. Short requests (1.7 s) and
+    15K-token ones (33 s) succeed.
+- **So cloud chunks would mostly be discarded under the transport rule.**
+  The local controller does a question in about 4 minutes because its slot
+  keeps the prefix cached.
+- **What was done.** The cloud route is stopped. No cloud row is in the
+  measurement. The remaining chunks run on big (1 slot × 96K) and on sib
+  whenever it is back.
+- **The one remaining cloud artifact** is the rule the shim now enforces:
+  function tools only. The user's decision to finish on the cloud stands in
+  the record, alongside why it could not be carried out.
