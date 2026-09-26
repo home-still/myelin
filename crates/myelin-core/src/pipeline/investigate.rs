@@ -39,6 +39,19 @@ use super::compose::{compose, ComposeConfig, Ranked, PROFILE_MAX_RECORDS};
 use super::retrieve::Retriever;
 use super::select::{Degradation, Selected, Selector};
 
+/// How many records one probe asks for: the loop's working width, or the
+/// question's own depth when that is larger.
+///
+/// Until 2026-09-26 every probe asked for [`InvestigateConfig::step_k`] (10)
+/// whatever the question's `k`, so a question given k = 18 by M72's
+/// aggregation depth (`docs/measurements/m72-aggregation-depth.md`) could
+/// never fill 18 slots in investigate mode: its pool was 10 per probe, and
+/// the arm measured 7.9 → 13.4 evidence items instead of 18. At the shipped
+/// k = 6 the width is unchanged.
+pub fn probe_k(step_k: usize, k: usize) -> usize {
+    step_k.max(k)
+}
+
 /// `Copy`: every field is a `usize` or a `bool`, and a per-question bench
 /// loop should not clone a config to read it.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -1802,7 +1815,7 @@ impl<'a> Investigator<'a> {
             let mut probe = query.clone();
             probe.text = search.clone();
             probe.mode = Mode::Recall;
-            probe.budget.k = self.config.step_k;
+            probe.budget.k = probe_k(self.config.step_k, query.budget.k);
             if self.config.typed_probes {
                 probe.kinds = next_kind.as_deref().and_then(probe_kinds);
             }
@@ -2109,6 +2122,15 @@ mod tests {
     /// the same switch at exactly +0.0 and that null lived in this file as
     /// the reason the default was off. A future reader meeting that number
     /// first must not be able to "restore" it silently.
+    /// M72's k = 18 reaches the probe; the shipped k = 6 keeps the loop's
+    /// width of 10.
+    #[test]
+    fn a_probe_is_as_wide_as_the_question_asks_when_that_is_wider() {
+        let width = InvestigateConfig::default().step_k;
+        assert_eq!(probe_k(width, 6), width);
+        assert_eq!(probe_k(width, 18), 18);
+    }
+
     #[test]
     fn the_pool_level_selector_ships_on() {
         assert!(

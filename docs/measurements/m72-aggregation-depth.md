@@ -131,3 +131,20 @@ mentions, and the loss is in turning them into a count. The candidates are:
 
 Each would be its own pre-registered arm, and the enumeration one runs
 into the code-first rule if it is a prompt clause.
+
+---
+
+## Correction *(2026-09-26)*: the arm never received k = 18
+
+The round-4 code review found that `investigate` asked every probe for
+`step_k` = 10 records whatever the question's `k`. A counting question given
+k = 18 therefore drew a pool of 10 per probe. That fits the measured 7.9 →
+13.4 evidence items, not 18. Stage 1's coverage was measured in `recall`
+mode, which has no such cap. So this arm's +1.0 measured a shallower
+mechanism than the one it names.
+
+Each probe now asks for `max(step_k, k)` (`investigate::probe_k`). The
+shipped k = 6 is unchanged. M72b re-measures the depth with the cap fixed and
+reports the over-count rate beside it: Karunanidhi 2026 (arXiv 2608.21230)
+found LongMemEval_S multi-session accuracy *falling* with depth, because the
+reader over-counts.
