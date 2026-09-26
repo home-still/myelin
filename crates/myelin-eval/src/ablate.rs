@@ -556,6 +556,16 @@ pub struct WidthPoint {
     /// raises `k` and holds this flat.
     #[serde(default)]
     pub evidence_tokens: f64,
+    /// M72: the counting and summing questions
+    /// (`query_shape::is_aggregation_question`), how many there are, and
+    /// `all` / `turn_all` over them alone. They need every mention, which is
+    /// what a wider depth for them is meant to buy.
+    #[serde(default)]
+    pub agg_n: usize,
+    #[serde(default)]
+    pub agg_all: f64,
+    #[serde(default)]
+    pub agg_turn_all: f64,
     /// Gold-turn recall of the **reranked pool**, before `compose`
     /// truncates to `k`. The ceiling `recall` is measured against.
     pub pool_recall: f64,
@@ -782,6 +792,7 @@ pub async fn width_sweep(
         let mut all_sum = 0.0;
         let mut turn_all_sum = 0.0;
         let mut evidence_tokens_sum = 0.0;
+        let (mut agg_n, mut agg_all_sum, mut agg_turn_sum) = (0usize, 0.0, 0.0);
         let mut pool_recall_sum = 0.0;
         let mut any_sum = 0.0;
         let mut pool_sum = 0.0;
@@ -829,6 +840,11 @@ pub async fn width_sweep(
             });
             turn_all_sum += f64::from(u8::from(verbatim));
             evidence_tokens_sum += evidence.tokens as f64;
+            if myelin_core::pipeline::query_shape::is_aggregation_question(&q.text) {
+                agg_n += 1;
+                agg_all_sum += f64::from(u8::from(held >= 1.0 - f64::EPSILON));
+                agg_turn_sum += f64::from(u8::from(verbatim));
+            }
             let pool = gold_recall(&source, q, &trace.pool);
             pool_recall_sum += pool;
             any_sum += f64::from(u8::from(pool > 0.0));
@@ -868,6 +884,9 @@ pub async fn width_sweep(
             all: all_sum / n,
             turn_all: turn_all_sum / n,
             evidence_tokens: evidence_tokens_sum / n,
+            agg_n,
+            agg_all: if agg_n > 0 { agg_all_sum / agg_n as f64 } else { 0.0 },
+            agg_turn_all: if agg_n > 0 { agg_turn_sum / agg_n as f64 } else { 0.0 },
             pool_recall: pool_recall_sum / n,
             any: any_sum / n,
             pool: pool_sum / n,
@@ -881,8 +900,8 @@ pub async fn width_sweep(
         };
         println!(
             "  prefetch {:<4} depth {:<4} select {:<5} budget {:<6} recall@{k} {:.4}  all {:.4}  \
-             turn-all {:.4}  ev-tok {:.0}  pool {:.4}  (trunc {:.4} / miss {:.4})  tok-drops {:.2}  \
-             rank {:.1}  rec-tok {:.0}  p50 {}ms",
+             turn-all {:.4}  ev-tok {:.0}  agg(n={}) all {:.4} turn-all {:.4}  pool {:.4}  \
+             (trunc {:.4} / miss {:.4})  tok-drops {:.2}  rank {:.1}  rec-tok {:.0}  p50 {}ms",
             point.prefetch_limit,
             point.rerank_depth,
             point.select,
@@ -891,6 +910,9 @@ pub async fn width_sweep(
             point.all,
             point.turn_all,
             point.evidence_tokens,
+            point.agg_n,
+            point.agg_all,
+            point.agg_turn_all,
             point.pool_recall,
             point.truncation_loss(),
             point.retrieval_loss(),
@@ -1566,6 +1588,9 @@ mod tests {
             all: 0.0,
             turn_all: 0.0,
             evidence_tokens: 0.0,
+            agg_n: 0,
+            agg_all: 0.0,
+            agg_turn_all: 0.0,
             pool_recall: pool,
             any: 1.0,
             pool: depth as f64,
