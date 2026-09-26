@@ -21,6 +21,7 @@ pub mod index;
 pub mod ingest;
 pub mod investigate;
 pub mod phrases;
+pub mod query_shape;
 pub mod retrieve;
 pub mod select;
 pub mod trajectory_agent;
