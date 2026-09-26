@@ -132,6 +132,17 @@ lost under the strict judge):
   5. **M74**: the selector reads the best-matching passage.
 - Enumerate-then-count is dropped this round: the overcount evidence
   (Karunanidhi 2026) argues for measuring depth first.
+- **Built and merged 2026-09-26** (PRs #135–#141):
+  - the defect fixes;
+  - `side_block.rs` (M20b, M73b);
+  - M71b's covered grounding;
+  - M74's `--select-focus`;
+  - `paired_ci --ids/--verdicts`;
+  - `bench --evidence-only`.
+
+  Pre-registrations are in `docs/measurements/m20b-*`, `m73b-*`, `m71b-*`,
+  `m72b-*` and `m74-*`. The arms run on big after M54's controller phase
+  (`scratchpad/round4_arms.sh`).
 
 **Earlier queue, in order:**
 1. **M66: turn windows** *(the user's first build)*. Each selected episode
