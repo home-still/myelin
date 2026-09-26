@@ -19,7 +19,6 @@
 //! BM25-only, dense-only and hybrid. A baseline measured by different code is
 //! not a baseline.
 
-use chrono::Utc;
 use serde::{Deserialize, Serialize};
 
 use crate::embed::Embedder;
@@ -27,13 +26,13 @@ use crate::error::{MyelinError, Result};
 use crate::llm::Llm;
 use crate::model::evidence::EvidenceSet;
 use crate::model::query::Recall;
-use crate::model::record::{MemoryRecord, RecordKind};
+use crate::model::record::MemoryRecord;
 use crate::rerank::Reranker;
 use crate::store::graph::{GraphIndex, DEFAULT_DAMPING, DEFAULT_ITERATIONS};
 use crate::store::ledger::Ledger;
 use crate::store::qdrant::QdrantStore;
 
-use super::compose::{compose, ComposeConfig, Ranked, PROFILE_MAX_RECORDS};
+use super::compose::{compose, ComposeConfig, Ranked};
 use super::fuse::{rrf, RankedList, DEFAULT_RRF_K};
 use super::phrases::phrases;
 use super::decompose::Decomposer;
@@ -314,10 +313,6 @@ pub struct RecallTrace {
     pub graph_hits: usize,
     #[serde(default)]
     pub graph_ms: u128,
-    /// Dispositions the `[profile]` block was built from. Zero when
-    /// [`ComposeConfig::profile`] is off or the tenant has none.
-    #[serde(default)]
-    pub profile_records: usize,
     /// How many candidates the sufficiency selector kept, and what the model
     /// call cost. Zero when [`RetrieveConfig::select_sufficient`] is off or
     /// no [`Llm`] was wired — which is the check that catches an inert
@@ -815,25 +810,8 @@ impl<'a> Retriever<'a> {
             }
         }
 
-        // Dispositions, by scope. Unlike `timeline`, this switch is **not**
-        // narrowed by question shape: the whole thesis is that the block is
-        // composed whether or not the question looks like a preference
-        // question, and the off-target cost of that is what M20 measures.
-        let profile = if compose_cfg.profile {
-            self.ledger
-                .visible_of_kind(
-                    &query.scope,
-                    RecordKind::Profile,
-                    Utc::now(),
-                    PROFILE_MAX_RECORDS as i64,
-                )
-                .await?
-        } else {
-            Vec::new()
-        };
-        trace.profile_records = profile.len();
 
-        let mut set = compose(ranked, &profile, &compose_cfg);
+        let mut set = compose(ranked,&compose_cfg);
         trace.dropped_for_tokens = set.dropped_for_tokens;
         trace.k_bound = set.k_bound;
         trace.total_ms = started.elapsed().as_millis();

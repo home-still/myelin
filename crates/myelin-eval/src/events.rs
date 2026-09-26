@@ -46,6 +46,9 @@ use crate::build::{parse_session_time, turns_for};
 use crate::datasets::{locomo, longmemeval};
 
 /// Progress line cadence, in sessions, for each pass.
+/// What an event's source document carries after its session key, so a side
+/// ledger can be checked to hold only events among its `semantic` records.
+pub const EVENT_DOC_MARKER: &str = "@event";
 const EXTRACT_PROGRESS_EVERY: usize = 25;
 const BUILD_PROGRESS_EVERY: usize = 100;
 
@@ -392,7 +395,7 @@ pub async fn build(
             // an event's source never falls under its session's lineage
             // prefix and a retried session cannot name its own events as
             // ancestors.
-            let doc = format!("{}@event{k}", slot.session_key);
+            let doc = format!("{}{EVENT_DOC_MARKER}{k}", slot.session_key);
             turns.push(Turn {
                 speaker: "event".into(),
                 text: event_text(e, &time, said_day),

@@ -35,7 +35,7 @@ use crate::model::evidence::{EvidenceItem, EvidenceKind, EvidenceSet, TraceStep}
 use crate::model::query::{Mode, Recall};
 use crate::model::record::{RecordKind, SourceRef, TrustTier};
 
-use super::compose::{compose, ComposeConfig, Ranked, PROFILE_MAX_RECORDS};
+use super::compose::{compose, ComposeConfig, Ranked};
 use super::retrieve::Retriever;
 use super::select::{Degradation, Selected, Selector};
 
@@ -1941,22 +1941,6 @@ impl<'a> Investigator<'a> {
             as_of: query.as_of,
             ..self.retriever.config.compose.clone()
         };
-        // Dispositions, by scope — the same block `recall` composes, so an
-        // agentic investigation frames its answer the same way a single-shot
-        // recall does.
-        let profile = if compose_cfg.profile {
-            self.retriever
-                .ledger
-                .visible_of_kind(
-                    &query.scope,
-                    RecordKind::Profile,
-                    chrono::Utc::now(),
-                    PROFILE_MAX_RECORDS as i64,
-                )
-                .await?
-        } else {
-            Vec::new()
-        };
         // The top of the pool, captured before `compose` takes it: the
         // premise verdict below is written from what the loop actually
         // accumulated and re-ranked, not from a second retrieval.
@@ -1965,7 +1949,7 @@ impl<'a> Investigator<'a> {
             .take(6)
             .map(|r| r.record.text.clone())
             .collect();
-        let mut set = compose(ranked, &profile, &compose_cfg);
+        let mut set = compose(ranked,&compose_cfg);
 
         // The gate, applied where sufficiency was actually judged.
         //
@@ -2452,7 +2436,7 @@ mod tests {
             timeline: false,
             ..ComposeConfig::default()
         };
-        compose(ranked, &[], &cfg)
+        compose(ranked,&cfg)
             .items
             .into_iter()
             .map(|i| i.value)

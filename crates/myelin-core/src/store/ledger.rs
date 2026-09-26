@@ -510,6 +510,25 @@ impl Ledger {
         Ok(row.get::<i64, _>("n"))
     }
 
+    /// How many records of `kind` the ledger holds, counting only those whose
+    /// source document contains `doc_marker` when one is given. A side ledger
+    /// is checked with it before a run trusts every record of a kind to be
+    /// what the side block is named for.
+    pub async fn count_of_kind(&self, kind: RecordKind, doc_marker: Option<&str>) -> Result<i64> {
+        let row = sqlx::query(
+            "SELECT COUNT(*) AS n FROM record
+             WHERE kind = ?
+               AND (? IS NULL OR instr(prov_source, ?) > 0)",
+        )
+        .bind(kind.as_str())
+        .bind(doc_marker)
+        .bind(doc_marker)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(sql)?;
+        Ok(row.get::<i64, _>("n"))
+    }
+
     /// Records admissible at `now` — the same predicate [`Ledger::visible`]
     /// applies, minus the scope.
     ///

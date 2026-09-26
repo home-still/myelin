@@ -1008,8 +1008,11 @@ fn bench_metrics(dir: &Path, agg_text: &str) -> Result<Vec<Ours>> {
         || run.reader_premise_clause != crate::bench::shipped_reader_premise_clause(&run.corpus)
         // M59's best-guess clause, shipping off pending its arm.
         || run.reader_best_guess
-        // M50c's events block, shipping off pending its arm.
+        // M50c's events block, and its successors M73b's dated events and
+        // M20b's ranked profile, shipping off pending their arms.
         || run.events_collection.is_some()
+        || run.events_ledger.is_some()
+        || run.profile_ledger.is_some()
         // L1's lineage-aware dedupe, shipping off pending its arm.
         || run.dedupe_lineage
         // M64's in-place dates in words, shipping off pending its arm.

@@ -224,20 +224,6 @@ pub struct ComposeConfig {
     /// config file.
     #[serde(skip)]
     pub as_of: Option<chrono::NaiveDate>,
-    /// Prepend one synthetic `[profile]` item stating what the user is known
-    /// to prefer, fetched by scope rather than by relevance.
-    ///
-    /// Default off pending M20's measurement; the rule that sets it is in
-    /// `docs/measurements/m20-preference-profile.md`.
-    ///
-    /// The diagnosis it answers: on LongMemEval_S's 30
-    /// `single-session-preference` questions we score 26.67 judged against
-    /// MemPro's 80.00, and 11 of the 22 failures are outright declines even
-    /// though the preference material is in the composed evidence
-    /// (gold-content coverage 0.38-0.89). A preference has to be retrieved
-    /// because it is *about the user*; it does not lexically match "suggest
-    /// some accessories".
-    pub profile: bool,
     /// Select the emitted records for joint coverage of the question rather
     /// than by independent rank: maximal marginal relevance at this lambda,
     /// 1.0 being pure relevance and 0.0 pure diversity.
@@ -331,7 +317,6 @@ impl Default for ComposeConfig {
             timeline: true,
             timeline_ago: false,
             as_of: None,
-            profile: false,
             mmr_lambda: None,
             untrusted_max: None,
             kind_quota: None,
@@ -571,7 +556,7 @@ fn lineage_related(a: &MemoryRecord, b: &MemoryRecord) -> bool {
     a.provenance.derived_from.contains(&b.id) || b.provenance.derived_from.contains(&a.id)
 }
 
-pub fn compose(ranked: Vec<Ranked>, profile: &[MemoryRecord], cfg: &ComposeConfig) -> EvidenceSet {
+pub fn compose(ranked: Vec<Ranked>, cfg: &ComposeConfig) -> EvidenceSet {
     // 1. Dedup, keeping the higher-ranked copy.
     let mut kept: Vec<Ranked> = Vec::new();
     for candidate in ranked {
@@ -698,17 +683,6 @@ pub fn compose(ranked: Vec<Ranked>, profile: &[MemoryRecord], cfg: &ComposeConfi
         items.push(item);
     }
 
-    // 5. The dispositions, first. This displaces the strongest memory to
-    //    position 2, which `bookend`'s own justification says is a real
-    //    cost — and it is paid deliberately. The tail already belongs to the
-    //    dated index, and the profile is the frame the rest of the answer is
-    //    read through rather than a fact competing with the others.
-    if cfg.profile && !profile.is_empty() {
-        let item = profile_item(profile);
-        tokens += approx_tokens(&item.value);
-        items.insert(0, item);
-    }
-
     EvidenceSet {
         items,
         tokens,
@@ -802,30 +776,6 @@ pub(crate) fn weakest_trust(tiers: impl Iterator<Item = TrustTier>) -> TrustTier
         .unwrap_or(TrustTier::Untrusted)
 }
 
-/// At most this many dispositions. The block is a frame for the answer, not
-/// a second evidence set; an unbounded one would spend the whole budget on
-/// a tenant with a long history.
-pub const PROFILE_MAX_RECORDS: usize = 8;
-
-/// One synthetic statement of what the user is known to prefer.
-///
-/// `record_id` is nil and the source is the literal doc `profile`, for the
-/// same reason as [`timeline_item`]: this is a *view*, and a consumer that
-/// follows `record_id` into the ledger must not find a record that was never
-/// written. Trust is the weakest tier among the records it summarises.
-fn profile_item(profile: &[MemoryRecord]) -> EvidenceItem {
-    let taken = &profile[..profile.len().min(PROFILE_MAX_RECORDS)];
-    let texts: Vec<&str> = taken.iter().map(|r| r.text.trim()).collect();
-    EvidenceItem {
-        kind: EvidenceKind::Text,
-        value: format!("[profile] {}", texts.join("; ")),
-        record_id: Uuid::nil(),
-        source: SourceRef::doc("profile"),
-        score: 0.0,
-        trust: weakest_trust(taken.iter().map(|r| r.trust.tier)),
-    }
-}
-
 /// `[1st, 3rd, 5th, …, 6th, 4th, 2nd]` — best at the head, second-best at the
 /// tail, weakest buried in the middle where attention is worst.
 fn bookend<T>(mut ranked: Vec<T>) -> Vec<T> {
@@ -911,9 +861,9 @@ mod tests {
             vector: None,
             window: Some(window),
         };
-        let out = compose(vec![whole], &[], &unstamped());
+        let out = compose(vec![whole],&unstamped());
         assert_eq!(out.items[0].value, text, "no window, the record verbatim");
-        let out = compose(vec![windowed], &[], &unstamped());
+        let out = compose(vec![windowed],&unstamped());
         assert_eq!(out.items[0].value, "…\nA: three\n…");
         assert_eq!(
             out.tokens,
@@ -940,7 +890,6 @@ mod tests {
                 vector: None,
                 window: Some(window),
             }],
-            &[],
             &ComposeConfig {
                 timeline: false,
                 ..Default::default()
@@ -992,7 +941,7 @@ mod tests {
         };
         let cfg = ComposeConfig { k: 3, ..unstamped() };
 
-        let off = compose(fixture(false), &[], &cfg);
+        let off = compose(fixture(false),&cfg);
         assert_eq!(
             texts(&off),
             vec![
@@ -1004,7 +953,7 @@ mod tests {
         );
 
         let on_cfg = ComposeConfig { dedupe_lineage: true, ..cfg };
-        let on = compose(fixture(false), &[], &on_cfg);
+        let on = compose(fixture(false),&on_cfg);
         assert_eq!(
             texts(&on),
             vec![
@@ -1017,7 +966,7 @@ mod tests {
 
         // Symmetric: a fact ranked above its episode keeps its place and the
         // episode yields.
-        let on = compose(fixture(true), &[], &on_cfg);
+        let on = compose(fixture(true),&on_cfg);
         assert!(texts(&on).contains(&"Maria adopted a puppy named Coco.".to_string()));
         assert!(!texts(&on).iter().any(|t| t.starts_with("Maria: I got a puppy")));
     }
@@ -1067,7 +1016,6 @@ mod tests {
         // Without a quota, `k = 4` emits raw states only.
         let plain = compose(
             ranked_kinds(&items),
-            &[],
             &ComposeConfig {
                 k: 4,
                 ..unstamped()
@@ -1184,7 +1132,6 @@ mod tests {
                     procedural: 3,
                 },
             ),
-            &[],
             &ComposeConfig {
                 k: 4,
                 ..unstamped()
@@ -1208,8 +1155,8 @@ mod tests {
             ("p1", RecordKind::Procedural),
         ];
         let cfg = ComposeConfig { k: 3, ..unstamped() };
-        let a = compose(ranked_kinds(&items), &[], &cfg);
-        let b = compose(ranked_kinds(&items), &[], &cfg);
+        let a = compose(ranked_kinds(&items),&cfg);
+        let b = compose(ranked_kinds(&items),&cfg);
         assert_eq!(
             a.items.iter().map(|i| i.value.clone()).collect::<Vec<_>>(),
             b.items.iter().map(|i| i.value.clone()).collect::<Vec<_>>()
@@ -1222,7 +1169,6 @@ mod tests {
     fn the_two_strongest_items_bookend_the_set() {
         let set = compose(
             ranked(&["best", "second", "third", "fourth", "fifth"]),
-            &[],
             &unstamped(),
         );
         let values: Vec<&str> = set.items.iter().map(|i| i.value.as_str()).collect();
@@ -1252,7 +1198,6 @@ mod tests {
 
         let by_time = compose(
             input(),
-            &[],
             &ComposeConfig {
                 chronological: true,
                 ..unstamped()
@@ -1263,7 +1208,7 @@ mod tests {
 
         // The two bench arms are comparable only if the switch changes the
         // order and nothing else: same items, same token count.
-        let bookended = compose(input(), &[], &unstamped());
+        let bookended = compose(input(),&unstamped());
         assert_eq!(
             bookended
                 .items
@@ -1278,7 +1223,7 @@ mod tests {
 
     #[test]
     fn a_single_item_is_not_reordered() {
-        let set = compose(ranked(&["only"]), &[], &unstamped());
+        let set = compose(ranked(&["only"]),&unstamped());
         assert_eq!(set.items.len(), 1);
         assert_eq!(set.items[0].value, "only");
     }
@@ -1290,7 +1235,7 @@ mod tests {
             k: 3,
             ..Default::default()
         };
-        let set = compose(ranked(&["a", "b", "c", "d", "e", "f"]), &[], &cfg);
+        let set = compose(ranked(&["a", "b", "c", "d", "e", "f"]),&cfg);
         // k bounds records; the synthetic index is not one. Seven items at
         // k = 6 is what the M19 arm-D measurement actually emitted, so the
         // contract is pinned here rather than left to a reader's assumption.
@@ -1306,7 +1251,7 @@ mod tests {
 
     #[test]
     fn exact_duplicates_are_dropped_keeping_the_higher_rank() {
-        let set = compose(ranked(&["same", "other", "same"]), &[], &unstamped());
+        let set = compose(ranked(&["same", "other", "same"]),&unstamped());
         assert_eq!(set.items.len(), 2);
         assert_eq!(set.items[0].value, "same");
     }
@@ -1335,7 +1280,7 @@ mod tests {
                 window: None,
             },
         ];
-        let set = compose(items, &[], &unstamped());
+        let set = compose(items,&unstamped());
         assert_eq!(set.items.len(), 2, "{:?}", set.items);
         assert_eq!(set.items[0].value, "the user moved to Berlin");
     }
@@ -1379,7 +1324,7 @@ mod tests {
             ..unstamped()
         };
         let values = |cfg: &ComposeConfig| -> Vec<String> {
-            let mut v: Vec<String> = compose(four_candidates_with_vectors(), &[], cfg)
+            let mut v: Vec<String> = compose(four_candidates_with_vectors(),cfg)
                 .items
                 .iter()
                 .map(|i| i.value.clone())
@@ -1398,10 +1343,9 @@ mod tests {
     #[test]
     fn mmr_without_vectors_reproduces_the_rank_order_selection() {
         let texts = ["best", "second", "third", "fourth", "fifth"];
-        let plain = compose(ranked(&texts), &[], &unstamped());
+        let plain = compose(ranked(&texts),&unstamped());
         let mmr = compose(
             ranked(&texts),
-            &[],
             &ComposeConfig {
                 mmr_lambda: Some(0.5),
                 ..unstamped()
@@ -1432,7 +1376,7 @@ mod tests {
                 window: None,
             })
             .collect();
-        let set = compose(items, &[], &cfg);
+        let set = compose(items,&cfg);
         assert!(
             set.items.len() < 5,
             "budget did not bind: {}",
@@ -1459,7 +1403,6 @@ mod tests {
                 vector: None,
                 window: None,
             }],
-            &[],
             &cfg,
         );
         assert_eq!(
@@ -1472,7 +1415,7 @@ mod tests {
     /// R1: the wire form is exactly `[{"type","value"}]`, nothing else.
     #[test]
     fn the_wire_form_carries_only_type_and_value() {
-        let set = compose(ranked(&["a", "b"]), &[], &unstamped());
+        let set = compose(ranked(&["a", "b"]),&unstamped());
         let json = serde_json::to_value(set.to_wire()).unwrap();
         let first = &json[0];
         assert_eq!(first["type"], "text");
@@ -1499,7 +1442,6 @@ mod tests {
                 vector: None,
                 window: None,
             }],
-            &[],
             &ComposeConfig::default(),
         );
         assert_eq!(
@@ -1539,7 +1481,6 @@ mod tests {
                 vector: None,
                 window: None,
             }],
-            &[],
             &cfg,
         );
         assert_eq!(
@@ -1550,7 +1491,7 @@ mod tests {
 
     #[test]
     fn an_empty_input_composes_to_an_empty_set() {
-        let set = compose(Vec::new(), &[], &ComposeConfig::default());
+        let set = compose(Vec::new(),&ComposeConfig::default());
         assert!(set.is_empty());
         assert!(set.to_wire().is_empty());
     }
@@ -1575,13 +1516,13 @@ mod tests {
             timeline: false,
             ..Default::default()
         };
-        let appended = compose(fixture(), &[], &cfg);
+        let appended = compose(fixture(),&cfg);
         assert_eq!(
             appended.items[0].value,
             "[2023-08-11] Maria: I got a puppy two weeks ago! Her name's Coco. \
              (two weeks ago = 2023-07-28..2023-08-03)"
         );
-        let inline = compose(fixture(), &[], &ComposeConfig { inline_dates: true, ..cfg });
+        let inline = compose(fixture(),&ComposeConfig { inline_dates: true, ..cfg });
         assert_eq!(
             inline.items[0].value,
             "[2023-08-11] Maria: I got a puppy two weeks ago [28 July – 3 August 2023]! Her name's Coco."
@@ -1607,7 +1548,7 @@ mod tests {
         };
 
         // On by default since M19, so the default config is the annotated one.
-        let on = compose(fixture(), &[], &ComposeConfig::default());
+        let on = compose(fixture(),&ComposeConfig::default());
         assert_eq!(
             on.items[0].value,
             "[2023-07-20] I just joined a new LGBTQ activist group last Tuesday \
@@ -1616,7 +1557,6 @@ mod tests {
 
         let off = compose(
             fixture(),
-            &[],
             &ComposeConfig {
                 resolve_relative: false,
                 ..Default::default()
@@ -1634,7 +1574,6 @@ mod tests {
         // beside no date is an assertion the reader cannot check.
         let unanchored = compose(
             fixture(),
-            &[],
             &ComposeConfig {
                 resolve_relative: true,
                 stamp_valid_time: false,
@@ -1663,8 +1602,8 @@ mod tests {
             vector: None,
             window: None,
         }];
-        let cfg = crate::pipeline::events_block::events_retrieve_config().compose;
-        let out = compose(ranked, &[], &cfg);
+        let cfg = crate::pipeline::side_block::side_compose_config(3);
+        let out = compose(ranked,&cfg);
         assert_eq!(out.items[0].value, format!("[2023-05-20] {text}"));
         assert!(!out.items[0].value.contains("2023-05-19"));
     }
@@ -1702,7 +1641,7 @@ mod tests {
         };
 
         // On by default since M19.
-        let set = compose(input(), &[], &ComposeConfig::default());
+        let set = compose(input(),&ComposeConfig::default());
         assert_eq!(set.items.len(), 4, "three records plus one index");
         let index = set.items.last().unwrap();
         assert_eq!(
@@ -1722,7 +1661,6 @@ mod tests {
         // It costs tokens, and the count says so.
         let off = compose(
             input(),
-            &[],
             &ComposeConfig {
                 timeline: false,
                 ..Default::default()
@@ -1764,7 +1702,6 @@ mod tests {
 
         let on = compose(
             input(),
-            &[],
             &ComposeConfig {
                 timeline_ago: true,
                 as_of: Some(today),
@@ -1795,7 +1732,7 @@ mod tests {
                 },
             ),
         ] {
-            let set = compose(input(), &[], &cfg);
+            let set = compose(input(),&cfg);
             assert_eq!(set.items.last().unwrap().value, m19, "{why}");
         }
     }
@@ -1806,7 +1743,6 @@ mod tests {
     fn a_single_record_gets_no_timeline() {
         let set = compose(
             ranked(&["only"]),
-            &[],
             &ComposeConfig {
                 timeline: true,
                 ..unstamped()
@@ -1814,87 +1750,6 @@ mod tests {
         );
         assert_eq!(set.items.len(), 1);
         assert_eq!(set.items[0].value, "only");
-    }
-
-    /// M20 arm A: the disposition block leads the set, is not a memory, and
-    /// does not launder trust.
-    ///
-    /// Three things a refactor silently breaks, pinned together because they
-    /// are one mechanism: placement (the frame has to reach the head or the
-    /// reader reads the facts first), the nil id that stops a consumer
-    /// chasing a record that was never written, and the trust floor that
-    /// stops a synthetic view moving untrusted material upward.
-    #[test]
-    fn the_profile_block_leads_the_set_and_never_launders_trust() {
-        let mut untrusted = record("The user avoids dairy");
-        untrusted.kind = RecordKind::Profile;
-        untrusted.trust = Trust {
-            tier: TrustTier::Untrusted,
-            score: 0.30,
-            checks: Vec::new(),
-        };
-        let mut trusted = record("The user shoots on a Sony A7R IV");
-        trusted.kind = RecordKind::Profile;
-        let profile = vec![trusted, untrusted];
-
-        let cfg = ComposeConfig {
-            profile: true,
-            ..unstamped()
-        };
-        let set = compose(ranked(&["a", "b", "c"]), &profile, &cfg);
-
-        assert_eq!(set.items.len(), 4, "three records plus one profile block");
-        let head = &set.items[0];
-        assert_eq!(
-            head.value,
-            "[profile] The user shoots on a Sony A7R IV; The user avoids dairy"
-        );
-        assert_eq!(head.record_id, Uuid::nil(), "the block is not a memory");
-        assert_eq!(head.source, SourceRef::doc("profile"));
-        assert_eq!(
-            head.trust,
-            TrustTier::Untrusted,
-            "a synthetic view of untrusted material must not launder it"
-        );
-        // The strongest actual memory is displaced to position 2, not lost.
-        assert_eq!(set.items[1].value, "a");
-
-        let off = compose(ranked(&["a", "b", "c"]), &profile, &unstamped());
-        assert_eq!(off.items.len(), 3, "the switch is what emits it");
-        assert!(set.tokens > off.tokens, "{} vs {}", set.tokens, off.tokens);
-    }
-
-    /// `k` bounds records, not items, and an absent profile emits nothing.
-    #[test]
-    fn the_profile_block_is_bounded_and_skipped_when_empty() {
-        let cfg = ComposeConfig {
-            k: 2,
-            profile: true,
-            ..unstamped()
-        };
-        let empty = compose(ranked(&["a", "b", "c"]), &[], &cfg);
-        assert_eq!(
-            empty.items.len(),
-            2,
-            "no dispositions means no block, not an empty one"
-        );
-
-        // More dispositions than the cap: the block is a frame, not a second
-        // evidence set.
-        let many: Vec<MemoryRecord> = (0..PROFILE_MAX_RECORDS + 3)
-            .map(|i| {
-                let mut r = record(&format!("pref{i}"));
-                r.kind = RecordKind::Profile;
-                r
-            })
-            .collect();
-        let set = compose(ranked(&["a", "b", "c"]), &many, &cfg);
-        assert_eq!(set.items.len(), 3, "k still bounds the records at 2");
-        assert_eq!(
-            set.items[0].value.matches("pref").count(),
-            PROFILE_MAX_RECORDS
-        );
-        assert!(!set.items[0].value.contains("pref8"));
     }
 
     // ---- which truncation limit bit (M28) ----
@@ -1913,7 +1768,7 @@ mod tests {
                 window: None,
             })
             .collect();
-        let set = compose(input, &[], &ComposeConfig { k: 6, max_tokens: 2048, ..unstamped() });
+        let set = compose(input,&ComposeConfig { k: 6, max_tokens: 2048, ..unstamped() });
         assert_eq!(set.items.len(), 6);
         assert!(set.k_bound, "the slots filled first");
         assert_eq!(set.dropped_for_tokens, 0, "and nothing was refused for tokens");
@@ -1935,7 +1790,7 @@ mod tests {
                 window: None,
             })
             .collect();
-        let set = compose(input, &[], &ComposeConfig { k: 6, max_tokens: 250, ..unstamped() });
+        let set = compose(input,&ComposeConfig { k: 6, max_tokens: 250, ..unstamped() });
         assert!(set.items.len() < 6, "the budget stopped it short of k: {}", set.items.len());
         assert!(!set.k_bound, "so `k` never bound");
         assert!(
@@ -1951,7 +1806,7 @@ mod tests {
     fn the_single_best_item_survives_a_budget_it_cannot_fit() {
         let huge = "word ".repeat(5000);
         let input = vec![Ranked { record: record(&huge), score: 1.0, vector: None, window: None }];
-        let set = compose(input, &[], &ComposeConfig { k: 6, max_tokens: 10, ..unstamped() });
+        let set = compose(input,&ComposeConfig { k: 6, max_tokens: 10, ..unstamped() });
         assert_eq!(set.items.len(), 1);
         assert_eq!(set.dropped_for_tokens, 0, "there was nothing after it to refuse");
     }
@@ -1989,7 +1844,6 @@ mod tests {
 
         let set = compose(
             input,
-            &[],
             &ComposeConfig {
                 untrusted_max: Some(2),
                 k: 8,
@@ -2045,7 +1899,6 @@ mod tests {
 
         let set = compose(
             input,
-            &[],
             &ComposeConfig {
                 k: 10,
                 ..unstamped()
@@ -2080,7 +1933,6 @@ mod tests {
             .collect();
         let set = compose(
             input,
-            &[],
             &ComposeConfig {
                 untrusted_max: Some(2),
                 k: 6,

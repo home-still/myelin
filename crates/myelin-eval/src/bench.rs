@@ -63,7 +63,7 @@ use myelin_core::embed::remote::RemoteEmbedder;
 use myelin_core::llm::openai::OpenAiLlm;
 use myelin_core::llm::{CompletionRequest, Llm, Message};
 use myelin_core::model::query::{Budget, Mode, Recall, ScopeFilter};
-use myelin_core::pipeline::events_block::{events_retrieve_config, EventsBlock};
+use myelin_core::pipeline::side_block::{SideBlock, SideKind};
 use myelin_core::pipeline::investigate::Investigator;
 use myelin_core::pipeline::retrieve::{RetrieveConfig, Retriever};
 use myelin_core::pipeline::select::Degradation;
@@ -448,10 +448,13 @@ pub struct BenchRun {
     pub resolve_dates: bool,
     #[serde(default)]
     pub timeline: bool,
-    /// M20's two arms, mirroring `ComposeConfig::profile` and
+    /// M20's two arms: arm A's recency-chosen `[profile]` block, and
     /// `READER_PREFERENCE_CLAUSE`. Both are recorded per run, because unlike
     /// M19's date clause neither has shipped into the prompt: an arm that
-    /// did not write down which of the two it carried is unreadable.
+    /// did not write down which of the two it carried is unreadable. Arm A's
+    /// block was replaced on 2026-09-26 by M20b's ranked one
+    /// (`profile_ledger`), so `profile` is a record of what M20's runs read
+    /// and no later run sets it.
     #[serde(default)]
     pub profile: bool,
     #[serde(default)]
@@ -573,14 +576,22 @@ pub struct BenchRun {
     /// Absent on every run before M59, which ran without it.
     #[serde(default)]
     pub reader_best_guess: bool,
-    /// M50c: the events-only index whose top events were appended as an
-    /// `[events]` block after the evidence. `None` on every run without the
-    /// block, which is every run before M50c.
+    /// M50c: the events-only Qdrant index whose top events were appended as
+    /// an `[events]` block. A record of what those runs read; the vector
+    /// block was replaced on 2026-09-26 by the ranked side block
+    /// (`events_ledger`), so no run after that sets it.
     #[serde(default)]
     pub events_collection: Option<String>,
-    /// The ledger that events index read its records from.
+    /// M73b: the side ledger whose events, dated inside the day the question
+    /// names, were ranked and appended as an `[events]` block. (M50c runs
+    /// record here the ledger their Qdrant index read from.)
     #[serde(default)]
     pub events_ledger: Option<String>,
+    /// M20b: the side ledger whose profile records were ranked and appended
+    /// as a `[profile]` block on advice requests. `None` on every run before
+    /// M20b.
+    #[serde(default)]
+    pub profile_ledger: Option<String>,
     /// L1: compose treated a fact and its source episode as duplicates.
     /// Absent on every run before L1, which ran without it.
     #[serde(default)]
@@ -663,8 +674,6 @@ pub struct BenchSwitches {
     /// State each `[timeline]` entry's distance from the question's day —
     /// M46, `ComposeConfig::timeline_ago`. Zero model calls.
     pub timeline_ago: bool,
-    /// Compose the `[profile]` block — M20 arm A, `ComposeConfig::profile`.
-    pub profile: bool,
     /// Append [`READER_PREFERENCE_CLAUSE`] to the reader prompt — M20 arm B.
     ///
     /// Two independent switches because M20 measures A and B alone and
@@ -748,11 +757,12 @@ pub struct BenchSwitches {
     pub reader_premise_clause: bool,
     /// Append [`READER_BEST_GUESS_CLAUSE`] to the reader prompt — M59.
     pub reader_best_guess: bool,
-    /// M50c: append the top events of this events-only collection as an
-    /// `[events]` block (`myelin_core::pipeline::events_block`).
-    pub events_collection: Option<String>,
-    /// The ledger holding that collection's event records.
+    /// M73b: the side ledger of events for the dated `[events]` block
+    /// (`myelin_core::pipeline::side_block`).
     pub events_ledger: Option<String>,
+    /// M20b: the side ledger of profile records for the ranked `[profile]`
+    /// block.
+    pub profile_ledger: Option<String>,
     /// L1: `ComposeConfig::dedupe_lineage`.
     pub dedupe_lineage: bool,
     /// M64: `ComposeConfig::inline_dates`.
@@ -1565,34 +1575,37 @@ pub fn shipped_collection(corpus: &str) -> Option<&'static str> {
     }
 }
 
-/// M50c's events-only index, opened once per run when a switch names one.
-struct EventsIndex {
-    store: QdrantStore,
-    ledger: Ledger,
-}
-
-/// Open the events index `switches` name, or `None` when they name none.
-/// Refused: one of the two switches without the other, a collection outside
-/// the `myelin_*` namespace, and a collection that does not exist or holds
-/// no events. An empty index would append nothing to every row, and the arm
-/// would score as a clean null for a mechanism that never ran.
-async fn open_events_index(cfg: &MyelinConfig, switches: &BenchSwitches) -> Result<Option<EventsIndex>> {
-    let (collection, ledger) = match (&switches.events_collection, &switches.events_ledger) {
-        (None, None) => return Ok(None),
-        (Some(c), Some(l)) => (c, l),
-        _ => anyhow::bail!("--events-collection and --events-ledger go together"),
+/// A side ledger `switches` names for `kind`, opened and checked, or `None`.
+///
+/// Refused: a ledger with no record of the kind, which would append nothing
+/// to every row and score as a clean null for a mechanism that never ran;
+/// and an events ledger whose `semantic` records are not all events, since
+/// the block would rank facts as dated events.
+async fn open_side_ledger(path: Option<&str>, kind: SideKind) -> Result<Option<Ledger>> {
+    let Some(path) = path else {
+        return Ok(None);
     };
-    anyhow::ensure!(
-        collection.starts_with("myelin_"),
-        "refusing events collection {collection:?}: collections must be myelin_*-prefixed"
-    );
-    let store = QdrantStore::with_collection(&cfg.qdrant, collection.clone()).context("events store")?;
-    anyhow::ensure!(store.exists().await?, "events collection {collection} does not exist; run events-build first");
-    let points = store.count().await?;
-    anyhow::ensure!(points > 0, "events collection {collection} holds no events");
-    eprintln!("events block: {collection} ({points} events), ledger {ledger}");
-    let ledger = Ledger::open(ledger).await.context("open events ledger")?;
-    Ok(Some(EventsIndex { store, ledger }))
+    let ledger = Ledger::open(path).await.with_context(|| format!("open side ledger {path}"))?;
+    let (record_kind, marker) = match kind {
+        SideKind::Events => (
+            myelin_core::model::record::RecordKind::Semantic,
+            Some(crate::events::EVENT_DOC_MARKER),
+        ),
+        SideKind::Profile => (myelin_core::model::record::RecordKind::Profile, None),
+    };
+    let n = ledger.count_of_kind(record_kind, None).await?;
+    anyhow::ensure!(n > 0, "side ledger {path} holds no {} records", record_kind.as_str());
+    if let Some(marker) = marker {
+        let marked = ledger.count_of_kind(record_kind, Some(marker)).await?;
+        anyhow::ensure!(
+            marked == n,
+            "side ledger {path}: {} of {n} {} records are not events (no {marker:?} in their source)",
+            n - marked,
+            record_kind.as_str()
+        );
+    }
+    eprintln!("{} block: {path} ({n} {} records)", kind.mechanism(), record_kind.as_str());
+    Ok(Some(ledger))
 }
 
 /// Whether the shipped reader thinks, per corpus (M44 R2).
@@ -2058,7 +2071,6 @@ pub async fn bench_locomo(
         compose: myelin_core::pipeline::compose::ComposeConfig {
             chronological: switches.chronological,
             timeline_ago: switches.timeline_ago,
-            profile: switches.profile,
             mmr_lambda: switches.mmr,
             untrusted_max: switches.untrusted_max,
             dedupe_lineage: switches.dedupe_lineage,
@@ -2071,17 +2083,23 @@ pub async fn bench_locomo(
     if let Some(r) = reranker.as_ref() {
         retriever = retriever.with_reranker(r as &dyn Reranker);
     }
-    // M50c: the events block, when the run names an events index. Its own
-    // retriever over its own collection, reranked like the turns.
-    let events_index = open_events_index(&cfg, switches).await?;
-    let events_retriever = events_index.as_ref().map(|ix| {
-        let r = Retriever::new(&embedder, &ix.store, &ix.ledger).with_config(events_retrieve_config());
-        match reranker.as_ref() {
-            Some(rr) => r.with_reranker(rr as &dyn Reranker),
-            None => r,
-        }
-    });
-    let events_block = events_retriever.as_ref().map(EventsBlock::new);
+    // M73b and M20b: the side blocks, each over its own ledger, ranked by
+    // the cross-encoder, and appended only when its question gate opens.
+    let events_ledger = open_side_ledger(switches.events_ledger.as_deref(), SideKind::Events).await?;
+    let profile_ledger = open_side_ledger(switches.profile_ledger.as_deref(), SideKind::Profile).await?;
+    let side_reranker: Option<&dyn Reranker> = reranker.as_ref().map(|r| r as &dyn Reranker);
+    anyhow::ensure!(
+        side_reranker.is_some() || (events_ledger.is_none() && profile_ledger.is_none()),
+        "a side block needs the cross-encoder at {}",
+        cfg.rerank.url
+    );
+    let side_blocks: Vec<SideBlock> = [
+        (SideKind::Events, events_ledger.as_ref()),
+        (SideKind::Profile, profile_ledger.as_ref()),
+    ]
+    .into_iter()
+    .filter_map(|(kind, ledger)| Some(SideBlock::new(kind, ledger?, side_reranker?)))
+    .collect();
     if switches.graph {
         retriever = retriever.with_graph(&graph_index);
     }
@@ -2203,11 +2221,11 @@ pub async fn bench_locomo(
             if switches.select_sufficient {
                 degradation.observe(selection.1)?;
             }
-            if let Some(block) = events_block.as_ref() {
+            for block in &side_blocks {
                 block
                     .append(&query, &mut evidence)
                     .await
-                    .with_context(|| format!("events block {tenant}#{i}"))?;
+                    .with_context(|| format!("{} {tenant}#{i}", block.kind.mechanism()))?;
             }
             let elapsed = started.elapsed().as_secs_f64();
             latencies.push(elapsed);
@@ -2373,7 +2391,6 @@ pub async fn bench_longmemeval_s(
         compose: myelin_core::pipeline::compose::ComposeConfig {
             chronological: switches.chronological,
             timeline_ago: switches.timeline_ago,
-            profile: switches.profile,
             mmr_lambda: switches.mmr,
             untrusted_max: switches.untrusted_max,
             dedupe_lineage: switches.dedupe_lineage,
@@ -2386,17 +2403,23 @@ pub async fn bench_longmemeval_s(
     if let Some(r) = reranker.as_ref() {
         retriever = retriever.with_reranker(r as &dyn Reranker);
     }
-    // M50c: the events block, when the run names an events index. Its own
-    // retriever over its own collection, reranked like the turns.
-    let events_index = open_events_index(&cfg, switches).await?;
-    let events_retriever = events_index.as_ref().map(|ix| {
-        let r = Retriever::new(&embedder, &ix.store, &ix.ledger).with_config(events_retrieve_config());
-        match reranker.as_ref() {
-            Some(rr) => r.with_reranker(rr as &dyn Reranker),
-            None => r,
-        }
-    });
-    let events_block = events_retriever.as_ref().map(EventsBlock::new);
+    // M73b and M20b: the side blocks, each over its own ledger, ranked by
+    // the cross-encoder, and appended only when its question gate opens.
+    let events_ledger = open_side_ledger(switches.events_ledger.as_deref(), SideKind::Events).await?;
+    let profile_ledger = open_side_ledger(switches.profile_ledger.as_deref(), SideKind::Profile).await?;
+    let side_reranker: Option<&dyn Reranker> = reranker.as_ref().map(|r| r as &dyn Reranker);
+    anyhow::ensure!(
+        side_reranker.is_some() || (events_ledger.is_none() && profile_ledger.is_none()),
+        "a side block needs the cross-encoder at {}",
+        cfg.rerank.url
+    );
+    let side_blocks: Vec<SideBlock> = [
+        (SideKind::Events, events_ledger.as_ref()),
+        (SideKind::Profile, profile_ledger.as_ref()),
+    ]
+    .into_iter()
+    .filter_map(|(kind, ledger)| Some(SideBlock::new(kind, ledger?, side_reranker?)))
+    .collect();
     if switches.graph {
         retriever = retriever.with_graph(&graph_index);
     }
@@ -2469,11 +2492,11 @@ pub async fn bench_longmemeval_s(
         if switches.select_sufficient {
             degradation.observe(selection.1)?;
         }
-        if let Some(block) = events_block.as_ref() {
+        for block in &side_blocks {
             block
                 .append(&query, &mut evidence)
                 .await
-                .with_context(|| format!("events block {}", item.question_id))?;
+                .with_context(|| format!("{} {}", block.kind.mechanism(), item.question_id))?;
         }
         let elapsed = started.elapsed().as_secs_f64();
         latencies.push(elapsed);
@@ -2680,7 +2703,7 @@ fn finish_run(
         // Read off the switches, not the defaults: neither M20 arm has
         // shipped into a default, so the run artifact is the only record of
         // which one produced it.
-        profile: spec.switches.profile,
+        profile: false,
         profile_clause: spec.switches.profile_clause,
         // Same rule for M21's pair: both default off, so only the artifact
         // says which produced these rows.
@@ -2709,8 +2732,9 @@ fn finish_run(
         reader_think_message: spec.switches.reader_think_message,
         reader_premise_clause: spec.switches.reader_premise_clause,
         reader_best_guess: spec.switches.reader_best_guess,
-        events_collection: spec.switches.events_collection.clone(),
+        events_collection: None,
         events_ledger: spec.switches.events_ledger.clone(),
+        profile_ledger: spec.switches.profile_ledger.clone(),
         dedupe_lineage: spec.switches.dedupe_lineage,
         inline_dates: spec.switches.inline_dates,
         turn_windows: spec.switches.turn_windows,
@@ -2880,7 +2904,6 @@ pub fn rescore_run(source: &Path, out_dir: &Path, scorer: Scorer) -> Result<Benc
             chronological: flag("chronological"),
             question_date: flag("question_date"),
             timeline_ago: flag("timeline_ago"),
-            profile: flag("profile"),
             profile_clause: flag("profile_clause"),
             mmr: metrics
                 .get("mmr")
@@ -2902,12 +2925,12 @@ pub fn rescore_run(source: &Path, out_dir: &Path, scorer: Scorer) -> Result<Benc
             reader_think_message: flag("reader_think_message"),
             reader_premise_clause: flag("reader_premise_clause"),
             reader_best_guess: flag("reader_best_guess"),
-            events_collection: metrics
-                .get("events_collection")
-                .and_then(serde_json::Value::as_str)
-                .map(str::to_string),
             events_ledger: metrics
                 .get("events_ledger")
+                .and_then(serde_json::Value::as_str)
+                .map(str::to_string),
+            profile_ledger: metrics
+                .get("profile_ledger")
                 .and_then(serde_json::Value::as_str)
                 .map(str::to_string),
             dedupe_lineage: flag("dedupe_lineage"),
