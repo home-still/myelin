@@ -13,11 +13,15 @@ and every number that uses one says so. Plan approved by the user
 - [x] M58 pre-registered (`m58-bonsai-preference.md`)
 - [ ] M58 run, judged, written up — **deferred 16:40 (user); big goes to M54**
 - [x] Round-4 loss anatomy and research catalog (`docs/research/sota-catalog-2026-09-26.md`)
-- [ ] Defect fixes: event dates resolved once; `step_k` follows `budget.k`
-- [ ] M20b ranked profile block: stage 0, pre-registration, stratum arm
-- [ ] M73b question-dated events: extraction (8 haystacks), stage 0, stratum arm
-- [ ] M74 selector passage view: pre-registration, arm
-- [ ] M72b and M71b repairs: pre-registration, stratum arms
+- [x] Defect fixes: event dates resolved once (#135); `step_k` follows `budget.k` (#136)
+- [x] M20b ranked profile block: stage 0 (18/30 vs 1/30), pre-registration, code (#137)
+- [ ] M20b stratum arm
+- [x] M73b question-dated events: code (#137), pre-registration; extraction of 8 haystacks running
+- [ ] M73b stratum arm
+- [x] M74 selector passage view: code (#139), pre-registration, `--evidence-only` for its reader-free criterion (#141)
+- [ ] M74 arm
+- [x] M72b and M71b: pre-registration, M71b code (#138)
+- [ ] M72b and M71b stratum arms
 - [ ] Bundle arm (every switch that passed), both judge readings
 
 ## B — LoCoMo (target 77.85)

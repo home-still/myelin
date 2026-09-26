@@ -51,8 +51,10 @@ The research is unchanged from M61:
 
 **Stratum gate (the user's rule, 2026-09-26).** The switch enters the
 bundle only if both hold:
-1. On the 48 answerable declines the base holds, the paired difference
-   under the strict judge has a 95% CI excluding zero.
+1. On the **49** answerable declines the base holds, the paired difference
+   under the strict judge has a 95% CI excluding zero. (48 when first
+   written; the ids file computed with `bench::is_abstention` before any
+   row holds 49, as M71's doc does. Corrected before the run.)
 2. **All 30 abstention rows are unchanged (29/30).**
 
 **Predictions.**
