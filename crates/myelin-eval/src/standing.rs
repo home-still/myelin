@@ -1018,6 +1018,8 @@ fn bench_metrics(dir: &Path, agg_text: &str) -> Result<Vec<Ours>> {
         // M64's in-place dates in words, shipping off pending its arm.
         || run.inline_dates
         || run.turn_windows.is_some()
+        // M74's focused selector view, shipping off pending its arm.
+        || run.select_focus
         || run.aggregation_k.is_some()
         // M47's presupposition check.
         || run.premise_check

@@ -280,6 +280,68 @@ pub async fn select(
     Ok((out, stats))
 }
 
+/// M74: what the sufficiency selector is shown of each candidate. The line
+/// of each text that the cross-encoder scores best against the question,
+/// marked with [`ELISION`] when it is not the text's first line; a one-line
+/// text is shown whole.
+///
+/// The selector reads a candidate's first 400 characters
+/// (`select::CANDIDATE_CHARS`) of episodes up to 512 tokens, and it decides
+/// which 10 of 25 records enter the pool. LongMemEval plants its facts as
+/// asides late in a turn ("by the way, I just got a smoker today", M73), so
+/// the head the selector reads is usually not the part that answers. Showing
+/// the best-matching line instead is MemPro's "focused evidence snippets"
+/// (Liu et al. 2026, arXiv 2606.00619, App. A.1: +1.47), applied to the
+/// selector's view only: the records themselves, and what the reader sees,
+/// are unchanged.
+///
+/// One cross-encoder call scores every line of every text.
+pub async fn focus_views(reranker: &dyn Reranker, question: &str, texts: &[String]) -> Result<Vec<String>> {
+    let lines: Vec<Vec<&str>> = texts
+        .iter()
+        .map(|t| t.split('\n').filter(|l| !l.trim().is_empty()).collect())
+        .collect();
+    let mut docs: Vec<String> = Vec::new();
+    let mut owners: Vec<(usize, usize)> = Vec::new();
+    for (i, ls) in lines.iter().enumerate() {
+        if ls.len() > 1 {
+            for (j, l) in ls.iter().enumerate() {
+                docs.push((*l).to_string());
+                owners.push((i, j));
+            }
+        }
+    }
+    let scores = if docs.is_empty() {
+        Vec::new()
+    } else {
+        reranker.rerank(question, &docs).await?
+    };
+    if scores.len() != docs.len() {
+        return Err(MyelinError::Store(format!(
+            "reranker returned {} scores for {} lines",
+            scores.len(),
+            docs.len()
+        )));
+    }
+    // Best line per text; ties keep the earlier line.
+    let mut best: HashMap<usize, (f32, usize)> = HashMap::new();
+    for (&(i, j), &s) in owners.iter().zip(&scores) {
+        let e = best.entry(i).or_insert((s, j));
+        if s > e.0 {
+            *e = (s, j);
+        }
+    }
+    Ok(texts
+        .iter()
+        .enumerate()
+        .map(|(i, t)| match best.get(&i) {
+            None => t.clone(),
+            Some(&(_, 0)) => lines[i][0].to_string(),
+            Some(&(_, j)) => format!("{ELISION} {}", lines[i][j]),
+        })
+        .collect())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -353,6 +415,21 @@ mod tests {
                 })
                 .collect())
         }
+    }
+
+    /// M74: the selector sees the line that answers, marked as cut, and a
+    /// one-line record whole.
+    #[tokio::test]
+    async fn the_selector_view_is_the_best_matching_line() {
+        let texts = vec![
+            "user: I need a recipe for BBQ sauce\nassistant: here is one\nuser: by the way, GOLD smoker today".to_string(),
+            "user: GOLD first line\nassistant: reply".to_string(),
+            "a one-line fact".to_string(),
+        ];
+        let views = focus_views(&Keywords, "what did I buy?", &texts).await.expect("views");
+        assert_eq!(views[0], "… user: by the way, GOLD smoker today");
+        assert_eq!(views[1], "user: GOLD first line");
+        assert_eq!(views[2], "a one-line fact");
     }
 
     fn item(kind: RecordKind, text: &str, score: f32) -> PoolItem {

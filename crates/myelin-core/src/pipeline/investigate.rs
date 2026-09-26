@@ -846,6 +846,7 @@ async fn select_pool(
     ranked: &mut Vec<Ranked>,
     k: usize,
     coverage: bool,
+    focus: Option<&dyn crate::rerank::Reranker>,
 ) -> Result<Selected> {
     if ranked.is_empty() {
         return Ok(Selected {
@@ -854,6 +855,11 @@ async fn select_pool(
         });
     }
     let docs: Vec<String> = ranked.iter().map(|r| r.record.text.clone()).collect();
+    // M74: the selector reads each candidate's best-matching line.
+    let docs = match focus {
+        Some(reranker) => crate::pipeline::turn_windows::focus_views(reranker, question, &docs).await?,
+        None => docs,
+    };
     let keep = Selector::new(llm)
         .with_coverage(coverage)
         .select(question, &docs, k)
@@ -1921,12 +1927,20 @@ impl<'a> Investigator<'a> {
 
         if self.config.select_sufficient {
             let t = std::time::Instant::now();
+            let focus = if self.retriever.config.select_focus {
+                Some(self.retriever.reranker.ok_or_else(|| {
+                    MyelinError::Config("select_focus needs the cross-encoder; none is wired".into())
+                })?)
+            } else {
+                None
+            };
             let keep = select_pool(
                 self.llm,
                 &query.text,
                 &mut ranked,
                 query.budget.k,
                 self.config.select_coverage,
+                focus,
             )
             .await?;
             trace.selected = keep.keep.len();
@@ -2459,7 +2473,7 @@ mod tests {
         // picked nothing usable, must not move anything either.
         let llm = Canned::text("not json at all");
         let mut ranked = pool(&texts);
-        let kept = select_pool(&llm, "q", &mut ranked, 3, false).await.unwrap();
+        let kept = select_pool(&llm, "q", &mut ranked, 3, false, None).await.unwrap();
         assert_eq!(
             kept.keep.len(),
             3,
@@ -2484,7 +2498,7 @@ mod tests {
     async fn selection_promotes_the_models_choice_across_the_whole_pool() {
         let llm = Canned::text(r#"{"keep":[2,0]}"#);
         let mut ranked = pool(&["alpha", "bravo", "charlie", "delta"]);
-        let kept = select_pool(&llm, "who shipped it", &mut ranked, 2, false)
+        let kept = select_pool(&llm, "who shipped it", &mut ranked, 2, false, None)
             .await
             .unwrap();
 
@@ -2507,7 +2521,7 @@ mod tests {
     async fn a_narrow_selection_keeps_every_record_behind_it() {
         let llm = Canned::text(r#"{"keep":[3]}"#);
         let mut ranked = pool(&["alpha", "bravo", "charlie", "delta"]);
-        let kept = select_pool(&llm, "q", &mut ranked, 4, false).await.unwrap();
+        let kept = select_pool(&llm, "q", &mut ranked, 4, false, None).await.unwrap();
 
         assert_eq!(kept.keep.len(), 1);
         assert_eq!(kept.degraded, Degradation::None);
@@ -2523,7 +2537,7 @@ mod tests {
         // `Canned` yields an error once exhausted, so a call here would fail.
         let llm = Canned(std::sync::Mutex::new(Vec::new()));
         let mut ranked: Vec<Ranked> = Vec::new();
-        let kept = select_pool(&llm, "q", &mut ranked, 6, false).await.unwrap();
+        let kept = select_pool(&llm, "q", &mut ranked, 6, false, None).await.unwrap();
         assert_eq!(kept.keep.len(), 0);
         assert_eq!(
             kept.degraded,

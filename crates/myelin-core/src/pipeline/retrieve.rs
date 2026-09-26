@@ -229,6 +229,14 @@ pub struct RetrieveConfig {
     /// [`RetrieveConfig::select_sufficient`], because the global turn ranking
     /// would silently discard the selector's order.
     pub turn_windows: Option<usize>,
+    /// M74: show the sufficiency selector each candidate's best-matching
+    /// line instead of its first 400 characters
+    /// ([`crate::pipeline::turn_windows::focus_views`]), in `recall`'s
+    /// selection and in `investigate`'s. The selector's choice is the only
+    /// thing it changes. Needs the cross-encoder, and refuses to run
+    /// without one. Default off pending its arm
+    /// (`docs/measurements/m74-selector-focus.md`).
+    pub select_focus: bool,
     pub compose: ComposeConfig,
 }
 
@@ -248,6 +256,7 @@ impl Default for RetrieveConfig {
             select_sufficient: false,
             decompose: None,
             turn_windows: None,
+            select_focus: false,
             compose: ComposeConfig::default(),
         }
     }
@@ -690,6 +699,14 @@ impl<'a> Retriever<'a> {
             if let Some(llm) = self.llm {
                 let t3 = std::time::Instant::now();
                 let docs: Vec<String> = admissible.iter().map(|(_, _, t)| t.clone()).collect();
+                let docs = if self.config.select_focus {
+                    let reranker = self.reranker.ok_or_else(|| {
+                        MyelinError::Config("select_focus needs the cross-encoder; none is wired".into())
+                    })?;
+                    crate::pipeline::turn_windows::focus_views(reranker, &query.text, &docs).await?
+                } else {
+                    docs
+                };
                 let keep = Selector::new(llm)
                     .select(&query.text, &docs, query.budget.k)
                     .await?;

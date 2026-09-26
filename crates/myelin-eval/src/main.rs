@@ -781,6 +781,11 @@ enum Command {
         /// `recall` mode only; refuses `--select-sufficient`.
         #[arg(long)]
         turn_windows: Option<usize>,
+        /// M74: the sufficiency selector reads each candidate's
+        /// best-matching line, not its first 400 characters
+        /// (`RetrieveConfig::select_focus`). Needs the cross-encoder.
+        #[arg(long)]
+        select_focus: bool,
         /// M72: a counting or summing question is retrieved with this `k`
         /// (and `--aggregation-budget-tokens`) instead of the run's.
         #[arg(long, requires = "aggregation_budget_tokens")]
@@ -1293,6 +1298,7 @@ async fn main() -> anyhow::Result<()> {
             dedupe_lineage,
             inline_dates,
             turn_windows,
+            select_focus,
             aggregation_k,
             aggregation_budget_tokens,
             untrusted_max,
@@ -1348,6 +1354,7 @@ async fn main() -> anyhow::Result<()> {
                     dedupe_lineage,
                     inline_dates,
                     turn_windows,
+                    select_focus,
                     aggregation_k,
                     aggregation_budget_tokens,
                     commit_grounded: false,
