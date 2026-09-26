@@ -1158,38 +1158,107 @@ fn accept_commit(text: &str) -> Option<String> {
 /// context, and a separate sufficiency decision should gate the answer. The
 /// user chose the reader itself as that gate (2026-09-24), so the number
 /// needs no cloud caveat.
+///
+/// **M71b (2026-09-26): every thing the question names must be covered.**
+/// On LongMemEval_S the pass answered the trap "How many plants did I plant
+/// for tomatoes *and chili*?" from the tomato memories alone, because part
+/// of what the question named was stated (M71's one abstention flip). LoCoMo's
+/// traps swap the person; LongMemEval's add an unstated detail. So the pass
+/// now first names each person, thing or event in the question and cites a
+/// memory for each, and [`accept_grounded`] checks every citation in code:
+/// the named thing's words must appear in the memory cited for it. A model's
+/// claim that a memory states something is not taken on its word.
 const READER_GROUNDED_SYSTEM: &str = "You are re-reading memories you just \
-declined to answer from. First list the numbers of the memories that state the answer \
-about exactly the person, thing or event the question names. A memory about someone \
-else, or one that only resembles the question, does not count. Then, only if that list \
-is not empty, answer in as few words as possible, using those memories alone. If no \
-memory states it, leave the list empty and the answer empty.";
+declined to answer from. First name each person, thing or event the question names, \
+one per entry, and for each give the number of a memory that states it, or null if no \
+memory does. Then list the numbers of the memories that state the answer about exactly \
+those. A memory about someone else, or one that only resembles the question, does not \
+count. Then, only if every named thing has a memory and that list is not empty, answer \
+in as few words as possible, using those memories alone. Otherwise leave the list empty \
+and the answer empty.";
 
-/// `{ supporting, answer }`, in that order; `supporting` indexes the
-/// `[n]` memories shown, `0..n_memories`.
+/// `{ named, supporting, answer }`, in that order: what the question names
+/// and where each is stated, then the memories that state the answer, then
+/// the answer. Indexes are the `[n]` memories shown, `0..n_memories`.
 fn grounded_schema(n_memories: usize) -> serde_json::Value {
+    let index = serde_json::json!({
+        "type": "integer",
+        "minimum": 0,
+        "maximum": n_memories.saturating_sub(1)
+    });
     serde_json::json!({
         "type": "object",
         "properties": {
-            "supporting": {
+            "named": {
                 "type": "array",
                 "items": {
-                    "type": "integer",
-                    "minimum": 0,
-                    "maximum": n_memories.saturating_sub(1)
+                    "type": "object",
+                    "properties": {
+                        "thing": { "type": "string" },
+                        "memory": { "anyOf": [index.clone(), { "type": "null" }] }
+                    },
+                    "required": ["thing", "memory"],
+                    "additionalProperties": false
                 }
             },
+            "supporting": { "type": "array", "items": index },
             "answer": { "type": "string" }
         },
-        "required": ["supporting", "answer"],
+        "required": ["named", "supporting", "answer"],
         "additionalProperties": false
     })
 }
 
 #[derive(Debug, Deserialize)]
+struct NamedThing {
+    thing: String,
+    memory: Option<usize>,
+}
+
+#[derive(Debug, Deserialize)]
 struct GroundedAnswer {
+    named: Vec<NamedThing>,
     supporting: Vec<usize>,
     answer: String,
+}
+
+/// Shortest word of a named thing that must appear in its memory. Shorter
+/// words ("my", "a", "of") carry no identity.
+const MIN_THING_WORD_CHARS: usize = 3;
+/// Connectives that may join a named thing's words without naming anything.
+const THING_CONNECTIVES: [&str; 6] = ["and", "the", "for", "with", "from", "your"];
+
+/// Lowercased alphanumeric words of `text`.
+fn words(text: &str) -> Vec<String> {
+    text.to_lowercase()
+        .split(|c: char| !c.is_alphanumeric())
+        .filter(|w| !w.is_empty())
+        .map(str::to_string)
+        .collect()
+}
+
+/// A word without one plural ending, so "tomatoes" meets "tomato".
+fn singular(word: &str) -> &str {
+    word.strip_suffix("es")
+        .filter(|w| w.len() >= MIN_THING_WORD_CHARS)
+        .or_else(|| word.strip_suffix('s').filter(|w| w.len() >= MIN_THING_WORD_CHARS))
+        .unwrap_or(word)
+}
+
+/// Does `memory` state `thing`? Every word of the thing that carries
+/// identity must appear in the memory, up to one plural ending. A check on
+/// the text itself, independent of the model that made the citation.
+fn memory_states(thing: &str, memory: &str) -> bool {
+    let have: Vec<String> = words(memory);
+    let need: Vec<String> = words(thing)
+        .into_iter()
+        .filter(|w| w.len() >= MIN_THING_WORD_CHARS && !THING_CONNECTIVES.contains(&w.as_str()))
+        .collect();
+    !need.is_empty()
+        && need.iter().all(|w| {
+            have.iter()
+                .any(|h| h == w || singular(h) == singular(w))
+        })
 }
 
 /// Re-ask a declined row under [`grounded_schema`]. Like
@@ -1201,8 +1270,9 @@ pub(crate) async fn commit_grounded(
     system: &str,
     user: &str,
     response: String,
-    n_memories: usize,
+    memories: &[String],
 ) -> (String, CommitOutcome) {
+    let n_memories = memories.len();
     if !is_abstention(&response) {
         return (response, CommitOutcome::default());
     }
@@ -1223,7 +1293,7 @@ pub(crate) async fn commit_grounded(
     else {
         return (response, fired);
     };
-    let Some(answer) = accept_grounded(&second.text, n_memories) else {
+    let Some(answer) = accept_grounded(&second.text, memories) else {
         return (response, fired);
     };
     (
@@ -1239,13 +1309,23 @@ pub(crate) async fn commit_grounded(
 /// room for the citation list.
 const GROUNDED_MAX_TOKENS: u32 = 200;
 
-/// What a grounded response commits to, or `None` when it does not: at
-/// least one citation inside `0..n_memories`, and a non-blank answer that is
-/// not a decline (`is_abstention` stays the single definition).
-fn accept_grounded(text: &str, n_memories: usize) -> Option<String> {
+/// What a grounded response commits to, or `None` when it does not:
+/// - at least one named thing, each with a memory inside `0..n` whose text
+///   states it ([`memory_states`]);
+/// - at least one citation inside `0..n` for the answer;
+/// - a non-blank answer that is not a decline (`is_abstention` stays the
+///   single definition).
+fn accept_grounded(text: &str, memories: &[String]) -> Option<String> {
+    let n_memories = memories.len();
     let parsed = serde_json::from_str::<GroundedAnswer>(text).ok()?;
+    let covered = !parsed.named.is_empty()
+        && parsed.named.iter().all(|t| {
+            t.memory
+                .and_then(|i| memories.get(i))
+                .is_some_and(|m| memory_states(&t.thing, m))
+        });
     let cited = parsed.supporting.iter().any(|&i| i < n_memories);
-    if !cited || parsed.answer.trim().is_empty() || is_abstention(&parsed.answer) {
+    if !covered || !cited || parsed.answer.trim().is_empty() || is_abstention(&parsed.answer) {
         return None;
     }
     Some(parsed.answer)
@@ -3761,22 +3841,45 @@ mod config_tests {
     /// answer; every other response leaves the decline standing.
     #[test]
     fn a_grounded_answer_needs_a_citation_inside_the_evidence() {
-        let n = 6;
-        let ok = r#"{"supporting":[2],"answer":"7 May 2023"}"#;
-        assert_eq!(accept_grounded(ok, n).as_deref(), Some("7 May 2023"));
+        let mem: Vec<String> = (0..6)
+            .map(|i| format!("[2023-05-0{}] user: I went to the dentist on 7 May 2023, visit {i}", i + 1))
+            .collect();
+        let named = r#""named":[{"thing":"dentist","memory":2}]"#;
+        let ok = format!(r#"{{{named},"supporting":[2],"answer":"7 May 2023"}}"#);
+        assert_eq!(accept_grounded(&ok, &mem).as_deref(), Some("7 May 2023"));
         for refused in [
-            r#"{"supporting":[],"answer":"7 May 2023"}"#,   // nothing cited
-            r#"{"supporting":[6],"answer":"7 May 2023"}"#,  // outside 0..6
-            r#"{"supporting":[1],"answer":"   "}"#,         // blank
-            r#"{"supporting":[1],"answer":"I don't know."}"#, // a decline in disguise
-            r#"not json"#,
+            format!(r#"{{{named},"supporting":[],"answer":"7 May 2023"}}"#),   // nothing cited
+            format!(r#"{{{named},"supporting":[6],"answer":"7 May 2023"}}"#),  // outside 0..6
+            format!(r#"{{{named},"supporting":[1],"answer":"   "}}"#),         // blank
+            format!(r#"{{{named},"supporting":[1],"answer":"I don't know."}}"#), // a decline in disguise
+            r#"{"named":[],"supporting":[1],"answer":"7 May 2023"}"#.to_string(), // names nothing
+            "not json".to_string(),
         ] {
-            assert_eq!(accept_grounded(refused, n), None, "{refused}");
+            assert_eq!(accept_grounded(&refused, &mem), None, "{refused}");
         }
-        let schema = grounded_schema(n);
+        let schema = grounded_schema(6);
         assert_eq!(schema["properties"]["supporting"]["items"]["maximum"], 5);
         let keys: Vec<&str> = schema["required"].as_array().unwrap().iter().map(|v| v.as_str().unwrap()).collect();
-        assert_eq!(keys, vec!["supporting", "answer"], "the citation comes before the answer");
+        assert_eq!(keys, vec!["named", "supporting", "answer"], "what is named, then the citation, then the answer");
+    }
+
+    /// M71b: M71's abstention flip, replayed. "Tomatoes and chili" names two
+    /// things; the memories state only tomatoes, so a citation claiming
+    /// chili is refused by the text check even when the model makes it.
+    #[test]
+    fn every_named_thing_must_be_stated_in_its_memory() {
+        let mem = vec![
+            "[2023-04-02] user: I planted 5 tomato plants in the raised bed".to_string(),
+            "[2023-04-09] user: the tomatoes are doing great".to_string(),
+        ];
+        let trap = r#"{"named":[{"thing":"tomatoes","memory":0},{"thing":"chili","memory":1}],"supporting":[0],"answer":"5 tomato plants"}"#;
+        assert_eq!(accept_grounded(trap, &mem), None, "chili is stated nowhere");
+        let honest = r#"{"named":[{"thing":"tomatoes","memory":0},{"thing":"chili","memory":null}],"supporting":[0],"answer":"5"}"#;
+        assert_eq!(accept_grounded(honest, &mem), None, "a named thing without a memory");
+        let fine = r#"{"named":[{"thing":"tomato plants","memory":0}],"supporting":[0],"answer":"5"}"#;
+        assert_eq!(accept_grounded(fine, &mem).as_deref(), Some("5"));
+        assert!(memory_states("my tomatoes", "I planted 5 tomato plants"), "plural meets singular");
+        assert!(!memory_states("chili", "I planted 5 tomato plants"));
     }
 
     #[test]

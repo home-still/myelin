@@ -179,7 +179,7 @@ pub async fn run(
             }
             Pass::Grounded => {
                 let (response, outcome) =
-                    commit_grounded(&llm, &system, &user, first, row.evidence.len()).await;
+                    commit_grounded(&llm, &system, &user, first, &row.evidence).await;
                 (response, outcome.fired, outcome.committed)
             }
             Pass::Consensus(c) => {
