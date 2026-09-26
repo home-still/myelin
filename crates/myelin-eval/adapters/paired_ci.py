@@ -49,16 +49,42 @@ def _dirs(spec: str) -> list[str]:
     return parts
 
 
-def load_scores(run_spec: str, verdicts: str | None = None) -> dict[str, float]:
+def load_scores(
+    run_spec: str, verdicts: str | None = None, gold_held: bool = False
+) -> dict[str, float]:
     """Map question_id -> score over one side's run directories.
 
     `verdicts` names a verdict file inside each run directory (e.g.
     `judge_verdicts_lme_official.json`, M70's official grader) to read the
     0/1 verdicts from instead of the rows' own `score`, so a second judge
     reading is paired by the same tool and the same seed.
+
+    `gold_held` reads no answer at all: the score is 1 when the row's
+    evidence held **every** gold turn, from the `coverage.json` that
+    `myelin-eval coverage` writes into each run directory (the same
+    `is_found` matcher behind every coverage number since M21). That is the
+    reader-free half of M74's pre-registered gate
+    (`docs/measurements/m74-selector-focus.md`). Only gold-annotated rows are
+    in that file. On LongMemEval_S that is 479: the 470 answerable rows plus 9
+    abstention rows whose haystacks annotate a gold turn, so a gate on "the
+    470 answerable rows" reads the `non-abstention` line.
     """
+    if verdicts is not None and gold_held:
+        raise SystemExit("--verdicts and --gold-held read different scores; pass one")
     scores: dict[str, float] = {}
     for run_dir in _dirs(run_spec):
+        if gold_held:
+            path = Path(run_dir) / "coverage.json"
+            if not path.exists():
+                raise SystemExit(f"{path} is missing; run `myelin-eval coverage --run {run_dir}` first")
+            with open(path, encoding="utf-8") as handle:
+                rows = json.load(handle)["rows"]
+            for row in rows:
+                qid = str(row["question_id"])
+                if qid in scores:
+                    raise SystemExit(f"duplicate question id {qid} across {run_spec}")
+                scores[qid] = 1.0 if row["bucket"] == "all" else 0.0
+            continue
         if verdicts is not None:
             with open(Path(run_dir) / verdicts, encoding="utf-8") as handle:
                 table = json.load(handle)["verdicts"]
@@ -167,8 +193,9 @@ def compare(
     by_category: bool = False,
     ids_file: str | None = None,
     verdicts: str | None = None,
+    gold_held: bool = False,
 ) -> None:
-    sa, sb = load_scores(run_a, verdicts), load_scores(run_b, verdicts)
+    sa, sb = load_scores(run_a, verdicts, gold_held), load_scores(run_b, verdicts, gold_held)
     flags = load_flags(run_a)
     shared = sorted(set(sa) & set(sb))
     if not shared:
@@ -179,6 +206,8 @@ def compare(
     print(f"B = {run_b}")
     if verdicts is not None:
         print(f"scores = {verdicts}")
+    if gold_held:
+        print("scores = every gold turn held (coverage.json), no reader")
     print(f"paired on {len(shared)} questions" + (f" ({dropped} unpaired dropped)" if dropped else ""))
     print()
 
@@ -252,12 +281,20 @@ def main() -> None:
         help="read 0/1 verdicts from this file in each run directory instead of the rows' score",
     )
     parser.add_argument(
+        "--gold-held",
+        action="store_true",
+        help="score each row 1 when its evidence held every gold turn (each run's coverage.json)",
+    )
+    parser.add_argument(
         "--by-category",
         action="store_true",
         help="also report one stratum per `category` value present in both runs",
     )
     args = parser.parse_args()
-    compare(args.run_a, args.run_b, args.iterations, args.seed, args.by_category, args.ids, args.verdicts)
+    compare(
+        args.run_a, args.run_b, args.iterations, args.seed,
+        args.by_category, args.ids, args.verdicts, args.gold_held,
+    )
 
 
 if __name__ == "__main__":

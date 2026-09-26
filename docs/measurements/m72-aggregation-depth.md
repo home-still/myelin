@@ -148,3 +148,29 @@ shipped k = 6 is unchanged. M72b re-measures the depth with the cap fixed and
 reports the over-count rate beside it: Karunanidhi 2026 (arXiv 2608.21230)
 found LongMemEval_S multi-session accuracy *falling* with depth, because the
 reader over-counts.
+
+## Evidence gained, answers not *(measured 2026-09-26)*
+
+`paired_ci.py --gold-held` pairs the two runs on whether each row's evidence
+held **every** gold turn (`coverage.json`, the M21 `is_found` matcher), with
+no reader involved. On the 127 answerable rows of this arm's stratum:
+
+| | base (M57) | M72 | paired Δ, 95% CI |
+|---|---|---|---|
+| every gold turn held | 78.7% | 85.0% | **+6.3 [+1.6, +11.0]** |
+| strict accuracy (137 rows incl. abstention) | | | +3.6 [−0.7, +8.0] |
+
+Over all 470 answerable rows the gain is +1.7 [+0.4, +3.0].
+
+**What it says.** Even capped at 10 per probe, the deeper pool reached the
+gold reliably. The reader turned about half of that into right answers. So
+the counting losses are split between retrieval and reading. M72b
+(the cap fixed) tests whether more depth still pays, and its over-count rate
+tests the other half.
+
+```
+myelin-eval coverage --run runs/m57_bonsai_premise_s1
+myelin-eval coverage --run runs/m72_lme_agg
+python3 crates/myelin-eval/adapters/paired_ci.py runs/m72_lme_agg runs/m57_bonsai_premise_s1 \
+  --gold-held --ids <the 127 answerable ids of m72_agg_ids>
+```

@@ -62,6 +62,11 @@ touches every row).** The switch enters the bundle only if all three hold:
 2. The strict paired difference over all 500 is positive.
 3. Abstention is not below 29/30.
 
+The instrument for criterion 1 (added 2026-09-26, before any row; the gate
+is unchanged): `coverage` on each run, then
+`paired_ci.py runs/m74_focus_evidence runs/m57_bonsai_premise_s1 --gold-held`.
+Read its `non-abstention` line, which is the 470 answerable rows.
+
 **Predictions.**
 - All-gold-held rises by 2–5 points of share, mostly on multi-session and
   temporal "part" rows.
