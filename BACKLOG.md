@@ -82,8 +82,7 @@ lost under the strict judge):
     (Chain-of-Note, APEX-MEM COUNT);
   - M71 with every named entity cited, to keep the veto.
 
-  Needs the user: whether to bundle unvalidated arms, and whether a
-  structured enumeration pass counts as code-first.
+  *Decided 2026-09-26 (user): stratum gate, then bundle (round 4 below).*
 - **Where the losses sit (official grader, 105 answerable):** every gold
   turn held in 48, part in 37, none in 20. The 20 are mostly temporal (11)
   and preference (8).
@@ -96,6 +95,43 @@ lost under the strict judge):
   - The top-ranked M50 **event** states it in 7 of 10.
   - It is a design for M50c, not an arm alone
     (`docs/measurements/m73-question-dates.md`).
+
+**Round 4 (plan approved 2026-09-26).** Research:
+`docs/research/sota-catalog-2026-09-26.md`.
+- **The gap is in the single-session strata, not in memory's hard cases.**
+  Per stratum against MemPro-15 on Qwen3-30B, under the official grader:
+
+  | stratum | Δ questions |
+  |---|---|
+  | preference | −11 (13/30 vs 24/30) |
+  | single-session-user | −5 |
+  | single-session-assistant | −5 |
+  | knowledge-update | +3 |
+  | multi-session + temporal | +9 |
+
+  Of 107 losses, 48 hold every gold turn: 10 declines whose text states the
+  answer, 9 grader false negatives, 5 generic preference answers.
+- **Ship rule (user):** each new mechanism passes a pre-registered stratum
+  gate (paired CI excluding 0 on its stratum, abstention unchanged), then all
+  that pass go into **one** full-500 bundle arm at +3.0 with the veto, under
+  every judge reading.
+- **Defects found by the code review (fixed as their own PRs):**
+  - event dates are resolved twice in compose (a second, contradicting
+    date on every relative-dated event; M50, M50b, M50c were run with it);
+  - `investigate` caps each probe at `step_k` = 10, so M72's k = 18 never
+    filled;
+  - the selector reads only a candidate's first 400 characters.
+- **Arms, each a stratum-gated partial rerun on the shipped reader:**
+  1. **M20b**: a relevance-ranked `[profile]` side block, gated to
+     advice/recommendation requests;
+  2. **M73b**: events from the question's own past-day window (only the 8
+     past-point haystacks without events are extracted, not the corpus);
+  3. **M71b**: re-ask a decline only when it names a value found in the
+     evidence (keeps the abstention veto);
+  4. **M72b**: aggregation depth with the cap fixed, over-counts reported;
+  5. **M74**: the selector reads the best-matching passage.
+- Enumerate-then-count is dropped this round: the overcount evidence
+  (Karunanidhi 2026) argues for measuring depth first.
 
 **Earlier queue, in order:**
 1. **M66: turn windows** *(the user's first build)*. Each selected episode
@@ -282,11 +318,9 @@ event states the answer in 7 of 10 targeted temporal losses; the
 top-ranked turn states it in 0 of 8. Events exist for 108 of the 500
 LongMemEval_S haystacks.
 
-**Needs the user:**
-- the route;
-- the full extraction: about 14,000 distinct sessions, roughly 9
-  GPU-hours on big after M54. bmb measured 24.7 s per session, about four
-  days.
+*Decided 2026-09-26 (user):* route A stays. The window-gated design (M73b)
+needs events only for the 8 past-point haystacks that have none, so the
+full-corpus extraction is not needed this round.
 
 ---
 
