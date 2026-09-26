@@ -88,6 +88,19 @@ first arm to question the measurement apparatus rather than the mechanism.
 
 ---
 
+## M71 — the grounded second pass on LongMemEval_S: **+1.20 strict, vetoed (abstention 29 → 28)**; does not ship
+
+- **Design:** M61's grounded pass, replayed over the shipped run's 78
+  declines. `commit-arm` now rebuilds the base's clause-bearing system
+  prompt (`reader_system_of_run`, PR #125).
+- **Results:** 14 commits, 7 right and 6 wrong on answerable questions,
+  plus one abstention trap answered ("tomatoes and chili": the memories
+  name only tomatoes).
+  - Strict: 79.20 → 80.40, +1.20 [+0.2, +2.4].
+  - Official: 78.60 → 79.40.
+- **Verdict:** under the +3.0 bar, and vetoed.
+- Doc: `m71-lme-grounded-override.md`.
+
 ## M66 — turn windows: **no-go at retrieval** (turn_all 0.8154 at K\*=14 vs the 0.8224 bar)
 
 - **Built:** PRs #116 and #117. Turns are ranked across the pool by the
