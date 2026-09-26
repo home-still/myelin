@@ -49,10 +49,24 @@ def _dirs(spec: str) -> list[str]:
     return parts
 
 
-def load_scores(run_spec: str) -> dict[str, float]:
-    """Map question_id -> score over one side's run directories."""
+def load_scores(run_spec: str, verdicts: str | None = None) -> dict[str, float]:
+    """Map question_id -> score over one side's run directories.
+
+    `verdicts` names a verdict file inside each run directory (e.g.
+    `judge_verdicts_lme_official.json`, M70's official grader) to read the
+    0/1 verdicts from instead of the rows' own `score`, so a second judge
+    reading is paired by the same tool and the same seed.
+    """
     scores: dict[str, float] = {}
     for run_dir in _dirs(run_spec):
+        if verdicts is not None:
+            with open(Path(run_dir) / verdicts, encoding="utf-8") as handle:
+                table = json.load(handle)["verdicts"]
+            for qid, v in table.items():
+                if qid in scores:
+                    raise SystemExit(f"duplicate question id {qid} across {run_spec}")
+                scores[str(qid)] = float(v)
+            continue
         with open(Path(run_dir) / "per_question.jsonl", encoding="utf-8") as handle:
             for line in handle:
                 line = line.strip()
@@ -146,9 +160,15 @@ def paired_bootstrap(
 
 
 def compare(
-    run_a: str, run_b: str, iterations: int, seed: int, by_category: bool = False
+    run_a: str,
+    run_b: str,
+    iterations: int,
+    seed: int,
+    by_category: bool = False,
+    ids_file: str | None = None,
+    verdicts: str | None = None,
 ) -> None:
-    sa, sb = load_scores(run_a), load_scores(run_b)
+    sa, sb = load_scores(run_a, verdicts), load_scores(run_b, verdicts)
     flags = load_flags(run_a)
     shared = sorted(set(sa) & set(sb))
     if not shared:
@@ -157,6 +177,8 @@ def compare(
 
     print(f"A = {run_a}")
     print(f"B = {run_b}")
+    if verdicts is not None:
+        print(f"scores = {verdicts}")
     print(f"paired on {len(shared)} questions" + (f" ({dropped} unpaired dropped)" if dropped else ""))
     print()
 
@@ -165,6 +187,15 @@ def compare(
         ("non-abstention", [q for q in shared if not flags.get(q, False)]),
         ("abstention", [q for q in shared if flags.get(q, False)]),
     ]
+    if ids_file is not None:
+        # A pre-registered stratum named by its question ids (the rows a
+        # question gate fires on, say). Every id must be paired: a stratum
+        # silently shrunk by a missing row is a different stratum.
+        wanted = [l.strip() for l in open(ids_file, encoding="utf-8") if l.strip()]
+        missing = [q for q in wanted if q not in set(shared)]
+        if missing:
+            raise SystemExit(f"{len(missing)} ids in {ids_file} are not paired (e.g. {missing[0]!r})")
+        strata.append((f"ids:{Path(ids_file).stem}", wanted))
     if by_category:
         # The categories are where a mechanism aimed at one question type has
         # to show itself: LoCoMo cat 3 is multi-hop, LongMemEval_S cat 4 is
@@ -213,12 +244,20 @@ def main() -> None:
     parser.add_argument("--iterations", type=int, default=20000)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument(
+        "--ids",
+        help="also report the stratum of the question ids listed in this file, one per line",
+    )
+    parser.add_argument(
+        "--verdicts",
+        help="read 0/1 verdicts from this file in each run directory instead of the rows' score",
+    )
+    parser.add_argument(
         "--by-category",
         action="store_true",
         help="also report one stratum per `category` value present in both runs",
     )
     args = parser.parse_args()
-    compare(args.run_a, args.run_b, args.iterations, args.seed, args.by_category)
+    compare(args.run_a, args.run_b, args.iterations, args.seed, args.by_category, args.ids, args.verdicts)
 
 
 if __name__ == "__main__":
