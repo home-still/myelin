@@ -155,3 +155,25 @@ because m19's verdicts predate the answers map `--seed` needs.
 they cost the adversarial rows. Chronos's own ablation predicted a smaller
 gain for a stronger reader; here the reader is the weak one, and the gain
 still did not come.
+
+---
+
+## Correction *(2026-09-26)*: every event carried a second, wrong date
+
+The round-4 code review found that compose re-resolved each event's quoted
+phrase against the event's own, already-resolved date. The M50 pilot shows it
+(`runs/m50_pilot_s1`):
+
+```
+got the Air Fryer [2023-05-20 — "yesterday", said 2023-05-21] … (yesterday = 2023-05-19)
+```
+
+So every relative-dated event in M50, M50b and this pilot reached the reader
+with two dates that disagree by the phrase's offset. The adversarial veto
+above was measured with that defect in place. The measurement stands as a
+record of what ran; it is not a measurement of events with correct dates.
+
+The events index now composes with `resolve_relative` off
+(`events_block::events_retrieve_config`). The test
+`an_event_reaches_the_reader_with_exactly_one_date` fails on the old config
+and passes on the new one.

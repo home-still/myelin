@@ -1647,6 +1647,28 @@ mod tests {
         );
     }
 
+    /// An event's date is resolved once, at write time. The events index
+    /// must not resolve its quoted phrase again against that resolved date:
+    /// the real M50 line below used to reach the reader with a second,
+    /// contradicting `(yesterday = 2023-05-19)`.
+    #[test]
+    fn an_event_reaches_the_reader_with_exactly_one_date() {
+        use chrono::TimeZone;
+        let text = "event: the user got the Air Fryer [2023-05-20 — \"yesterday\", said 2023-05-21]";
+        let mut r = record(text);
+        r.validity.t_valid = Utc.with_ymd_and_hms(2023, 5, 20, 0, 0, 0).unwrap();
+        let ranked = vec![Ranked {
+            record: r,
+            score: 1.0,
+            vector: None,
+            window: None,
+        }];
+        let cfg = crate::pipeline::events_block::events_retrieve_config().compose;
+        let out = compose(ranked, &[], &cfg);
+        assert_eq!(out.items[0].value, format!("[2023-05-20] {text}"));
+        assert!(!out.items[0].value.contains("2023-05-19"));
+    }
+
     /// Arm D of M19: one synthetic dated index, at the tail, carrying the
     /// weakest trust of the records it summarises.
     #[test]

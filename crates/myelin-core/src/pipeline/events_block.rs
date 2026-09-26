@@ -35,12 +35,22 @@ pub const EVENTS_MECHANISM: &str = "m50c:events";
 pub const EVENTS_HEADER: &str = "[events] Dated events from the event calendar:";
 
 /// How the events index composes: as the turns do, but without a second
-/// `[timeline]` view. The base evidence already carries one, and every event
-/// is written with its resolved date in its text and its valid time.
+/// `[timeline]` view and without re-resolving relative dates.
+///
+/// - The base evidence already carries a `[timeline]`.
+/// - Every event is written with its date already resolved, both in its text
+///   (`[2023-05-20 — "yesterday", said 2023-05-21]`) and as its valid time.
+///   Resolving the quoted phrase a second time anchors it on the *resolved*
+///   date and appends a contradicting one: `(yesterday = 2023-05-19)` beside
+///   an event that happened on 2023-05-20. That defect reached the reader in
+///   every M50, M50b and M50c run (found 2026-09-26 in
+///   `runs/m50_pilot_s1`), so the events index composes with
+///   [`ComposeConfig::resolve_relative`] off.
 pub fn events_retrieve_config() -> RetrieveConfig {
     RetrieveConfig {
         compose: ComposeConfig {
             timeline: false,
+            resolve_relative: false,
             ..ComposeConfig::default()
         },
         ..RetrieveConfig::default()
