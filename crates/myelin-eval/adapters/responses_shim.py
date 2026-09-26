@@ -115,7 +115,8 @@ class H(BaseHTTPRequestHandler):
             with open(trace, "a") as fh:
                 fh.write(json.dumps({"t0": round(t0, 3), "path": self.path, "status": status,
                                      "first_byte_s": None if first is None else round(first, 2),
-                                     "total_s": round(_t.time() - t0, 2), "bytes": nbytes}) + "\n")
+                                     "total_s": round(_t.time() - t0, 2), "bytes": nbytes,
+                                     "dropped_tools": getattr(self, "_dropped_tools", [])}) + "\n")
     def do_POST(self):
         raw = self.rfile.read(int(self.headers.get("Content-Length", 0)))
         if self.path.endswith("/responses"):
@@ -124,6 +125,15 @@ class H(BaseHTTPRequestHandler):
                 body["model"] = UP_MODEL
                 body["provider"] = UP_PROVIDER
                 body.update(UP_SAMPLING)
+                # Only function tools, as our llama-server offers the model. Codex also sends
+                # hosted tools (`web_search`), which llama.cpp never exposed but OpenRouter
+                # executes server-side as `openrouter:web_search`: on a memory benchmark that
+                # is outside knowledge. Found 2026-09-25 (M54 amendment 4b); every cloud chunk
+                # run before this was discarded.
+                tools = body.get("tools") or []
+                body["tools"] = [t for t in tools if isinstance(t, dict) and t.get("type") == "function"]
+                self._dropped_tools = sorted({str(t.get("type")) for t in tools
+                                              if not (isinstance(t, dict) and t.get("type") == "function")})
             raw = json.dumps(body).encode()
         self._forward(raw)
     def do_GET(self): self._forward(None)
