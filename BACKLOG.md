@@ -84,6 +84,18 @@ lost under the strict judge):
 
   Needs the user: whether to bundle unvalidated arms, and whether a
   structured enumeration pass counts as code-first.
+- **Where the losses sit (official grader, 105 answerable):** every gold
+  turn held in 48, part in 37, none in 20. The 20 are mostly temporal (11)
+  and preference (8).
+- **M73, the question's own date phrase (2026-09-26, retrieval only):**
+  - `resolve_relative` on the question finds a window holding the gold
+    for 8 temporal losses whose evidence had none.
+  - Inside the window, the cross-encoder ranks the gold **turn** 3rd to
+    90th, because the fact is an aside ("by the way, I just got a smoker
+    today"). The top-ranked turn states the answer in 0 of 8.
+  - The top-ranked M50 **event** states it in 7 of 10.
+  - It is a design for M50c, not an arm alone
+    (`docs/measurements/m73-question-dates.md`).
 
 **Earlier queue, in order:**
 1. **M66: turn windows** *(the user's first build)*. Each selected episode
@@ -262,6 +274,19 @@ top events in a separate budget. Reader-side only, so the stores already
 built serve it. Pilot on the M50 population first. Chronos keeps events in a
 separate index; three routes are written up, and one needs choosing before
 any code (`docs/measurements/m50c-events-beside-turns.md`).
+
+**M73 (2026-09-26) adds a measured rule for the question-dated case.**
+When the question names a past day ("10 days ago", "last Saturday"),
+M50c's events should come from that day's window. There the top-ranked
+event states the answer in 7 of 10 targeted temporal losses; the
+top-ranked turn states it in 0 of 8. Events exist for 108 of the 500
+LongMemEval_S haystacks.
+
+**Needs the user:**
+- the route;
+- the full extraction: about 14,000 distinct sessions, roughly 9
+  GPU-hours on big after M54. bmb measured 24.7 s per session, about four
+  days.
 
 ---
 
