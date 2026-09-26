@@ -62,7 +62,30 @@ lost under the strict judge):
 - **About 40–60 rows are judge or label disagreements** that no memory change
   recovers.
 
-**Next, in order:**
+**Round 3 results (2026-09-25/26):**
+- LongMemEval_S is **79.20 strict / 78.60 official** against 80.80. The
+  83.40 was a judge defect (PR #119).
+- **M71**, the grounded second pass: +1.20, vetoed on one abstention.
+- **M72**, aggregation depth: +1.0, CI spans zero. Multi-session counting
+  +5; coverage is no longer the bottleneck.
+- **What is left under the official grader:**
+
+  | stratum | still wrong | note |
+  |---|---|---|
+  | preference | 17 of 30 | the largest |
+  | temporal | 30 | |
+  | multi-session counting | 16 | 7 with every gold mention held, 10 undercount |
+
+- **Candidates, each its own arm:**
+  - bundle M71 and M72 (neither cleared alone);
+  - an enumerate-then-count structured pass for counting questions
+    (Chain-of-Note, APEX-MEM COUNT);
+  - M71 with every named entity cited, to keep the veto.
+
+  Needs the user: whether to bundle unvalidated arms, and whether a
+  structured enumeration pass counts as code-first.
+
+**Earlier queue, in order:**
 1. **M66: turn windows** *(the user's first build)*. Each selected episode
    is shown as its best turn ±2 neighbours, scored by the cross-encoder, and
    k rises so that tokens per question stay flat.
