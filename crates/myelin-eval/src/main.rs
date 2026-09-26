@@ -776,6 +776,12 @@ enum Command {
         /// `recall` mode only; refuses `--select-sufficient`.
         #[arg(long)]
         turn_windows: Option<usize>,
+        /// M72: a counting or summing question is retrieved with this `k`
+        /// (and `--aggregation-budget-tokens`) instead of the run's.
+        #[arg(long, requires = "aggregation_budget_tokens")]
+        aggregation_k: Option<usize>,
+        #[arg(long, requires = "aggregation_k")]
+        aggregation_budget_tokens: Option<usize>,
         /// M50c: an events-only index (Qdrant collection) whose top events
         /// are appended after the evidence as an `[events]` block, beside
         /// the turns rather than instead of them. Needs `--events-ledger`.
@@ -1282,6 +1288,8 @@ async fn main() -> anyhow::Result<()> {
             dedupe_lineage,
             inline_dates,
             turn_windows,
+            aggregation_k,
+            aggregation_budget_tokens,
             untrusted_max,
             decompose,
             ref categories,
@@ -1336,6 +1344,8 @@ async fn main() -> anyhow::Result<()> {
                     dedupe_lineage,
                     inline_dates,
                     turn_windows,
+                    aggregation_k,
+                    aggregation_budget_tokens,
                     commit_grounded: false,
                     untrusted_max,
                     decompose,
