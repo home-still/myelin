@@ -1020,6 +1020,8 @@ fn bench_metrics(dir: &Path, agg_text: &str) -> Result<Vec<Ours>> {
         || run.turn_windows.is_some()
         // M74's focused selector view, shipping off pending its arm.
         || run.select_focus
+        // A reader-free coverage run is never a quotable score.
+        || run.evidence_only
         || run.aggregation_k.is_some()
         // M47's presupposition check.
         || run.premise_check

@@ -786,6 +786,10 @@ enum Command {
         /// (`RetrieveConfig::select_focus`). Needs the cross-encoder.
         #[arg(long)]
         select_focus: bool,
+        /// Compose each question's evidence and skip the reader, for
+        /// `coverage` (LongMemEval_S only). The run is never quotable.
+        #[arg(long)]
+        evidence_only: bool,
         /// M72: a counting or summing question is retrieved with this `k`
         /// (and `--aggregation-budget-tokens`) instead of the run's.
         #[arg(long, requires = "aggregation_budget_tokens")]
@@ -1299,6 +1303,7 @@ async fn main() -> anyhow::Result<()> {
             inline_dates,
             turn_windows,
             select_focus,
+            evidence_only,
             aggregation_k,
             aggregation_budget_tokens,
             untrusted_max,
@@ -1355,6 +1360,7 @@ async fn main() -> anyhow::Result<()> {
                     inline_dates,
                     turn_windows,
                     select_focus,
+                    evidence_only,
                     aggregation_k,
                     aggregation_budget_tokens,
                     commit_grounded: false,

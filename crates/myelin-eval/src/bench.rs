@@ -607,6 +607,12 @@ pub struct BenchRun {
     /// line (`RetrieveConfig::select_focus`). Absent on every run before M74.
     #[serde(default)]
     pub select_focus: bool,
+    /// The run composed evidence and never called the reader: every
+    /// response is empty and every score is meaningless. It exists for
+    /// `coverage`, the reader-free half of a gate (M74's first criterion).
+    /// `standing` never quotes such a run.
+    #[serde(default)]
+    pub evidence_only: bool,
     /// M72: the depth and token budget a counting or summing question
     /// (`query_shape::is_aggregation_question`) was retrieved with. Absent
     /// on every run before M72.
@@ -775,6 +781,9 @@ pub struct BenchSwitches {
     pub turn_windows: Option<usize>,
     /// M74: `RetrieveConfig::select_focus`.
     pub select_focus: bool,
+    /// Compose the evidence and skip the reader (LongMemEval_S only), for
+    /// `coverage`.
+    pub evidence_only: bool,
     /// M72: a counting or summing question is retrieved with this `k` and
     /// token budget instead of the run's (both or neither).
     pub aggregation_k: Option<usize>,
@@ -2106,6 +2115,7 @@ pub async fn bench_locomo(
     resume: bool,
 ) -> Result<BenchRun> {
     let cfg = MyelinConfig::load().context("load myelin config")?;
+    anyhow::ensure!(!switches.evidence_only, "--evidence-only is built for LongMemEval_S only");
     let conversations = locomo::load(path).context("load locomo")?;
 
     let llm = OpenAiLlm::new(&cfg.llm.url, &cfg.llm.model).context("reader client")?;
@@ -2422,6 +2432,10 @@ pub async fn bench_longmemeval_s(
     resume: bool,
 ) -> Result<BenchRun> {
     let cfg = MyelinConfig::load().context("load myelin config")?;
+    anyhow::ensure!(
+        !(switches.evidence_only && switches.commit_answer),
+        "--evidence-only never reads, so there is no decline for --commit-answer to re-ask"
+    );
     let mut items = longmemeval::load(dataset).context("load longmemeval_s")?;
     // Stratum before `--limit`: truncating the 500 to N and *then* filtering
     // would leave a handful of rows for a 127-question stratum.
@@ -2600,10 +2614,14 @@ pub async fn bench_longmemeval_s(
             "<memories>\n{context}\n</memories>\n<today>\n{}\n</today>\n<question>\n{}\n</question>",
             item.question_date, item.question
         );
-        let read = read_answer(&llm, system, &user, reader_mode)
-            .await
-            .with_context(|| format!("reader {}", item.question_id))?;
-        let response = read.answer;
+        let (response, reader_trace) = if switches.evidence_only {
+            (String::new(), None)
+        } else {
+            let read = read_answer(&llm, system, &user, reader_mode)
+                .await
+                .with_context(|| format!("reader {}", item.question_id))?;
+            (read.answer, read.trace)
+        };
         // M42: only a declining row pays for a second call. With the switch
         // off the decline is still counted, so every run records the base
         // rate the arm is measured against.
@@ -2640,7 +2658,7 @@ pub async fn bench_longmemeval_s(
             evidence: evidence.items.iter().map(|i| i.value.clone()).collect(),
             commit_samples: None,
             commit_agreement: None,
-            reader_trace: read.trace,
+            reader_trace,
             memory_query_duration_seconds: elapsed,
             selected: selection.0,
             select_degraded: selection.1,
@@ -2827,6 +2845,7 @@ fn finish_run(
         inline_dates: spec.switches.inline_dates,
         turn_windows: spec.switches.turn_windows,
         select_focus: spec.switches.select_focus,
+        evidence_only: spec.switches.evidence_only,
         aggregation_k: spec.switches.aggregation_k,
         aggregation_budget_tokens: spec.switches.aggregation_budget_tokens,
         commit_answer: spec.switches.commit_answer,
@@ -3029,6 +3048,7 @@ pub fn rescore_run(source: &Path, out_dir: &Path, scorer: Scorer) -> Result<Benc
                 .and_then(serde_json::Value::as_u64)
                 .and_then(|n| usize::try_from(n).ok()),
             select_focus: flag("select_focus"),
+            evidence_only: flag("evidence_only"),
             aggregation_k: metrics
                 .get("aggregation_k")
                 .and_then(serde_json::Value::as_u64)
