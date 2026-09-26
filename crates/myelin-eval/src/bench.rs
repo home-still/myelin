@@ -603,6 +603,10 @@ pub struct BenchRun {
     /// (`RetrieveConfig::turn_windows`). Absent on every run before M66.
     #[serde(default)]
     pub turn_windows: Option<usize>,
+    /// M74: the sufficiency selector read each candidate's best-matching
+    /// line (`RetrieveConfig::select_focus`). Absent on every run before M74.
+    #[serde(default)]
+    pub select_focus: bool,
     /// M72: the depth and token budget a counting or summing question
     /// (`query_shape::is_aggregation_question`) was retrieved with. Absent
     /// on every run before M72.
@@ -769,6 +773,8 @@ pub struct BenchSwitches {
     pub inline_dates: bool,
     /// M66: `RetrieveConfig::turn_windows`.
     pub turn_windows: Option<usize>,
+    /// M74: `RetrieveConfig::select_focus`.
+    pub select_focus: bool,
     /// M72: a counting or summing question is retrieved with this `k` and
     /// token budget instead of the run's (both or neither).
     pub aggregation_k: Option<usize>,
@@ -2158,6 +2164,7 @@ pub async fn bench_locomo(
             ..Default::default()
         },
         turn_windows: switches.turn_windows,
+        select_focus: switches.select_focus,
         ..Default::default()
     });
     if let Some(r) = reranker.as_ref() {
@@ -2478,6 +2485,7 @@ pub async fn bench_longmemeval_s(
             ..Default::default()
         },
         turn_windows: switches.turn_windows,
+        select_focus: switches.select_focus,
         ..Default::default()
     });
     if let Some(r) = reranker.as_ref() {
@@ -2818,6 +2826,7 @@ fn finish_run(
         dedupe_lineage: spec.switches.dedupe_lineage,
         inline_dates: spec.switches.inline_dates,
         turn_windows: spec.switches.turn_windows,
+        select_focus: spec.switches.select_focus,
         aggregation_k: spec.switches.aggregation_k,
         aggregation_budget_tokens: spec.switches.aggregation_budget_tokens,
         commit_answer: spec.switches.commit_answer,
@@ -3019,6 +3028,7 @@ pub fn rescore_run(source: &Path, out_dir: &Path, scorer: Scorer) -> Result<Benc
                 .get("turn_windows")
                 .and_then(serde_json::Value::as_u64)
                 .and_then(|n| usize::try_from(n).ok()),
+            select_focus: flag("select_focus"),
             aggregation_k: metrics
                 .get("aggregation_k")
                 .and_then(serde_json::Value::as_u64)
