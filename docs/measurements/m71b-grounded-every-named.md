@@ -68,3 +68,28 @@ bundle only if both hold:
 - An abstention row flips: the check is not strict enough.
 - Commits fall below 5: it is too strict to matter. In that case report
   the refused citations and do not tune the check on this population.
+
+## Result — under the gate; does not enter the bundle *(measured 2026-09-27)*
+
+The run is `runs/m71b_lme_grounded`: `commit-arm --grounded` over M57's 78
+declines, run on big after the round-4 control reproduced M57's evidence byte
+for byte.
+
+- **Commits:** 7 of 78, above the pre-registered floor of 5. 493 rows are
+  untouched.
+- **Abstention:** unchanged under both graders (strict 29/30, official
+  28/30), so the veto that stopped M71 did not fire.
+
+| reading | stratum | n | M71b | M57 | Δ [95% CI] | p |
+|---|---|---|---|---|---|---|
+| strict 9B | answerable declines | 49 | 6.1% | 0.0% | **+6.1 [+0.0, +14.3]** | 0.089 |
+| official | answerable declines | 49 | 18.4% | 12.2% | +6.1 [+0.0, +14.3] | 0.089 |
+| strict 9B | all | 500 | 79.8 | 79.2 | +0.6 [+0.0, +1.4] | 0.098 |
+| official | all | 500 | 79.2 | 78.6 | +0.6 [+0.0, +1.4] | 0.098 |
+
+- **Verdict:** criterion 1 fails. The strict CI touches zero but does not
+  exclude it: 3 rows fixed, none broken, too few to separate from zero on
+  49. Criterion 2 holds (official +6.1).
+- The mechanism is safe (no abstention cost) and small (+0.6 overall).
+  Every-named coverage fixed M71's veto and kept its direction, but not its
+  size.

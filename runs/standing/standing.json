@@ -1,6 +1,6 @@
 {
-  "commit": "403c6db528d5fb3f7a8c792bdd74d25a0469f446-dirty",
-  "generated_at": "2026-09-27T12:49:50.519084Z",
+  "commit": "6f4b413e500a2896d17e50de47870a96352ca926-dirty",
+  "generated_at": "2026-09-27T18:51:16.409853Z",
   "rows": [
     {
       "registry_id": "locomo.judge.mempro15.gpt4omini",
@@ -374,6 +374,22 @@
           "value": 80.0
         },
         {
+          "run": "runs/m71b_lme_grounded",
+          "value": 79.80000000000001
+        },
+        {
+          "run": "runs/m72b_lme_agg",
+          "value": 79.80000000000001
+        },
+        {
+          "run": "runs/m73b_events_s1",
+          "value": 79.60000000000001
+        },
+        {
+          "run": "runs/m20b_profile_s1",
+          "value": 79.2
+        },
+        {
           "run": "runs/m44_r2b_s1",
           "value": 77.2
         },
@@ -569,7 +585,15 @@
           "value": 78.60000000000001
         },
         {
+          "run": "runs/m73b_events_s1",
+          "value": 79.60000000000001
+        },
+        {
           "run": "runs/m71_lme_grounded",
+          "value": 79.4
+        },
+        {
+          "run": "runs/m72b_lme_agg",
           "value": 79.4
         },
         {
@@ -577,8 +601,16 @@
           "value": 79.2
         },
         {
+          "run": "runs/m71b_lme_grounded",
+          "value": 79.2
+        },
+        {
           "run": "runs/m72_lme_agg",
           "value": 79.0
+        },
+        {
+          "run": "runs/m20b_profile_s1",
+          "value": 78.2
         },
         {
           "run": "runs/m44_r2b_s1",
@@ -626,6 +658,22 @@
         {
           "run": "runs/m55_bonsai_s1",
           "value": 80.0
+        },
+        {
+          "run": "runs/m71b_lme_grounded",
+          "value": 79.80000000000001
+        },
+        {
+          "run": "runs/m72b_lme_agg",
+          "value": 79.80000000000001
+        },
+        {
+          "run": "runs/m73b_events_s1",
+          "value": 79.60000000000001
+        },
+        {
+          "run": "runs/m20b_profile_s1",
+          "value": 79.2
         },
         {
           "run": "runs/m44_r2b_s1",
@@ -821,7 +869,15 @@
           "value": 78.60000000000001
         },
         {
+          "run": "runs/m73b_events_s1",
+          "value": 79.60000000000001
+        },
+        {
           "run": "runs/m71_lme_grounded",
+          "value": 79.4
+        },
+        {
+          "run": "runs/m72b_lme_agg",
           "value": 79.4
         },
         {
@@ -829,8 +885,16 @@
           "value": 79.2
         },
         {
+          "run": "runs/m71b_lme_grounded",
+          "value": 79.2
+        },
+        {
           "run": "runs/m72_lme_agg",
           "value": 79.0
+        },
+        {
+          "run": "runs/m20b_profile_s1",
+          "value": 78.2
         },
         {
           "run": "runs/m44_r2b_s1",
@@ -985,6 +1049,22 @@
         {
           "run": "runs/m55_bonsai_s1",
           "value": 80.0
+        },
+        {
+          "run": "runs/m71b_lme_grounded",
+          "value": 79.80000000000001
+        },
+        {
+          "run": "runs/m72b_lme_agg",
+          "value": 79.80000000000001
+        },
+        {
+          "run": "runs/m73b_events_s1",
+          "value": 79.60000000000001
+        },
+        {
+          "run": "runs/m20b_profile_s1",
+          "value": 79.2
         },
         {
           "run": "runs/m44_r2b_s1",
@@ -1404,6 +1484,22 @@
         {
           "run": "runs/m55_bonsai_s1",
           "value": 80.0
+        },
+        {
+          "run": "runs/m71b_lme_grounded",
+          "value": 79.80000000000001
+        },
+        {
+          "run": "runs/m72b_lme_agg",
+          "value": 79.80000000000001
+        },
+        {
+          "run": "runs/m73b_events_s1",
+          "value": 79.60000000000001
+        },
+        {
+          "run": "runs/m20b_profile_s1",
+          "value": 79.2
         },
         {
           "run": "runs/m44_r2b_s1",
@@ -1868,6 +1964,22 @@
         {
           "run": "runs/m55_bonsai_s1",
           "value": 80.0
+        },
+        {
+          "run": "runs/m71b_lme_grounded",
+          "value": 79.80000000000001
+        },
+        {
+          "run": "runs/m72b_lme_agg",
+          "value": 79.80000000000001
+        },
+        {
+          "run": "runs/m73b_events_s1",
+          "value": 79.60000000000001
+        },
+        {
+          "run": "runs/m20b_profile_s1",
+          "value": 79.2
         },
         {
           "run": "runs/m44_r2b_s1",
@@ -2381,6 +2493,22 @@
           "value": 80.0
         },
         {
+          "run": "runs/m71b_lme_grounded",
+          "value": 79.80000000000001
+        },
+        {
+          "run": "runs/m72b_lme_agg",
+          "value": 79.80000000000001
+        },
+        {
+          "run": "runs/m73b_events_s1",
+          "value": 79.60000000000001
+        },
+        {
+          "run": "runs/m20b_profile_s1",
+          "value": 79.2
+        },
+        {
           "run": "runs/m44_r2b_s1",
           "value": 77.2
         },
@@ -2817,6 +2945,22 @@
           "value": 80.0
         },
         {
+          "run": "runs/m71b_lme_grounded",
+          "value": 79.80000000000001
+        },
+        {
+          "run": "runs/m72b_lme_agg",
+          "value": 79.80000000000001
+        },
+        {
+          "run": "runs/m73b_events_s1",
+          "value": 79.60000000000001
+        },
+        {
+          "run": "runs/m20b_profile_s1",
+          "value": 79.2
+        },
+        {
           "run": "runs/m44_r2b_s1",
           "value": 77.2
         },
@@ -3238,6 +3382,22 @@
           "value": 80.0
         },
         {
+          "run": "runs/m71b_lme_grounded",
+          "value": 79.80000000000001
+        },
+        {
+          "run": "runs/m72b_lme_agg",
+          "value": 79.80000000000001
+        },
+        {
+          "run": "runs/m73b_events_s1",
+          "value": 79.60000000000001
+        },
+        {
+          "run": "runs/m20b_profile_s1",
+          "value": 79.2
+        },
+        {
           "run": "runs/m44_r2b_s1",
           "value": 77.2
         },
@@ -3443,6 +3603,22 @@
         {
           "run": "runs/m55_bonsai_s1",
           "value": 80.0
+        },
+        {
+          "run": "runs/m71b_lme_grounded",
+          "value": 79.80000000000001
+        },
+        {
+          "run": "runs/m72b_lme_agg",
+          "value": 79.80000000000001
+        },
+        {
+          "run": "runs/m73b_events_s1",
+          "value": 79.60000000000001
+        },
+        {
+          "run": "runs/m20b_profile_s1",
+          "value": 79.2
         },
         {
           "run": "runs/m44_r2b_s1",
@@ -4664,6 +4840,22 @@
           "value": 80.0
         },
         {
+          "run": "runs/m71b_lme_grounded",
+          "value": 79.80000000000001
+        },
+        {
+          "run": "runs/m72b_lme_agg",
+          "value": 79.80000000000001
+        },
+        {
+          "run": "runs/m73b_events_s1",
+          "value": 79.60000000000001
+        },
+        {
+          "run": "runs/m20b_profile_s1",
+          "value": 79.2
+        },
+        {
           "run": "runs/m44_r2b_s1",
           "value": 77.2
         },
@@ -4851,7 +5043,15 @@
           "value": 78.60000000000001
         },
         {
+          "run": "runs/m73b_events_s1",
+          "value": 79.60000000000001
+        },
+        {
           "run": "runs/m71_lme_grounded",
+          "value": 79.4
+        },
+        {
+          "run": "runs/m72b_lme_agg",
           "value": 79.4
         },
         {
@@ -4859,8 +5059,16 @@
           "value": 79.2
         },
         {
+          "run": "runs/m71b_lme_grounded",
+          "value": 79.2
+        },
+        {
           "run": "runs/m72_lme_agg",
           "value": 79.0
+        },
+        {
+          "run": "runs/m20b_profile_s1",
+          "value": 78.2
         },
         {
           "run": "runs/m44_r2b_s1",
@@ -4890,7 +5098,15 @@
           "value": 78.60000000000001
         },
         {
+          "run": "runs/m73b_events_s1",
+          "value": 79.60000000000001
+        },
+        {
           "run": "runs/m71_lme_grounded",
+          "value": 79.4
+        },
+        {
+          "run": "runs/m72b_lme_agg",
           "value": 79.4
         },
         {
@@ -4898,8 +5114,16 @@
           "value": 79.2
         },
         {
+          "run": "runs/m71b_lme_grounded",
+          "value": 79.2
+        },
+        {
           "run": "runs/m72_lme_agg",
           "value": 79.0
+        },
+        {
+          "run": "runs/m20b_profile_s1",
+          "value": 78.2
         },
         {
           "run": "runs/m44_r2b_s1",
@@ -4945,6 +5169,10 @@
           "value": 61.89921434345956
         },
         {
+          "run": "runs/m73b_events_s1",
+          "value": 61.285285019445425
+        },
+        {
           "run": "runs/m72_lme_agg",
           "value": 60.864009926393095
         },
@@ -4953,8 +5181,20 @@
           "value": 60.81649848682908
         },
         {
+          "run": "runs/m71b_lme_grounded",
+          "value": 60.81649848682908
+        },
+        {
+          "run": "runs/m20b_profile_s1",
+          "value": 60.73152430343233
+        },
+        {
           "run": "runs/m44_r2b_s2",
           "value": 60.39886505261581
+        },
+        {
+          "run": "runs/m72b_lme_agg",
+          "value": 59.99084855305908
         },
         {
           "run": "runs/m44_r2_s1",
@@ -5027,6 +5267,10 @@
         {
           "run": "runs/m32_inv_base",
           "value": 46.76615320365165
+        },
+        {
+          "run": "runs/m74_focus_evidence",
+          "value": 0.0
         },
         {
           "run": "runs/m55_bonsai_s1.part1",

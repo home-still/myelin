@@ -81,3 +81,36 @@ the selector's views on the lost rows.
 **Diagnostics:**
 - selector call failures and degradations, which must stay at M57's 0.0%;
 - mean cross-encoder latency added per row.
+
+## Result — criterion 1 fails; the falsifier fires *(measured 2026-09-27)*
+
+The reader-free run (`runs/m74_focus_evidence`, `bench --select-focus
+--evidence-only`) was run on big as part of the round-4 chain, after a 5-row
+control reproduced M57's evidence byte for byte. It was paired with M57 on
+every-gold-turn-held (`paired_ci.py --gold-held`):
+
+| stratum | n | M74 | M57 | Δ [95% CI] |
+|---|---|---|---|---|
+| **answerable (criterion 1)** | 470 | 77.7% | 78.3% | **−0.6 [−3.0, +1.7]** |
+| all annotated | 479 | 78.1% | 78.7% | −0.6 [−2.9, +1.7] |
+| category 3 | 30 | 46.7% | 43.3% | +3.3 [−10.0, +16.7] |
+| category 4 | 125 | 71.2% | 72.0% | −0.8 [−5.6, +4.0] |
+| category 5 | 132 | 66.7% | 70.5% | −3.8 [−9.1, +1.5] |
+| category 6 | 72 | 88.9% | 86.1% | +2.8 [+0.0, +6.9] |
+
+- **Churn, not recovery.** 14 rows came to hold every gold turn, and 17
+  stopped: 13 of those fell to partial and 4 to none. Mean gold recall
+  moved from 0.873 to 0.867.
+- The predicted +2–5 points did not appear. By the pre-registered
+  falsifier, the first 400 characters were not what hid the gold. Showing
+  the selector each candidate's best-matching line changes which gold turns
+  it keeps, but not how many.
+- **Verdict:** M74 does not enter the bundle, and criteria 2 and 3 are not
+  run. The switch stays in the code, off by default, as a measured null.
+- **Diagnostics:**
+  - No selector call failed.
+  - The selector declined to pick in 35 rows, against M57's 44.
+  - Mean memory time per row was 48.07 s, against M57's 34.50 s. That is
+    about 14 s per row for the line-level cross-encoder pass. The conditions
+    differ, though: two evidence-only shards on big, against M57's
+    workstation client.
