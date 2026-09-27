@@ -51,18 +51,21 @@ and every number that uses one says so. Plan approved by the user
 - [x] Claim-based chunk worker; bmb Codex home and shim; bmb smoke question passes (717 s, 5 items)
 - [x] ~~bmb worker~~ withdrawn 11:45 at the user's call (too slow, memory-heavy on a daily driver); no bmb chunk in the measurement
 - [x] big ran 2-slot overnight 09-24 → 09-25 (10 half-chunks) until a host-RAM OOM at 09:31
-- [ ] big rejoins at 1 slot × 96K with `--cache-ram 0`, started by a waiter when other tenants leave room (user: wait, evict no one)
+- [x] big rejoins at 1 slot × 96K with `--cache-ram 0`, started by a waiter when other tenants leave room (user: wait, evict no one)
 - [x] M54 amendment 2: sib (RTX 3060) and big_mac (M1 Max) as controllers, same model file (sha256-checked), same flags
 - [x] ~~big_mac~~ dropped 12:49: smoke question timed out at 1,800 s with no memory (6–7 tok/s on long contexts); no big_mac chunk in the measurement
 - [x] sib smoke question passes (916 s, 9 memory items, 0 failures); sib worker running from 12:58
 - [x] Unstarted chunks halved (15 → 30, same question set) so no slow host holds a long tail chunk
 - [x] `run_agentrunbook_c.py` records controller and reader served models
 - [x] `standing.rs` reads `memory_type` and has an `agentrunbook_c` mode,
-      its pairing keys and a label; tests (`SHIPPED_LME_V2_MEMORY` stays `myelin` until adoption)
+      its pairing keys and a label; tests (`SHIPPED_LME_V2_MEMORY` stayed `myelin` until adoption)
 - [x] Merge and by-controller report tooling (`merge_arc_chunks.py`, `arc_by_controller.py`), tried on the pilot
 - [x] M69: myelin's ledger exports the trajectory files byte-identical to the harness (200/200)
-- [ ] All 32 chunks done (2 + 30 halves) → merged prompt rows → reader pass → judged pair →
-      write-up → adoption PR (if ≥ 74.90)
+- [x] All 32 chunks done (2 + 30 halves) → merged prompt rows → reader pass → judged pair →
+      write-up → adoption PR (if ≥ 74.90). **2026-09-27: 78.05 on 451, +39.25 [+34.15, +44.12]
+      over the base, 3.15 past 74.90 (caveat-judge). Adopted: `SHIPPED_LME_V2_MEMORY` =
+      `agentrunbook_c`.** The reader pass ran on big itself after the laptop's sleep killed
+      two workstation-driven attempts.
 - [x] M62 design doc (`m62-native-trajectory-tools.md`)
 
 ## Always

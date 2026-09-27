@@ -35,8 +35,10 @@ its history. Short version:
     70.52.
   - The lead is inside reader variance. Multi-hop (−4.6) and open-domain
     (−34.4) still trail MemPro under its own judge.
-- **LME-V2 38.80**, behind the 74.90 AgentRunbook-C gate. M54's local
-  controller piloted at 82.98, and its full 451-question pair is running.
+- **LME-V2 78.05, 3.15 past the 74.90 AgentRunbook-C row (M54, 2026-09-27).**
+  AgentRunbook-C driven locally by Bonsai 27B, +39.25 [+34.15, +44.12] over
+  myelin's own memory (38.80). The lead is `caveat-judge` (our 9B judge). It
+  is adopted as the shipped LME-V2 point; see `BACKLOG_DONE.md`.
 
 ---
 
@@ -200,8 +202,9 @@ lost under the strict judge):
   span (0/19), and answers with spans scored 54%. M62b gives it the rule
   that naming a span is enough, and a forced answer that names the spans it
   found.
-- **LME-V2:** M54's full pair on big (2 slots) plus sib, then adopt AgentRunbook-C as
-  myelin's agent-history mode (labelled) and build a native version (M62).
+- ~~**LME-V2:** M54's full pair on big (2 slots) plus sib, then adopt AgentRunbook-C as
+  myelin's agent-history mode (labelled)~~ *done 2026-09-27: 78.05, adopted.* A native
+  version (M62) stays open.
 
 ---
 
@@ -216,33 +219,6 @@ recipe: LongMemEval_S 81.80, abstention 26/30 (flat). LoCoMo 66.69 → 70.65 by
 overriding refusals that had evidence in hand, with the 9B stand-in right 42% of
 the time. Next: Bonsai answering those refusals itself under a best-guess clause,
 with an adversarial guard (`docs/measurements/m56-verified-answers.md`).
-
----
-
-## M54 — a local file-reading controller for LME-V2 *(pilot +40.4 [+25.5, +55.3]; full pair running)*
-
-M53 (`docs/measurements/m53-state-completion.md`) measured where LME-V2
-loses its answers — 45% of wrong phrase/list answers are in the haystack but
-never delivered, 36% delivered and misread — and probed three cheap
-retrieval fixes: reranked state completion recovered **1 of 6** live, a
-change view over delivered states would cover 19 of 65 misses (~+2 to +3),
-a step-anchored change view 3–4. None is the lever. The answer is a specific
-UI string in a specific transition, and the LME-V2 paper's best system finds
-it by *acting*: a coding agent over trajectory files, 72.5 against RAG's
-48.5 (`10.48550/arXiv.2605.12493`).
-
-Local-only (hard requirement): an `investigate` tool set over the stored
-trajectories — `grep` over page text and thoughts, `open(traj, state)`,
-`diff(traj, state)` against the previous state — driven by a local
-controller (big's 27B coding model, or the 9B), returning the evidence it
-gathered to the unchanged reader. Pilot on a stratified LME-V2 subset before
-any full pair. Design doc first.
-
-**Pilot measured 2026-09-24: 42.55 → 82.98, +40.43 [+25.53, +55.32]** on 47
-questions, with the paper's AgentRunbook-C driven by Bonsai 27B through Codex
-and the protocol's 9B reader. The full 451-question pair is running in
-resumable chunks (~27 GPU-hours)
-(`docs/measurements/m54-local-file-controller.md`).
 
 ---
 

@@ -1,4 +1,4 @@
-# M54 — a local file-reading controller for LME-V2 *(pilot measured 2026-09-24: +40.4, full pair running)*
+# M54 — a local file-reading controller for LME-V2 *(full pair measured 2026-09-27: 78.05, +39.25 over the base, 3.15 past 74.90; adopted)*
 
 ## Why
 
@@ -176,7 +176,9 @@ the 58.60 standing row. The full pair is the measurement that is.
 Artifacts: `runs/m54_arc_web`, `runs/m54_arc_ent` (reader phase, scored)
 and `runs/m54_arc_{web,ent}_prompts` (controller phase).
 
-## Full pair — running
+## Full pair
+
+*Measured 2026-09-27; see "Results — full pair" at the end.*
 
 The remaining 404 questions (web 216, enterprise 188) run through the
 controller in 17 chunks of 24. A chunk writes its own prompt rows, so the
@@ -460,3 +462,102 @@ help. That is ~20 questions an hour.
 - **The one remaining cloud artifact** is the rule the shim now enforces:
   function tools only. The user's decision to finish on the cloud stands in
   the record, alongside why it could not be carried out.
+
+## Results — full pair, measured 2026-09-27
+
+All 451 questions, scored by the protocol's Qwen3.5-9B judge and paired against
+myelin's own memory (`runs/m47_base_{web,ent}`), with a 20,000-sample paired
+bootstrap (`lmev2_strata.py`, which reuses `paired_ci.paired_bootstrap`).
+Artifacts: `runs/m54_full_{web,ent}`.
+
+| stratum | n | myelin memory | AgentRunbook-C, Bonsai 27B | Δ [95% CI] |
+|---|---|---|---|---|
+| **combined** | 451 | 38.80 | **78.05** | **+39.25 [+34.15, +44.12]** |
+| answerable | 323 | 45.82 | 82.04 | +36.22 [+30.65, +41.80] |
+| abstention | 128 | 21.09 | 67.97 | +46.88 [+36.72, +56.25] |
+| static | 134 | 45.52 | 86.57 | +41.04 [+32.09, +50.00] |
+| dynamic | 86 | 34.88 | 84.88 | +50.00 [+38.37, +60.47] |
+| procedure | 74 | 66.22 | 85.14 | +18.92 [+9.46, +29.73] |
+| gotchas | 29 | 27.59 | 44.83 | +17.24 [+3.45, +31.03] |
+| static-abs | 55 | 21.82 | 69.09 | +47.27 [+34.55, +60.00] |
+| dynamic-abs | 41 | 19.51 | 63.41 | +43.90 [+24.39, +60.98] |
+| procedure-abs | 32 | 21.88 | 71.88 | +50.00 [+28.12, +68.75] |
+
+- **By domain:** web 81.67 (240), enterprise 73.93 (211).
+- **Where it is still weak:**
+  - Enterprise abstention is 53.57 on 56 questions, against 79.17 on web's
+    72. Why is not yet measured.
+  - Gotchas gain least (+17.24).
+- **Against the row:** 78.05 against AgentRunbook-C's published 74.90, a
+  lead of 3.15.
+  - That row used a frontier controller, reader and judge. Our reader and
+    judge are the local 9B, so `standing` reports the lead as `caveat-judge`,
+    not as a closed gate.
+- **By controller configuration** (Amendment 2's pre-registered breakdown,
+  `arc_by_controller.py`):
+
+  | configuration | n | base | arm | Δ [95% CI] |
+  |---|---|---|---|---|
+  | big, 1 slot × 96K | 319 | 42.01 | 80.88 | +38.87 [+32.92, +44.83] |
+  | big, 2 slots × 64K | 120 | 29.17 | 70.00 | +40.83 [+31.67, +50.00] |
+  | sib, 1 slot × 96K | 12 | 50.00 | 83.33 | +33.33 [+0.00, +66.67] |
+
+  The 2-slot configuration's lower score comes with a lower base on the
+  same questions (29.17), and its paired gain matches the others. Those
+  questions were harder for myelin memory too. The configurations were not
+  randomized, so this is read as provenance, not as an effect.
+- **M52 diagnostic:** 4 rows reached the 1,024-token thinking budget.
+- **Cost:** building each question's memory took 337.7 s on web and 552.7 s
+  on enterprise, against myelin memory's 59.5 and 124.7 s.
+  - The ratchet's two latency floors (`docs/sota/progression.json`) were
+    re-pinned by hand to these values in the adoption PR.
+  - This is the deliberate price of the method the user chose to adopt on
+    2026-09-24, not a regression the ratchet missed.
+
+**Adopted.** `SHIPPED_LME_V2_MEMORY` is now `AGENTRUNBOOK_C`
+(`crates/myelin-eval/src/standing.rs`). Every myelin-memory LME-V2 run now
+reads as an arm, and `harness_arm`'s myelin-memory switch checks were removed
+because they could no longer run. The number always carries the label
+"method: AgentRunbook-C (10.48550/arXiv.2605.12493), run locally with a Bonsai
+27B controller". A native version over myelin's own ledger (M62) remains the
+open follow-up.
+
+### Reader pass: corrections and run log
+
+- **Correction: the reader does not need 23 GB free.** The earlier estimate
+  was wrong, and nothing on big could ever have cleared it. Measured from the
+  GGUF and in use, it needs about 12.5 GB:
+
+  | component | MiB |
+  |---|---|
+  | weights | 5,690 |
+  | projector | 876 |
+  | q8_0 KV at 204,800 tokens (8 full-attention layers of 32 × 4 KV heads × 256 × K and V × 1.0625 B) | 3,400 |
+  | compute | ~1,500 |
+  | reranker | ~1,000 |
+
+  Measured in use: about 13,500. The pass waited for 14,500 MiB free.
+  voice-serve and laya-sidecar were paused for it on the user's instruction
+  (2026-09-26) and restarted when it ended (07:35).
+- **Two attempts from the workstation died because that laptop slept on
+  battery** (09-26, 18:03 and 18:50).
+  - The SSH tunnel to the reader died. The web phase failed on
+    `APIConnectionError`, and the enterprise phase was refused.
+  - Their partial outputs are kept, unscored, as
+    `runs/m54_full_{web,ent}.failed_1850`.
+- **The pass then ran on big itself**, as a systemd user unit beside the
+  reader, with no tunnel. The prompts, reader and judge are the same. Three
+  things differ, and none changes what is read or scored:
+  - The saved prompts name the question screenshots by the workstation's
+    absolute path, so those image fields were pointed at the same files on
+    big (15 web rows, 14 enterprise). The driver refuses unless only those
+    path strings differ and every file exists.
+  - `--codex-binary /bin/false` in the replay phase. The harness checks that
+    the controller binary exists even when it only replays saved prompts.
+    `/bin/false` fails loudly if it is ever invoked.
+  - The trajectory screenshots were downloaded on big from the dataset's
+    Hugging Face repository. The harness resolves them even for
+    accessibility-tree evidence. Both bundles match the workstation's
+    SHA-256 (web `68699c68…01fb`, enterprise `5c4a67ae…d7a3`), and they
+    extract to 1,913 directories and 49,708 files.
+- **Timing (2026-09-27):** web 06:01–06:52, enterprise 06:52–07:35.

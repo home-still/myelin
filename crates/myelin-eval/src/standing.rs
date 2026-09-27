@@ -1200,10 +1200,6 @@ fn bench_metrics(dir: &Path, agg_text: &str) -> Result<Vec<Ours>> {
 /// history, not a default — it stays this file when the shipped model moves.
 const PRE_FIELD_SERVED_MODEL: &str = crate::bench::QWEN35_9B_GGUF;
 
-/// The corpus name `shipped_llm_model` knows LME-V2's harness runs by. The
-/// memory side of an LME-V2 run is served whatever ships there.
-const LME_V2_CORPUS: &str = "lme_v2_small";
-
 /// Whether a run was served a model other than `shipped`. An artifact
 /// without the field predates it and was served [`PRE_FIELD_SERVED_MODEL`].
 fn served_another_model(recorded: Option<&str>, shipped: &str) -> bool {
@@ -1664,12 +1660,13 @@ fn harness_metrics(dir: &Path, agg: &Value) -> Result<(HarnessRun, Vec<Ours>)> {
 
 /// The memory mode LME-V2's shipped system runs: the harness `memory_type`.
 ///
-/// `myelin` until an AgentRunbook-C full pair clears the LME-V2 bar; the
-/// adoption decided by the user on 2026-09-24 moves it to
-/// [`AGENTRUNBOOK_C`] in that result's PR, and every myelin-memory LME-V2 run
-/// then reads as an arm. One constant, so the switch is one reviewed edit.
-const SHIPPED_LME_V2_MEMORY: &str = MYELIN_MEMORY;
-const MYELIN_MEMORY: &str = "myelin";
+/// [`AGENTRUNBOOK_C`] since M54's full pair cleared the LME-V2 bar: 78.05 on
+/// all 451 questions against AgentRunbook-C's published 74.90, +39.25
+/// [+34.15, +44.12] over the myelin-memory base (2026-09-27,
+/// `docs/measurements/m54-local-file-controller.md`). The user decided the
+/// adoption on 2026-09-24, before the result. Every myelin-memory LME-V2 run
+/// now reads as an arm. One constant, so the switch is one reviewed edit.
+const SHIPPED_LME_V2_MEMORY: &str = AGENTRUNBOOK_C;
 /// The LME-V2 authors' own file-reading agent (`10.48550/arXiv.2605.12493`
 /// §4.2), run unmodified by `adapters/run_agentrunbook_c.py` with a local
 /// controller (M54).
@@ -1867,59 +1864,14 @@ fn harness_arm(dir: &Path) -> Result<bool> {
     let Some(params) = cfg.get("memory_params") else {
         return Ok(false);
     };
-    if mode == AGENTRUNBOOK_C {
-        // The shipped AgentRunbook-C point: accessibility-tree evidence, read
-        // by the protocol's reader. Anything else is an arm of it.
-        let evidence = params.get("evidence_mode").and_then(Value::as_str);
-        let reader = params.get("reader_served_model").and_then(Value::as_str);
-        return Ok(evidence != Some(AGENTRUNBOOK_C_EVIDENCE_MODE)
-            || served_another_model(reader, LME_V2_READER_MODEL));
-    }
-    let switched = PAIR_SWITCH_DEFAULTS
-        .iter()
-        .any(|(key, shipped)| params.get(key).and_then(Value::as_bool) == Some(!shipped));
-    // `select` against the default for THIS run's mode. Every LME-V2 run is
-    // `investigate`, where M32 made it the shipped default, so testing it
-    // against a hardcoded `false` inverts both verdicts at once: the
-    // shipped configuration reads as an arm and is excluded from "where we
-    // stand", while a `select: false` run — an override — is published as
-    // it. That is this function's own motivating defect, which M32 fixed in
-    // `bench_metrics` and left here.
-    //
-    // An absent or `null` `select` is the caller declining to override, so
-    // it is whatever the server's default is, and never an arm.
-    let mode = params.get("mode").and_then(Value::as_str).unwrap_or("recall");
-    let select_switched = params
-        .get("select")
-        .and_then(Value::as_bool)
-        .is_some_and(|set| set != shipped_select_sufficient(mode));
-    // Width is an arm whenever it is stated: `RetrieveConfig::default()`
-    // supplies both, so any recorded number is an override of it.
-    // M43's shipped digest, against the default for this run's mode. Here
-    // absence reads as `false`, not as the shipped default: no adapter
-    // artifact before M43 wrote the key, and every one of them ran without
-    // the digest, so a pre-M43 `investigate` pair is an off-arm of today's
-    // configuration and must not be published as "where we stand". That is
-    // the M22 defect — quoting a number the shipped defaults no longer
-    // produce — refused mechanically.
-    let digest_switched = [
-        ("item_digest", shipped_item_digest(mode)),
-        ("digest_dates", shipped_digest_dates(mode)),
-    ]
-    .iter()
-    .any(|(key, shipped)| {
-        params.get(key).and_then(Value::as_bool).unwrap_or(false) != *shipped
-    });
-    let widened = ["prefetch_limit", "rerank_depth"]
-        .iter()
-        .any(|key| params.get(key).is_some_and(|v| !v.is_null()));
-    // M55: memory built by a model other than the shipped one, or read by
-    // anything but the protocol's reader, measures that model.
-    let model = |key: &str| params.get(key).and_then(Value::as_str);
-    let model_switched =
-        served_another_model(model("memory_llm_served_model"), crate::bench::shipped_llm_model(LME_V2_CORPUS))
-        || served_another_model(model("reader_served_model"), LME_V2_READER_MODEL);
-    Ok(switched || select_switched || digest_switched || widened || model_switched)
+    // The shipped AgentRunbook-C point: accessibility-tree evidence, read by
+    // the protocol's reader. Anything else is an arm of it. The myelin-memory
+    // switch checks that stood here (select, digest, width, the memory model)
+    // could no longer run once myelin memory stopped shipping: every such run
+    // is an arm by the line above.
+    let evidence = params.get("evidence_mode").and_then(Value::as_str);
+    let reader = params.get("reader_served_model").and_then(Value::as_str);
+    Ok(evidence != Some(AGENTRUNBOOK_C_EVIDENCE_MODE) || served_another_model(reader, LME_V2_READER_MODEL))
 }
 
 fn read_json(path: &Path) -> Result<Value> {
@@ -3134,7 +3086,7 @@ mod tests {
         use crate::bench::{shipped_llm_model, BONSAI_27B_GGUF, QWEN35_9B_GGUF};
         assert_eq!(shipped_llm_model("longmemeval_s"), BONSAI_27B_GGUF);
         assert_eq!(shipped_llm_model("locomo"), QWEN35_9B_GGUF);
-        assert_eq!(shipped_llm_model(LME_V2_CORPUS), QWEN35_9B_GGUF);
+        assert_eq!(shipped_llm_model("lme_v2_small"), QWEN35_9B_GGUF);
         let lme = shipped_llm_model("longmemeval_s");
         assert!(served_another_model(None, lme), "a pre-field LongMemEval_S run was the 9B");
         assert!(served_another_model(Some(QWEN35_9B_GGUF), lme));
@@ -3710,6 +3662,26 @@ mod tests {
         .unwrap();
     }
 
+    /// An AgentRunbook-C harness run: `harness_run`'s metrics, with the
+    /// memory config its adapter writes (`adapters/run_agentrunbook_c.py`).
+    fn arc_run(runs: &Path, name: &str, domain: &str, count: usize, acc: f64, evidence: &str, reader: &str) {
+        harness_run(runs, name, domain, count, acc, Value::Null);
+        std::fs::write(
+            runs.join(name).join("runtime_inputs/memory_config.json"),
+            serde_json::json!({
+                "memory_type": AGENTRUNBOOK_C,
+                "memory_params": {
+                    "evidence_mode": evidence,
+                    "controller_model": "Ternary Bonsai 2 27B",
+                    "controller_hosts": {"mixture": {"big/1x96000": 200, "sib/1x96000": 40}},
+                    "reader_served_model": reader,
+                }
+            })
+            .to_string(),
+        )
+        .unwrap();
+    }
+
     /// The shipped configuration, as an LME-V2 `memory_config.json` would
     /// record it. `select` is **true** because every LME-V2 run is
     /// `investigate` and M32 made the pool-level selector that mode's
@@ -3796,160 +3768,63 @@ mod tests {
     /// **The arm defect on the LME-V2 path.** An arm must never be quoted
     /// as where we stand, however well it scores. Originally the M22 case
     /// (`dated: false` published at 39.02 over the shipped 36.59 because
-    /// `harness_metrics` hardcoded `arm: false`); since 2026-09-23 LME-V2
-    /// ships undated, so the arm here is the *dated* pair.
+    /// `harness_metrics` hardcoded `arm: false`). Since M54's adoption
+    /// (2026-09-27) the shipped point is AgentRunbook-C, so the arm here is a
+    /// better-scoring myelin-memory pair.
     #[test]
     fn an_lme_v2_arm_never_displaces_the_shipped_configuration() {
         let tmp = tempfile::tempdir().unwrap();
         let runs = tmp.path().join("runs");
-        let mut dated = full_params();
-        dated["dated"] = serde_json::json!(true);
-        harness_run(&runs, "nodate_web", "web", 240, 0.39, dated.clone());
-        harness_run(&runs, "nodate_ent", "enterprise", 211, 0.39, dated);
-        harness_run(&runs, "base_web", "web", 240, 0.3659, full_params());
-        harness_run(&runs, "base_ent", "enterprise", 211, 0.3659, full_params());
+        harness_run(&runs, "myelin_web", "web", 240, 0.90, full_params());
+        harness_run(&runs, "myelin_ent", "enterprise", 211, 0.90, full_params());
+        arc_run(&runs, "arc_web", "web", 240, 0.78, AGENTRUNBOOK_C_EVIDENCE_MODE, LME_V2_READER_MODEL);
+        arc_run(&runs, "arc_ent", "enterprise", 211, 0.78, AGENTRUNBOOK_C_EVIDENCE_MODE, LME_V2_READER_MODEL);
 
         let ours = collect(&runs, "/nonexistent/python").unwrap();
         let combined = &ours["lme_v2_small.overall_full_set.combined"];
         assert!(
-            combined.detail.contains("base_web"),
-            "the shipped configuration is where we stand, even at 36.59 against 39.00: {}",
+            combined.detail.contains("arc_web"),
+            "the shipped configuration is where we stand, even at 78 against 90: {}",
             combined.detail
         );
         assert!(!combined.arm, "{combined:?}");
         assert_eq!(combined.candidates.len(), 2, "both pairs stay listed");
     }
 
-    /// A stated width is an override of `RetrieveConfig::default()`, so it
-    /// is an arm too — the M23 width sweep must not publish itself.
+    /// Once AgentRunbook-C ships, a myelin-memory pair measures myelin memory:
+    /// it is an arm whatever its switches say, the shipped myelin defaults
+    /// included. The per-switch checks this replaced (M32's `select`, M43's
+    /// digest, M23's width, M55's memory model) decided which myelin run was
+    /// the shipped one; there is no such run now.
     #[test]
-    fn a_stated_width_is_an_arm() {
-        let tmp = tempfile::tempdir().unwrap();
-        let runs = tmp.path().join("runs");
+    fn every_myelin_memory_pair_is_an_arm_once_agentrunbook_c_ships() {
+        let mut off = full_params();
+        off["select"] = serde_json::json!(false);
         let mut wide = full_params();
         wide["prefetch_limit"] = serde_json::json!(200);
-        harness_run(&runs, "wide_web", "web", 240, 0.50, wide.clone());
-        harness_run(&runs, "wide_ent", "enterprise", 211, 0.50, wide);
-        harness_run(&runs, "base_web", "web", 240, 0.40, full_params());
-        harness_run(&runs, "base_ent", "enterprise", 211, 0.40, full_params());
-
-        let ours = collect(&runs, "/nonexistent/python").unwrap();
-        let combined = &ours["lme_v2_small.overall_full_set.combined"];
-        assert!(combined.detail.contains("base_web"), "{}", combined.detail);
-    }
-
-    /// **The M32 defect's harness twin.** `select`'s shipped value depends
-    /// on the mode, so `harness_arm` cannot test it against a constant.
-    /// Every LME-V2 run is `investigate`, where M32 made the pool-level
-    /// selector the default, so a hardcoded `false` inverts both verdicts:
-    /// the shipped configuration reads as an arm and is excluded, while a
-    /// `select: false` override is published as "where we stand".
-    ///
-    /// M32 fixed this in `bench_metrics` and left it here, which is why
-    /// this asserts all four corners rather than the one that changed.
-    #[test]
-    fn harness_select_is_an_arm_only_against_its_own_modes_default() {
-        for (mode, select, expect_arm, why) in [
-            ("investigate", true, false, "the shipped investigate default"),
-            ("investigate", false, true, "investigate with the default turned OFF"),
-            ("recall", false, false, "the shipped recall default"),
-            ("recall", true, true, "recall with an LLM §7.1 forbids"),
+        let mut unset = full_params();
+        unset["select"] = Value::Null;
+        for (params, what) in [
+            (full_params(), "the old shipped myelin defaults"),
+            (off, "select turned off"),
+            (wide, "a stated width"),
+            (unset, "an unset select"),
         ] {
             let tmp = tempfile::tempdir().unwrap();
             let runs = tmp.path().join("runs");
-            let mut params = full_params();
-            params["mode"] = serde_json::json!(mode);
-            params["select"] = serde_json::json!(select);
-            // The digest at its own mode's shipped value (M43).
-            params["item_digest"] = serde_json::json!(mode == "investigate");
-            params["digest_dates"] = serde_json::json!(mode == "investigate");
             harness_run(&runs, "web", "web", 240, 0.40, params.clone());
             harness_run(&runs, "ent", "enterprise", 211, 0.40, params);
-
             let ours = collect(&runs, "/nonexistent/python").unwrap();
-            let combined = &ours["lme_v2_small.overall_full_set.combined"];
-            assert_eq!(
-                combined.arm, expect_arm,
-                "{mode} + select={select} is {why}"
-            );
-        }
-    }
-
-    /// M43's digest on the LME-V2 path. Same shape as `select`, with one
-    /// extra corner: **an artifact that does not carry the key at all ran
-    /// before M43, without the digest**, and must read as an off-arm rather
-    /// than as the shipped default — otherwise `runs/m34_pools_*`, measured
-    /// at the pre-M43 operating point, would be published as where the
-    /// shipped configuration stands. That is the M22 defect by another
-    /// route, and it is why absence here is `false` and not "unrecorded".
-    #[test]
-    fn harness_digest_is_an_arm_only_against_its_own_modes_default() {
-        for (mode, digest, expect_arm, why) in [
-            ("investigate", Some(true), false, "the shipped investigate default"),
-            ("investigate", Some(false), true, "investigate with the digest turned OFF"),
-            ("investigate", None, true, "a pre-M43 artifact: ran without the digest"),
-            ("recall", Some(false), false, "the shipped recall default"),
-            ("recall", None, false, "a pre-M43 recall artifact: never had a digest"),
-            ("recall", Some(true), true, "recall with a mechanism it does not have"),
-        ] {
-            let tmp = tempfile::tempdir().unwrap();
-            let runs = tmp.path().join("runs");
-            let mut params = full_params();
-            params["mode"] = serde_json::json!(mode);
-            params["select"] = serde_json::json!(mode == "investigate");
-            match digest {
-                Some(on) => {
-                    params["item_digest"] = serde_json::json!(on);
-                    params["digest_dates"] = serde_json::json!(on);
-                }
-                None => {
-                    params.as_object_mut().unwrap().remove("item_digest");
-                    params.as_object_mut().unwrap().remove("digest_dates");
-                }
-            }
-            harness_run(&runs, "web", "web", 240, 0.40, params.clone());
-            harness_run(&runs, "ent", "enterprise", 211, 0.40, params);
-
-            let ours = collect(&runs, "/nonexistent/python").unwrap();
-            let combined = &ours["lme_v2_small.overall_full_set.combined"];
-            assert_eq!(
-                combined.arm, expect_arm,
-                "{mode} + item_digest={digest:?} is {why}"
-            );
+            assert!(ours["lme_v2_small.overall_full_set.combined"].arm, "{what} is an arm");
         }
     }
 
     /// M55: an LME-V2 run records which model built its memory and which
-    /// read it. Memory built by anything but the shipped model is an arm,
-    /// and so is any reader but the protocol's 9B; absence is a pre-field
-    /// run, served the 9B on both sides. A domain whose memory Bonsai built
-    /// must not pair with one the 9B built.
+    /// read it; absence is a pre-field run, served the 9B on both sides. A
+    /// domain whose memory Bonsai built must not pair with one the 9B built.
     #[test]
-    fn harness_models_are_arms_and_split_pairs() {
+    fn harness_models_split_pairs() {
         let bonsai = "Ternary-Bonsai-2-27B-PTQ1_0.gguf";
-        for (memory, reader, expect_arm, why) in [
-            (None, None, false, "a pre-field run: the 9B on both sides"),
-            (Some(PRE_FIELD_SERVED_MODEL), Some(LME_V2_READER_MODEL), false, "the shipped memory model, the protocol reader"),
-            (Some(bonsai), Some(LME_V2_READER_MODEL), true, "memory built by a model that does not ship"),
-            (Some(PRE_FIELD_SERVED_MODEL), Some(bonsai), true, "a reader the protocol does not use"),
-        ] {
-            let tmp = tempfile::tempdir().unwrap();
-            let runs = tmp.path().join("runs");
-            let mut params = full_params();
-            if let Some(m) = memory {
-                params["memory_llm_served_model"] = serde_json::json!(m);
-            }
-            if let Some(r) = reader {
-                params["reader_served_model"] = serde_json::json!(r);
-            }
-            harness_run(&runs, "web", "web", 240, 0.40, params.clone());
-            harness_run(&runs, "ent", "enterprise", 211, 0.40, params);
-            let ours = collect(&runs, "/nonexistent/python").unwrap();
-            let combined = &ours["lme_v2_small.overall_full_set.combined"];
-            assert_eq!(combined.arm, expect_arm, "memory={memory:?} reader={reader:?} is {why}");
-        }
-
-        // Pairing: web built by Bonsai, enterprise by the 9B, is no pair.
         let tmp = tempfile::tempdir().unwrap();
         let runs = tmp.path().join("runs");
         let mut web = full_params();
@@ -3965,41 +3840,37 @@ mod tests {
     }
 
     /// C3 (2026-09-24): an AgentRunbook-C pair has its own operating point.
-    /// It pairs on its own keys, never with a myelin-memory half. While myelin
-    /// memory ships, the pair is an arm. Its number always carries the method
-    /// label, so it is never read as myelin's own memory.
+    /// It pairs on its own keys, never with a myelin-memory half. Since M54's
+    /// adoption (2026-09-27) it ships, so the accessibility-tree pair read by
+    /// the protocol's reader is where we stand, and any other evidence mode or
+    /// reader is an arm of it. Its number always carries the method label, so
+    /// it is never read as myelin's own memory.
     #[test]
-    fn agentrunbook_c_pairs_on_its_own_keys_is_an_arm_and_is_labelled() {
-        let arc = |runs: &Path, name: &str, domain: &str, count: usize, acc: f64| {
-            harness_run(runs, name, domain, count, acc, Value::Null);
-            let path = runs.join(name).join("runtime_inputs/memory_config.json");
-            std::fs::write(
-                &path,
-                serde_json::json!({
-                    "memory_type": AGENTRUNBOOK_C,
-                    "memory_params": {
-                        "evidence_mode": AGENTRUNBOOK_C_EVIDENCE_MODE,
-                        "controller_model": "Ternary Bonsai 2 27B",
-                        "controller_hosts": {"mixture": {"big/1x96000": 200, "sib/1x96000": 40}},
-                        "reader_served_model": LME_V2_READER_MODEL,
-                    }
-                })
-                .to_string(),
-            )
-            .unwrap();
-        };
+    fn agentrunbook_c_pairs_on_its_own_keys_ships_and_is_labelled() {
         let tmp = tempfile::tempdir().unwrap();
         let runs = tmp.path().join("runs");
-        arc(&runs, "arc_web", "web", 240, 0.80);
-        arc(&runs, "arc_ent", "enterprise", 211, 0.75);
+        arc_run(&runs, "arc_web", "web", 240, 0.80, AGENTRUNBOOK_C_EVIDENCE_MODE, LME_V2_READER_MODEL);
+        arc_run(&runs, "arc_ent", "enterprise", 211, 0.75, AGENTRUNBOOK_C_EVIDENCE_MODE, LME_V2_READER_MODEL);
         // A myelin-memory half at the same size must not pair with them.
         harness_run(&runs, "myelin_ent", "enterprise", 211, 0.40, full_params());
         let ours = collect(&runs, "/nonexistent/python").unwrap();
         let combined = &ours["lme_v2_small.overall_full_set.combined"];
         assert!(combined.run.ends_with("arc_web"), "{combined:?}");
-        assert!(combined.arm, "myelin memory ships: an AgentRunbook-C pair is an arm");
+        assert!(!combined.arm, "AgentRunbook-C ships: its shipped point is not an arm");
         assert!(combined.unrecorded.is_empty(), "{:?}", combined.unrecorded);
         assert!(combined.detail.contains(AGENTRUNBOOK_C_LABEL), "{}", combined.detail);
+
+        for (evidence, reader, what) in [
+            ("screenshot", LME_V2_READER_MODEL, "another evidence mode"),
+            (AGENTRUNBOOK_C_EVIDENCE_MODE, "Ternary-Bonsai-2-27B-PTQ1_0.gguf", "another reader"),
+        ] {
+            let tmp = tempfile::tempdir().unwrap();
+            let runs = tmp.path().join("runs");
+            arc_run(&runs, "web", "web", 240, 0.80, evidence, reader);
+            arc_run(&runs, "ent", "enterprise", 211, 0.75, evidence, reader);
+            let ours = collect(&runs, "/nonexistent/python").unwrap();
+            assert!(ours["lme_v2_small.overall_full_set.combined"].arm, "{what} is an arm");
+        }
     }
 
     /// A harness artifact without `memory_type` is refused, not guessed.
@@ -4074,28 +3945,6 @@ mod tests {
                 !ours.contains_key("lme_v2_small.overall_full_set.combined"),
                 "web={w:?} ent={e:?} must not pair: a combined number from two \
                  different stores is not reproducible"
-            );
-        }
-    }
-
-    /// An absent or null `select` is the caller declining to override, not
-    /// an arm — whatever the mode's default happens to be. A recorded
-    /// `null` must not be read as `false` and become an arm the moment the
-    /// `investigate` default is on.
-    #[test]
-    fn an_unset_select_is_never_an_arm() {
-        for value in [serde_json::Value::Null, serde_json::json!(true)] {
-            let tmp = tempfile::tempdir().unwrap();
-            let runs = tmp.path().join("runs");
-            let mut params = full_params();
-            params["select"] = value.clone();
-            harness_run(&runs, "web", "web", 240, 0.40, params.clone());
-            harness_run(&runs, "ent", "enterprise", 211, 0.40, params);
-
-            let ours = collect(&runs, "/nonexistent/python").unwrap();
-            assert!(
-                !ours["lme_v2_small.overall_full_set.combined"].arm,
-                "select={value} on investigate is the shipped default"
             );
         }
     }
