@@ -94,6 +94,35 @@ first arm to question the measurement apparatus rather than the mechanism.
 
 ---
 
+## Round 4 on LongMemEval_S — five mechanisms, **none clears its stratum gate**; no bundle, nothing ships *(2026-09-27)*
+
+- **How it ran:** under the user's rule of a stratum gate first, then one
+  bundle at +3.0. Each arm was a partial rerun on M57's serving, on big
+  itself, after a 5-row control reproduced M57's evidence byte for byte.
+- **Results** (strict 9B / official):
+
+  | mechanism | stratum (n) | strict Δ [95% CI] | official Δ | doc |
+  |---|---|---|---|---|
+  | M71b, the grounded pass covers every named thing | answerable declines (49) | +6.1 [+0.0, +14.3] | +6.1 | `m71b-grounded-every-named.md` |
+  | M73b, events from the question's own date | past-point questions (18) | +11.1 [−11.1, +33.3] | +27.8 | `m73b-dated-events.md` |
+  | M72b, aggregation depth with the cap fixed | multi-session counts (90) | +4.4 [−3.3, +12.2] | +3.3 | `m72b-aggregation-depth-uncapped.md` |
+  | M20b, a ranked profile block | preference (30) | +0.0 [−13.3, +13.3] | −6.7 | `m20b-ranked-profile.md` |
+  | M74, the selector's passage view | all-gold-held, answerable (470) | −0.6 [−3.0, +1.7] | — | `m74-selector-focus.md` |
+
+- **What was learned:**
+  - The three positive mechanisms are real in direction and small:
+    +0.4 to +0.6 overall each, with no abstention cost.
+  - M72b removed undercounts without adding overcounts.
+  - M20b's profile block narrows advice to one remembered fact.
+  - M74's passage view changes which gold turns the selector keeps, not how
+    many.
+  - Strata of 18 to 49 rows cannot separate a 2–3 row gain from zero, so the
+    stratum rule alone can hold back mechanisms whose sum might matter.
+    Stacked, the three would give about +1.6 strict, which is below the
+    bundle bar anyway.
+- **Standing is unchanged:** LongMemEval_S 79.20 strict / 78.60 official,
+  against 80.80.
+
 ## M54 — a local file-reading controller for LME-V2: **78.05, +39.25 [+34.15, +44.12]; 3.15 past 74.90; adopted**
 
 - **Design:** the LME-V2 authors' AgentRunbook-C, run unmodified, with a

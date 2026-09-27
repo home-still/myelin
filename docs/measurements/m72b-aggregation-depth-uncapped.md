@@ -50,3 +50,33 @@ Depth can cut both ways, and this arm measures which way it cuts here.
 **Falsifier.** The over-count rate rises more than the under-count rate
 falls, and the net is at or below zero. That is Karunanidhi's finding
 reproduced, and depth ships off.
+
+## Result — under the gate; does not enter the bundle *(measured 2026-09-27)*
+
+The run is `runs/m72b_lme_agg`: the 137 counting questions were rerun at
+`--aggregation-k 18 --aggregation-budget-tokens 8192`, with PR #136's probe
+width fix. The other 363 rows are M57's.
+
+| reading | stratum | n | M72b | M57 | Δ [95% CI] | p |
+|---|---|---|---|---|---|---|
+| strict 9B | multi-session counts | 90 | 81.1% | 76.7% | **+4.4 [−3.3, +12.2]** | 0.30 |
+| official | multi-session counts | 90 | 80.0% | 76.7% | +3.3 [−3.3, +11.1] | 0.45 |
+| strict 9B | all | 500 | 79.8 | 79.2 | +0.6 [−0.8, +2.0] | 0.49 |
+| official | all | 500 | 79.4 | 78.6 | +0.8 [−0.6, +2.2] | 0.35 |
+
+**Overcount, as pre-registered.** The first number in each answer on the 90
+rows was compared with the gold number:
+
+| | exact | over | under | declined | unparsed |
+|---|---|---|---|---|---|
+| M57 | 60 | 4 | 15 | 9 | 2 |
+| M72b | 63 | 3 | 12 | 10 | 2 |
+
+- Depth trimmed undercounts without adding overcounts. Utility Under
+  Attack's warning (arXiv 2608.21230), that more context makes the reader
+  overcount, did not show at k = 18.
+- **Verdict:** criterion 1 fails (strict CI crosses zero), and criterion 2
+  holds.
+- With the cap fixed, the mechanism is real in direction and about the size
+  M72 measured (+1.0 then, +0.6 now). The depth was never the whole
+  counting problem. The switch stays off.

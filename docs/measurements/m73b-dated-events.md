@@ -83,3 +83,36 @@ turning wrong, or declines rising on the 18.
   actual blocks);
 - `gpt4_59149c78`, whose gold sits 3 days outside its window. It must get
   no block.
+
+## Result — under the gate; does not enter the bundle *(measured 2026-09-27)*
+
+The run is `runs/m73b_events_s1`: the 18 rows with a past-point window were
+rerun with `--events-ledger data/longmemeval_s_events.ledger` (8,132 event
+records). The other 482 rows are M57's.
+
+| reading | stratum | n | M73b | M57 | Δ [95% CI] | p |
+|---|---|---|---|---|---|---|
+| strict 9B | fired | 18 | 50.0% | 38.9% | **+11.1 [−11.1, +33.3]** | 0.43 |
+| official | fired | 18 | 66.7% | 38.9% | +27.8 [+0.0, +55.6] | 0.054 |
+| strict 9B | all | 500 | 79.6 | 79.2 | +0.4 [−0.4, +1.2] | 0.45 |
+| official | all | 500 | 79.6 | 78.6 | +1.0 [+0.0, +2.2] | 0.069 |
+
+- **Under the official grader, 6 fixed and 1 broken.**
+  - The fixes are dated events the base had declined on or got wrong:
+    "Smoker", "Road bike" (the base named the mountain bike from the wrong
+    date), "Planted 12 new tomato saplings", and the three-week writing
+    total of 23.
+  - The break: "Dark Souls 3" for the gold "Dark Souls 3 DLC".
+- **The strict 9B credits 3 fewer of the fixes**, for three separate
+  reasons:
+  - `6e984302`: the answer still opens with "I don't know." before giving
+    the right purchase, and the decline rule scores that as a decline.
+  - `4dfccbf8`: the strict judge had already credited the base's "Taking
+    ukulele lessons", so there was nothing to fix.
+  - `gpt4_e414231f`: the strict judge rejects "Road bike — replaced pedals".
+- **Verdict:** criterion 1 fails (strict CI crosses zero), and criterion 2
+  holds.
+- This is the strongest round-4 mechanism by direction, and it is limited by
+  its population: 18 rows cannot separate +2 rows from zero. It stays off.
+  M73b's window extraction covers only the past-point kinds, so reaching
+  more rows means more of the question-date kinds that M73 measured wrong.

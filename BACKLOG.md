@@ -123,28 +123,17 @@ lost under the strict judge):
   - `investigate` caps each probe at `step_k` = 10, so M72's k = 18 never
     filled;
   - the selector reads only a candidate's first 400 characters.
-- **Arms, each a stratum-gated partial rerun on the shipped reader:**
-  1. **M20b**: a relevance-ranked `[profile]` side block, gated to
-     advice/recommendation requests;
-  2. **M73b**: events from the question's own past-day window (only the 8
-     past-point haystacks without events are extracted, not the corpus);
-  3. **M71b**: re-ask a decline only when it names a value found in the
-     evidence (keeps the abstention veto);
-  4. **M72b**: aggregation depth with the cap fixed, over-counts reported;
-  5. **M74**: the selector reads the best-matching passage.
-- Enumerate-then-count is dropped this round: the overcount evidence
-  (Karunanidhi 2026) argues for measuring depth first.
-- **Built and merged 2026-09-26** (PRs #135–#141):
-  - the defect fixes;
-  - `side_block.rs` (M20b, M73b);
-  - M71b's covered grounding;
-  - M74's `--select-focus`;
-  - `paired_ci --ids/--verdicts`;
-  - `bench --evidence-only`.
-
-  Pre-registrations are in `docs/measurements/m20b-*`, `m73b-*`, `m71b-*`,
-  `m72b-*` and `m74-*`. The arms run on big after M54's controller phase
-  (`scratchpad/round4_arms.sh`).
+- **Round 4 was measured on 2026-09-27. No switch cleared its stratum gate,
+  so no bundle ran and nothing shipped** (`BACKLOG_DONE.md`, "Round 4").
+  - Three of the five mechanisms point the right way under both graders:
+    the grounded pass covering every named thing (M71b), dated events (M73b)
+    and uncapped aggregation depth (M72b).
+  - On all 500 rows they add about +0.6, +0.4 and +0.6 strict. Stacked, that
+    is about +1.6, under the +3.0 bar and inside the 1.60 gap.
+  - The ranked profile block (M20b) narrowed preference answers, and the
+    selector's passage view (M74) shuffled which gold turns it kept.
+  - **What is left:** the single-session strata above, with preference the
+    largest (−11 questions against MemPro).
 
 **Earlier queue, in order:**
 1. **M66: turn windows** *(the user's first build)*. Each selected episode

@@ -120,3 +120,29 @@ stratum difference at or below zero.
 - rows with a block, and dispositions per block;
 - per lost row, whether the block held a gold-turn disposition (stage 0's
   measure on the arm's actual blocks).
+
+## Result — fails both criteria; does not enter the bundle *(measured 2026-09-27)*
+
+The run is `runs/m20b_profile_s1`: the 29 rows where
+`query_shape::is_advice_request` fires were rerun with
+`--profile-ledger data/longmemeval_s_pref.ledger` (3,901 profile records).
+The other 471 rows are M57's.
+
+| reading | stratum | n | M20b | M57 | Δ [95% CI] |
+|---|---|---|---|---|---|
+| strict 9B | preference | 30 | 36.7% | 36.7% | +0.0 [−13.3, +13.3] |
+| official | preference | 30 | 36.7% | 43.3% | **−6.7 [−23.3, +10.0]** |
+
+- **Under the official grader, 2 fixed and 4 broken.**
+  - The fixes: the guitar question now weighs the user's Strat against a
+    Les Paul; the sneezing question now names the user's shedding cat.
+  - The breaks narrow the answer to one profile fact where the gold wants
+    breadth grounded in the user's history. The coffee-creamer answer
+    dropped the user's own almond-milk recipe variations for two new
+    flavours; the theme-park answer went from four parks to one event.
+- **Verdict:** criterion 1 fails (strict flat) and criterion 2 fails
+  (official negative).
+- The ranked profile block gives the reader something to anchor on, and it
+  anchors too narrowly. This is the bias Memora and AlpsBench warn about
+  (`10.18653/v1/2026.findings-acl.1337`, `10.1145/3805712.3808634`).
+- The switch stays off.

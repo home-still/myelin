@@ -15,14 +15,14 @@ and every number that uses one says so. Plan approved by the user
 - [x] Round-4 loss anatomy and research catalog (`docs/research/sota-catalog-2026-09-26.md`)
 - [x] Defect fixes: event dates resolved once (#135); `step_k` follows `budget.k` (#136)
 - [x] M20b ranked profile block: stage 0 (18/30 vs 1/30), pre-registration, code (#137)
-- [ ] M20b stratum arm
+- [x] M20b stratum arm: strict +0.0, official −6.7 on 30 preference rows; fails
 - [x] M73b question-dated events: code (#137), pre-registration; extraction of 8 haystacks running
-- [ ] M73b stratum arm
+- [x] M73b stratum arm: strict +11.1 [−11.1, +33.3], official +27.8 on 18 rows; fails criterion 1
 - [x] M74 selector passage view: code (#139), pre-registration, `--evidence-only` for its reader-free criterion (#141)
-- [ ] M74 arm
+- [x] M74 arm: all-gold-held −0.6 [−3.0, +1.7] on 470 (reader-free); falsifier fires
 - [x] M72b and M71b: pre-registration, M71b code (#138)
-- [ ] M72b and M71b stratum arms
-- [ ] Bundle arm (every switch that passed), both judge readings
+- [x] M72b and M71b stratum arms: M72b +4.4 [−3.3, +12.2] on 90; M71b +6.1 [+0.0, +14.3] on 49, abstention held; both fail criterion 1
+- [x] Bundle arm: **not run; no switch passed its gate** (2026-09-27). Round 4 ran on big itself (`big:~/myelin-r4`) after a 5-row byte-identical control
 
 ## B — LoCoMo (target 77.85)
 - [x] `READER_BEST_GUESS_CLAUSE` + `--reader-best-guess` switch, tests
