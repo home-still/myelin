@@ -208,6 +208,38 @@ lost under the strict judge):
 
 ---
 
+## M75 — LME-V2 false-premise questions answered from the nearest real screen *(found 2026-09-27; not started)*
+
+M54's AgentRunbook-C point is weakest on abstention: 53.57 on enterprise's 56
+questions, 79.17 on web's 72. Anatomy of the 41 wrong abstention rows
+(`runs/m54_full_{web,ent}`):
+
+- **Almost all are false-premise questions.** For example: "what field is
+  between `body` and `forum`?" when the two are adjacent, or "which two new
+  fields appear?" when one does.
+  - The controller finds the nearest real state, and the reader answers
+    from it: "Formatting help", "Duplicate of", "five".
+  - Enterprise: static-abs 12, dynamic-abs 10, procedure-abs 4. Web: 5 in
+    each.
+- **In 8 of enterprise's 26 (3 of web's 15), the controller's own notes
+  already signal the absence**, and the reader still answers.
+- A few are near misses a lenient grader might pass ("0", "UNKNOWN" where the
+  gold says "no such options").
+
+A fix has to live in memory code, not in a per-benchmark prompt clause
+(user rule, 2026-09-24: SOTA through memory code). M57's decline-first rule on LongMemEval_S
+is the precedent: state the correction, then the answer. Candidates, to be
+researched before a design:
+- the controller's support analysis carries an explicit "premise holds / does
+  not hold" field that the reader receives;
+- M62's native tools check the named element's existence before returning a
+  neighbour.
+
+The ceiling is +9.1 on the combined 451 (all 41 rows); realistically, a few
+points.
+
+---
+
 ## M56 — an external checker on when to answer *(0b, used per the manual: safe; LoCoMo 70.65, short of the gate)*
 
 Jev (TypeSafe's cloud decision model) replayed over existing answers:
