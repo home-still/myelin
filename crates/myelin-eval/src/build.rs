@@ -601,9 +601,11 @@ fn note_schema() -> serde_json::Value {
         "type": "object",
         "additionalProperties": false,
         "required": ["procedure_note", "hint_note"],
+        // Alphabetical, as every LME-V2 build received it
+        // (`docs/measurements/defect-2026-09-28-schema-field-order.md`).
         "properties": {
-            "procedure_note": note(),
             "hint_note": note(),
+            "procedure_note": note(),
         }
     })
 }
@@ -612,9 +614,8 @@ fn note() -> serde_json::Value {
         "type": "object",
         "additionalProperties": false,
         "required": ["title", "description", "content"],
+        // Alphabetical, as every LME-V2 build received it.
         "properties": {
-            "title": {"type": "string", "maxLength": 200},
-            "description": {"type": "string", "maxLength": 400},
             // 2000 is a HARD llama.cpp limit, not a soft one: its
             // json-schema-to-grammar expands `maxLength` into that many
             // optional character repetitions, and the grammar parser
@@ -628,6 +629,8 @@ fn note() -> serde_json::Value {
             // limit that is a llama.cpp implementation detail rather
             // than a specified one. `MAX_SCHEMA_MAX_LENGTH` pins it.
             "content": {"type": "string", "maxLength": 1500},
+            "description": {"type": "string", "maxLength": 400},
+            "title": {"type": "string", "maxLength": 200},
         }
     })
 }
@@ -1298,6 +1301,19 @@ impl BuildReport {
 
 #[cfg(test)]
 mod tests {
+    /// Written in the order every measured run received (alphabetical before
+    /// `preserve_order`; `docs/measurements/defect-2026-09-28-schema-field-order.md`).
+    #[test]
+    fn build_schemas_keep_the_order_they_were_measured_with() {
+        for (label, schema) in [("note", note_schema()), ("event", event_schema())] {
+            for (path, keys) in myelin_core::llm::schema_property_orders(&schema) {
+                let mut sorted = keys.clone();
+                sorted.sort();
+                assert_eq!(keys, sorted, "{label}{path}");
+            }
+        }
+    }
+
     use super::*;
 
     /// Every `maxLength` in a schema we send must be under the limit

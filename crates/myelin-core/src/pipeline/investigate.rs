@@ -569,21 +569,37 @@ pub fn reflection_schema(typed_probes: bool) -> serde_json::Value {
         "type": "object",
         "additionalProperties": false,
         "required": ["sufficient", "reason"],
+        // The order the model writes in, and the order every measured run
+        // received: alphabetical (`defect-2026-09-28-schema-field-order.md`).
+        // It is reasoning-first by accident (`reason` before `sufficient`),
+        // the order Tam et al. 2024 (`10.18653/v1/2024.emnlp-industry.91`)
+        // favour, so it stays.
         "properties": {
-            "sufficient": { "type": "boolean" },
             "conflict": { "type": "boolean" },
             "next_query": { "type": ["string", "null"] },
-            "reason": { "type": "string", "maxLength": 400 }
+            "reason": { "type": "string", "maxLength": 400 },
+            "sufficient": { "type": "boolean" }
         }
     });
     // Typed probes (D2): the gate may aim its next query at a pool. Optional
     // and absent unless asked for, so the off-path schema is byte-identical
-    // to the one every M22 arm was measured against.
+    // to the one every M22 arm was measured against. Inserted in its sorted
+    // place, between `conflict` and `next_query`, where the measured arm had
+    // it.
     if typed_probes {
-        schema["properties"]["next_kind"] = json!({
-            "type": ["string", "null"],
-            "enum": ["raw", "event", "note", null]
-        });
+        let reason = schema["properties"]["reason"].take();
+        let sufficient = schema["properties"]["sufficient"].take();
+        let next_query = schema["properties"]["next_query"].take();
+        if let Some(props) = schema["properties"].as_object_mut() {
+            props.retain(|k, _| k == "conflict");
+            props.insert(
+                "next_kind".into(),
+                json!({ "type": ["string", "null"], "enum": ["raw", "event", "note", null] }),
+            );
+            props.insert("next_query".into(), next_query);
+            props.insert("reason".into(), reason);
+            props.insert("sufficient".into(), sufficient);
+        }
     }
     schema
 }
@@ -763,10 +779,12 @@ fn support_schema() -> serde_json::Value {
         "type": "object",
         "additionalProperties": false,
         "required": ["verdict", "missing"],
+        // The order every measured run received (alphabetical; see the defect
+        // record): `missing` before `verdict`, reasoning before the decision.
         "properties": {
-            "verdict": {"type": "string", "enum": ["supported", "ambiguous", "unsupported"]},
             // Under the M34 limit: llama.cpp refuses `maxLength` >= 2000.
             "missing": {"type": "string", "maxLength": 300},
+            "verdict": {"type": "string", "enum": ["supported", "ambiguous", "unsupported"]},
         }
     })
 }
@@ -927,9 +945,10 @@ pub fn self_ask_schema() -> serde_json::Value {
                     "type": "object",
                     "additionalProperties": false,
                     "required": ["ask", "answer"],
+                    // Alphabetical, as every measured run (M39) received it.
                     "properties": {
-                        "ask": { "type": "string", "maxLength": 200 },
-                        "answer": { "type": "string", "maxLength": 200 }
+                        "answer": { "type": "string", "maxLength": 200 },
+                        "ask": { "type": "string", "maxLength": 200 }
                     }
                 }
             }
@@ -1204,26 +1223,30 @@ pub struct DigestEntry {
 /// so the count is taken out of its hands: a digest of eight memories has
 /// eight entries or it fails to parse.
 pub fn digest_schema(n: usize, label: DigestLabel) -> serde_json::Value {
-    // Ordered deliberately, and the order is the mechanism: a strict schema
-    // is emitted field by field, so `says` is written while the label is
-    // still open. The model states the contribution first and judges it
-    // second, which is M42's ordering and for the same reason — asked to
-    // judge first, it has nothing to judge.
+    // Intended as `says` before the label (M42's ordering: state the
+    // contribution, then judge it). **It never reached the model that way:**
+    // serde_json sent the keys alphabetically, so the M48 arms wrote the
+    // label first (`docs/measurements/defect-2026-09-28-schema-field-order.md`).
+    // The source now spells out the order the model actually received; the
+    // shipped `{index, says}` variant is unaffected.
     let (required, properties) = match label {
         DigestLabel::Relevance => (
             json!(["index", "says", "bears_on_question"]),
+            // The label reached the model first (alphabetical), which is the
+            // order M48 measured; see the defect record.
             json!({
+                "bears_on_question": { "type": "boolean" },
                 "index": { "type": "integer", "minimum": 0 },
-                "says": { "type": "string", "maxLength": 160 },
-                "bears_on_question": { "type": "boolean" }
+                "says": { "type": "string", "maxLength": 160 }
             }),
         ),
         DigestLabel::Role => (
             json!(["index", "says", "role"]),
+            // As M48 measured it: `role` before `says` (alphabetical).
             json!({
                 "index": { "type": "integer", "minimum": 0 },
-                "says": { "type": "string", "maxLength": 160 },
-                "role": { "type": "string", "enum": ["answers", "context", "irrelevant"] }
+                "role": { "type": "string", "enum": ["answers", "context", "irrelevant"] },
+                "says": { "type": "string", "maxLength": 160 }
             }),
         ),
         DigestLabel::None => (
@@ -2105,6 +2128,19 @@ impl<'a> Investigator<'a> {
 
 #[cfg(test)]
 mod tests {
+    /// Written in the order every measured run received (alphabetical before
+    /// `preserve_order`; `docs/measurements/defect-2026-09-28-schema-field-order.md`).
+    #[test]
+    fn the_support_schema_writes_what_is_missing_before_its_verdict() {
+        for (label, schema) in [("support", support_schema())] {
+            for (path, keys) in crate::llm::schema_property_orders(&schema) {
+                let mut sorted = keys.clone();
+                sorted.sort();
+                assert_eq!(keys, sorted, "{label}{path}");
+            }
+        }
+    }
+
     use super::*;
 
     /// The pool-level selector ships **on**, and reverting it is a

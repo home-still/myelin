@@ -26,7 +26,11 @@ reqwest = { version = "0.12", features = ["json", "rustls-tls-native-roots"], de
 rmcp = { version = "3.3", features = ["server", "macros", "schemars", "transport-io", "transport-streamable-http-server"] }
 schemars = "1"
 serde = { version = "1", features = ["derive"] }
-serde_json = "1"
+# `preserve_order`: a schema's `properties` reach llama.cpp in source order, and
+# llama.cpp generates fields in that order. Without it serde_json sorted every
+# object's keys, so no schema's intended order ever reached the model
+# (docs/measurements/defect-2026-09-28-schema-field-order.md).
+serde_json = { version = "1", features = ["preserve_order"] }
 sqlx = { version = "0.9", features = ["runtime-tokio", "sqlite", "chrono", "uuid", "macros"], default-features = false }
 thiserror = "2"
 tokio = { version = "1", features = ["full"] }

@@ -114,11 +114,13 @@ pub fn extraction_schema() -> serde_json::Value {
                     "type": "object",
                     "additionalProperties": false,
                     "required": ["text", "kind", "entities"],
+                    // Alphabetical: the order every extraction pass received
+                    // (`defect-2026-09-28-schema-field-order.md`).
                     "properties": {
-                        "text": { "type": "string" },
+                        "entities": { "type": "array", "items": { "type": "string" } },
                         "kind": { "type": "string", "enum": ["semantic", "procedural"] },
                         "t_valid": { "type": ["string", "null"], "format": "date-time" },
-                        "entities": { "type": "array", "items": { "type": "string" } }
+                        "text": { "type": "string" }
                     }
                 }
             }
@@ -141,11 +143,13 @@ pub fn profile_schema() -> serde_json::Value {
                     "type": "object",
                     "additionalProperties": false,
                     "required": ["text", "kind", "entities"],
+                    // Alphabetical: the order every extraction pass received
+                    // (`defect-2026-09-28-schema-field-order.md`).
                     "properties": {
-                        "text": { "type": "string" },
+                        "entities": { "type": "array", "items": { "type": "string" } },
                         "kind": { "type": "string", "enum": ["profile"] },
                         "t_valid": { "type": ["string", "null"], "format": "date-time" },
-                        "entities": { "type": "array", "items": { "type": "string" } }
+                        "text": { "type": "string" }
                     }
                 }
             }
