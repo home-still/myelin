@@ -199,6 +199,20 @@ lost under the strict judge):
 
 ---
 
+## M79 — the typed premise pass: answer, then say how the question fits *(user decision 2026-09-28; pre-registered)*
+
+A greedy post-pass over declines, `commit-arm --typed`. It asks for
+`{answer, mismatch: none | detail unstated | contradicted | never mentioned}`
+and commits only on the first two.
+- Target: 13 answerable declines of the "don't specify" kind.
+- Risk: 7 abstention declines phrased the same way, so the veto is in its
+  strict form.
+- It is measured on the round-5 base replicates and stacks on the bundle if
+  it passes.
+- Doc: `docs/measurements/m79-typed-premise.md`.
+
+---
+
 ## M78b — the advice answer selects the user's own turns *(pre-registered 2026-09-28)*
 
 M78's quotes failed because the reader quoted the assistant.

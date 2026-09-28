@@ -33,7 +33,8 @@ use myelin_core::config::MyelinConfig;
 use myelin_core::llm::openai::OpenAiLlm;
 
 use crate::bench::{
-    commit_answer, commit_consensus, commit_grounded, is_abstention, Consensus, ScoredQuestion,
+    commit_answer, commit_consensus, commit_grounded, commit_typed, is_abstention, Consensus,
+    ScoredQuestion,
 };
 use crate::datasets::longmemeval;
 
@@ -68,6 +69,9 @@ pub enum Pass {
     /// M61: cite the memories that state the answer about the named entity,
     /// then answer from those alone (`bench::commit_grounded`).
     Grounded,
+    /// M79: the answer, then the kind of mismatch; commit only when the
+    /// premise fits or adds an unstated detail (`bench::commit_typed`).
+    Typed,
 }
 
 /// The corpora whose first-pass prompt this replays. The prompt must be the
@@ -186,6 +190,10 @@ pub async fn run(
                     commit_grounded(&llm, &system, &user, first, &row.evidence).await;
                 (response, outcome.fired, outcome.committed)
             }
+            Pass::Typed => {
+                let (response, outcome) = commit_typed(&llm, &system, &user, first).await;
+                (response, outcome.fired, outcome.committed)
+            }
             Pass::Consensus(c) => {
                 let (response, outcome) =
                     commit_consensus(&llm, &system, &user, &row.question_text, first, c)
@@ -259,6 +267,11 @@ fn write_arm(
             }
             Pass::Grounded => {
                 obj.insert("commit_grounded".into(), serde_json::Value::Bool(true));
+            }
+            // A typed pass may run over a grounded arm's remaining declines;
+            // the base's `commit_grounded` then stays on the record beside it.
+            Pass::Typed => {
+                obj.insert("commit_typed".into(), serde_json::Value::Bool(true));
             }
         }
     }

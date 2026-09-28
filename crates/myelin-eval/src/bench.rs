@@ -561,6 +561,10 @@ pub struct BenchRun {
     /// M61: that second pass was the grounded one (`commit_grounded`).
     #[serde(default)]
     pub commit_grounded: bool,
+    /// M79: a typed premise pass ran over the declines (`commit_typed`),
+    /// possibly after the grounded one. Absent on every run before M79.
+    #[serde(default)]
+    pub commit_typed: bool,
     /// Rows inherited from an earlier attempt by `bench --resume`. Non-zero
     /// means the run's two halves may have been served by differently
     /// configured readers (slots, context): a greedy answer does not depend
@@ -858,6 +862,8 @@ pub struct BenchSwitches {
     /// M61: the second pass was the grounded one. Only `commit-arm --grounded`
     /// produces it; carried here so a rescore of that arm keeps the record.
     pub commit_grounded: bool,
+    /// M79: a typed premise pass ran. Only `commit-arm --typed` produces it.
+    pub commit_typed: bool,
     /// Cap untrusted occupancy in the composed set — M23 B1,
     /// `ComposeConfig::untrusted_max`.
     ///
@@ -1219,6 +1225,113 @@ fn accept_commit(text: &str) -> Option<String> {
         return None;
     }
     Some(parsed.answer)
+}
+
+/// M79's instruction, appended to the base's own system prompt. It names what
+/// each `mismatch` value means; the decision itself is the schema's.
+const READER_TYPED_SYSTEM: &str = "You are re-reading memories you just \
+declined to answer from. First write the answer the memories state for what \
+the question asks (a name, a number, a short phrase), or an empty string if \
+they state none. Then say how the question fits the memories in `mismatch`: \
+`none` if the memories support what the question assumes; `detail unstated` if \
+the memories state the answer but leave a detail the question adds unstated \
+(a length, a date, a place); `contradicted` if the memories state something \
+that contradicts what the question assumes; `never mentioned` if the thing the \
+question asks about is never mentioned in the memories.";
+
+/// The `mismatch` values, in the order the reader is shown them.
+pub const TYPED_MISMATCHES: [&str; 4] = ["none", "detail unstated", "contradicted", "never mentioned"];
+/// The values under which a typed answer is committed.
+const TYPED_ANSWERABLE: [&str; 2] = ["none", "detail unstated"];
+/// The typed answer's ceiling; an answer is a short phrase.
+const TYPED_ANSWER_MAX_CHARS: usize = 200;
+/// Completion room for the typed JSON.
+const TYPED_MAX_TOKENS: u32 = 160;
+
+/// `{answer, mismatch}`: the answer first, then the answerability decision.
+///
+/// Two axes, one schema. Wagner (2026, arXiv 2607.08456) finds that answer
+/// confidence "tracks whether an answer is right but is nearly blind to
+/// whether the question is answerable", so the pass asks for both separately.
+/// The answer comes first, which is M42's order and also the wire order
+/// (`docs/measurements/defect-2026-09-28-schema-field-order.md`).
+pub(crate) fn typed_schema() -> serde_json::Value {
+    serde_json::json!({
+        "type": "object",
+        "properties": {
+            "answer": { "type": "string", "maxLength": TYPED_ANSWER_MAX_CHARS },
+            "mismatch": { "type": "string", "enum": TYPED_MISMATCHES }
+        },
+        "required": ["answer", "mismatch"],
+        "additionalProperties": false
+    })
+}
+
+#[derive(Debug, Deserialize)]
+struct TypedAnswer {
+    answer: String,
+    mismatch: String,
+}
+
+/// What a typed second pass commits to, or `None` when it keeps the decline.
+///
+/// It commits only a non-empty answer that is not itself a decline, and only
+/// when the question fits the memories or merely adds a detail they leave
+/// unstated. A contradicted premise, or a thing the memories never mention, is
+/// the LongMemEval false-premise shape, and the decline stands.
+fn accept_typed(text: &str) -> Option<String> {
+    let parsed = serde_json::from_str::<TypedAnswer>(text).ok()?;
+    let answer = parsed.answer.trim();
+    if answer.is_empty() || is_abstention(answer) || !TYPED_ANSWERABLE.contains(&parsed.mismatch.as_str()) {
+        return None;
+    }
+    Some(answer.to_string())
+}
+
+/// M79. The typed premise pass over a declining row
+/// (`docs/measurements/m79-typed-premise.md`).
+///
+/// M57's premise clause makes the reader decline first and correct after. On
+/// 13 answerable questions the correction states the answer and names a detail
+/// the memories merely leave unstated ("7 shirts … don't specify the trip was
+/// 5 days"). This pass asks for the answer and for the kind of mismatch, and
+/// commits only on `none` or `detail unstated`. The question-side literature
+/// separates these kinds of failed assumption: false presuppositions (CREPE,
+/// Yu et al. 2023, `10.18653/v1/2023.acl-long.583`) and questionable or
+/// unverifiable ones ((QA)², Kim et al. 2023, `10.18653/v1/2023.acl-long.472`).
+/// Sufficient Context (Joren et al., arXiv 2411.06037) finds that small models
+/// abstain even when the context is sufficient.
+///
+/// The call is greedy, one per declining row. Every failure (a model error,
+/// unparseable content, a decline-shaped answer) leaves the decline exactly as
+/// it was, as in [`commit_answer`].
+pub(crate) async fn commit_typed(
+    llm: &dyn Llm,
+    system: &str,
+    user: &str,
+    response: String,
+) -> (String, CommitOutcome) {
+    if !is_abstention(&response) {
+        return (response, CommitOutcome::default());
+    }
+    let fired = CommitOutcome { fired: true, committed: false };
+    let Ok(second) = llm
+        .complete(
+            &CompletionRequest::new(vec![
+                Message::system(format!("{system}\n{READER_TYPED_SYSTEM}")),
+                Message::user(user.to_string()),
+            ])
+            .with_max_tokens(TYPED_MAX_TOKENS)
+            .with_schema(typed_schema()),
+        )
+        .await
+    else {
+        return (response, fired);
+    };
+    match accept_typed(&second.text) {
+        Some(answer) => (answer, CommitOutcome { fired: true, committed: true }),
+        None => (response, fired),
+    }
 }
 
 /// M61. The second pass, grounded: which memories state the answer, then the
@@ -3099,6 +3212,7 @@ fn finish_run(
         aggregation_budget_tokens: spec.switches.aggregation_budget_tokens,
         commit_answer: spec.switches.commit_answer,
         commit_grounded: spec.switches.commit_grounded,
+        commit_typed: spec.switches.commit_typed,
         resumed_rows: resumed,
         commit_samples: None,
         commit_agree: None,
@@ -3312,6 +3426,7 @@ pub fn rescore_run(source: &Path, out_dir: &Path, scorer: Scorer) -> Result<Benc
                 .and_then(serde_json::Value::as_u64)
                 .and_then(|n| usize::try_from(n).ok()),
             commit_grounded: flag("commit_grounded"),
+            commit_typed: flag("commit_typed"),
             commit_answer: flag("commit_answer"),
             untrusted_max: metrics
                 .get("untrusted_max")
@@ -4488,6 +4603,55 @@ mod reader_tests {
         assert!(!req.thinking);
         assert_eq!((req.temperature, req.top_p, req.seed), (0.0, None, None));
         assert_eq!(req.max_tokens, Some(READER_ANSWER_TOKENS));
+    }
+
+    /// M79: the answer comes first on the wire, and the mismatch is one of
+    /// the four named values.
+    #[test]
+    fn the_typed_schema_puts_the_answer_before_the_mismatch() {
+        let schema = typed_schema();
+        let wire = serde_json::to_string(&schema).expect("serialise");
+        assert!(wire.find("\"answer\":") < wire.find("\"mismatch\":"), "{wire}");
+        assert_eq!(schema["properties"]["mismatch"]["enum"], serde_json::json!(TYPED_MISMATCHES));
+        assert_eq!(schema["additionalProperties"], serde_json::json!(false));
+    }
+
+    /// It commits only an answer that fits the memories or adds an unstated
+    /// detail; a contradicted or never-mentioned premise keeps the decline.
+    #[test]
+    fn a_typed_answer_commits_only_when_the_premise_fits() {
+        let typed = |answer: &str, mismatch: &str| {
+            accept_typed(&serde_json::json!({"answer": answer, "mismatch": mismatch}).to_string())
+        };
+        assert_eq!(typed("7", "detail unstated").as_deref(), Some("7"));
+        assert_eq!(typed("Target", "none").as_deref(), Some("Target"));
+        assert_eq!(typed("5", "never mentioned"), None, "the chili trap");
+        assert_eq!(typed("guitar", "contradicted"), None);
+        assert_eq!(typed("  ", "none"), None, "no answer");
+        assert_eq!(typed("I don't know.", "none"), None, "a decline dressed as an answer");
+        assert_eq!(accept_typed("not json"), None);
+    }
+
+    /// The pass fires on declines only, greedy, with the typed schema and the
+    /// base's own system prompt ahead of its instruction.
+    #[tokio::test]
+    async fn the_typed_pass_fires_on_declines_only() {
+        let llm = Captures(std::sync::Mutex::new(None));
+        let (kept, outcome) = commit_typed(&llm, "sys", "user", "Target".into()).await;
+        assert_eq!((kept.as_str(), outcome), ("Target", CommitOutcome::default()));
+        assert!(llm.0.lock().unwrap().is_none(), "an answer is never re-asked");
+
+        let (kept, outcome) = commit_typed(&llm, "sys", "user", "I don't know.".into()).await;
+        assert_eq!(kept, "I don't know.", "unparseable content keeps the decline");
+        assert_eq!(outcome, CommitOutcome { fired: true, committed: false });
+        let req = llm.0.lock().unwrap().clone().expect("request captured");
+        assert!(req.messages[0].content.starts_with("sys\n"));
+        assert_eq!(req.json_schema, Some(typed_schema()));
+        assert_eq!((req.temperature, req.seed, req.thinking), (0.0, None, false), "greedy");
+
+        let llm = Says(r#"{"answer":"7","mismatch":"detail unstated"}"#);
+        let (answer, outcome) = commit_typed(&llm, "sys", "user", "I don't know. 7 shirts".into()).await;
+        assert_eq!((answer.as_str(), outcome.committed), ("7", true));
     }
 
     /// M78: the advice answer is R2's request (the same prompt, thinking,
