@@ -1304,15 +1304,18 @@ fn accept_typed(text: &str) -> Option<String> {
 ///
 /// The call is greedy, one per declining row. Every failure (a model error,
 /// unparseable content, a decline-shaped answer) leaves the decline exactly as
-/// it was, as in [`commit_answer`].
+/// it was, as in [`commit_answer`]. The third value is the second pass's raw
+/// content, `None` when it never ran or errored. The caller records it on the
+/// row, so the `mismatch` distribution can be read back (the pre-registered
+/// false-challenge and false-fit rates, `m79-typed-premise.md`).
 pub(crate) async fn commit_typed(
     llm: &dyn Llm,
     system: &str,
     user: &str,
     response: String,
-) -> (String, CommitOutcome) {
+) -> (String, CommitOutcome, Option<String>) {
     if !is_abstention(&response) {
-        return (response, CommitOutcome::default());
+        return (response, CommitOutcome::default(), None);
     }
     let fired = CommitOutcome { fired: true, committed: false };
     let Ok(second) = llm
@@ -1326,13 +1329,16 @@ pub(crate) async fn commit_typed(
         )
         .await
     else {
-        return (response, fired);
+        return (response, fired, None);
     };
     match accept_typed(&second.text) {
-        Some(answer) => (answer, CommitOutcome { fired: true, committed: true }),
-        None => (response, fired),
+        Some(answer) => (answer, CommitOutcome { fired: true, committed: true }, Some(second.text)),
+        None => (response, fired, Some(second.text)),
     }
 }
+
+/// Marks the typed pass's raw content inside a row's `reader_trace`.
+pub const TYPED_TRACE: &str = "m79:typed";
 
 /// M61. The second pass, grounded: which memories state the answer, then the
 /// answer from those alone.
@@ -4637,21 +4643,23 @@ mod reader_tests {
     #[tokio::test]
     async fn the_typed_pass_fires_on_declines_only() {
         let llm = Captures(std::sync::Mutex::new(None));
-        let (kept, outcome) = commit_typed(&llm, "sys", "user", "Target".into()).await;
-        assert_eq!((kept.as_str(), outcome), ("Target", CommitOutcome::default()));
+        let (kept, outcome, raw) = commit_typed(&llm, "sys", "user", "Target".into()).await;
+        assert_eq!((kept.as_str(), outcome, raw), ("Target", CommitOutcome::default(), None));
         assert!(llm.0.lock().unwrap().is_none(), "an answer is never re-asked");
 
-        let (kept, outcome) = commit_typed(&llm, "sys", "user", "I don't know.".into()).await;
+        let (kept, outcome, raw) = commit_typed(&llm, "sys", "user", "I don't know.".into()).await;
         assert_eq!(kept, "I don't know.", "unparseable content keeps the decline");
         assert_eq!(outcome, CommitOutcome { fired: true, committed: false });
+        assert_eq!(raw.as_deref(), Some("42"), "and is still recorded for the audit");
         let req = llm.0.lock().unwrap().clone().expect("request captured");
         assert!(req.messages[0].content.starts_with("sys\n"));
         assert_eq!(req.json_schema, Some(typed_schema()));
         assert_eq!((req.temperature, req.seed, req.thinking), (0.0, None, false), "greedy");
 
         let llm = Says(r#"{"answer":"7","mismatch":"detail unstated"}"#);
-        let (answer, outcome) = commit_typed(&llm, "sys", "user", "I don't know. 7 shirts".into()).await;
+        let (answer, outcome, raw) = commit_typed(&llm, "sys", "user", "I don't know. 7 shirts".into()).await;
         assert_eq!((answer.as_str(), outcome.committed), ("7", true));
+        assert!(raw.is_some_and(|r| r.contains("detail unstated")));
     }
 
     /// M78: the advice answer is R2's request (the same prompt, thinking,

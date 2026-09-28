@@ -191,7 +191,16 @@ pub async fn run(
                 (response, outcome.fired, outcome.committed)
             }
             Pass::Typed => {
-                let (response, outcome) = commit_typed(&llm, &system, &user, first).await;
+                let (response, outcome, raw) = commit_typed(&llm, &system, &user, first).await;
+                // The typed JSON joins the row's trace, so the `mismatch`
+                // label of every declining row can be counted afterwards.
+                if let Some(raw) = raw {
+                    let trace = row.reader_trace.take().unwrap_or_default();
+                    row.reader_trace = Some(format!(
+                        "{trace}\n[{}] {raw}",
+                        crate::bench::TYPED_TRACE
+                    ));
+                }
                 (response, outcome.fired, outcome.committed)
             }
             Pass::Consensus(c) => {
