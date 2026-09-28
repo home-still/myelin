@@ -166,14 +166,25 @@ must be inferred, or is not stated in the words the question uses — give your 
 answer instead of \"I don't know\". Reply \"I don't know\" only when nothing in the memories \
 bears on the question.";
 
-/// The reader's system prompt for a run: [`READER_SYSTEM`] plus whichever
-/// clauses the run's switches turn on, in a fixed order.
-fn reader_system(switches: &BenchSwitches) -> String {
+/// The reader's system prompt for one question: [`READER_SYSTEM`] plus
+/// whichever clauses the run's switches turn on, in a fixed order.
+///
+/// M76b: with `advice_without_premise`, an advice request
+/// ([`myelin_core::pipeline::query_shape::is_advice_request`]) is shown no
+/// [`READER_PREMISE_CLAUSE`]. The clause is for questions that assume a
+/// recalled fact (QA)² calls a false presupposition. An advice request
+/// assumes nothing to recall, and under the clause the reader declined 11 of
+/// 30 of them, 10 with every gold turn in hand (M76). That is PrefEval's
+/// "unhelpful" failure (Zhao et al. 2025, `10.48550/arxiv.2502.09597`). No
+/// clause is added; one stops applying to one question shape.
+fn reader_system(switches: &BenchSwitches, question: &str) -> String {
     let mut system = READER_SYSTEM.to_string();
     if switches.profile_clause {
         system.push_str(READER_PREFERENCE_CLAUSE);
     }
-    if switches.reader_premise_clause {
+    let advice_skips_premise = switches.advice_without_premise
+        && myelin_core::pipeline::query_shape::is_advice_request(question);
+    if switches.reader_premise_clause && !advice_skips_premise {
         system.push_str(READER_PREMISE_CLAUSE);
     }
     if switches.reader_best_guess {
@@ -203,14 +214,18 @@ fn depth_for(question: &str, k: usize, budget_tokens: usize, switches: &BenchSwi
 /// [`reader_system`] the run used. A replay of that run's rows (`commit-arm`)
 /// must show the identical prompt, or its untouched rows would no longer be
 /// the base's.
-pub fn reader_system_of_run(metrics: &serde_json::Value) -> String {
+pub fn reader_system_of_run(metrics: &serde_json::Value, question: &str) -> String {
     let flag = |key: &str| metrics.get(key).and_then(serde_json::Value::as_bool) == Some(true);
-    reader_system(&BenchSwitches {
-        profile_clause: flag("profile_clause"),
-        reader_premise_clause: flag("reader_premise_clause"),
-        reader_best_guess: flag("reader_best_guess"),
-        ..Default::default()
-    })
+    reader_system(
+        &BenchSwitches {
+            profile_clause: flag("profile_clause"),
+            reader_premise_clause: flag("reader_premise_clause"),
+            reader_best_guess: flag("reader_best_guess"),
+            advice_without_premise: flag("advice_without_premise"),
+            ..Default::default()
+        },
+        question,
+    )
 }
 
 /// One scored question, written to `per_question.jsonl`.
@@ -613,6 +628,10 @@ pub struct BenchRun {
     /// Absent on every run before M76.
     #[serde(default)]
     pub user_words: bool,
+    /// M76b: advice requests were shown no premise clause
+    /// ([`reader_system`]). Absent on every run before M76b.
+    #[serde(default)]
+    pub advice_without_premise: bool,
     /// The run composed evidence and never called the reader: every
     /// response is empty and every score is meaningless. It exists for
     /// `coverage`, the reader-free half of a gate (M74's first criterion).
@@ -789,6 +808,8 @@ pub struct BenchSwitches {
     pub select_focus: bool,
     /// M76: the `[your words]` block (`myelin_core::pipeline::user_words`).
     pub user_words: bool,
+    /// M76b: no premise clause for advice requests ([`reader_system`]).
+    pub advice_without_premise: bool,
     /// Compose the evidence and skip the reader (LongMemEval_S only), for
     /// `coverage`.
     pub evidence_only: bool,
@@ -2243,9 +2264,6 @@ pub async fn bench_locomo(
     // Arm B rides on `READER_SYSTEM` rather than replacing it: the arm is the
     // clause, and swapping the whole prompt would confound it with the
     // abstention and date instructions every prior run carried.
-    let system = reader_system(switches);
-    let system = system.as_str();
-
     'outer: for conv in &conversations {
         let tenant = format!("locomo/{}", conv.sample_id);
         // LoCoMo has no per-question date; it asks from the position of the
@@ -2369,6 +2387,8 @@ pub async fn bench_locomo(
                     qa.question
                 ),
             };
+            let system = reader_system(switches, &qa.question);
+            let system = system.as_str();
             let read = read_answer(&llm, system, &user, reader_mode)
                 .await
                 .with_context(|| format!("reader {tenant}#{i}"))?;
@@ -2573,8 +2593,6 @@ pub async fn bench_longmemeval_s(
     let mut degradation = DegradationGuard::default();
     let mut commits = CommitTally::default();
     // See `bench_locomo`: the clause is appended, not substituted.
-    let system = reader_system(switches);
-    let system = system.as_str();
 
     for item in &items {
         // Already scored by the attempt this one resumes.
@@ -2648,6 +2666,8 @@ pub async fn bench_longmemeval_s(
             "<memories>\n{context}\n</memories>\n<today>\n{}\n</today>\n<question>\n{}\n</question>",
             item.question_date, item.question
         );
+        let system = reader_system(switches, &item.question);
+        let system = system.as_str();
         let (response, reader_trace) = if switches.evidence_only {
             (String::new(), None)
         } else {
@@ -2880,6 +2900,7 @@ fn finish_run(
         turn_windows: spec.switches.turn_windows,
         select_focus: spec.switches.select_focus,
         user_words: spec.switches.user_words,
+        advice_without_premise: spec.switches.advice_without_premise,
         evidence_only: spec.switches.evidence_only,
         aggregation_k: spec.switches.aggregation_k,
         aggregation_budget_tokens: spec.switches.aggregation_budget_tokens,
@@ -3084,6 +3105,7 @@ pub fn rescore_run(source: &Path, out_dir: &Path, scorer: Scorer) -> Result<Benc
                 .and_then(|n| usize::try_from(n).ok()),
             select_focus: flag("select_focus"),
             user_words: flag("user_words"),
+            advice_without_premise: flag("advice_without_premise"),
             evidence_only: flag("evidence_only"),
             aggregation_k: metrics
                 .get("aggregation_k")
@@ -3863,39 +3885,79 @@ mod config_tests {
         assert_eq!(depth_for("How many doctors did I visit?", 6, 4096, &off), (6, 4096));
     }
 
+    /// A question that recalls a fact, and one that asks for advice
+    /// (`query_shape::is_advice_request`).
+    const RECALL_Q: &str = "Which hotel did I stay at in Miami?";
+    const ADVICE_Q: &str = "Can you suggest a hotel for my upcoming trip to Miami?";
+
+    /// M76b: with the switch, an advice request is shown no premise clause and
+    /// every other question still is; without it, both are. The replay of a
+    /// run rebuilds the same per-question prompt from its recorded switches.
+    #[test]
+    fn an_advice_request_skips_the_premise_clause_only_under_its_switch() {
+        let premise = BenchSwitches {
+            reader_premise_clause: true,
+            ..Default::default()
+        };
+        let skip = BenchSwitches {
+            reader_premise_clause: true,
+            advice_without_premise: true,
+            ..Default::default()
+        };
+        assert!(reader_system(&premise, ADVICE_Q).ends_with(READER_PREMISE_CLAUSE));
+        assert!(reader_system(&premise, RECALL_Q).ends_with(READER_PREMISE_CLAUSE));
+        assert_eq!(reader_system(&skip, ADVICE_Q), READER_SYSTEM);
+        assert!(reader_system(&skip, RECALL_Q).ends_with(READER_PREMISE_CLAUSE));
+        let recorded = serde_json::json!({
+            "corpus": "longmemeval_s", "reader_premise_clause": true, "advice_without_premise": true
+        });
+        assert_eq!(reader_system_of_run(&recorded, ADVICE_Q), READER_SYSTEM);
+        assert_eq!(reader_system_of_run(&recorded, RECALL_Q), reader_system(&skip, RECALL_Q));
+    }
+
     /// M71: a replay rebuilds the base's system prompt from its artifact,
     /// clauses included, so its untouched rows stay the base's.
     #[test]
     fn a_runs_system_prompt_is_rebuilt_from_its_recorded_switches() {
-        let bare = reader_system_of_run(&serde_json::json!({"corpus": "longmemeval_s"}));
+        let bare = reader_system_of_run(&serde_json::json!({"corpus": "longmemeval_s"}), RECALL_Q);
         assert_eq!(bare, READER_SYSTEM);
         let premise = reader_system_of_run(
             &serde_json::json!({"corpus": "longmemeval_s", "reader_premise_clause": true}),
+            RECALL_Q,
         );
         assert_eq!(
             premise,
-            reader_system(&BenchSwitches {
-                reader_premise_clause: true,
-                ..Default::default()
-            })
+            reader_system(
+                &BenchSwitches {
+                    reader_premise_clause: true,
+                    ..Default::default()
+                },
+                RECALL_Q,
+            )
         );
         assert!(premise.ends_with(READER_PREMISE_CLAUSE));
     }
 
     #[test]
     fn premise_clause_is_appended_only_when_on_and_its_reply_is_a_decline() {
-        let off = reader_system(&BenchSwitches::default());
+        let off = reader_system(&BenchSwitches::default(), RECALL_Q);
         assert_eq!(off, READER_SYSTEM);
-        let on = reader_system(&BenchSwitches {
-            reader_premise_clause: true,
-            ..Default::default()
-        });
+        let on = reader_system(
+            &BenchSwitches {
+                reader_premise_clause: true,
+                ..Default::default()
+            },
+            RECALL_Q,
+        );
         assert!(on.starts_with(READER_SYSTEM) && on.ends_with(READER_PREMISE_CLAUSE));
-        let both = reader_system(&BenchSwitches {
-            profile_clause: true,
-            reader_premise_clause: true,
-            ..Default::default()
-        });
+        let both = reader_system(
+            &BenchSwitches {
+                profile_clause: true,
+                reader_premise_clause: true,
+                ..Default::default()
+            },
+            RECALL_Q,
+        );
         assert_eq!(both, format!("{READER_SYSTEM}{READER_PREFERENCE_CLAUSE}{READER_PREMISE_CLAUSE}"));
         assert!(is_abstention("I don't know. You see Dr. Smith, not Dr. Johnson."));
         assert!(!is_abstention("You see Dr. Smith, not Dr. Johnson."));
@@ -3950,17 +4012,23 @@ mod config_tests {
 
     #[test]
     fn best_guess_clause_is_appended_only_when_on_in_order() {
-        assert_eq!(reader_system(&BenchSwitches::default()), READER_SYSTEM);
-        let on = reader_system(&BenchSwitches {
-            reader_best_guess: true,
-            ..Default::default()
-        });
+        assert_eq!(reader_system(&BenchSwitches::default(), RECALL_Q), READER_SYSTEM);
+        let on = reader_system(
+            &BenchSwitches {
+                reader_best_guess: true,
+                ..Default::default()
+            },
+            RECALL_Q,
+        );
         assert_eq!(on, format!("{READER_SYSTEM}{READER_BEST_GUESS_CLAUSE}"));
-        let both = reader_system(&BenchSwitches {
-            reader_premise_clause: true,
-            reader_best_guess: true,
-            ..Default::default()
-        });
+        let both = reader_system(
+            &BenchSwitches {
+                reader_premise_clause: true,
+                reader_best_guess: true,
+                ..Default::default()
+            },
+            RECALL_Q,
+        );
         assert_eq!(both, format!("{READER_SYSTEM}{READER_PREMISE_CLAUSE}{READER_BEST_GUESS_CLAUSE}"));
     }
 

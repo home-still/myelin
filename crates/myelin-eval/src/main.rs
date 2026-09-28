@@ -791,6 +791,11 @@ enum Command {
         /// (`myelin_core::pipeline::user_words`). Needs the cross-encoder.
         #[arg(long)]
         user_words: bool,
+        /// M76b: advice requests are shown no premise clause (the clause
+        /// stays for every other question). Needs `--reader-premise-clause`
+        /// to change anything.
+        #[arg(long)]
+        advice_without_premise: bool,
         /// Compose each question's evidence and skip the reader, for
         /// `coverage` (LongMemEval_S only). The run is never quotable.
         #[arg(long)]
@@ -1309,6 +1314,7 @@ async fn main() -> anyhow::Result<()> {
             turn_windows,
             select_focus,
             user_words,
+            advice_without_premise,
             evidence_only,
             aggregation_k,
             aggregation_budget_tokens,
@@ -1367,6 +1373,7 @@ async fn main() -> anyhow::Result<()> {
                     turn_windows,
                     select_focus,
                     user_words,
+                    advice_without_premise,
                     evidence_only,
                     aggregation_k,
                     aggregation_budget_tokens,
