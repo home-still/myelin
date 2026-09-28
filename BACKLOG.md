@@ -244,9 +244,11 @@ chose:
 ## Readout rigour — discordant counts, the exact sign test, and a repeated official grader *(round-5 catalog, 2026-09-28; not started)*
 
 Small strata need the right test, and our grader is noisy (catalog §c, §e):
-- `paired_ci.py` should print the wins/losses beside every paired Δ, and
-  the exact sign test on strata of 30 rows or fewer. **Derived:** on the 30
-  preference rows, significance needs at least 6–0, 8–1 or 10–2.
+- ~~`paired_ci.py` should print the wins/losses beside every paired Δ, and
+  the exact sign test on strata of 30 rows or fewer.~~ **Done 2026-09-28:**
+  every stratum line now carries `W/L` and `sign p`. **Derived:** on the 30
+  preference rows, significance needs at least 6–0, 8–1 or 10–2. M77c's
+  official gain is 11/1, sign p 0.0063.
 - The official grader (gpt-4o-mini) flips 13.6% of pairwise verdicts (*The
   Coin Flip Judge?*, arXiv 2606.13685). The 30 preference rows should be
   judged 3 times, taking the majority, and its own flip rate reported.
