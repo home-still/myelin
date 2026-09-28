@@ -1378,14 +1378,17 @@ count. Then, only if every named thing has a memory and that list is not empty, 
 in as few words as possible, using those memories alone. Otherwise leave the list empty \
 and the answer empty.";
 
-/// `{ named, supporting, answer }` as designed: what the question names and
-/// where each is stated, then the memories that state the answer, then the
-/// answer. **The model has always received it alphabetically,
-/// `{ answer, named, supporting }`** (and `{ memory, thing }` per named
-/// thing): serde_json sorted the keys
-/// (`docs/measurements/defect-2026-09-28-schema-field-order.md`). Every
-/// M61/M71/M71b number was measured answer-first, so the source spells out
-/// that order. M71c measures the designed order.
+/// `{ named, supporting, answer }`, in that order (M71c): what the question
+/// names and where each is stated (`{ thing, memory }`), then the memories that
+/// state the answer, then the answer. Grounding comes before the commitment,
+/// the order Tam et al. 2024 (`10.18653/v1/2024.emnlp-industry.91`) and CRANE
+/// (arXiv 2502.09061) find preserves reasoning.
+///
+/// Every M61/M71/M71b number was measured with the model receiving
+/// `{ answer, named, supporting }`, because serde_json sorted the keys until
+/// `preserve_order` (`docs/measurements/defect-2026-09-28-schema-field-order.md`).
+/// M71c (`docs/measurements/m71c-grounded-order.md`) measures the designed
+/// order against that.
 /// Indexes are the `[n]` memories shown, `0..n_memories`.
 fn grounded_schema(n_memories: usize) -> serde_json::Value {
     let index = serde_json::json!({
@@ -1396,20 +1399,20 @@ fn grounded_schema(n_memories: usize) -> serde_json::Value {
     serde_json::json!({
         "type": "object",
         "properties": {
-            "answer": { "type": "string" },
             "named": {
                 "type": "array",
                 "items": {
                     "type": "object",
                     "properties": {
-                        "memory": { "anyOf": [index.clone(), { "type": "null" }] },
-                        "thing": { "type": "string" }
+                        "thing": { "type": "string" },
+                        "memory": { "anyOf": [index.clone(), { "type": "null" }] }
                     },
                     "required": ["thing", "memory"],
                     "additionalProperties": false
                 }
             },
-            "supporting": { "type": "array", "items": index }
+            "supporting": { "type": "array", "items": index },
+            "answer": { "type": "string" }
         },
         "required": ["named", "supporting", "answer"],
         "additionalProperties": false
@@ -4443,14 +4446,29 @@ mod reader_tests {
         }
     }
 
-    /// Every bench schema keeps the order its arms were measured with. The
-    /// grounded pass and R1 were designed in another order, but the model
-    /// always received this one.
+    /// M71c: the grounded pass names each thing and where it is stated, cites
+    /// the supporting memories, and only then answers. This is the order M61
+    /// designed and the model never received until `preserve_order`.
+    #[test]
+    fn the_grounded_pass_names_and_cites_before_it_answers() {
+        let orders = myelin_core::llm::schema_property_orders(&grounded_schema(6));
+        let top = orders.iter().find(|(p, _)| p == "/properties").expect("top level");
+        assert_eq!(top.1, vec!["named", "supporting", "answer"]);
+        let named = orders
+            .iter()
+            .find(|(p, _)| p.ends_with("/named/items/properties"))
+            .expect("named items");
+        assert_eq!(named.1, vec!["thing", "memory"]);
+    }
+
+    /// Every bench schema keeps the order its arms were measured with. R1 was
+    /// designed in another order, but the model always received this one. The
+    /// grounded pass is the exception; M71c's test below pins its designed
+    /// order.
     #[test]
     fn every_bench_schema_keeps_the_order_it_was_measured_with() {
         assert_measured_order("commit", &commit_schema());
         assert_measured_order("typed", &typed_schema());
-        assert_measured_order("grounded", &grounded_schema(6));
         assert_measured_order("cluster", &cluster_schema(4));
         assert_measured_order("reader", &reader_schema());
         assert_measured_order("advice_answer", &crate::advice_answer::advice_answer_schema(6));
