@@ -28,4 +28,5 @@ pub mod trajectory_agent;
 pub mod trajectory_export;
 pub mod trajectory_tools;
 pub mod turn_windows;
+pub mod user_words;
 pub mod write;

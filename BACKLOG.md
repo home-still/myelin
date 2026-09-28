@@ -197,6 +197,26 @@ lost under the strict judge):
 
 ---
 
+## M76 — the user's own words, from the sessions the evidence reached *(built 2026-09-28; pre-registered, stage 0 next)*
+
+The largest remaining LongMemEval_S gap is preference: 13/30 under the
+official grader, against MemPro's 24/30.
+- Reader-free, M57's evidence already reaches the session holding the
+  preference for 29 of 30 questions. The user's sentence itself is there
+  for only 13.
+- Every gold turn is a user turn, buried under the assistant's long
+  replies.
+
+`--user-words` appends, for advice questions only, the user's turns from
+those sessions' other segments, ranked by the cross-encoder, within 1,024
+tokens.
+- Stage 0 is reader-free: all-gold-held on the 30 must rise with its CI
+  excluding 0.
+- Stage 1 is the 29-row stratum arm, under the user's gate.
+- Grounds: PrefEval and CueMem. Doc: `docs/measurements/m76-user-words.md`.
+
+---
+
 ## M75 — LME-V2 false-premise questions answered from the nearest real screen *(found 2026-09-27; not started)*
 
 M54's AgentRunbook-C point is weakest on abstention: 53.57 on enterprise's 56

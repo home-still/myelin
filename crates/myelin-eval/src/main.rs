@@ -786,6 +786,11 @@ enum Command {
         /// (`RetrieveConfig::select_focus`). Needs the cross-encoder.
         #[arg(long)]
         select_focus: bool,
+        /// M76: advice questions get the user's own turns from the sessions
+        /// the evidence reached, ranked by the cross-encoder
+        /// (`myelin_core::pipeline::user_words`). Needs the cross-encoder.
+        #[arg(long)]
+        user_words: bool,
         /// Compose each question's evidence and skip the reader, for
         /// `coverage` (LongMemEval_S only). The run is never quotable.
         #[arg(long)]
@@ -1303,6 +1308,7 @@ async fn main() -> anyhow::Result<()> {
             inline_dates,
             turn_windows,
             select_focus,
+            user_words,
             evidence_only,
             aggregation_k,
             aggregation_budget_tokens,
@@ -1360,6 +1366,7 @@ async fn main() -> anyhow::Result<()> {
                     inline_dates,
                     turn_windows,
                     select_focus,
+                    user_words,
                     evidence_only,
                     aggregation_k,
                     aggregation_budget_tokens,
