@@ -65,3 +65,25 @@ of this was caught.
 - **New schemas do not wait for it.** M78 names its fields so that the
   alphabetical order is the intended order, and a test pins the order on the
   serialized request.
+
+## Addendum: not every reversal hurt, so each order must be chosen *(2026-09-28, round-5 catalog)*
+
+Tam et al. (2024, *Let Me Speak Freely?*, EMNLP Industry,
+`10.18653/v1/2024.emnlp-industry.91`) found that "100% of GPT 3.5 Turbo
+JSON-mode responses placed the 'answer' key before the 'reason' key, resulting
+in zero-shot direct answering instead of zero-shot chain-of-thought
+reasoning". CRANE (Banerjee et al. 2025, arXiv 2502.09061) found that
+grammars loose enough to leave room for reasoning preserve it.
+
+So the accident cuts both ways:
+- **Where the reversal hurt:** M44 R1, whose reasoning went out after its
+  answer, and the grounded pass, which answered before naming anything.
+- **Where it helped:** on the wire, the shipped `reflect` writes its
+  `reason` before `sufficient`, and `support` writes `missing` before
+  `verdict`. That is the reasoning-before-decision order this research
+  favours. The *source* orders put the decision first.
+
+**The fix is therefore not "restore the source order".** Each schema's order
+is chosen deliberately, reasoning before the decision, and then
+`preserve_order` is turned on so the source order is the one path. Then it
+is measured as the BACKLOG item says. See `docs/research/sota-catalog-2026-09-28.md` §d.
