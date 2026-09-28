@@ -589,6 +589,8 @@ debt. And the run is the first to resume across a reader restart
 **Commit** PR #45 · `docs/measurements/m44-let-the-reader-reason.md` ·
 `runs/m44_r1`, `runs/m44_r2_s1`, `runs/m44_r2_s2` (+ `_judged`)
 
+*(2026-09-28: R1's fields reached the model answer-first, so reasoning-first was never tested; `defect-2026-09-28-schema-field-order.md`.)*
+
 **Numbers: R1 −0.8 [−3.8, +2.2], veto, off. R2 +10.6 [+7.0, +14.2] (seed
 1) and +10.6 [+7.0, +14.4] (seed 2), 67.80 → 78.40 on both, abstention 27
 → 28 and 29 of 30. Shipped ON for LongMemEval_S.**

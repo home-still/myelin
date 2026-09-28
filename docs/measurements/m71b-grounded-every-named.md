@@ -1,5 +1,12 @@
 # M71b — the grounded second pass, with every named thing covered *(pre-registered 2026-09-26, before any row)*
 
+> **Correction (2026-09-28).** The grounded schema reached the model as
+> `{answer, named, supporting}` (and `{memory, thing}` per named thing), so
+> the pass answered before it named anything
+> (`defect-2026-09-28-schema-field-order.md`). The code check
+> (`accept_grounded`) held either way. The numbers stand; "name every thing,
+> then answer" was never tested as designed.
+
 ## Why
 
 M71 re-asked M57's 78 declines under M61's grounded schema:
