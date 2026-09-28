@@ -110,7 +110,6 @@ pub async fn run(
     // The replay shows the base's own system prompt, clauses and all, rebuilt
     // through the function the base was read with (M71: the shipped
     // LongMemEval_S run carries the premise clause).
-    let system = crate::bench::reader_system_of_run(&base_metrics);
     // `question_date` is not carried on a scored row, and LongMemEval_S's
     // prompt includes it, so the second pass must be shown the same `<today>`
     // the first one saw. LoCoMo's first pass showed none.
@@ -171,6 +170,11 @@ pub async fn run(
             ),
         };
 
+        // The replay shows the base's own system prompt for this question,
+        // clauses and all, rebuilt through the function the base was read
+        // with (M71: the shipped LongMemEval_S run carries the premise
+        // clause; M76b: an advice request may be shown none).
+        let system = crate::bench::reader_system_of_run(&base_metrics, &row.question_text);
         let first = std::mem::take(&mut row.response_raw);
         let (response, fired, committed) = match pass {
             Pass::Greedy => {
