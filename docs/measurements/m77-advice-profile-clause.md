@@ -86,3 +86,87 @@ positive strata as well.
 - Declines do not fall: the clause is as inert on Bonsai as M38's rewritten
   selector clause was ("the reader ignores instructions and obeys
   structure"). The next step would then be structure, not text.
+
+## Result — official +18.9, strict CI crosses zero; the gate fails *(measured 2026-09-28)*
+
+The runs are `runs/m77_words_clause_s{1,2,3}` and `runs/m77c_clause_s{1,2,3}`.
+They ran on big at main `33a4041` as unit `myelin-m77`: the 29 fired rows
+under each seed, the other 471 copied from M57. They were judged by the strict
+9B (seeded from M57) and by LongMemEval's official grader (gpt-4o-mini, on the
+workstation).
+
+**Per seed, on the 30 preference rows** (declines / official right / strict
+right):
+
+| arm | seed 1 | seed 2 | seed 3 | seed mean |
+|---|---|---|---|---|
+| base (M57) | 7 / 13 / 11 | 10 / 10 / 9 | 8 / 9 / 13 | 8.3 / 10.7 / 11.0 |
+| **M77** (words + clause) | 8 / 17 / 13 | 6 / 16 / 13 | 5 / 16 / 14 | 6.3 / **16.3** / 13.3 |
+| M77c (clause alone) | 7 / 17 / 13 | 6 / 18 / 13 | 8 / 14 / 12 | 7.0 / **16.3** / 12.7 |
+
+**Paired and seed-averaged** (`paired_ci.py`, three replicates a side, with
+the bootstrap over questions):
+
+| arm | reading | stratum | n | arm | base | Δ [95% CI] | p |
+|---|---|---|---|---|---|---|---|
+| M77 | strict 9B | preference | 30 | 44.4% | 36.7% | +7.8 [−5.6, +22.2] | 0.22 |
+| M77 | official | preference | 30 | 54.4% | 35.6% | **+18.9 [+8.9, +30.0]** | < 0.0001 |
+| M77 | strict 9B | all | 500 | 79.7 | 79.2 | +0.5 [−0.3, +1.3] | 0.23 |
+| M77 | official | all | 500 | 79.3 | 78.1 | **+1.1 [+0.5, +1.9]** | 0.0001 |
+| M77c | strict 9B | preference | 30 | 42.2% | 36.7% | +5.6 [−5.6, +17.8] | 0.31 |
+| M77c | official | preference | 30 | 54.4% | 35.6% | **+18.9 [+8.9, +30.0]** | < 0.0001 |
+
+- Abstention is unchanged under both readings, since the gate fires on no
+  abstention row.
+- **Verdict: criterion 1 fails** (the strict CI includes zero), and
+  criterion 2 holds by a wide margin. As pre-registered, M77 does not enter
+  a bundle.
+- Note: the three-seed base reads **78.1** official overall, below seed 1's
+  78.60. Seed 1 was the base's best draw on preference, as the correction in
+  `m76b-advice-without-premise.md` already found.
+
+**Predictions against the result:**
+
+| prediction | result | |
+|---|---|---|
+| declines 8.3 → 2–4 per seed | 6.3 | wrong |
+| M77 official 10.7 → 15–19 | 16.3 | held |
+| M77 strict 11.0 → 14–17 | 13.3 | just under |
+| M77c smaller, official 12–14 | 16.3, the same as M77 | wrong |
+
+**Falsifiers:**
+- **"M77c matches M77" fires.** The clause alone gives the whole official
+  gain, so the user's words add nothing measurable once the clause is on.
+- **"Declines do not fall" half-fires.** Declines fell by 2 per seed, not 5.
+  The clause is not inert, though. It works on the *content* of the answers,
+  turning generic advice into advice built on the user's stated
+  preferences, not on whether the reader answers at all. That is the first
+  instruction this reader has measurably followed since M57's clause, and it
+  qualifies the one law: text can move what an answer says, but not whether
+  the reader declines.
+
+## What the gate measured: the strict judge cannot grade a preference row
+
+The two readings disagree on 21 of the 90 seed-rows of M77. On 15, official
+credits the answer and strict does not; on 6 it is the other way; 34 are
+right under both and 35 under neither.
+- The strict judge (`judge.rs`, `JUDGE_SYSTEM`) asks one question for every
+  row: does the answer "convey the same fact as the reference answer".
+- A preference row has no fact. Its reference is a rubric, "The user would
+  prefer responses that …".
+- LongMemEval's own grader gives this type its own template: correct if the
+  response "recalls and utilizes the user's personal information correctly".
+- Examples the official grader credits and the strict judge rejects, all
+  from seed 1:
+  - Music store: "Based on your Strat-to-Les Paul upgrade: body shape, neck,
+    pickups …" (rubric: Stratocaster vs Les Paul differences).
+  - Meal prep: "chicken fajitas with quinoa and roasted vegetables, lentil
+    bolognese over quinoa …" (rubric: quinoa and roasted vegetables).
+  - Denver: "Since you love the music scene, hit up Red Rocks …" (rubric:
+    their interest in live music).
+
+This is a finding about the instrument, not a change to the verdict. The
+strict judge decides every arm under the user's rule, and on this stratum it
+grades a rubric as though it were a fact. Whether preference rows should be
+graded by a rubric-shaped strict template is the user's call, and it is
+recorded in BACKLOG_DONE.

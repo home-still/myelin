@@ -94,6 +94,35 @@ first arm to question the measurement apparatus rather than the mechanism.
 
 ---
 
+## M77 — the preference clause for advice requests: **official +18.9 on preference, strict crosses zero**; the gate fails *(2026-09-28)*
+
+- **Mechanism:** `--advice-profile-clause` shows the existing
+  `READER_PREFERENCE_CLAUSE` to advice requests only (29 of 30 preference
+  rows, none of the other 470), with M76's words (`--user-words`). M77c, a
+  diagnostic, is the clause alone. Both ran over reader seeds 1–3 against a
+  three-seed base, with `paired_ci` averaging the replicates.
+- **Result on the 30 preference rows** (seed-averaged):
+  - M77: strict +7.8 [−5.6, +22.2]; official **+18.9 [+8.9, +30.0]**,
+    p < 0.0001 (10.7 → 16.3 right per seed);
+  - M77c: strict +5.6 [−5.6, +17.8]; official **+18.9 [+8.9, +30.0]**;
+  - overall official +1.1 [+0.5, +1.9]; abstention unchanged.
+- **Verdict:** criterion 1 (strict CI excludes zero) fails, so as
+  pre-registered it enters no bundle.
+- **What it taught:**
+  - The clause alone carries the whole gain; the words add nothing
+    measurable on top.
+  - Declines fell only 8.3 → 6.3. The clause changes what an answer says
+    (generic → built on the user's stated preferences), not whether the
+    reader answers.
+  - **The strict judge cannot grade a preference row.** Its one rubric asks
+    whether the answer "conveys the same fact as the reference", but a
+    preference reference is a rubric ("The user would prefer responses
+    that …"). On M77's 90 seed-rows the two readings disagree 15 to 6, and
+    the 15 are visibly personalized answers. LongMemEval's own grader has a
+    preference template for exactly this. Whether the strict judge gets
+    one is the user's call.
+- Doc: `m77-advice-profile-clause.md`.
+
 ## M76b — advice requests without the premise clause: **official −16.7 on preference**; does not ship *(2026-09-28)*
 
 - **Mechanism:** `--advice-without-premise` drops M57's premise clause from
