@@ -16,6 +16,7 @@
 //! no client-side BM25 encoder and no second index.
 
 use std::collections::HashMap;
+use std::time::Duration;
 
 use chrono::{DateTime, SecondsFormat, Utc};
 use qdrant_client::qdrant::{
@@ -35,6 +36,67 @@ use crate::error::{MyelinError, Result};
 use crate::model::record::MemoryRecord;
 
 /// Named dense channel.
+/// Attempts a read makes before a transport failure is reported.
+///
+/// Qdrant on big is a container another service owns. Its restart killed two
+/// running LongMemEval_S arms on 2026-09-28 (12:10 and 16:07), each with
+/// "transport error". A read is idempotent, so retrying it through a restart
+/// cannot change a result, only whether the run survives. The backoff is
+/// exponential and capped: gRPC's own retry design (gRFC A6,
+/// `github.com/grpc/proposal/blob/master/A6-client-retries.md`).
+/// 2 + 4 + 8 + 16 + 32 + 60 + 60 s is about 3 minutes, room for a container
+/// restart plus the collection reload.
+const QDRANT_READ_ATTEMPTS: u32 = 8;
+/// The first wait before a retry; it doubles each time.
+const QDRANT_RETRY_FIRST_BACKOFF: Duration = Duration::from_secs(2);
+/// The longest single wait.
+const QDRANT_RETRY_MAX_BACKOFF: Duration = Duration::from_secs(60);
+
+/// A failure of the connection, not of the request: the server is down or
+/// restarting (`Unavailable`), or tonic lost the transport mid-call, which
+/// qdrant-client reports as `Unknown` with the message "transport error".
+/// Every other error, an API refusal included, fails at once.
+fn is_transient(e: &qdrant_client::QdrantError) -> bool {
+    match e {
+        qdrant_client::QdrantError::ResponseError { status } => {
+            status.code() == tonic::Code::Unavailable
+                || (status.code() == tonic::Code::Unknown
+                    && status.message().contains("transport error"))
+        }
+        _ => false,
+    }
+}
+
+/// Run a read, retrying only transport failures, with capped exponential
+/// backoff from `first_backoff`. After [`QDRANT_READ_ATTEMPTS`], or on any
+/// other error, it fails as the call itself would have.
+async fn read_retrying<T, F, Fut>(what: &str, first_backoff: Duration, mut call: F) -> Result<T>
+where
+    F: FnMut() -> Fut,
+    Fut: std::future::Future<Output = std::result::Result<T, qdrant_client::QdrantError>>,
+{
+    let mut backoff = first_backoff;
+    let mut attempt = 1;
+    loop {
+        match call().await {
+            Ok(v) => return Ok(v),
+            Err(e) if attempt < QDRANT_READ_ATTEMPTS && is_transient(&e) => {
+                tracing::warn!(
+                    what,
+                    attempt,
+                    backoff_s = backoff.as_secs_f64(),
+                    error = %e,
+                    "qdrant read lost its transport; retrying"
+                );
+                tokio::time::sleep(backoff).await;
+                backoff = (backoff * 2).min(QDRANT_RETRY_MAX_BACKOFF);
+                attempt += 1;
+            }
+            Err(e) => return Err(e.into()),
+        }
+    }
+}
+
 pub const DENSE: &str = "dense";
 /// Named multivector (late-interaction) channel. Optional; see §5.1.
 pub const LATE: &str = "late";
@@ -169,7 +231,10 @@ impl QdrantStore {
     }
 
     pub async fn exists(&self) -> Result<bool> {
-        Ok(self.client.collection_exists(&self.collection).await?)
+        read_retrying("collection_exists", QDRANT_RETRY_FIRST_BACKOFF, || {
+            self.client.collection_exists(&self.collection)
+        })
+        .await
     }
 
     /// Create the collection and its payload indexes if absent. Idempotent.
@@ -336,10 +401,11 @@ impl QdrantStore {
     pub async fn count(&self) -> Result<u64> {
         use qdrant_client::qdrant::CountPointsBuilder;
 
-        let response = self
-            .client
-            .count(CountPointsBuilder::new(&self.collection).exact(true))
-            .await?;
+        let response = read_retrying("count", QDRANT_RETRY_FIRST_BACKOFF, || {
+            self.client
+                .count(CountPointsBuilder::new(&self.collection).exact(true))
+        })
+        .await?;
         Ok(response.result.map(|r| r.count).unwrap_or_default())
     }
 
@@ -360,13 +426,13 @@ impl QdrantStore {
     }
 
     pub async fn get_payload(&self, id: Uuid) -> Result<Option<PayloadSnapshot>> {
-        let response = self
-            .client
-            .get_points(
+        let response = read_retrying("get_points", QDRANT_RETRY_FIRST_BACKOFF, || {
+            self.client.get_points(
                 GetPointsBuilder::new(&self.collection, vec![PointId::from(id.to_string())])
                     .with_payload(true),
             )
-            .await?;
+        })
+        .await?;
         Ok(response
             .result
             .first()
@@ -407,16 +473,16 @@ impl QdrantStore {
             ..Default::default()
         };
 
-        let response = self
-            .client
-            .query(
-                QueryPointsBuilder::new(&self.collection)
-                    .query(Query::new_nearest(vector))
-                    .using(DENSE)
-                    .filter(filter)
-                    .limit(limit),
-            )
-            .await?;
+        let request: qdrant_client::qdrant::QueryPoints = QueryPointsBuilder::new(&self.collection)
+            .query(Query::new_nearest(vector))
+            .using(DENSE)
+            .filter(filter)
+            .limit(limit)
+            .into();
+        let response = read_retrying("query", QDRANT_RETRY_FIRST_BACKOFF, || {
+            self.client.query(request.clone())
+        })
+        .await?;
 
         Ok(response
             .result
@@ -529,10 +595,11 @@ impl QdrantStore {
                 .into(),
         );
 
-        let response = self
-            .client
-            .query_batch(QueryBatchPointsBuilder::new(&self.collection, queries))
-            .await?;
+        let response = read_retrying("query_batch", QDRANT_RETRY_FIRST_BACKOFF, || {
+            self.client
+                .query_batch(QueryBatchPointsBuilder::new(&self.collection, queries.clone()))
+        })
+        .await?;
 
         let mut lists = response
             .result
@@ -590,7 +657,11 @@ impl QdrantStore {
             if let Some(o) = offset.clone() {
                 builder = builder.offset(o);
             }
-            let response = self.client.scroll(builder).await?;
+            let request: qdrant_client::qdrant::ScrollPoints = builder.into();
+            let response = read_retrying("scroll", QDRANT_RETRY_FIRST_BACKOFF, || {
+                self.client.scroll(request.clone())
+            })
+            .await?;
             for point in &response.result {
                 let Some(id) = point.id.as_ref() else { continue };
                 let Some(qdrant_client::qdrant::point_id::PointIdOptions::Uuid(u)) =
@@ -669,5 +740,70 @@ fn dense_vector_of(point: &qdrant_client::qdrant::ScoredPoint) -> Option<Vec<f32
             let legacy = &out.data;
             (!legacy.is_empty()).then(|| legacy.clone())
         }
+    }
+}
+
+#[cfg(test)]
+mod retry_tests {
+    use super::*;
+
+    fn transport() -> qdrant_client::QdrantError {
+        qdrant_client::QdrantError::ResponseError {
+            status: tonic::Status::new(tonic::Code::Unknown, "transport error"),
+        }
+    }
+
+    /// The error that killed two arms on 2026-09-28, and a restarting server,
+    /// are transient; an API refusal is not.
+    #[test]
+    fn only_a_lost_transport_is_transient() {
+        assert!(is_transient(&transport()));
+        assert!(is_transient(&qdrant_client::QdrantError::ResponseError {
+            status: tonic::Status::new(tonic::Code::Unavailable, "restarting"),
+        }));
+        assert!(!is_transient(&qdrant_client::QdrantError::ResponseError {
+            status: tonic::Status::new(tonic::Code::InvalidArgument, "Vector dimension error"),
+        }));
+        assert!(!is_transient(&qdrant_client::QdrantError::ResponseError {
+            status: tonic::Status::new(tonic::Code::Unknown, "something else"),
+        }));
+    }
+
+    #[tokio::test]
+    async fn a_read_survives_a_restart_and_returns_what_the_server_says() {
+        let calls = std::sync::atomic::AtomicU32::new(0);
+        let got = read_retrying("test", Duration::from_millis(1), || {
+            let n = calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            async move { if n < 2 { Err(transport()) } else { Ok(42) } }
+        })
+        .await
+        .expect("third attempt succeeds");
+        assert_eq!(got, 42);
+        assert_eq!(calls.load(std::sync::atomic::Ordering::SeqCst), 3);
+    }
+
+    #[tokio::test]
+    async fn an_api_error_fails_at_once_and_a_dead_server_fails_after_every_attempt() {
+        let calls = std::sync::atomic::AtomicU32::new(0);
+        let refused: Result<u32> = read_retrying("test", Duration::from_millis(1), || {
+            calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            async {
+                Err(qdrant_client::QdrantError::ResponseError {
+                    status: tonic::Status::new(tonic::Code::InvalidArgument, "bad"),
+                })
+            }
+        })
+        .await;
+        assert!(refused.is_err());
+        assert_eq!(calls.load(std::sync::atomic::Ordering::SeqCst), 1, "no retry");
+
+        let calls = std::sync::atomic::AtomicU32::new(0);
+        let dead: Result<u32> = read_retrying("test", Duration::from_millis(1), || {
+            calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            async { Err(transport()) }
+        })
+        .await;
+        assert!(dead.is_err(), "fails loudly once the attempts are spent");
+        assert_eq!(calls.load(std::sync::atomic::Ordering::SeqCst), QDRANT_READ_ATTEMPTS);
     }
 }
