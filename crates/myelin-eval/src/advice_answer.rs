@@ -44,6 +44,19 @@
 //! `preferences` < `recommendation`, and `memory` < `quote`. A test pins the
 //! order on the serialized schema.
 
+//!
+//! # M78b: select, don't quote
+//!
+//! M78 measured what a free-text quote costs. Asked for the user's stated
+//! preferences, this reader quoted the assistant's advice 18% of the time
+//! (39% without the words block). The check refused those quotes, and the
+//! rows declined (`m78-advice-answer-structure.md`). M78b makes the choice
+//! itself the constraint. The answer *selects* memories by index, and the
+//! schema's `enum` lists only the memories that hold the user's own turns and
+//! nothing else. That is the selector's `{keep: [int]}` shape, which this
+//! reader follows (M40). A pick cannot be the assistant's words, so there is
+//! nothing to verify, and no field to decline in.
+
 use serde::Deserialize;
 
 /// The most preferences an answer may quote.
@@ -58,6 +71,15 @@ pub const ADVICE_RECOMMENDATION_MAX_CHARS: usize = 600;
 /// Completion room after the trace: four quotes and a recommendation at about
 /// 3.5 characters a token, with room for the JSON around them.
 pub const ADVICE_ANSWER_TOKENS: u32 = 512;
+/// The most user memories an M78b answer may select.
+pub const ADVICE_PICKS_MAX: usize = 3;
+/// An excerpt of a selected user turn is its opening sentences, cut at a
+/// sentence end once it holds this many characters.
+pub const ADVICE_EXCERPT_MIN_CHARS: usize = 40;
+/// ... and never longer than this, cut at a word boundary.
+pub const ADVICE_EXCERPT_MAX_CHARS: usize = 220;
+/// Marks a turn cut short.
+const ELLIPSIS: &str = "…";
 /// The turn prefix of the user's own words, as `ingest` writes it.
 const USER_TURN_PREFIX: &str = "user: ";
 /// The speakers of a LongMemEval_S episode.
@@ -178,6 +200,112 @@ pub fn render(verified: &[StatedPreference], recommendation: &str) -> Option<Str
     Some(format!("{YOU_TOLD_ME}: {quotes}. {}", recommendation.trim()))
 }
 
+/// The M78b answer, as the model writes it: shown memories selected by index,
+/// then a recommendation.
+#[derive(Debug, Clone, Deserialize, PartialEq)]
+pub struct AdvicePicks {
+    pub picks: Vec<usize>,
+    pub recommendation: String,
+}
+
+/// The user's own turns in `memory`, labels and prefixes removed. It returns
+/// `None` unless every turn the memory holds is the user's: a memory that
+/// mixes in the assistant is not the user's words.
+fn user_turns_only(memory: &str) -> Option<Vec<&str>> {
+    let mut turns = Vec::new();
+    for span in myelin_core::pipeline::turn_windows::turn_spans(memory, &SPEAKERS) {
+        let text = strip_labels(&memory[span]);
+        if text.is_empty() || text == ELLIPSIS {
+            // A windowed view opens with a label line and an elision mark.
+            continue;
+        }
+        turns.push(text.strip_prefix(USER_TURN_PREFIX)?);
+    }
+    (!turns.is_empty()).then_some(turns)
+}
+
+/// The indices of the shown memories that hold the user's own turns and
+/// nothing else (the `[your words]` block's items, M76). Only these may be
+/// picked.
+pub fn user_memories(memories: &[String]) -> Vec<usize> {
+    memories
+        .iter()
+        .enumerate()
+        .filter(|(_, m)| user_turns_only(m).is_some())
+        .map(|(i, _)| i)
+        .collect()
+}
+
+/// The M78b schema: 1 to [`ADVICE_PICKS_MAX`] picks, each one of `allowed`,
+/// then a recommendation. `picks` < `recommendation` is also the wire order
+/// (`docs/measurements/defect-2026-09-28-schema-field-order.md`).
+pub fn advice_picks_schema(allowed: &[usize]) -> serde_json::Value {
+    serde_json::json!({
+        "type": "object",
+        "properties": {
+            "picks": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": ADVICE_PICKS_MAX,
+                "items": { "type": "integer", "enum": allowed }
+            },
+            "recommendation": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": ADVICE_RECOMMENDATION_MAX_CHARS
+            }
+        },
+        "required": ["picks", "recommendation"],
+        "additionalProperties": false
+    })
+}
+
+/// A selected user memory's opening sentences: whole sentences until the
+/// excerpt holds [`ADVICE_EXCERPT_MIN_CHARS`], never past
+/// [`ADVICE_EXCERPT_MAX_CHARS`] (cut at a word, marked with an ellipsis).
+pub fn excerpt(memory: &str) -> Option<String> {
+    let text = user_turns_only(memory)?.join(" ");
+    let text = text.split_whitespace().collect::<Vec<_>>().join(" ");
+    let mut end = text.len();
+    for (i, c) in text.char_indices() {
+        if matches!(c, '.' | '!' | '?') && i + 1 >= ADVICE_EXCERPT_MIN_CHARS {
+            end = i + c.len_utf8();
+            break;
+        }
+    }
+    let cut = &text[..end];
+    if cut.chars().count() <= ADVICE_EXCERPT_MAX_CHARS {
+        return Some(cut.to_string());
+    }
+    let capped: String = cut.chars().take(ADVICE_EXCERPT_MAX_CHARS).collect();
+    let at_word = capped.rsplit_once(' ').map_or(capped.as_str(), |(head, _)| head);
+    Some(format!("{at_word}{ELLIPSIS}"))
+}
+
+/// The M78b answer the user reads: an excerpt of each distinct pick, then the
+/// recommendation. `None` if a pick is not an allowed user memory, which the
+/// grammar should make impossible; the caller then scores the raw content as
+/// said.
+pub fn render_picks(answer: &AdvicePicks, memories: &[String], allowed: &[usize]) -> Option<String> {
+    let mut seen = Vec::new();
+    for &pick in &answer.picks {
+        if !allowed.contains(&pick) {
+            return None;
+        }
+        if !seen.contains(&pick) {
+            seen.push(pick);
+        }
+    }
+    let quotes = seen
+        .iter()
+        .map(|&i| memories.get(i).and_then(|m| excerpt(m)).map(|e| format!("\"{e}\"")))
+        .collect::<Option<Vec<_>>>()?;
+    if quotes.is_empty() {
+        return None;
+    }
+    Some(format!("{YOU_TOLD_ME}: {}. {}", quotes.join("; "), answer.recommendation.trim()))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -251,6 +379,57 @@ mod tests {
     #[test]
     fn nothing_verified_renders_nothing() {
         assert_eq!(render(&[], "Try a crumb cake."), None);
+    }
+
+    const WORDS: &str = "[2023-05-29] …\nuser: I think I'll stick with the Space Needle package at The Edgewater. The hot tub on the balcony sounds amazing, and I love a view.";
+
+    /// Only a memory that holds nothing but the user's turns may be picked;
+    /// an episode that mixes in the assistant may not.
+    #[test]
+    fn only_memories_of_the_users_own_turns_are_pickable() {
+        let memories = vec![
+            EPISODE.to_string(),
+            "[your words] What the user said about themselves, in the conversations above:".to_string(),
+            WORDS.to_string(),
+            "[2023-05-30] user: I'm planning a trip to Las Vegas and packing light.".to_string(),
+        ];
+        assert_eq!(user_memories(&memories), vec![2, 3]);
+    }
+
+    #[test]
+    fn the_picks_schema_allows_only_user_memories_in_wire_order() {
+        let schema = advice_picks_schema(&[2, 3]);
+        assert_eq!(schema["properties"]["picks"]["items"]["enum"], serde_json::json!([2, 3]));
+        assert_eq!(schema["properties"]["picks"]["minItems"], 1);
+        assert_eq!(schema["properties"]["picks"]["maxItems"], ADVICE_PICKS_MAX);
+        let wire = serde_json::to_string(&schema).expect("serialise");
+        assert!(wire.find("\"picks\":") < wire.find("\"recommendation\":"), "{wire}");
+        assert_eq!(schema["properties"].as_object().expect("props").len(), 2, "no field to decline in");
+    }
+
+    #[test]
+    fn an_excerpt_is_the_opening_sentences_capped_at_a_word() {
+        assert_eq!(
+            excerpt(WORDS).as_deref(),
+            Some("I think I'll stick with the Space Needle package at The Edgewater.")
+        );
+        let long = format!("[2023-05-01] user: {}", "word ".repeat(80));
+        let e = excerpt(&long).expect("user memory");
+        assert!(e.chars().count() <= ADVICE_EXCERPT_MAX_CHARS + 1 && e.ends_with('…'), "{e}");
+        assert_eq!(excerpt(EPISODE), None, "a mixed episode has no excerpt");
+    }
+
+    #[test]
+    fn picks_render_as_excerpts_then_the_recommendation() {
+        let memories = vec![EPISODE.to_string(), WORDS.to_string()];
+        let allowed = user_memories(&memories);
+        let answer = AdvicePicks { picks: vec![1, 1], recommendation: "Book the Edgewater again.".into() };
+        assert_eq!(
+            render_picks(&answer, &memories, &allowed).as_deref(),
+            Some("You told me: \"I think I'll stick with the Space Needle package at The Edgewater.\". Book the Edgewater again.")
+        );
+        let assistant = AdvicePicks { picks: vec![0], recommendation: "x".into() };
+        assert_eq!(render_picks(&assistant, &memories, &allowed), None, "not an allowed pick");
     }
 
     #[test]

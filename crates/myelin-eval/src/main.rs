@@ -805,6 +805,11 @@ enum Command {
         /// user's own turns, then a recommendation. Needs `--reader-thinking`.
         #[arg(long)]
         advice_answer: bool,
+        /// M78b: advice requests are answered by selecting the user's own
+        /// turns by index, then a recommendation. Needs `--reader-thinking`
+        /// and `--user-words`; the alternative to `--advice-answer`.
+        #[arg(long)]
+        advice_picks: bool,
         /// Compose each question's evidence and skip the reader, for
         /// `coverage` (LongMemEval_S only). The run is never quotable.
         #[arg(long)]
@@ -1326,6 +1331,7 @@ async fn main() -> anyhow::Result<()> {
             advice_without_premise,
             advice_profile_clause,
             advice_answer,
+            advice_picks,
             evidence_only,
             aggregation_k,
             aggregation_budget_tokens,
@@ -1387,6 +1393,7 @@ async fn main() -> anyhow::Result<()> {
                     advice_without_premise,
                     advice_profile_clause,
                     advice_answer,
+                    advice_picks,
                     evidence_only,
                     aggregation_k,
                     aggregation_budget_tokens,

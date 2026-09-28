@@ -1028,6 +1028,8 @@ fn bench_metrics(dir: &Path, agg_text: &str) -> Result<Vec<Ours>> {
         || run.advice_profile_clause
         // M78's advice answer as structure, shipping off pending its arm.
         || run.advice_answer
+        // M78b's advice picks, shipping off pending its arm.
+        || run.advice_picks
         // A reader-free coverage run is never a quotable score.
         || run.evidence_only
         || run.aggregation_k.is_some()
