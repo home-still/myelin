@@ -94,6 +94,28 @@ first arm to question the measurement apparatus rather than the mechanism.
 
 ---
 
+## M78 — the advice answer as structure: **strict +12.2 [−1.1, +25.6], official +16.7**; the gate fails and M77c stays *(2026-09-28)*
+
+- **Mechanism:** `--advice-answer`. For advice requests, the thinking
+  reader's final content is constrained to `{preferences: [{memory, quote}],
+  recommendation}`, with no decline field. Each quote is checked in code
+  against a user turn of the memory it cites.
+- **Result on the 30 preference rows** (three seeds a side):
+  - vs the base: strict +12.2 [−1.1, +25.6], official +16.7 [+0.0, +33.3];
+  - vs M77c, the clause alone: official −2.2, strict +1.1.
+  - The gate fails, M78 does not beat M77c, and the round-5 bundle carries
+    M77c.
+- **Why:**
+  - Declines stayed at 8.0 per seed, since only 64% of quotes verified.
+  - 18% of the quotes are the assistant's advice presented as the user's
+    words (39% without the words block). The verifier refused them, so those
+    rows declined.
+  - The smoke test confirmed that grammar-after-thinking works on the fork
+    (0 parse failures in 174 rows).
+- **Next, as structure:** the answer *selects* user turns by index from a
+  list that holds only user turns, the selector's `{keep: [int]}` shape.
+- Doc: `m78-advice-answer-structure.md`.
+
 ## The strict judge's preference rubric: **M57 79.20 → 79.00**; M77c clears its gate on the re-read (post hoc) *(2026-09-28)*
 
 - **Why:** M77 found that the strict 9B graded the 30 preference rubrics as

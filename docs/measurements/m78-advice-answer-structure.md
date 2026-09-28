@@ -111,3 +111,78 @@ head-to-head is also paired: `m78_answer_s{1,2,3}` against
 
 About 100 minutes on big (two arms side by side × 3 seeds), plus about 10
 minutes of judging and the official grader on the workstation (about $0.01).
+
+## Result — the gate fails, and M77c stays the bundle's advice switch *(measured 2026-09-28)*
+
+The runs are `runs/m78_answer_s{1,2,3}` and `runs/m78c_answer_s{1,2,3}`, on
+big at main `cc6844e` (unit `myelin-m78`). Each is 29 fired rows per seed,
+with the other 471 copied from M57. They were graded by the strict 9B with
+the preference rubric, and by LongMemEval's official grader.
+
+**The smoke test passed.** It produced 1,105 characters of thinking, then
+constrained JSON that parsed. The fork applies the grammar after the
+reasoning block. Across all six runs no content failed to parse (0 of 174
+rows).
+
+**Per seed, on the 30 preference rows** (declines / official right / strict
+right):
+
+| arm | seed 1 | seed 2 | seed 3 | seed mean |
+|---|---|---|---|---|
+| base (M57) | 7 / 13 / 10 | 10 / 10 / 8 | 8 / 9 / 8 | 8.3 / 10.7 / 8.7 |
+| M77c (clause) | 7 / 17 / 12 | 6 / 18 / 14 | 8 / 14 / 10 | 7.0 / **16.3** / 12.0 |
+| **M78** (words + clause + structure) | 9 / 16 / 14 | 8 / 13 / 9 | 7 / 18 / 14 | 8.0 / 15.7 / 12.3 |
+| M78c (clause + structure) | 11 / 14 / 11 | 14 / 11 / 10 | 11 / 16 / 16 | 12.0 / 13.7 / 12.3 |
+
+**Paired and seed-averaged**, on the 30 preference rows:
+
+| comparison | strict Δ [95% CI] | official Δ [95% CI] |
+|---|---|---|
+| M78 vs base | +12.2 [−1.1, +25.6] | +16.7 [+0.0, +33.3] |
+| M78c vs base | +12.2 [−3.3, +27.8] | +10.0 [−5.6, +25.6] |
+| **M78 vs M77c** (head-to-head) | +1.1 [−11.1, +13.3] | **−2.2 [−15.6, +11.1]** |
+
+- Abstention is unchanged in every arm (no gate fires on an abstention row).
+- **Verdict: criterion 1 fails** (the strict CI crosses zero). M78 also does
+  not beat M77c. Under the pre-registered rule it enters no bundle, and the
+  round-5 bundle carries M77c (`r5-bundle-seeds.md`).
+
+**Predictions against the result:**
+
+| prediction | result | |
+|---|---|---|
+| smoke test passes | passed | held |
+| declines ≤ 2 per seed | 8.0 (M78), 12.0 (M78c) | wrong |
+| official 18–21 | 15.7 | wrong |
+| strict 14–17 | 12.3 | wrong |
+| ≥ 80% of quotes verify | 64% (M78), 40% (M78c) | wrong |
+| M78c ≈ M78 − 1 | official −2.0, strict equal | held |
+
+**The falsifier "declines stay ≥ 5 a seed" fires.** The structure removed the
+reader's own decline, but its quotes then failed verification. Every quote
+across the three seeds, by where the verifier found it:
+
+| where the quote was found | M78 (245 quotes) | M78c (221) |
+|---|---|---|
+| a user turn of the cited memory: **kept** | 156 (64%) | 89 (40%) |
+| the cited memory, outside a user turn (the assistant's advice) | 43 (18%) | 87 (39%) |
+| nowhere verbatim (paraphrased or cut at the length cap) | 34 (14%) | 28 (13%) |
+| another memory than the one cited | 9 (4%) | 13 (6%) |
+| user fragments joined by "…" (rejected, pre-registered) | 3 (1%) | 4 (2%) |
+
+**What this teaches:**
+- **Asked for the user's preferences, this reader quotes the assistant.**
+  About a fifth of M78's quotes, and two fifths of M78c's, are the
+  assistant's advice presented as what the user said. Without the words
+  block there are few user turns to quote, and the model fills the field
+  with what is there.
+- **The verifier did its job.** A "You told me" built from the assistant's
+  own advice would be a false statement. The rows it refused became
+  declines, which is why declines did not fall.
+- **The structure is not what failed; the field did.** A free-text quote asks
+  the model to find and copy the user's words, and it cannot tell whose
+  words they are. The structural next step is to make the *choice* the
+  constraint: the answer selects user turns by index from a list that holds
+  only user turns. This is the same shape as the selector's `{keep: [int]}`,
+  which this reader follows (M40). It leaves no way to quote the assistant,
+  and nothing to verify.
