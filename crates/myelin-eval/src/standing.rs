@@ -2980,6 +2980,7 @@ mod tests {
                 model: "qwen3.5-9b".into(),
                 verdicts,
                 answers: Default::default(),
+                rubrics: Default::default(),
             })
             .unwrap(),
         )

@@ -3435,6 +3435,7 @@ mod tests {
                 model: "test-judge".into(),
                 verdicts: map,
                 answers: Default::default(),
+                rubrics: Default::default(),
             })
             .unwrap(),
         )
