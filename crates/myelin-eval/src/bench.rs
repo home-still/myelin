@@ -64,6 +64,7 @@ use myelin_core::llm::openai::OpenAiLlm;
 use myelin_core::llm::{CompletionRequest, Llm, Message};
 use myelin_core::model::query::{Budget, Mode, Recall, ScopeFilter};
 use myelin_core::pipeline::side_block::{SideBlock, SideKind};
+use myelin_core::pipeline::user_words::{UserWords, USER_WORDS_MECHANISM};
 use myelin_core::pipeline::investigate::Investigator;
 use myelin_core::pipeline::retrieve::{RetrieveConfig, Retriever};
 use myelin_core::pipeline::select::Degradation;
@@ -607,6 +608,11 @@ pub struct BenchRun {
     /// line (`RetrieveConfig::select_focus`). Absent on every run before M74.
     #[serde(default)]
     pub select_focus: bool,
+    /// M76: advice questions got a `[your words]` block, the user's own turns
+    /// from the evidence's sessions (`myelin_core::pipeline::user_words`).
+    /// Absent on every run before M76.
+    #[serde(default)]
+    pub user_words: bool,
     /// The run composed evidence and never called the reader: every
     /// response is empty and every score is meaningless. It exists for
     /// `coverage`, the reader-free half of a gate (M74's first criterion).
@@ -781,6 +787,8 @@ pub struct BenchSwitches {
     pub turn_windows: Option<usize>,
     /// M74: `RetrieveConfig::select_focus`.
     pub select_focus: bool,
+    /// M76: the `[your words]` block (`myelin_core::pipeline::user_words`).
+    pub user_words: bool,
     /// Compose the evidence and skip the reader (LongMemEval_S only), for
     /// `coverage`.
     pub evidence_only: bool,
@@ -2197,6 +2205,13 @@ pub async fn bench_locomo(
     .into_iter()
     .filter_map(|(kind, ledger)| Some(SideBlock::new(kind, ledger?, side_reranker?)))
     .collect();
+    // M76: the user's own turns from the evidence's sessions, read from the
+    // run's own ledger and ranked by the cross-encoder.
+    let user_words: Option<UserWords> = match (switches.user_words, side_reranker) {
+        (false, _) => None,
+        (true, Some(r)) => Some(UserWords::new(&ledger, r)),
+        (true, None) => anyhow::bail!("--user-words needs the cross-encoder at {}", cfg.rerank.url),
+    };
     if switches.graph {
         retriever = retriever.with_graph(&graph_index);
     }
@@ -2317,6 +2332,12 @@ pub async fn bench_locomo(
             };
             if switches.select_sufficient {
                 degradation.observe(selection.1)?;
+            }
+            if let Some(words) = &user_words {
+                words
+                    .append(&query, &mut evidence)
+                    .await
+                    .with_context(|| format!("{USER_WORDS_MECHANISM} {tenant}#{i}"))?;
             }
             for block in &side_blocks {
                 block
@@ -2522,6 +2543,13 @@ pub async fn bench_longmemeval_s(
     .into_iter()
     .filter_map(|(kind, ledger)| Some(SideBlock::new(kind, ledger?, side_reranker?)))
     .collect();
+    // M76: the user's own turns from the evidence's sessions, read from the
+    // run's own ledger and ranked by the cross-encoder.
+    let user_words: Option<UserWords> = match (switches.user_words, side_reranker) {
+        (false, _) => None,
+        (true, Some(r)) => Some(UserWords::new(&ledger, r)),
+        (true, None) => anyhow::bail!("--user-words needs the cross-encoder at {}", cfg.rerank.url),
+    };
     if switches.graph {
         retriever = retriever.with_graph(&graph_index);
     }
@@ -2593,6 +2621,12 @@ pub async fn bench_longmemeval_s(
         };
         if switches.select_sufficient {
             degradation.observe(selection.1)?;
+        }
+        if let Some(words) = &user_words {
+            words
+                .append(&query, &mut evidence)
+                .await
+                .with_context(|| format!("{USER_WORDS_MECHANISM} {}", item.question_id))?;
         }
         for block in &side_blocks {
             block
@@ -2845,6 +2879,7 @@ fn finish_run(
         inline_dates: spec.switches.inline_dates,
         turn_windows: spec.switches.turn_windows,
         select_focus: spec.switches.select_focus,
+        user_words: spec.switches.user_words,
         evidence_only: spec.switches.evidence_only,
         aggregation_k: spec.switches.aggregation_k,
         aggregation_budget_tokens: spec.switches.aggregation_budget_tokens,
@@ -3048,6 +3083,7 @@ pub fn rescore_run(source: &Path, out_dir: &Path, scorer: Scorer) -> Result<Benc
                 .and_then(serde_json::Value::as_u64)
                 .and_then(|n| usize::try_from(n).ok()),
             select_focus: flag("select_focus"),
+            user_words: flag("user_words"),
             evidence_only: flag("evidence_only"),
             aggregation_k: metrics
                 .get("aggregation_k")
