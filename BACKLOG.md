@@ -199,6 +199,20 @@ lost under the strict judge):
 
 ---
 
+## M78 — the advice answer as structure, grounded in the user's own words *(pre-registered 2026-09-28)*
+
+The preference clause (M77c) changed what the advice says (official 10.7 →
+16.3) but hardly whether the reader answers (declines 8.3 → 7.0).
+- `--advice-answer`: for advice requests only, the thinking reader's final
+  content is constrained to `{preferences: [{memory, quote}], recommendation}`,
+  with no decline field.
+- Each quote is checked in code against a user turn of the memory it cites.
+- Arms M78 (words, clause, structure) and M78c (clause, structure), over
+  seeds 1–3, against the three-seed base, with a head-to-head against M77c.
+- Doc: `docs/measurements/m78-advice-answer-structure.md`.
+
+---
+
 ## Schema field order — send the order each schema was written in *(defect found 2026-09-28; not started)*
 
 No schema's intended field order ever reached the model: serde_json sorts

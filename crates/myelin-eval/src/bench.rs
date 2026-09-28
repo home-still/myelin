@@ -654,6 +654,11 @@ pub struct BenchRun {
     /// ([`reader_system`]). Absent on every run before M77.
     #[serde(default)]
     pub advice_profile_clause: bool,
+    /// M78: advice requests were answered as structure, with every quoted
+    /// preference checked against the user's own turns
+    /// ([`crate::advice_answer`]). Absent on every run before M78.
+    #[serde(default)]
+    pub advice_answer: bool,
     /// The run composed evidence and never called the reader: every
     /// response is empty and every score is meaningless. It exists for
     /// `coverage`, the reader-free half of a gate (M74's first criterion).
@@ -834,6 +839,8 @@ pub struct BenchSwitches {
     pub advice_without_premise: bool,
     /// M77: the preference clause for advice requests ([`reader_system`]).
     pub advice_profile_clause: bool,
+    /// M78: advice requests answered as structure ([`read_advice_answer`]).
+    pub advice_answer: bool,
     /// Compose the evidence and skip the reader (LongMemEval_S only), for
     /// `coverage`.
     pub evidence_only: bool,
@@ -1982,6 +1989,72 @@ pub(crate) async fn read_answer(
     })
 }
 
+/// The seed M78's advice answer is sampled under, if the switch is on. The
+/// switch constrains the thinking reader's answer, so any other reader mode is
+/// refused, not silently read as plain.
+fn advice_answer_seed(switches: &BenchSwitches, mode: ReaderMode) -> Result<Option<u64>> {
+    match (switches.advice_answer, mode) {
+        (false, _) => Ok(None),
+        (true, ReaderMode::Thinking { seed }) => Ok(Some(seed)),
+        (true, _) => anyhow::bail!(
+            "--advice-answer constrains the thinking reader's answer (M78); it needs --reader-thinking"
+        ),
+    }
+}
+
+/// M78: an advice request answered by the thinking reader as structure
+/// ([`crate::advice_answer`]).
+///
+/// It is the Thinking request [`read_answer`] sends, with the same system
+/// prompt, seed and sampling, plus a schema on the content after the trace.
+/// The schema asks for the user's stated preferences, each quoted from a shown
+/// memory, then a recommendation, and it has no decline field. Every quote is
+/// checked in code against the user's own turns of the memory it cites. The
+/// answer is the verified quotes and the recommendation, or [`DECLINE`] when
+/// none verifies. The constrained JSON goes into the trace, after the thinking,
+/// so every dropped quote can be audited.
+///
+/// Content that does not parse is returned verbatim and scored as said, as R1
+/// does ([`read_answer`]): dropping it would hide a failure that has to be
+/// counted.
+pub(crate) async fn read_advice_answer(
+    llm: &dyn Llm,
+    system: &str,
+    user: &str,
+    seed: u64,
+    memories: &[String],
+) -> Result<ReadAnswer> {
+    use crate::advice_answer::{
+        advice_answer_schema, render, verified, AdviceAnswer, ADVICE_ANSWER_TOKENS,
+    };
+    let request = CompletionRequest::new(vec![
+        Message::system(system),
+        Message::user(user.to_string()),
+    ])
+    .with_thinking(true)
+    .with_sampling(THINKING_TEMPERATURE, THINKING_TOP_P, THINKING_TOP_K)
+    .with_seed(seed)
+    .with_max_tokens(THINKING_BUDGET_TOKENS + ADVICE_ANSWER_TOKENS)
+    .with_schema(advice_answer_schema(memories.len()));
+    let completion = llm.complete(&request).await?;
+    let text = completion.text;
+    let trace = Some(format!(
+        "{}\n[{ADVICE_ANSWER_TRACE}] {text}",
+        completion.reasoning.unwrap_or_default()
+    ));
+    let Ok(parsed) = serde_json::from_str::<AdviceAnswer>(&text) else {
+        return Ok(ReadAnswer { answer: text, trace });
+    };
+    let kept = verified(&parsed, memories);
+    Ok(ReadAnswer {
+        answer: render(&kept, &parsed.recommendation).unwrap_or_else(|| DECLINE.to_string()),
+        trace,
+    })
+}
+
+/// Marks the constrained JSON inside an M78 row's `reader_trace`.
+pub const ADVICE_ANSWER_TRACE: &str = "m78:advice-answer";
+
 /// Flatten LoCoMo's `answer` field — or an LME-V2 harness row's
 /// `answer_gold` — to a string.
 ///
@@ -2181,6 +2254,11 @@ pub async fn bench_locomo(
     // through `read_answer` is the identical request (same system and user
     // messages, `READER_ANSWER_TOKENS` = 160), so every earlier LoCoMo run
     // is reproduced unchanged.
+    anyhow::ensure!(
+        !switches.advice_answer,
+        "--advice-answer is a LongMemEval_S mechanism (M78): LoCoMo asks no advice, \
+         so the switch would be recorded and change nothing"
+    );
     let reader_mode = switches.reader_mode()?;
     if let ReaderMode::Thinking { .. } = reader_mode {
         verify_thinking_budget(&llm, THINKING_BUDGET_TOKENS).await?;
@@ -2536,6 +2614,7 @@ pub async fn bench_longmemeval_s(
         verify_thinking_budget(&llm, THINKING_BUDGET_TOKENS).await?;
         eprintln!("reader: thinking budget of {THINKING_BUDGET_TOKENS} tokens verified on the server");
     }
+    let advice_seed = advice_answer_seed(switches, reader_mode)?;
     let embedder = RemoteEmbedder::new(&cfg.embed.url, &cfg.embed.model, cfg.embed.dim)
         .context("embedder client")?;
     let mut qdrant_cfg = cfg.qdrant.clone();
@@ -2695,9 +2774,17 @@ pub async fn bench_longmemeval_s(
         let (response, reader_trace) = if switches.evidence_only {
             (String::new(), None)
         } else {
-            let read = read_answer(&llm, system, &user, reader_mode)
-                .await
-                .with_context(|| format!("reader {}", item.question_id))?;
+            let advice = advice_seed
+                .filter(|_| myelin_core::pipeline::query_shape::is_advice_request(&item.question));
+            let read = match advice {
+                Some(seed) => {
+                    let memories: Vec<String> =
+                        evidence.items.iter().map(|it| it.value.clone()).collect();
+                    read_advice_answer(&llm, system, &user, seed, &memories).await
+                }
+                None => read_answer(&llm, system, &user, reader_mode).await,
+            }
+            .with_context(|| format!("reader {}", item.question_id))?;
             (read.answer, read.trace)
         };
         // M42: only a declining row pays for a second call. With the switch
@@ -2926,6 +3013,7 @@ fn finish_run(
         user_words: spec.switches.user_words,
         advice_without_premise: spec.switches.advice_without_premise,
         advice_profile_clause: spec.switches.advice_profile_clause,
+        advice_answer: spec.switches.advice_answer,
         evidence_only: spec.switches.evidence_only,
         aggregation_k: spec.switches.aggregation_k,
         aggregation_budget_tokens: spec.switches.aggregation_budget_tokens,
@@ -3132,6 +3220,7 @@ pub fn rescore_run(source: &Path, out_dir: &Path, scorer: Scorer) -> Result<Benc
             user_words: flag("user_words"),
             advice_without_premise: flag("advice_without_premise"),
             advice_profile_clause: flag("advice_profile_clause"),
+            advice_answer: flag("advice_answer"),
             evidence_only: flag("evidence_only"),
             aggregation_k: metrics
                 .get("aggregation_k")
@@ -4318,6 +4407,70 @@ mod reader_tests {
         assert!(!req.thinking);
         assert_eq!((req.temperature, req.top_p, req.seed), (0.0, None, None));
         assert_eq!(req.max_tokens, Some(READER_ANSWER_TOKENS));
+    }
+
+    /// M78: the advice answer is R2's request (the same prompt, thinking,
+    /// seed and sampling) plus its schema, with room for the JSON after the
+    /// trace. Content that does not parse is scored as said, and the trace
+    /// keeps both the thinking and the raw content.
+    #[tokio::test]
+    async fn the_advice_answer_is_the_thinking_request_plus_its_schema() {
+        let llm = Captures(std::sync::Mutex::new(None));
+        let memories = vec!["[2023-05-24] user: I love turbinado sugar in my coffee.".to_string()];
+        let out = read_advice_answer(&llm, "sys", "user", 7, &memories)
+            .await
+            .expect("reader");
+        assert_eq!(out.answer, "42");
+        let trace = out.trace.expect("trace");
+        assert!(trace.starts_with("let me think"), "{trace}");
+        assert!(trace.ends_with(&format!("[{ADVICE_ANSWER_TRACE}] 42")), "{trace}");
+        let req = llm.0.lock().unwrap().clone().expect("request captured");
+        assert!(req.thinking);
+        assert_eq!(req.temperature, THINKING_TEMPERATURE);
+        assert_eq!((req.top_p, req.top_k, req.seed), (Some(THINKING_TOP_P), Some(THINKING_TOP_K), Some(7)));
+        assert_eq!(
+            req.max_tokens,
+            Some(THINKING_BUDGET_TOKENS + crate::advice_answer::ADVICE_ANSWER_TOKENS)
+        );
+        assert_eq!(req.json_schema, Some(crate::advice_answer::advice_answer_schema(1)));
+        assert_eq!(req.messages[0].content, "sys", "the caller's prompt, unchanged");
+    }
+
+    /// A quote from the assistant's turn is dropped; with nothing left the
+    /// row is the ordinary decline the scorers already recognise.
+    #[tokio::test]
+    async fn the_advice_answer_keeps_only_verified_quotes_and_declines_without_one() {
+        let memories = vec![
+            "[2023-05-24] user: I love turbinado sugar in my coffee.\nassistant: Demerara works too.".to_string(),
+        ];
+        let llm = Says(
+            r#"{"preferences":[{"memory":0,"quote":"I love turbinado sugar"},{"memory":0,"quote":"Demerara works too"}],"recommendation":"Try a turbinado latte."}"#,
+        );
+        let out = read_advice_answer(&llm, "sys", "user", 1, &memories).await.expect("reader");
+        assert_eq!(out.answer, "You told me: \"I love turbinado sugar\". Try a turbinado latte.");
+
+        let llm = Says(r#"{"preferences":[{"memory":0,"quote":"Demerara works too"}],"recommendation":"Try demerara."}"#);
+        let out = read_advice_answer(&llm, "sys", "user", 1, &memories).await.expect("reader");
+        assert_eq!(out.answer, DECLINE);
+        assert!(is_abstention(&out.answer));
+    }
+
+    /// The switch constrains the thinking reader's answer; under any other
+    /// mode it is refused rather than recorded and ignored.
+    #[test]
+    fn the_advice_answer_needs_the_thinking_reader() {
+        let on = BenchSwitches {
+            advice_answer: true,
+            ..Default::default()
+        };
+        assert!(advice_answer_seed(&on, ReaderMode::Plain).is_err());
+        assert!(advice_answer_seed(&on, ReaderMode::Reasoning).is_err());
+        assert_eq!(advice_answer_seed(&on, ReaderMode::Thinking { seed: 3 }).expect("thinking"), Some(3));
+        assert_eq!(
+            advice_answer_seed(&BenchSwitches::default(), ReaderMode::Thinking { seed: 3 }).expect("off"),
+            None,
+            "off by default"
+        );
     }
 
     /// The two arms are alternatives, and a sampled run must name its seed.
