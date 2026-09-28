@@ -95,3 +95,23 @@ judging. It runs after the round-5 and M78b units, from the same queue.
 - **Commits under 5 per replicate:** the reader types almost everything as
   `contradicted` or `never mentioned`, so the typed pass is as inert as
   M71b's grounding.
+
+## Amendment before any row *(2026-09-28, round-5 catalog)*
+
+Wagner (2026, arXiv 2607.08456) reports that instructing a model to check
+premises "backfires, because it then disputes sound and false premises alike
+(57% false challenges)". M79's `mismatch` field is that instruction. The gate
+is unchanged, and the readout will also report Wagner's two error rates
+separately:
+- **false challenges:** of M57's 49 answerable declines, the share typed
+  `contradicted` or `never mentioned`. Each is a recovery missed, never a
+  new loss.
+- **false fits:** of the abstention declines, the share typed `none` or
+  `detail unstated` with a non-empty answer. Each breaks a correct
+  abstention, and it is what the veto guards.
+- The full `mismatch` distribution, split into answerable and abstention.
+
+If the label is noisy, the catalog's next step is to state the premise
+finding upstream, in code, and hand it to the reader. That is
+LongMemEval-V2's AgentRunbook-C pattern, which "improves abstention" where
+handing over raw evidence does not.

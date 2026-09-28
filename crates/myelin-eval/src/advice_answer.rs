@@ -17,7 +17,8 @@
 //!
 //! The thinking trace stays free. Only the content after it is constrained,
 //! because format constraints on the reasoning itself cost accuracy (Tam et
-//! al. 2024, *Let Me Speak Freely?*, arXiv 2408.02442).
+//! al. 2024, *Let Me Speak Freely?*, EMNLP Industry,
+//! `10.18653/v1/2024.emnlp-industry.91`, arXiv 2408.02442).
 //!
 //! The order follows *Attribute First, then Generate* (Slobodkin et al. 2024,
 //! ACL, arXiv 2403.17104): pick the source spans, then write from them.
