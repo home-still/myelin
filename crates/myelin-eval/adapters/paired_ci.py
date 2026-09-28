@@ -38,6 +38,7 @@ questions (`docs/measurements/m76b-advice-without-premise.md`).
 from __future__ import annotations
 
 import argparse
+import math
 import json
 import random
 from pathlib import Path
@@ -233,6 +234,25 @@ def paired_bootstrap(
     return observed, lo, hi, p
 
 
+def sign_test(wins: int, losses: int) -> float:
+    """Exact two-sided sign test over the discordant questions.
+
+    A question is a win when A's (seed-averaged) score is above B's, a loss
+    when below, and a tie otherwise. Ties carry no sign and are dropped, as
+    McNemar's exact test drops concordant pairs. On strata of 30 rows or fewer
+    the bootstrap's interval is coarse, and this is the test to read beside it
+    (Card et al. 2020, "With Little Power Comes Great Responsibility", EMNLP,
+    `10.18653/v1/2020.emnlp-main.745`; round-5 catalog §c). On 30 rows,
+    significance at 0.05 needs at least 6-0, 8-1 or 10-2.
+    """
+    n = wins + losses
+    if n == 0:
+        return 1.0
+    k = min(wins, losses)
+    tail = sum(math.comb(n, i) for i in range(k + 1)) / 2**n
+    return min(1.0, 2.0 * tail)
+
+
 def compare(
     run_a: str,
     run_b: str,
@@ -291,7 +311,10 @@ def compare(
             )
         for cat in sorted({cats_a[q] for q in shared}):
             strata.append((f"category {cat}", [q for q in shared if cats_a[q] == cat]))
-    header = f"{'stratum':<16}{'n':>5}{'A':>9}{'B':>9}{'A-B':>9}{'95% CI':>20}{'p':>10}"
+    header = (
+        f"{'stratum':<16}{'n':>5}{'A':>9}{'B':>9}{'A-B':>9}{'95% CI':>20}{'p':>10}"
+        f"{'W/L':>10}{'sign p':>9}"
+    )
     print(header)
     print("-" * len(header))
     for name, ids in strata:
@@ -305,12 +328,16 @@ def compare(
         ci = f"[{lo * 100:+.1f}, {hi * 100:+.1f}]"
         p_str = f"<{2 / iterations:.4f}" if p == 0.0 else f"{p:.4f}"
         sig = "  *" if lo > 0 or hi < 0 else ""
+        wins = sum(1 for x, y in zip(a, b) if x > y)
+        losses = sum(1 for x, y in zip(a, b) if x < y)
+        wl = f"{wins}/{losses}"
         print(
             f"{name:<16}{len(ids):>5}{mean_a * 100:>8.1f}%{mean_b * 100:>8.1f}%"
-            f"{d * 100:>+8.1f}{ci:>20}{p_str:>10}{sig}"
+            f"{d * 100:>+8.1f}{ci:>20}{p_str:>10}{wl:>10}{sign_test(wins, losses):>9.4f}{sig}"
         )
     print()
-    print("* = 95% CI excludes zero.")
+    print("* = 95% CI excludes zero. W/L = questions where A's (seed-mean) score is above/below B's;")
+    print("sign p = exact two-sided sign test over those discordant questions.")
 
 
 def main() -> None:
