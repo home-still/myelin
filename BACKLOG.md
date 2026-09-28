@@ -199,6 +199,19 @@ lost under the strict judge):
 
 ---
 
+## M78b — the advice answer selects the user's own turns *(pre-registered 2026-09-28)*
+
+M78's quotes failed because the reader quoted the assistant.
+- `--advice-picks` makes the answer *select* user-only memories by index.
+  The schema's `enum` admits no other.
+- An excerpt of each pick is followed by the recommendation, with no
+  decline field.
+- It runs with the round-5 bundle's switches, so its rows drop into the
+  bundle if it beats M77c head-to-head.
+- Doc: `docs/measurements/m78b-advice-picks.md`.
+
+---
+
 ## Round-5 bundle — seed-replicated, only the changed rows rerun *(pre-registered 2026-09-28)*
 
 This is round 4's three mechanisms (M71b, M72b, M73b) plus the preference

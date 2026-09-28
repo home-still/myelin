@@ -659,6 +659,10 @@ pub struct BenchRun {
     /// ([`crate::advice_answer`]). Absent on every run before M78.
     #[serde(default)]
     pub advice_answer: bool,
+    /// M78b: advice requests were answered by selecting the user's own turns
+    /// by index ([`crate::advice_answer`]). Absent on every run before M78b.
+    #[serde(default)]
+    pub advice_picks: bool,
     /// The run composed evidence and never called the reader: every
     /// response is empty and every score is meaningless. It exists for
     /// `coverage`, the reader-free half of a gate (M74's first criterion).
@@ -841,6 +845,9 @@ pub struct BenchSwitches {
     pub advice_profile_clause: bool,
     /// M78: advice requests answered as structure ([`read_advice_answer`]).
     pub advice_answer: bool,
+    /// M78b: advice requests answered by selecting the user's own turns
+    /// ([`read_advice_picks`]).
+    pub advice_picks: bool,
     /// Compose the evidence and skip the reader (LongMemEval_S only), for
     /// `coverage`.
     pub evidence_only: bool,
@@ -1989,15 +1996,35 @@ pub(crate) async fn read_answer(
     })
 }
 
-/// The seed M78's advice answer is sampled under, if the switch is on. The
-/// switch constrains the thinking reader's answer, so any other reader mode is
-/// refused, not silently read as plain.
-fn advice_answer_seed(switches: &BenchSwitches, mode: ReaderMode) -> Result<Option<u64>> {
-    match (switches.advice_answer, mode) {
-        (false, _) => Ok(None),
-        (true, ReaderMode::Thinking { seed }) => Ok(Some(seed)),
-        (true, _) => anyhow::bail!(
-            "--advice-answer constrains the thinking reader's answer (M78); it needs --reader-thinking"
+/// Which structured answer an advice request gets: M78's quotes or M78b's
+/// picks.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum AdviceShape {
+    Quotes,
+    Picks,
+}
+
+/// The advice answer these switches ask for, with the seed it is sampled
+/// under. Both constrain the thinking reader's answer, so any other reader
+/// mode is refused, not silently read as plain. The two are alternatives, and
+/// M78b picks from the user's own turns, which only `--user-words` shows the
+/// reader; without it the switch would be recorded and change nothing.
+fn advice_shape(switches: &BenchSwitches, mode: ReaderMode) -> Result<Option<(u64, AdviceShape)>> {
+    let shape = match (switches.advice_answer, switches.advice_picks) {
+        (false, false) => return Ok(None),
+        (true, true) => anyhow::bail!("--advice-answer and --advice-picks are alternatives (M78, M78b)"),
+        (true, false) => AdviceShape::Quotes,
+        (false, true) => AdviceShape::Picks,
+    };
+    anyhow::ensure!(
+        shape == AdviceShape::Quotes || switches.user_words,
+        "--advice-picks selects from the user's own turns (M78b), which only --user-words shows the reader"
+    );
+    match mode {
+        ReaderMode::Thinking { seed } => Ok(Some((seed, shape))),
+        _ => anyhow::bail!(
+            "--advice-answer and --advice-picks constrain the thinking reader's answer (M78, M78b); \
+             they need --reader-thinking"
         ),
     }
 }
@@ -2054,6 +2081,51 @@ pub(crate) async fn read_advice_answer(
 
 /// Marks the constrained JSON inside an M78 row's `reader_trace`.
 pub const ADVICE_ANSWER_TRACE: &str = "m78:advice-answer";
+/// Marks the constrained JSON inside an M78b row's `reader_trace`.
+pub const ADVICE_PICKS_TRACE: &str = "m78b:advice-picks";
+
+/// M78b: an advice request answered by selecting the user's own turns
+/// ([`crate::advice_answer`], "select, don't quote").
+///
+/// It is [`read_advice_answer`]'s request with a different schema. `pickable`
+/// lists the shown memories that hold only the user's turns, and the schema's
+/// `enum` admits no other index. So a pick is the user's words by
+/// construction, and there is nothing to verify and no field to decline in.
+/// The answer is an excerpt of each pick, then the recommendation. Content that
+/// does not parse, or names an index the grammar should have refused, is
+/// returned verbatim and scored as said.
+pub(crate) async fn read_advice_picks(
+    llm: &dyn Llm,
+    system: &str,
+    user: &str,
+    seed: u64,
+    memories: &[String],
+    pickable: &[usize],
+) -> Result<ReadAnswer> {
+    use crate::advice_answer::{advice_picks_schema, render_picks, AdvicePicks, ADVICE_ANSWER_TOKENS};
+    let request = CompletionRequest::new(vec![
+        Message::system(system),
+        Message::user(user.to_string()),
+    ])
+    .with_thinking(true)
+    .with_sampling(THINKING_TEMPERATURE, THINKING_TOP_P, THINKING_TOP_K)
+    .with_seed(seed)
+    .with_max_tokens(THINKING_BUDGET_TOKENS + ADVICE_ANSWER_TOKENS)
+    .with_schema(advice_picks_schema(pickable));
+    let completion = llm.complete(&request).await?;
+    let text = completion.text;
+    let trace = Some(format!(
+        "{}\n[{ADVICE_PICKS_TRACE}] {text}",
+        completion.reasoning.unwrap_or_default()
+    ));
+    let rendered = serde_json::from_str::<AdvicePicks>(&text)
+        .ok()
+        .and_then(|parsed| render_picks(&parsed, memories, pickable));
+    Ok(ReadAnswer {
+        answer: rendered.unwrap_or(text),
+        trace,
+    })
+}
 
 /// Flatten LoCoMo's `answer` field — or an LME-V2 harness row's
 /// `answer_gold` — to a string.
@@ -2255,9 +2327,9 @@ pub async fn bench_locomo(
     // messages, `READER_ANSWER_TOKENS` = 160), so every earlier LoCoMo run
     // is reproduced unchanged.
     anyhow::ensure!(
-        !switches.advice_answer,
-        "--advice-answer is a LongMemEval_S mechanism (M78): LoCoMo asks no advice, \
-         so the switch would be recorded and change nothing"
+        !switches.advice_answer && !switches.advice_picks,
+        "--advice-answer and --advice-picks are LongMemEval_S mechanisms (M78, M78b): \
+         LoCoMo asks no advice, so the switch would be recorded and change nothing"
     );
     let reader_mode = switches.reader_mode()?;
     if let ReaderMode::Thinking { .. } = reader_mode {
@@ -2614,7 +2686,7 @@ pub async fn bench_longmemeval_s(
         verify_thinking_budget(&llm, THINKING_BUDGET_TOKENS).await?;
         eprintln!("reader: thinking budget of {THINKING_BUDGET_TOKENS} tokens verified on the server");
     }
-    let advice_seed = advice_answer_seed(switches, reader_mode)?;
+    let advice_shape = advice_shape(switches, reader_mode)?;
     let embedder = RemoteEmbedder::new(&cfg.embed.url, &cfg.embed.model, cfg.embed.dim)
         .context("embedder client")?;
     let mut qdrant_cfg = cfg.qdrant.clone();
@@ -2774,15 +2846,22 @@ pub async fn bench_longmemeval_s(
         let (response, reader_trace) = if switches.evidence_only {
             (String::new(), None)
         } else {
-            let advice = advice_seed
+            let advice = advice_shape
                 .filter(|_| myelin_core::pipeline::query_shape::is_advice_request(&item.question));
+            let memories: Vec<String> = evidence.items.iter().map(|it| it.value.clone()).collect();
+            // M78b's gate is the user's own words: an advice request whose
+            // evidence holds none of them is read the ordinary way.
+            let pickable = crate::advice_answer::user_memories(&memories);
             let read = match advice {
-                Some(seed) => {
-                    let memories: Vec<String> =
-                        evidence.items.iter().map(|it| it.value.clone()).collect();
+                Some((seed, AdviceShape::Quotes)) => {
                     read_advice_answer(&llm, system, &user, seed, &memories).await
                 }
-                None => read_answer(&llm, system, &user, reader_mode).await,
+                Some((seed, AdviceShape::Picks)) if !pickable.is_empty() => {
+                    read_advice_picks(&llm, system, &user, seed, &memories, &pickable).await
+                }
+                Some((_, AdviceShape::Picks)) | None => {
+                    read_answer(&llm, system, &user, reader_mode).await
+                }
             }
             .with_context(|| format!("reader {}", item.question_id))?;
             (read.answer, read.trace)
@@ -3014,6 +3093,7 @@ fn finish_run(
         advice_without_premise: spec.switches.advice_without_premise,
         advice_profile_clause: spec.switches.advice_profile_clause,
         advice_answer: spec.switches.advice_answer,
+        advice_picks: spec.switches.advice_picks,
         evidence_only: spec.switches.evidence_only,
         aggregation_k: spec.switches.aggregation_k,
         aggregation_budget_tokens: spec.switches.aggregation_budget_tokens,
@@ -3221,6 +3301,7 @@ pub fn rescore_run(source: &Path, out_dir: &Path, scorer: Scorer) -> Result<Benc
             advice_without_premise: flag("advice_without_premise"),
             advice_profile_clause: flag("advice_profile_clause"),
             advice_answer: flag("advice_answer"),
+            advice_picks: flag("advice_picks"),
             evidence_only: flag("evidence_only"),
             aggregation_k: metrics
                 .get("aggregation_k")
@@ -4455,22 +4536,52 @@ mod reader_tests {
         assert!(is_abstention(&out.answer));
     }
 
-    /// The switch constrains the thinking reader's answer; under any other
-    /// mode it is refused rather than recorded and ignored.
+    /// Both switches constrain the thinking reader's answer; under any other
+    /// mode they are refused rather than recorded and ignored. They are
+    /// alternatives, and M78b needs the user's words to pick from.
     #[test]
-    fn the_advice_answer_needs_the_thinking_reader() {
-        let on = BenchSwitches {
-            advice_answer: true,
-            ..Default::default()
-        };
-        assert!(advice_answer_seed(&on, ReaderMode::Plain).is_err());
-        assert!(advice_answer_seed(&on, ReaderMode::Reasoning).is_err());
-        assert_eq!(advice_answer_seed(&on, ReaderMode::Thinking { seed: 3 }).expect("thinking"), Some(3));
+    fn the_advice_answers_need_the_thinking_reader_and_exclude_each_other() {
+        let quotes = BenchSwitches { advice_answer: true, ..Default::default() };
+        let thinking = ReaderMode::Thinking { seed: 3 };
+        assert!(advice_shape(&quotes, ReaderMode::Plain).is_err());
+        assert!(advice_shape(&quotes, ReaderMode::Reasoning).is_err());
+        assert_eq!(advice_shape(&quotes, thinking).expect("thinking"), Some((3, AdviceShape::Quotes)));
+        let picks = BenchSwitches { advice_picks: true, user_words: true, ..Default::default() };
+        assert_eq!(advice_shape(&picks, thinking).expect("thinking"), Some((3, AdviceShape::Picks)));
+        let no_words = BenchSwitches { advice_picks: true, ..Default::default() };
+        assert!(advice_shape(&no_words, thinking).is_err(), "nothing to pick from");
+        let both = BenchSwitches { advice_answer: true, advice_picks: true, user_words: true, ..Default::default() };
+        assert!(advice_shape(&both, thinking).is_err());
+        assert_eq!(advice_shape(&BenchSwitches::default(), thinking).expect("off"), None, "off by default");
+    }
+
+    /// M78b sends R2's request with the picks schema over the user's own
+    /// memories, and renders the picks as excerpts before the recommendation.
+    #[tokio::test]
+    async fn the_advice_picks_select_only_the_users_own_turns() {
+        let memories = vec![
+            "[2023-05-24] user: I bake on Sundays.\nassistant: Try muffins.".to_string(),
+            "[2023-05-25] user: I love turbinado sugar in my coffee. It is richer.".to_string(),
+        ];
+        let pickable = crate::advice_answer::user_memories(&memories);
+        assert_eq!(pickable, vec![1]);
+
+        let llm = Captures(std::sync::Mutex::new(None));
+        let out = read_advice_picks(&llm, "sys", "user", 5, &memories, &pickable).await.expect("reader");
+        assert_eq!(out.answer, "42", "unparseable content is scored as said");
+        let req = llm.0.lock().unwrap().clone().expect("request captured");
+        assert!(req.thinking);
+        assert_eq!(req.seed, Some(5));
+        assert_eq!(req.json_schema, Some(crate::advice_answer::advice_picks_schema(&[1])));
+
+        let llm = Says(r#"{"picks":[1],"recommendation":"A turbinado crumb cake."}"#);
+        let out = read_advice_picks(&llm, "sys", "user", 5, &memories, &pickable).await.expect("reader");
+        // The first sentence is under the excerpt's floor, so the next one joins it.
         assert_eq!(
-            advice_answer_seed(&BenchSwitches::default(), ReaderMode::Thinking { seed: 3 }).expect("off"),
-            None,
-            "off by default"
+            out.answer,
+            "You told me: \"I love turbinado sugar in my coffee. It is richer.\". A turbinado crumb cake."
         );
+        assert!(out.trace.expect("trace").contains(ADVICE_PICKS_TRACE));
     }
 
     /// The two arms are alternatives, and a sampled run must name its seed.
