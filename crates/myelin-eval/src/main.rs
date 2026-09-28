@@ -800,6 +800,11 @@ enum Command {
         /// (`--profile-clause` shows it to every question).
         #[arg(long)]
         advice_profile_clause: bool,
+        /// M78: advice requests are answered as structure: the user's stated
+        /// preferences, each quoted from a memory and checked against the
+        /// user's own turns, then a recommendation. Needs `--reader-thinking`.
+        #[arg(long)]
+        advice_answer: bool,
         /// Compose each question's evidence and skip the reader, for
         /// `coverage` (LongMemEval_S only). The run is never quotable.
         #[arg(long)]
@@ -1320,6 +1325,7 @@ async fn main() -> anyhow::Result<()> {
             user_words,
             advice_without_premise,
             advice_profile_clause,
+            advice_answer,
             evidence_only,
             aggregation_k,
             aggregation_budget_tokens,
@@ -1380,6 +1386,7 @@ async fn main() -> anyhow::Result<()> {
                     user_words,
                     advice_without_premise,
                     advice_profile_clause,
+                    advice_answer,
                     evidence_only,
                     aggregation_k,
                     aggregation_budget_tokens,
