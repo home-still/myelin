@@ -94,6 +94,32 @@ first arm to question the measurement apparatus rather than the mechanism.
 
 ---
 
+## The strict judge's preference rubric: **M57 79.20 → 79.00**; M77c clears its gate on the re-read (post hoc) *(2026-09-28)*
+
+- **Why:** M77 found that the strict 9B graded the 30 preference rubrics as
+  facts (15 to 6 against LongMemEval's grader). The user chose to give the
+  strict judge a rubric for them.
+- **Built:**
+  - `judge::Rubric::Preference` applies to LongMemEval_S preference rows
+    only, with LongMemEval's criterion (arXiv 2410.10813) in the strict
+    grader's voice.
+  - Every other request is byte-identical, and a test pins it.
+  - Verdicts record their rubric, and one is reused only under the rubric it
+    was graded by.
+- **Result:**
+  - Agreement with the official grader on M77's 90 seed-rows rose 69 → 74
+    (predicted ≥ 80).
+  - The strict judge is now harsher than gpt-4o-mini on this stratum, not
+    looser.
+  - M57's strict headline is **79.00**; the pin was lowered by hand as an
+    instrument correction, and `ratchet --strict` passes.
+- **M77 re-read (post hoc):**
+  - M77 is +10.0 [+0.0, +21.1];
+  - **M77c (the clause alone) is +11.1 [+1.1, +22.2]** with official +18.9,
+    clearing both criteria. It enters the bundle as a candidate, and the
+    seed-replicated bundle is the confirmatory test.
+- Doc: `judge-preference-rubric.md`.
+
 ## M77 — the preference clause for advice requests: **official +18.9 on preference, strict crosses zero**; the gate fails *(2026-09-28)*
 
 - **Mechanism:** `--advice-profile-clause` shows the existing
@@ -119,8 +145,9 @@ first arm to question the measurement apparatus rather than the mechanism.
     preference reference is a rubric ("The user would prefer responses
     that …"). On M77's 90 seed-rows the two readings disagree 15 to 6, and
     the 15 are visibly personalized answers. LongMemEval's own grader has a
-    preference template for exactly this. Whether the strict judge gets
-    one is the user's call.
+    preference template for exactly this. The user gave the strict judge
+    one the same day (entry above), and on that re-read M77c clears the
+    gate (post hoc).
 - Doc: `m77-advice-profile-clause.md`.
 
 ## M76b — advice requests without the premise clause: **official −16.7 on preference**; does not ship *(2026-09-28)*

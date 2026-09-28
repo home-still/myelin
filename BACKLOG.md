@@ -20,8 +20,10 @@ Literature lives in home-still; the guidance this backlog was built from is
 See [`BACKLOG_DONE.md`](BACKLOG_DONE.md#sota-standing) for the full table and
 its history. Short version:
 - **One gate closed:** MINJA 7.50% ≤ 10%.
-- **LongMemEval_S is 1.60 behind the same-size SOTA row:** **79.20** (strict)
+- **LongMemEval_S is 1.80 behind the same-size SOTA row:** **79.00** (strict)
   against MemPro-15 (Qwen3-30B) at 80.80.
+  - 79.20 until 2026-09-28, when preference rows got their own rubric in
+    the strict judge (`docs/measurements/judge-preference-rubric.md`).
   - LongMemEval's own grader gives 78.60 (M70), so the matched gate is open,
     2.20 behind.
   - We first reported 83.40 as past it. A judge defect inflated that

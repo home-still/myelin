@@ -142,7 +142,7 @@ standing`; the full table with comparability verdicts is
 | `locomo.judge_score_matched.n1540` | **78.18** | 77.85 MemPro-15 (Qwen), same judge | **+0.33** § | M68/M68b |
 | `longmemeval_s.judge_score_matched.n500` | 78.60 | 80.80 MemPro-15 (Qwen), LongMemEval's own judge | −2.20 | M70 |
 | `locomo.judge_score.n1540` (strict 9B judge) | 70.52 | 77.85 MemPro-15 (Qwen) | −7.33 ‡ | M63 base |
-| `longmemeval_s.judge_score.n500` | 79.20 | 80.80 MemPro-15 (Qwen) | −1.60 ‡ | M57 (corrected) |
+| `longmemeval_s.judge_score.n500` | 79.00 | 80.80 MemPro-15 (Qwen) | −1.80 ‡ | M57 (corrected twice) |
 | `lme_v2_small.overall_full_set.combined` | **78.05** | 74.90 AgentRunbook-C (frontier controller) | **+3.15** ¶ | M54 |
 
 Every literature row is judged by a frontier API where we are judged by a
@@ -173,6 +173,12 @@ replaced with "I don't know."
 ([defect record](docs/measurements/defect-2026-09-25-stale-verdicts.md)). The
 corrected 79.20 is 1.60 **behind** that row. LongMemEval's own grader agrees: 78.60
 ([M70](docs/measurements/m70-lme-official-judge.md)). The gate is open.
+**Second correction (2026-09-28): 79.20 → 79.00.** The strict judge graded the 30
+preference questions as facts, although their reference is a rubric ("The user would
+prefer responses that …"). They now get LongMemEval's own preference criterion
+([judge-preference-rubric](docs/measurements/judge-preference-rubric.md)). Under it the
+strict judge is harsher on this stratum, and one of M57's preference answers no longer
+counts.
 ¶ **LME-V2 ([M54](docs/measurements/m54-local-file-controller.md), 2026-09-27).** The benchmark
 authors' own file-reading agent, AgentRunbook-C, now answers LME-V2 for myelin. It runs locally,
 driven by Bonsai 27B instead of a frontier model. Over all 451 questions it scores **78.05**,

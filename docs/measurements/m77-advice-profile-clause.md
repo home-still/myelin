@@ -170,3 +170,15 @@ strict judge decides every arm under the user's rule, and on this stratum it
 grades a rubric as though it were a fact. Whether preference rows should be
 graded by a rubric-shaped strict template is the user's call, and it is
 recorded in BACKLOG_DONE.
+
+## Re-read on the corrected strict judge *(post hoc, 2026-09-28)*
+
+The user gave the strict judge a rubric for preference rows
+(`judge-preference-rubric.md`). Re-judged, on the 30 preference rows:
+- M77: strict **+10.0 [+0.0, +21.1]**, p 0.051. It still touches zero.
+- **M77c (the clause alone): strict +11.1 [+1.1, +22.2]**, p 0.020, and
+  official +18.9. It clears both criteria.
+- **This is post hoc:** the instrument changed after the result was seen.
+  M77c goes forward as a bundle candidate, and the seed-replicated bundle is
+  the confirmatory test. The clause alone is also the simpler mechanism,
+  since the words add nothing measurable.

@@ -69,3 +69,46 @@ before this run.
 
 **Falsifier.** If agreement does not rise, the rubric is not what the judges
 disagreed about, and the PR that records the result also reverts the change.
+
+## Result *(measured 2026-09-28, main `9e4ff83`)*
+
+Nine runs were re-judged on big (unit `myelin-rubric`) from their own caches.
+Only the preference rows were graded again, then each run was rescored.
+
+**Against the predictions:**
+
+| prediction | result | |
+|---|---|---|
+| 1. agreement with the official grader on M77's 90 seed-rows 69 → ≥ 80 | **74** | missed |
+| 2. M77 strict on preference ≥ +12, CI excluding 0 | +10.0 [+0.0, +21.1] | missed |
+| 3. base strict preference within ±2 of official 10.7 | 8.7 (10 / 8 / 8) | held |
+| 4. M57's strict headline moves ≤ ±0.6 | 79.20 → **79.00** | held |
+
+- **What moved:** strict-right/official-wrong fell from 6 to 1 (M77) and
+  from about 4 to 1 (base). Official-right/strict-wrong stayed at 15. The
+  rubric removed the strict judge's false credits, and it also judges some
+  personalized answers more harshly than gpt-4o-mini does. For example, it
+  rejects "your lemon lavender pound cake" against a rubric naming the user's
+  lemon poppyseed cake. It is stricter than the official grader, which is
+  what a strict judge is for.
+- **Falsifier:** agreement rose (69 → 74), so it does not fire, and the change
+  stays. Prediction 1's size was wrong.
+- **The headline moves:** M57's strict LongMemEval_S reading is **79.00**
+  (was 79.20; the preference stratum is now 10/30, was 11). The pin in
+  `docs/sota/progression.json` is lowered by hand as an instrument
+  correction, following the 2026-09-25 precedent. `ratchet --strict` then
+  passes. The official reading (78.60) does not move.
+
+**M77's gate, re-read on the corrected instrument (post hoc).** Seed-averaged,
+on the 30 preference rows, against the three-seed base:
+
+| arm | strict Δ [95% CI] | p | official Δ |
+|---|---|---|---|
+| M77 (words + clause) | +10.0 [+0.0, +21.1] | 0.051 | +18.9 [+8.9, +30.0] |
+| **M77c (clause alone)** | **+11.1 [+1.1, +22.2]** | 0.020 | +18.9 [+8.9, +30.0] |
+
+- M77 still touches zero, while M77c clears both criteria.
+- Overall strict: M77c +0.7 [+0.1, +1.4]; abstention unchanged.
+- **This pass is post hoc,** because the instrument changed after M77's
+  result was seen. M77c therefore enters the bundle as a *candidate*. The
+  bundle is the confirmatory test: seed-replicated and pre-registered.

@@ -1,6 +1,6 @@
 {
-  "commit": "6f4b413e500a2896d17e50de47870a96352ca926-dirty",
-  "generated_at": "2026-09-27T18:51:16.409853Z",
+  "commit": "9e4ff83cb2494901a78c33e3105929d0cf6b1906-dirty",
+  "generated_at": "2026-09-28T13:38:04.197050Z",
   "rows": [
     {
       "registry_id": "locomo.judge.mempro15.gpt4omini",
@@ -341,9 +341,9 @@
       "metric": "longmemeval_s.judge_score.n500",
       "system": "MemPro-15",
       "theirs": 79.0,
-      "ours": 79.2,
+      "ours": 79.0,
       "ours_n": 500,
-      "gap": 0.20000000000000284,
+      "gap": 0.0,
       "verdict": {
         "verdict": "caveat_judge",
         "ours": "open_weights_local",
@@ -355,11 +355,23 @@
       "run": "runs/m57_bonsai_premise_s1",
       "source_doi": "10.48550/arXiv.2606.00619",
       "caveat": "The LongMemEval Avg. is a micro-average over the six official question types: (77.44*133 + 73.68*133 + 83.33*78 + 98.57*70 + 60.71*56 + 86.67*30)/500 = 79.00 exactly, so n = 500 and the 30 `_abs` abstention items are inside those type counts rather than excluded. Judge prompt follows GAM (L122).",
-      "detail": "judge qwen3.5-9b : 396 of 500 correct (49 declines scored 0)",
+      "detail": "judge qwen3.5-9b : 395 of 500 correct (49 declines scored 0)",
       "candidates": [
         {
           "run": "runs/m57_bonsai_premise_s1",
-          "value": 79.2
+          "value": 79.0
+        },
+        {
+          "run": "runs/m57_pref_s2",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m57_pref_s3",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/r4_bundle_s1_grounded",
+          "value": 80.60000000000001
         },
         {
           "run": "runs/m71_lme_grounded",
@@ -382,12 +394,48 @@
           "value": 79.80000000000001
         },
         {
+          "run": "runs/m77c_clause_s2",
+          "value": 79.80000000000001
+        },
+        {
           "run": "runs/m73b_events_s1",
           "value": 79.60000000000001
         },
         {
+          "run": "runs/m77_words_clause_s2",
+          "value": 79.60000000000001
+        },
+        {
+          "run": "runs/m77c_clause_s1",
+          "value": 79.4
+        },
+        {
           "run": "runs/m20b_profile_s1",
           "value": 79.2
+        },
+        {
+          "run": "runs/m77_words_clause_s1",
+          "value": 79.2
+        },
+        {
+          "run": "runs/m77_words_clause_s3",
+          "value": 79.2
+        },
+        {
+          "run": "runs/m76_words_s1",
+          "value": 79.0
+        },
+        {
+          "run": "runs/m76b_words_nopremise_s1",
+          "value": 79.0
+        },
+        {
+          "run": "runs/m76c_nopremise_s1",
+          "value": 79.0
+        },
+        {
+          "run": "runs/m77c_clause_s3",
+          "value": 79.0
         },
         {
           "run": "runs/m44_r2b_s1",
@@ -585,7 +633,23 @@
           "value": 78.60000000000001
         },
         {
+          "run": "runs/m57_pref_s2",
+          "value": 78.0
+        },
+        {
+          "run": "runs/m57_pref_s3",
+          "value": 77.8
+        },
+        {
+          "run": "runs/r4_bundle_s1_grounded",
+          "value": 80.80000000000001
+        },
+        {
           "run": "runs/m73b_events_s1",
+          "value": 79.60000000000001
+        },
+        {
+          "run": "runs/m77c_clause_s2",
           "value": 79.60000000000001
         },
         {
@@ -597,6 +661,14 @@
           "value": 79.4
         },
         {
+          "run": "runs/m77_words_clause_s1",
+          "value": 79.4
+        },
+        {
+          "run": "runs/m77c_clause_s1",
+          "value": 79.4
+        },
+        {
           "run": "runs/m55_bonsai_s1",
           "value": 79.2
         },
@@ -605,12 +677,36 @@
           "value": 79.2
         },
         {
+          "run": "runs/m77_words_clause_s2",
+          "value": 79.2
+        },
+        {
+          "run": "runs/m77_words_clause_s3",
+          "value": 79.2
+        },
+        {
           "run": "runs/m72_lme_agg",
           "value": 79.0
         },
         {
+          "run": "runs/m77c_clause_s3",
+          "value": 78.8
+        },
+        {
+          "run": "runs/m76_words_s1",
+          "value": 78.60000000000001
+        },
+        {
           "run": "runs/m20b_profile_s1",
           "value": 78.2
+        },
+        {
+          "run": "runs/m76c_nopremise_s1",
+          "value": 77.8
+        },
+        {
+          "run": "runs/m76b_words_nopremise_s1",
+          "value": 77.60000000000001
         },
         {
           "run": "runs/m44_r2b_s1",
@@ -627,9 +723,9 @@
       "metric": "longmemeval_s.judge_score.n500",
       "system": "MemPro-15 (Qwen3-30B)",
       "theirs": 80.8,
-      "ours": 79.2,
+      "ours": 79.0,
       "ours_n": 500,
-      "gap": -1.5999999999999943,
+      "gap": -1.7999999999999972,
       "verdict": {
         "verdict": "caveat_judge",
         "ours": "open_weights_local",
@@ -641,11 +737,23 @@
       "run": "runs/m57_bonsai_premise_s1",
       "source_doi": "10.48550/arXiv.2606.00619",
       "caveat": "G2's LongMemEval_S bar (PLAN.md 11.5). Micro-average check: (71.43*133 + 75.94*133 + 82.05*78 + 92.86*70 + 98.21*56 + 80.00*30)/500 = 80.80. Note the open-weights backbone scores HIGHER here than gpt-4o-mini's 79.00 and lower on LoCoMo - cross-model comparison on these two benchmarks is not monotonic. The gate is decided on longmemeval_s.judge_score_matched.n500 (M70): LongMemEval's own grader, the one runnable reading of MemPro's judge.",
-      "detail": "judge qwen3.5-9b : 396 of 500 correct (49 declines scored 0)",
+      "detail": "judge qwen3.5-9b : 395 of 500 correct (49 declines scored 0)",
       "candidates": [
         {
           "run": "runs/m57_bonsai_premise_s1",
-          "value": 79.2
+          "value": 79.0
+        },
+        {
+          "run": "runs/m57_pref_s2",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m57_pref_s3",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/r4_bundle_s1_grounded",
+          "value": 80.60000000000001
         },
         {
           "run": "runs/m71_lme_grounded",
@@ -668,12 +776,48 @@
           "value": 79.80000000000001
         },
         {
+          "run": "runs/m77c_clause_s2",
+          "value": 79.80000000000001
+        },
+        {
           "run": "runs/m73b_events_s1",
           "value": 79.60000000000001
         },
         {
+          "run": "runs/m77_words_clause_s2",
+          "value": 79.60000000000001
+        },
+        {
+          "run": "runs/m77c_clause_s1",
+          "value": 79.4
+        },
+        {
           "run": "runs/m20b_profile_s1",
           "value": 79.2
+        },
+        {
+          "run": "runs/m77_words_clause_s1",
+          "value": 79.2
+        },
+        {
+          "run": "runs/m77_words_clause_s3",
+          "value": 79.2
+        },
+        {
+          "run": "runs/m76_words_s1",
+          "value": 79.0
+        },
+        {
+          "run": "runs/m76b_words_nopremise_s1",
+          "value": 79.0
+        },
+        {
+          "run": "runs/m76c_nopremise_s1",
+          "value": 79.0
+        },
+        {
+          "run": "runs/m77c_clause_s3",
+          "value": 79.0
         },
         {
           "run": "runs/m44_r2b_s1",
@@ -869,7 +1013,23 @@
           "value": 78.60000000000001
         },
         {
+          "run": "runs/m57_pref_s2",
+          "value": 78.0
+        },
+        {
+          "run": "runs/m57_pref_s3",
+          "value": 77.8
+        },
+        {
+          "run": "runs/r4_bundle_s1_grounded",
+          "value": 80.80000000000001
+        },
+        {
           "run": "runs/m73b_events_s1",
+          "value": 79.60000000000001
+        },
+        {
+          "run": "runs/m77c_clause_s2",
           "value": 79.60000000000001
         },
         {
@@ -881,6 +1041,14 @@
           "value": 79.4
         },
         {
+          "run": "runs/m77_words_clause_s1",
+          "value": 79.4
+        },
+        {
+          "run": "runs/m77c_clause_s1",
+          "value": 79.4
+        },
+        {
           "run": "runs/m55_bonsai_s1",
           "value": 79.2
         },
@@ -889,12 +1057,36 @@
           "value": 79.2
         },
         {
+          "run": "runs/m77_words_clause_s2",
+          "value": 79.2
+        },
+        {
+          "run": "runs/m77_words_clause_s3",
+          "value": 79.2
+        },
+        {
           "run": "runs/m72_lme_agg",
           "value": 79.0
         },
         {
+          "run": "runs/m77c_clause_s3",
+          "value": 78.8
+        },
+        {
+          "run": "runs/m76_words_s1",
+          "value": 78.60000000000001
+        },
+        {
           "run": "runs/m20b_profile_s1",
           "value": 78.2
+        },
+        {
+          "run": "runs/m76c_nopremise_s1",
+          "value": 77.8
+        },
+        {
+          "run": "runs/m76b_words_nopremise_s1",
+          "value": 77.60000000000001
         },
         {
           "run": "runs/m44_r2b_s1",
@@ -1018,9 +1210,9 @@
       "metric": "longmemeval_s.judge_score.n500",
       "system": "EverMemOS",
       "theirs": 83.0,
-      "ours": 79.2,
+      "ours": 79.0,
       "ours_n": 500,
-      "gap": -3.799999999999997,
+      "gap": -4.0,
       "verdict": {
         "verdict": "caveat_judge",
         "ours": "open_weights_local",
@@ -1032,11 +1224,23 @@
       "run": "runs/m57_bonsai_premise_s1",
       "source_doi": "10.48550/arXiv.2601.02163",
       "caveat": "Supersedes MemPro's 79.00 as the best frontier-backbone LongMemEval_S number, and was not in PLAN.md 11.5's table. Population stated: \"LongMemEval (S-setting, ~115k tokens per conversation) evaluates 500 questions\" (L110), #Questions 500 (L613). Table 2's baselines are re-reported from the MemOS leaderboard rather than run by the authors (L586).",
-      "detail": "judge qwen3.5-9b : 396 of 500 correct (49 declines scored 0)",
+      "detail": "judge qwen3.5-9b : 395 of 500 correct (49 declines scored 0)",
       "candidates": [
         {
           "run": "runs/m57_bonsai_premise_s1",
-          "value": 79.2
+          "value": 79.0
+        },
+        {
+          "run": "runs/m57_pref_s2",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m57_pref_s3",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/r4_bundle_s1_grounded",
+          "value": 80.60000000000001
         },
         {
           "run": "runs/m71_lme_grounded",
@@ -1059,12 +1263,48 @@
           "value": 79.80000000000001
         },
         {
+          "run": "runs/m77c_clause_s2",
+          "value": 79.80000000000001
+        },
+        {
           "run": "runs/m73b_events_s1",
           "value": 79.60000000000001
         },
         {
+          "run": "runs/m77_words_clause_s2",
+          "value": 79.60000000000001
+        },
+        {
+          "run": "runs/m77c_clause_s1",
+          "value": 79.4
+        },
+        {
           "run": "runs/m20b_profile_s1",
           "value": 79.2
+        },
+        {
+          "run": "runs/m77_words_clause_s1",
+          "value": 79.2
+        },
+        {
+          "run": "runs/m77_words_clause_s3",
+          "value": 79.2
+        },
+        {
+          "run": "runs/m76_words_s1",
+          "value": 79.0
+        },
+        {
+          "run": "runs/m76b_words_nopremise_s1",
+          "value": 79.0
+        },
+        {
+          "run": "runs/m76c_nopremise_s1",
+          "value": 79.0
+        },
+        {
+          "run": "runs/m77c_clause_s3",
+          "value": 79.0
         },
         {
           "run": "runs/m44_r2b_s1",
@@ -1454,7 +1694,7 @@
       "metric": "longmemeval_s.judge_score.n500",
       "system": "Mem0 (vendor)",
       "theirs": 94.4,
-      "ours": 79.2,
+      "ours": 79.0,
       "ours_n": 500,
       "gap": null,
       "verdict": {
@@ -1467,11 +1707,23 @@
       "run": "runs/m57_bonsai_premise_s1",
       "source_doi": "",
       "caveat": "mem0.ai blog, 2026. Same objection as the LoCoMo vendor row; note it exceeds every peer-reviewed LongMemEval_S number in this registry by more than 11 points.",
-      "detail": "judge qwen3.5-9b : 396 of 500 correct (49 declines scored 0)",
+      "detail": "judge qwen3.5-9b : 395 of 500 correct (49 declines scored 0)",
       "candidates": [
         {
           "run": "runs/m57_bonsai_premise_s1",
-          "value": 79.2
+          "value": 79.0
+        },
+        {
+          "run": "runs/m57_pref_s2",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m57_pref_s3",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/r4_bundle_s1_grounded",
+          "value": 80.60000000000001
         },
         {
           "run": "runs/m71_lme_grounded",
@@ -1494,12 +1746,48 @@
           "value": 79.80000000000001
         },
         {
+          "run": "runs/m77c_clause_s2",
+          "value": 79.80000000000001
+        },
+        {
           "run": "runs/m73b_events_s1",
           "value": 79.60000000000001
         },
         {
+          "run": "runs/m77_words_clause_s2",
+          "value": 79.60000000000001
+        },
+        {
+          "run": "runs/m77c_clause_s1",
+          "value": 79.4
+        },
+        {
           "run": "runs/m20b_profile_s1",
           "value": 79.2
+        },
+        {
+          "run": "runs/m77_words_clause_s1",
+          "value": 79.2
+        },
+        {
+          "run": "runs/m77_words_clause_s3",
+          "value": 79.2
+        },
+        {
+          "run": "runs/m76_words_s1",
+          "value": 79.0
+        },
+        {
+          "run": "runs/m76b_words_nopremise_s1",
+          "value": 79.0
+        },
+        {
+          "run": "runs/m76c_nopremise_s1",
+          "value": 79.0
+        },
+        {
+          "run": "runs/m77c_clause_s3",
+          "value": 79.0
         },
         {
           "run": "runs/m44_r2b_s1",
@@ -1933,9 +2221,9 @@
       "metric": "longmemeval_s.judge_score.n500",
       "system": "Zep",
       "theirs": 71.2,
-      "ours": 79.2,
+      "ours": 79.0,
       "ours_n": 500,
-      "gap": 8.0,
+      "gap": 7.799999999999997,
       "verdict": {
         "verdict": "caveat_judge",
         "ours": "open_weights_local",
@@ -1947,11 +2235,23 @@
       "run": "runs/m57_bonsai_premise_s1",
       "source_doi": "10.48550/arxiv.2501.13956",
       "caveat": "Judge is GPT-4o with LongMemEval's own question-specific prompts, which is the protocol our judge rubric was written against. The paper never states a question count; 500 is LongMemEval_S's released size (docs/EVALUATION.md 6.2, probed).",
-      "detail": "judge qwen3.5-9b : 396 of 500 correct (49 declines scored 0)",
+      "detail": "judge qwen3.5-9b : 395 of 500 correct (49 declines scored 0)",
       "candidates": [
         {
           "run": "runs/m57_bonsai_premise_s1",
-          "value": 79.2
+          "value": 79.0
+        },
+        {
+          "run": "runs/m57_pref_s2",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m57_pref_s3",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/r4_bundle_s1_grounded",
+          "value": 80.60000000000001
         },
         {
           "run": "runs/m71_lme_grounded",
@@ -1974,12 +2274,48 @@
           "value": 79.80000000000001
         },
         {
+          "run": "runs/m77c_clause_s2",
+          "value": 79.80000000000001
+        },
+        {
           "run": "runs/m73b_events_s1",
           "value": 79.60000000000001
         },
         {
+          "run": "runs/m77_words_clause_s2",
+          "value": 79.60000000000001
+        },
+        {
+          "run": "runs/m77c_clause_s1",
+          "value": 79.4
+        },
+        {
           "run": "runs/m20b_profile_s1",
           "value": 79.2
+        },
+        {
+          "run": "runs/m77_words_clause_s1",
+          "value": 79.2
+        },
+        {
+          "run": "runs/m77_words_clause_s3",
+          "value": 79.2
+        },
+        {
+          "run": "runs/m76_words_s1",
+          "value": 79.0
+        },
+        {
+          "run": "runs/m76b_words_nopremise_s1",
+          "value": 79.0
+        },
+        {
+          "run": "runs/m76c_nopremise_s1",
+          "value": 79.0
+        },
+        {
+          "run": "runs/m77c_clause_s3",
+          "value": 79.0
         },
         {
           "run": "runs/m44_r2b_s1",
@@ -2460,9 +2796,9 @@
       "metric": "longmemeval_s.judge_score.n500",
       "system": "NEMORI",
       "theirs": 74.6,
-      "ours": 79.2,
+      "ours": 79.0,
       "ours_n": 500,
-      "gap": 4.6000000000000085,
+      "gap": 4.400000000000006,
       "verdict": {
         "verdict": "caveat_judge",
         "ours": "open_weights_local",
@@ -2474,11 +2810,23 @@
       "run": "runs/m57_bonsai_premise_s1",
       "source_doi": "10.48550/arxiv.2508.03341",
       "caveat": "PLAN.md 11.5 recorded this as \"NEMORI @ gpt-4o\"; Table 8's two blocks are gpt-4o-mini (Average 64.2) and gpt-4.1-mini (Average 74.6) per L923, so 74.6 is the gpt-4.1-mini row. The Average is a micro-average over the six official type counts - (86.7*30 + 92.9*56 + 72.2*133 + 55.6*133 + 79.5*78 + 90.0*70)/500 = 74.60 - which independently confirms n = 500. The LongMemEval judge MODEL is never named: L480 says only that the LLM-judge prompts are adapted from Zep's task-specific set, so frontier_api is inferred from the paper's LoCoMo judge (gpt-4o-mini).",
-      "detail": "judge qwen3.5-9b : 396 of 500 correct (49 declines scored 0)",
+      "detail": "judge qwen3.5-9b : 395 of 500 correct (49 declines scored 0)",
       "candidates": [
         {
           "run": "runs/m57_bonsai_premise_s1",
-          "value": 79.2
+          "value": 79.0
+        },
+        {
+          "run": "runs/m57_pref_s2",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m57_pref_s3",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/r4_bundle_s1_grounded",
+          "value": 80.60000000000001
         },
         {
           "run": "runs/m71_lme_grounded",
@@ -2501,12 +2849,48 @@
           "value": 79.80000000000001
         },
         {
+          "run": "runs/m77c_clause_s2",
+          "value": 79.80000000000001
+        },
+        {
           "run": "runs/m73b_events_s1",
           "value": 79.60000000000001
         },
         {
+          "run": "runs/m77_words_clause_s2",
+          "value": 79.60000000000001
+        },
+        {
+          "run": "runs/m77c_clause_s1",
+          "value": 79.4
+        },
+        {
           "run": "runs/m20b_profile_s1",
           "value": 79.2
+        },
+        {
+          "run": "runs/m77_words_clause_s1",
+          "value": 79.2
+        },
+        {
+          "run": "runs/m77_words_clause_s3",
+          "value": 79.2
+        },
+        {
+          "run": "runs/m76_words_s1",
+          "value": 79.0
+        },
+        {
+          "run": "runs/m76b_words_nopremise_s1",
+          "value": 79.0
+        },
+        {
+          "run": "runs/m76c_nopremise_s1",
+          "value": 79.0
+        },
+        {
+          "run": "runs/m77c_clause_s3",
+          "value": 79.0
         },
         {
           "run": "runs/m44_r2b_s1",
@@ -2912,9 +3296,9 @@
       "metric": "longmemeval_s.judge_score.n500",
       "system": "Memanto",
       "theirs": 89.8,
-      "ours": 79.2,
+      "ours": 79.0,
       "ours_n": 500,
-      "gap": -10.599999999999994,
+      "gap": -10.799999999999997,
       "verdict": {
         "verdict": "caveat_judge",
         "ours": "open_weights_local",
@@ -2926,11 +3310,23 @@
       "run": "runs/m57_bonsai_premise_s1",
       "source_doi": "10.48550/arXiv.2604.22085",
       "caveat": "n = 500 is stated, not assumed: \"the full 500-question suite under the standard S setting\". The judge is stated too - Claude Sonnet 4 - so this row's judge_class is read off the paper rather than inferred. The answer model is never named; the paper lists \"inference model selection\" as one of five ablation stages without saying which model the headline used.",
-      "detail": "judge qwen3.5-9b : 396 of 500 correct (49 declines scored 0)",
+      "detail": "judge qwen3.5-9b : 395 of 500 correct (49 declines scored 0)",
       "candidates": [
         {
           "run": "runs/m57_bonsai_premise_s1",
-          "value": 79.2
+          "value": 79.0
+        },
+        {
+          "run": "runs/m57_pref_s2",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m57_pref_s3",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/r4_bundle_s1_grounded",
+          "value": 80.60000000000001
         },
         {
           "run": "runs/m71_lme_grounded",
@@ -2953,12 +3349,48 @@
           "value": 79.80000000000001
         },
         {
+          "run": "runs/m77c_clause_s2",
+          "value": 79.80000000000001
+        },
+        {
           "run": "runs/m73b_events_s1",
           "value": 79.60000000000001
         },
         {
+          "run": "runs/m77_words_clause_s2",
+          "value": 79.60000000000001
+        },
+        {
+          "run": "runs/m77c_clause_s1",
+          "value": 79.4
+        },
+        {
           "run": "runs/m20b_profile_s1",
           "value": 79.2
+        },
+        {
+          "run": "runs/m77_words_clause_s1",
+          "value": 79.2
+        },
+        {
+          "run": "runs/m77_words_clause_s3",
+          "value": 79.2
+        },
+        {
+          "run": "runs/m76_words_s1",
+          "value": 79.0
+        },
+        {
+          "run": "runs/m76b_words_nopremise_s1",
+          "value": 79.0
+        },
+        {
+          "run": "runs/m76c_nopremise_s1",
+          "value": 79.0
+        },
+        {
+          "run": "runs/m77c_clause_s3",
+          "value": 79.0
         },
         {
           "run": "runs/m44_r2b_s1",
@@ -3349,9 +3781,9 @@
       "metric": "longmemeval_s.judge_score.n500",
       "system": "APEX-MEM",
       "theirs": 86.2,
-      "ours": 79.2,
+      "ours": 79.0,
       "ours_n": 500,
-      "gap": -7.0,
+      "gap": -7.200000000000003,
       "verdict": {
         "verdict": "caveat_judge",
         "ours": "open_weights_local",
@@ -3363,11 +3795,23 @@
       "run": "runs/m57_bonsai_premise_s1",
       "source_doi": "10.48550/arXiv.2604.14362",
       "caveat": "Companion figure to locomo.judge.apex_mem, from the same sentence. The PDF is converted (20 pages) but the conversion's retrievable text covers the front matter only - abstract, introduction, related work and the architecture section - so the quote is the abstract's results sentence rather than a table row, and neither the per-category cells, the question counts, the answer model nor the judge could be read. n is this registry's assumption from the benchmarks' own populations. Re-read the results section before this row is used for anything but context.",
-      "detail": "judge qwen3.5-9b : 396 of 500 correct (49 declines scored 0)",
+      "detail": "judge qwen3.5-9b : 395 of 500 correct (49 declines scored 0)",
       "candidates": [
         {
           "run": "runs/m57_bonsai_premise_s1",
-          "value": 79.2
+          "value": 79.0
+        },
+        {
+          "run": "runs/m57_pref_s2",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m57_pref_s3",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/r4_bundle_s1_grounded",
+          "value": 80.60000000000001
         },
         {
           "run": "runs/m71_lme_grounded",
@@ -3390,12 +3834,48 @@
           "value": 79.80000000000001
         },
         {
+          "run": "runs/m77c_clause_s2",
+          "value": 79.80000000000001
+        },
+        {
           "run": "runs/m73b_events_s1",
           "value": 79.60000000000001
         },
         {
+          "run": "runs/m77_words_clause_s2",
+          "value": 79.60000000000001
+        },
+        {
+          "run": "runs/m77c_clause_s1",
+          "value": 79.4
+        },
+        {
           "run": "runs/m20b_profile_s1",
           "value": 79.2
+        },
+        {
+          "run": "runs/m77_words_clause_s1",
+          "value": 79.2
+        },
+        {
+          "run": "runs/m77_words_clause_s3",
+          "value": 79.2
+        },
+        {
+          "run": "runs/m76_words_s1",
+          "value": 79.0
+        },
+        {
+          "run": "runs/m76b_words_nopremise_s1",
+          "value": 79.0
+        },
+        {
+          "run": "runs/m76c_nopremise_s1",
+          "value": 79.0
+        },
+        {
+          "run": "runs/m77c_clause_s3",
+          "value": 79.0
         },
         {
           "run": "runs/m44_r2b_s1",
@@ -3572,9 +4052,9 @@
       "metric": "longmemeval_s.judge_score.n500",
       "system": "Chronos High",
       "theirs": 95.6,
-      "ours": 79.2,
+      "ours": 79.0,
       "ours_n": 500,
-      "gap": -16.39999999999999,
+      "gap": -16.599999999999994,
       "verdict": {
         "verdict": "caveat_judge",
         "ours": "open_weights_local",
@@ -3586,11 +4066,23 @@
       "run": "runs/m57_bonsai_premise_s1",
       "source_doi": "10.48550/arXiv.2603.16862",
       "caveat": "The highest LongMemEval_S number known to this project, and the population is stated: \"the LongMemEvalS benchmark comprising 500 questions across six categories\". It also reproduces arithmetically - the per-category cells the paper reports for Chronos High (98.57 ss-user, 100 ss-assistant, 100 ss-preference, 88.72 multi-session, 95.50 temporal-reasoning, 100 knowledge-update) micro-average over the official counts 70/56/30/133/133/78 to exactly 95.60, which independently confirms n = 500. Backbone is the paper's own definition of \"High\": \"High configurations refer to evaluations with advanced frontier models, such as Opus 4.6 and Gemini 3 Pro\"; Chronos Low, on \"GPT-4o, or similar\", is 92.60 on the same set. The **judge is never named** - the converted text contains no occurrence of \"judge\" or \"grader\" - so judge_class is inferred from the backbone class and must be treated as unverified. Chronos is also the published form of M19's mechanism: it \"decomposes raw dialogue into subject-verb-object event tuples with resolved datetime ranges\" at write time, and reports the events calendar alone as a 58.9% gain over its baseline.",
-      "detail": "judge qwen3.5-9b : 396 of 500 correct (49 declines scored 0)",
+      "detail": "judge qwen3.5-9b : 395 of 500 correct (49 declines scored 0)",
       "candidates": [
         {
           "run": "runs/m57_bonsai_premise_s1",
-          "value": 79.2
+          "value": 79.0
+        },
+        {
+          "run": "runs/m57_pref_s2",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m57_pref_s3",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/r4_bundle_s1_grounded",
+          "value": 80.60000000000001
         },
         {
           "run": "runs/m71_lme_grounded",
@@ -3613,12 +4105,48 @@
           "value": 79.80000000000001
         },
         {
+          "run": "runs/m77c_clause_s2",
+          "value": 79.80000000000001
+        },
+        {
           "run": "runs/m73b_events_s1",
           "value": 79.60000000000001
         },
         {
+          "run": "runs/m77_words_clause_s2",
+          "value": 79.60000000000001
+        },
+        {
+          "run": "runs/m77c_clause_s1",
+          "value": 79.4
+        },
+        {
           "run": "runs/m20b_profile_s1",
           "value": 79.2
+        },
+        {
+          "run": "runs/m77_words_clause_s1",
+          "value": 79.2
+        },
+        {
+          "run": "runs/m77_words_clause_s3",
+          "value": 79.2
+        },
+        {
+          "run": "runs/m76_words_s1",
+          "value": 79.0
+        },
+        {
+          "run": "runs/m76b_words_nopremise_s1",
+          "value": 79.0
+        },
+        {
+          "run": "runs/m76c_nopremise_s1",
+          "value": 79.0
+        },
+        {
+          "run": "runs/m77c_clause_s3",
+          "value": 79.0
         },
         {
           "run": "runs/m44_r2b_s1",
@@ -4812,20 +5340,32 @@
     },
     {
       "metric": "longmemeval_s.judge_score.n500",
-      "value": 79.2,
+      "value": 79.0,
       "unit": "pct_0_100",
       "n": 500,
       "judge_class": "open_weights_local",
       "backbone_class": "open_weights",
       "run": "runs/m57_bonsai_premise_s1",
-      "detail": "judge qwen3.5-9b : 396 of 500 correct (49 declines scored 0)",
+      "detail": "judge qwen3.5-9b : 395 of 500 correct (49 declines scored 0)",
       "incomplete": null,
       "arm": false,
       "unrecorded": [],
       "candidates": [
         {
           "run": "runs/m57_bonsai_premise_s1",
-          "value": 79.2
+          "value": 79.0
+        },
+        {
+          "run": "runs/m57_pref_s2",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m57_pref_s3",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/r4_bundle_s1_grounded",
+          "value": 80.60000000000001
         },
         {
           "run": "runs/m71_lme_grounded",
@@ -4848,12 +5388,48 @@
           "value": 79.80000000000001
         },
         {
+          "run": "runs/m77c_clause_s2",
+          "value": 79.80000000000001
+        },
+        {
           "run": "runs/m73b_events_s1",
           "value": 79.60000000000001
         },
         {
+          "run": "runs/m77_words_clause_s2",
+          "value": 79.60000000000001
+        },
+        {
+          "run": "runs/m77c_clause_s1",
+          "value": 79.4
+        },
+        {
           "run": "runs/m20b_profile_s1",
           "value": 79.2
+        },
+        {
+          "run": "runs/m77_words_clause_s1",
+          "value": 79.2
+        },
+        {
+          "run": "runs/m77_words_clause_s3",
+          "value": 79.2
+        },
+        {
+          "run": "runs/m76_words_s1",
+          "value": 79.0
+        },
+        {
+          "run": "runs/m76b_words_nopremise_s1",
+          "value": 79.0
+        },
+        {
+          "run": "runs/m76c_nopremise_s1",
+          "value": 79.0
+        },
+        {
+          "run": "runs/m77c_clause_s3",
+          "value": 79.0
         },
         {
           "run": "runs/m44_r2b_s1",
@@ -5043,7 +5619,23 @@
           "value": 78.60000000000001
         },
         {
+          "run": "runs/m57_pref_s2",
+          "value": 78.0
+        },
+        {
+          "run": "runs/m57_pref_s3",
+          "value": 77.8
+        },
+        {
+          "run": "runs/r4_bundle_s1_grounded",
+          "value": 80.80000000000001
+        },
+        {
           "run": "runs/m73b_events_s1",
+          "value": 79.60000000000001
+        },
+        {
+          "run": "runs/m77c_clause_s2",
           "value": 79.60000000000001
         },
         {
@@ -5055,6 +5647,14 @@
           "value": 79.4
         },
         {
+          "run": "runs/m77_words_clause_s1",
+          "value": 79.4
+        },
+        {
+          "run": "runs/m77c_clause_s1",
+          "value": 79.4
+        },
+        {
           "run": "runs/m55_bonsai_s1",
           "value": 79.2
         },
@@ -5063,12 +5663,36 @@
           "value": 79.2
         },
         {
+          "run": "runs/m77_words_clause_s2",
+          "value": 79.2
+        },
+        {
+          "run": "runs/m77_words_clause_s3",
+          "value": 79.2
+        },
+        {
           "run": "runs/m72_lme_agg",
           "value": 79.0
         },
         {
+          "run": "runs/m77c_clause_s3",
+          "value": 78.8
+        },
+        {
+          "run": "runs/m76_words_s1",
+          "value": 78.60000000000001
+        },
+        {
           "run": "runs/m20b_profile_s1",
           "value": 78.2
+        },
+        {
+          "run": "runs/m76c_nopremise_s1",
+          "value": 77.8
+        },
+        {
+          "run": "runs/m76b_words_nopremise_s1",
+          "value": 77.60000000000001
         },
         {
           "run": "runs/m44_r2b_s1",
@@ -5098,7 +5722,23 @@
           "value": 78.60000000000001
         },
         {
+          "run": "runs/m57_pref_s2",
+          "value": 78.0
+        },
+        {
+          "run": "runs/m57_pref_s3",
+          "value": 77.8
+        },
+        {
+          "run": "runs/r4_bundle_s1_grounded",
+          "value": 80.80000000000001
+        },
+        {
           "run": "runs/m73b_events_s1",
+          "value": 79.60000000000001
+        },
+        {
+          "run": "runs/m77c_clause_s2",
           "value": 79.60000000000001
         },
         {
@@ -5110,6 +5750,14 @@
           "value": 79.4
         },
         {
+          "run": "runs/m77_words_clause_s1",
+          "value": 79.4
+        },
+        {
+          "run": "runs/m77c_clause_s1",
+          "value": 79.4
+        },
+        {
           "run": "runs/m55_bonsai_s1",
           "value": 79.2
         },
@@ -5118,12 +5766,36 @@
           "value": 79.2
         },
         {
+          "run": "runs/m77_words_clause_s2",
+          "value": 79.2
+        },
+        {
+          "run": "runs/m77_words_clause_s3",
+          "value": 79.2
+        },
+        {
           "run": "runs/m72_lme_agg",
           "value": 79.0
         },
         {
+          "run": "runs/m77c_clause_s3",
+          "value": 78.8
+        },
+        {
+          "run": "runs/m76_words_s1",
+          "value": 78.60000000000001
+        },
+        {
           "run": "runs/m20b_profile_s1",
           "value": 78.2
+        },
+        {
+          "run": "runs/m76c_nopremise_s1",
+          "value": 77.8
+        },
+        {
+          "run": "runs/m76b_words_nopremise_s1",
+          "value": 77.60000000000001
         },
         {
           "run": "runs/m44_r2b_s1",
@@ -5153,6 +5825,14 @@
           "value": 60.81649848682908
         },
         {
+          "run": "runs/m57_pref_s3",
+          "value": 60.79554814378587
+        },
+        {
+          "run": "runs/m57_pref_s2",
+          "value": 60.72890154729757
+        },
+        {
           "run": "runs/m57_bonsai_premise_s1.part1",
           "value": 62.21297137771996
         },
@@ -5173,8 +5853,32 @@
           "value": 61.285285019445425
         },
         {
+          "run": "runs/m77c_clause_s2",
+          "value": 61.05319933216673
+        },
+        {
+          "run": "runs/m77_words_clause_s3",
+          "value": 60.96712492502275
+        },
+        {
+          "run": "runs/m77c_clause_s1",
+          "value": 60.94978768507302
+        },
+        {
+          "run": "runs/m77_words_clause_s2",
+          "value": 60.93978643825591
+        },
+        {
+          "run": "runs/m77c_clause_s3",
+          "value": 60.90543460876368
+        },
+        {
           "run": "runs/m72_lme_agg",
           "value": 60.864009926393095
+        },
+        {
+          "run": "runs/m77_words_clause_s1",
+          "value": 60.84271531681927
         },
         {
           "run": "runs/m71_lme_grounded",
@@ -5189,12 +5893,32 @@
           "value": 60.73152430343233
         },
         {
+          "run": "runs/m76_words_s1",
+          "value": 60.722084408710586
+        },
+        {
+          "run": "runs/m76b_words_nopremise_s1",
+          "value": 60.68724799014179
+        },
+        {
+          "run": "runs/m76c_nopremise_s1",
+          "value": 60.68351987637455
+        },
+        {
           "run": "runs/m44_r2b_s2",
           "value": 60.39886505261581
         },
         {
           "run": "runs/m72b_lme_agg",
           "value": 59.99084855305908
+        },
+        {
+          "run": "runs/r4_bundle_s1",
+          "value": 59.18346027028283
+        },
+        {
+          "run": "runs/r4_bundle_s1_grounded",
+          "value": 59.18346027028283
         },
         {
           "run": "runs/m44_r2_s1",
@@ -5395,6 +6119,10 @@
         {
           "run": "runs/m20_pref_armA",
           "value": 4.572422935912479
+        },
+        {
+          "run": "runs/m76_words_evidence",
+          "value": 0.0
         },
         {
           "run": "runs/lme_s_recall_chrono",
