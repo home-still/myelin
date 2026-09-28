@@ -123,3 +123,23 @@ identical answers.
   (2026-09-24) it waits for the user's decision.
 - Any further preference arm needs more than one seed. An unchanged rerun
   moves declines on these 30 rows by 3.
+
+### Correction: the base was a lucky draw *(2026-09-28, after M77's seeds)*
+
+Two unchanged reruns of the 29 fired rows, under reader seeds 2 and 3
+(`runs/m57_pref_s2`, `runs/m57_pref_s3`), score 10 and 9 official (M57's seed
+1: 13), 9 and 13 strict (11), with 10 and 8 declines (7). Against that
+three-seed base, averaged per question (`paired_ci.py`, runs joined by `,`):
+
+| arm | reading | Δ against seed 1 alone | Δ against three seeds |
+|---|---|---|---|
+| M76b | official | −16.7 [−30.0, −3.3] | **−8.9 [−20.0, +1.1]** |
+| M76b | strict | −3.3 [−16.7, +10.0] | −3.3 [−13.3, +6.7] |
+| M76c | official | −13.3 [−26.7, −3.3] | **−5.6 [−16.7, +4.4]** |
+| M76c | strict | −3.3 [−16.7, +10.0] | −3.3 [−15.6, +8.9] |
+
+- The gate still fails. Neither arm is positive under any reading.
+- The harm is **not** established. Most of the "−16.7" was M57's seed 1
+  scoring 13, its best draw.
+- "Dropping the clause cost answers" above is downgraded from measured to
+  **not resolved**.
