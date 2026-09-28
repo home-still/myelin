@@ -148,6 +148,10 @@ on M57's serving, with the other 471 copied from M57.
     only note that recommendations were requested and made on 2023-05-22…"
 - This is PrefEval's *unhelpful* failure: "refusing to answer queries due to
   a perceived lack of context".
+- **Falsified 2026-09-28 by M76b (`m76b-advice-without-premise.md`):** the
+  next bullet's diagnosis was wrong. The declines cite the base prompt's "reply
+  exactly: I don't know" line, not the premise clause, and an unchanged rerun
+  already gives 10 declines. The original claim is kept below.
 - The cause is the reader prompt, not the memory. M57's decline-first
   premise clause tells the reader to decline when the memories do not
   support what the question assumes. An advice request assumes nothing to

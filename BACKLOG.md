@@ -197,19 +197,6 @@ lost under the strict judge):
 
 ---
 
-## M76b — advice requests without the premise clause *(user decision 2026-09-28; pre-registered)*
-
-M76 got the user's own sentence into the evidence for 28 of 30 preference
-questions, but the reader declined more (11/30, 10 with every gold turn in
-hand). M57's premise clause reads "recommend me X" as a recall question.
-- `--advice-without-premise` drops that existing clause for advice requests
-  only. The user chose this over adding a new clause.
-- The gated arm is M76b (with M76's words). A diagnostic arm, M76c, drops
-  the clause alone.
-- Doc: `docs/measurements/m76b-advice-without-premise.md`.
-
----
-
 ## M75 — LME-V2 false-premise questions answered from the nearest real screen *(found 2026-09-27; not started)*
 
 M54's AgentRunbook-C point is weakest on abstention: 53.57 on enterprise's 56

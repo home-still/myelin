@@ -94,6 +94,25 @@ first arm to question the measurement apparatus rather than the mechanism.
 
 ---
 
+## M76b — advice requests without the premise clause: **official −16.7 on preference**; does not ship *(2026-09-28)*
+
+- **Mechanism:** `--advice-without-premise` drops M57's premise clause from
+  the reader prompt for advice requests only (the user's choice: no new
+  clause). M76b adds M76's words; M76c, a diagnostic, drops the clause alone.
+- **Result on the 30 preference rows:**
+  - M76b: strict −3.3 [−16.7, +10.0], official **−16.7 [−30.0, −3.3]**;
+  - M76c: strict −3.3 [−16.7, +10.0], official **−13.3 [−26.7, −3.3]**.
+- **Declines rose to 12 and 13**, against a prediction of 1–3. No declined
+  row's reasoning mentions a premise, in any run. The reader cites the base
+  prompt's "reply exactly: I don't know" line.
+- **This falsifies M76's diagnosis** (marked in `m76-user-words.md`, not
+  deleted). An unchanged rerun of these rows already gives 10 declines;
+  M57's 7 was a low draw.
+- **What is left:** the block is `READER_SYSTEM`'s own decline line. The
+  existing `--profile-clause` counters it; as a reader-prompt change, that
+  waits for the user.
+- Doc: `m76b-advice-without-premise.md`.
+
 ## M76 — the user's own words for advice questions: **retrieval +50.0, answers +0.0**; does not ship *(2026-09-28)*
 
 - **Mechanism:** `--user-words`, gated to advice questions. It appends the
@@ -106,6 +125,8 @@ first arm to question the measurement apparatus rather than the mechanism.
 - **Verdict:** retrieval is solved and the reader is not. M57's decline-first
   premise clause reads an advice request as a recall question with no
   recorded answer.
+  **Falsified by M76b:** the declines cite the base prompt's decline line, not
+  the premise clause.
 - Doc: `m76-user-words.md`.
 
 ## Round 4 on LongMemEval_S — five mechanisms, **none clears its stratum gate**; no bundle, nothing ships *(2026-09-27)*

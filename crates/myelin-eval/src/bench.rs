@@ -177,6 +177,12 @@ bears on the question.";
 /// 30 of them, 10 with every gold turn in hand (M76). That is PrefEval's
 /// "unhelpful" failure (Zhao et al. 2025, `10.48550/arxiv.2502.09597`). No
 /// clause is added; one stops applying to one question shape.
+///
+/// Measured 2026-09-28, off: official −16.7 [−30.0, −3.3] on the 30
+/// preference rows, with declines up (12), not down. The declines cite
+/// [`READER_SYSTEM`]'s own "reply exactly: I don't know", not the premise
+/// clause, so the diagnosis above was wrong
+/// (`docs/measurements/m76b-advice-without-premise.md`).
 fn reader_system(switches: &BenchSwitches, question: &str) -> String {
     let mut system = READER_SYSTEM.to_string();
     if switches.profile_clause {
