@@ -94,6 +94,20 @@ first arm to question the measurement apparatus rather than the mechanism.
 
 ---
 
+## M76 — the user's own words for advice questions: **retrieval +50.0, answers +0.0**; does not ship *(2026-09-28)*
+
+- **Mechanism:** `--user-words`, gated to advice questions. It appends the
+  user's own turns from the sessions the evidence reached, ranked by the
+  cross-encoder, within 1,024 tokens.
+- **Stage 0 (reader-free):** every gold turn held on the 30 preference
+  questions, 13 → 28, **+50.0 [+33.3, +66.7]**.
+- **Stage 1:** strict −3.3 [−16.7, +10.0] and official +0.0 on the 30.
+  Declines rose from 7 to 11, and 10 of the 11 had every gold turn in hand.
+- **Verdict:** retrieval is solved and the reader is not. M57's decline-first
+  premise clause reads an advice request as a recall question with no
+  recorded answer.
+- Doc: `m76-user-words.md`.
+
 ## Round 4 on LongMemEval_S — five mechanisms, **none clears its stratum gate**; no bundle, nothing ships *(2026-09-27)*
 
 - **How it ran:** under the user's rule of a stratum gate first, then one

@@ -92,3 +92,67 @@ questions, `data/longmemeval_s.json` gold turns against M57's evidence):
 - Stage 0 up and stage 1 flat or down: the reader ignores the block, or
   narrows on it as it did on M20b's. Report fixed and broken rows with the
   block's content.
+
+## Stage 0 result — passes *(measured 2026-09-28)*
+
+The run is `runs/m76_words_evidence`: `--user-words --evidence-only` on the
+30 preference questions, on big, at main `ee44c6d`. It was paired with M57
+on every-gold-turn-held (`paired_ci.py --gold-held --ids m20b_pref_ids`):
+
+| | n | M76 | M57 | Δ [95% CI] | p |
+|---|---|---|---|---|---|
+| **all gold turns held** | 30 | **93.3%** (28) | 43.3% (13) | **+50.0 [+33.3, +66.7]** | < 0.0001 |
+
+- Coverage: 28 hold all their gold turns, 1 part, 1 none. Mean gold recall
+  is 0.950.
+- **Diagnostics:**
+  - The block was appended on 28 of 30 questions.
+  - A median of 10.5 user turns per question (at most 20), about 612 tokens
+    (at most about 1,076).
+  - The selector declined on 10 rows, against M57's 9. It agrees with M57 on
+    29 of 30. The block is appended after selection, so it cannot move the
+    selector; the one difference is the LLM selector's own rerun noise
+    (`r4-bundle.md`).
+- The prediction (13 → 24–28) held at its top.
+- The criterion holds, so stage 1 runs, as pre-registered.
+
+## Stage 1 result — fails; the second falsifier fires *(measured 2026-09-28)*
+
+The run is `runs/m76_words_s1`: the 29 fired rows rerun with `--user-words`
+on M57's serving, with the other 471 copied from M57.
+
+| reading | stratum | n | M76 | M57 | Δ [95% CI] |
+|---|---|---|---|---|---|
+| strict 9B | preference | 30 | 33.3% | 36.7% | −3.3 [−16.7, +10.0] |
+| official | preference | 30 | 43.3% | 43.3% | +0.0 [−13.3, +13.3] |
+
+- Official: 2 fixed and 2 broken. Strict: 2 fixed and 3 broken.
+- Abstention is unchanged (the gate fires on no abstention row), and the
+  other 471 rows are M57's.
+- **Verdict:** both criteria fail. M76 does not enter a bundle and stays
+  off.
+
+**Why: the reader declines advice it now has the grounds for.**
+
+| | declines on the 30 | … with every gold turn held | official right |
+|---|---|---|---|
+| M57 | 7 | — | 13 |
+| M76 | **11** | **10** | 13 |
+
+- With the user's own sentences in hand, the reader answered "I don't know."
+  more often, not less. Examples:
+  - "Can you suggest a hotel for my upcoming trip to Miami?"
+  - "Can you recommend a show or movie for me to watch tonight?": M57 named
+    a documentary; M76 declined.
+  - "…recent publications or conferences?": "I don't know. The memories
+    only note that recommendations were requested and made on 2023-05-22…"
+- This is PrefEval's *unhelpful* failure: "refusing to answer queries due to
+  a perceived lack of context".
+- The cause is the reader prompt, not the memory. M57's decline-first
+  premise clause tells the reader to decline when the memories do not
+  support what the question assumes. An advice request assumes nothing to
+  recall, yet the reader treats it as a recall question with no recorded
+  answer. The more of the user's conversation it sees, the more explicitly
+  it can say what the memories "only note".
+- The retrieval half of M76 works: stage 0, +50.0 [+33.3, +66.7]. What
+  does not work is how the reader treats the question.
