@@ -120,6 +120,14 @@ first arm to question the measurement apparatus rather than the mechanism.
     stratum rule alone can hold back mechanisms whose sum might matter.
     Stacked, the three would give about +1.6 strict, which is below the
     bundle bar anyway.
+- **The bundle of the three positive mechanisms (user's call, 2026-09-27;
+  `r4-bundle.md`):**
+  - strict 80.6, +1.4 [−0.8, +3.6], with abstention 28/30, so vetoed;
+  - official 80.8, +2.2 [+0.0, +4.6], which ties 80.80.
+  - Additive as predicted, and it does not ship.
+  - The veto flip is reader noise on a row no mechanism touched. That noise
+    alone moved identical-evidence rows by +5 (+1.0 point), so a single full
+    rerun cannot resolve a one-point gain.
 - **Standing is unchanged:** LongMemEval_S 79.20 strict / 78.60 official,
   against 80.80.
 
