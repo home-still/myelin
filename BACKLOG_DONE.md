@@ -111,6 +111,10 @@ first arm to question the measurement apparatus rather than the mechanism.
 - **What is left:** the block is `READER_SYSTEM`'s own decline line. The
   existing `--profile-clause` counters it; as a reader-prompt change, that
   waits for the user.
+- **Corrected the same day:** against a three-seed base (seeds 2 and 3 score
+  10 and 9 official, against seed 1's 13), official is −8.9 [−20.0, +1.1] (M76b)
+  and −5.6 [−16.7, +4.4] (M76c). The gate still fails; the harm is not
+  established.
 - Doc: `m76b-advice-without-premise.md`.
 
 ## M76 — the user's own words for advice questions: **retrieval +50.0, answers +0.0**; does not ship *(2026-09-28)*

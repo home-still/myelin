@@ -1024,6 +1024,8 @@ fn bench_metrics(dir: &Path, agg_text: &str) -> Result<Vec<Ours>> {
         || run.user_words
         // M76b's premise clause off for advice requests, shipping off pending its arm.
         || run.advice_without_premise
+        // M77's preference clause for advice requests, shipping off pending its arm.
+        || run.advice_profile_clause
         // A reader-free coverage run is never a quotable score.
         || run.evidence_only
         || run.aggregation_k.is_some()

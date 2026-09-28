@@ -20,6 +20,19 @@ resampled with replacement over questions (BCa is not used: `score` here is a
 0/1 indicator, the bootstrap distribution is discrete and near-symmetric, and
 the acceleration term adds complexity for no meaningful correction at these
 sample sizes).
+
+**Seed replicates.** A side may name several runs of the same arm under
+different reader seeds, joined by `,`. Each question's score is then the mean
+over those replicates, and the bootstrap still resamples *questions*. The
+question is the sampling unit and the seed only averages out within-question
+noise. Miller (2024, "Adding Error Bars to Evals", arXiv 2411.00640)
+recommends exactly this: resample the answer to shrink the conditional
+variance, then analyse paired differences over questions. Bouthillier et al.
+(2021, "Accounting for Variance in Machine Learning Benchmarks", MLSys,
+arXiv 2103.03098) show that a comparison made on one seed misattributes
+seed noise to the method. Round 4 measured that here: three seeds of the
+unchanged LongMemEval_S reader score 9, 10 and 13 of the 30 preference
+questions (`docs/measurements/m76b-advice-without-premise.md`).
 """
 
 from __future__ import annotations
@@ -49,10 +62,41 @@ def _dirs(spec: str) -> list[str]:
     return parts
 
 
+def _replicates(spec: str) -> list[str]:
+    """One side as its seed replicates: `a_s1,a_s2,a_s3` -> three run specs.
+
+    Each replicate is itself a `+`-joined run spec. A spec with no `,` is one
+    replicate, and every number is bit-identical to before.
+    """
+    parts = [p for p in spec.split(",") if p]
+    if not parts:
+        raise SystemExit(f"empty run spec: {spec!r}")
+    return parts
+
+
 def load_scores(
     run_spec: str, verdicts: str | None = None, gold_held: bool = False
 ) -> dict[str, float]:
-    """Map question_id -> score over one side's run directories.
+    """Map question_id -> score, averaged over the side's seed replicates.
+
+    Every replicate must hold the same questions: averaging over a question
+    one seed lacks would weigh that question by a different number of draws.
+    """
+    replicates = [_load_one(spec, verdicts, gold_held) for spec in _replicates(run_spec)]
+    ids = set(replicates[0])
+    for spec, scores in zip(_replicates(run_spec), replicates):
+        if set(scores) != ids:
+            raise SystemExit(
+                f"seed replicate {spec} holds {len(scores)} questions, "
+                f"{len(set(scores) ^ ids)} differing from the first replicate's {len(ids)}"
+            )
+    return {q: sum(s[q] for s in replicates) / len(replicates) for q in ids}
+
+
+def _load_one(
+    run_spec: str, verdicts: str | None = None, gold_held: bool = False
+) -> dict[str, float]:
+    """Map question_id -> score over one replicate's run directories.
 
     `verdicts` names a verdict file inside each run directory (e.g.
     `judge_verdicts_lme_official.json`, M70's official grader) to read the
@@ -107,9 +151,13 @@ def load_scores(
 
 
 def load_flags(run_spec: str) -> dict[str, bool]:
-    """Map question_id -> is_abstention_problem, for stratified reporting."""
+    """Map question_id -> is_abstention_problem, for stratified reporting.
+
+    A question's flag is the dataset's, the same in every seed replicate, so
+    the first replicate is read.
+    """
     flags: dict[str, bool] = {}
-    for run_dir in _dirs(run_spec):
+    for run_dir in _dirs(_replicates(run_spec)[0]):
         with open(Path(run_dir) / "per_question.jsonl", encoding="utf-8") as handle:
             for line in handle:
                 line = line.strip()
@@ -131,7 +179,7 @@ def load_categories(run_spec: str) -> dict[str, int]:
     directories, so that is a usage rule rather than something to enforce.
     """
     cats: dict[str, int] = {}
-    for run_dir in _dirs(run_spec):
+    for run_dir in _dirs(_replicates(run_spec)[0]):
         with open(Path(run_dir) / "per_question.jsonl", encoding="utf-8") as handle:
             for line in handle:
                 line = line.strip()
@@ -204,6 +252,9 @@ def compare(
 
     print(f"A = {run_a}")
     print(f"B = {run_b}")
+    seeds_a, seeds_b = len(_replicates(run_a)), len(_replicates(run_b))
+    if seeds_a > 1 or seeds_b > 1:
+        print(f"seed replicates: A {seeds_a}, B {seeds_b} (per-question mean; the bootstrap resamples questions)")
     if verdicts is not None:
         print(f"scores = {verdicts}")
     if gold_held:
@@ -267,7 +318,8 @@ def main() -> None:
     parser.add_argument(
         "run_a",
         help="run directory, or several joined by '+' when one arm spans "
-        "directories (LongMemEval-V2: 'runs/x_web+runs/x_ent' = the tier's 451)",
+        "directories (LongMemEval-V2: 'runs/x_web+runs/x_ent' = the tier's 451); "
+        "seed replicates of the arm joined by ',' are averaged per question",
     )
     parser.add_argument("run_b", help="the same, for the arm being compared against")
     parser.add_argument("--iterations", type=int, default=20000)
