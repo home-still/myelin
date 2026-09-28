@@ -199,6 +199,23 @@ lost under the strict judge):
 
 ---
 
+## Schema field order — send the order each schema was written in *(defect found 2026-09-28; not started)*
+
+No schema's intended field order ever reached the model: serde_json sorts
+object keys without `preserve_order`, and llama.cpp builds its grammar in
+the order it receives (measured on the wire). Thirteen schemas are affected,
+among them the shipped `reflect` call, the grounded pass (M71b) and M44 R1
+(`docs/measurements/defect-2026-09-28-schema-field-order.md`).
+- **Fix:** enable `serde_json/preserve_order` for the workspace, and add a
+  wire-order test for every schema.
+- **Measure:** the fix changes the shipped investigate path. Run an
+  `--evidence-only` control over all 500 rows to count evidence changes, then
+  a seed-replicated arm on the rows that changed, under the bundle method.
+- **Opportunity:** M71b's grounded pass and M44 R1's reasoning-first answer
+  were never tested as designed.
+
+---
+
 ## M75 — LME-V2 false-premise questions answered from the nearest real screen *(found 2026-09-27; not started)*
 
 M54's AgentRunbook-C point is weakest on abstention: 53.57 on enterprise's 56

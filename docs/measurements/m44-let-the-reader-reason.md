@@ -1,5 +1,12 @@
 # M44 — the reader has never been allowed to reason
 
+> **Correction (2026-09-28).** R1's schema reached the model as
+> `{answer, evidence_absent, reasoning}`: serde_json sorts keys, and
+> llama.cpp follows the order it receives
+> (`defect-2026-09-28-schema-field-order.md`). R1 measured an
+> answer-then-reasoning shape, not reasoning before the answer. The number
+> stands; the conclusion about reasoning-first is untested.
+
 > **Correction (2026-09-25):** stale seeded verdicts on declined answers inflated this arm's judged score (`defect-2026-09-25-stale-verdicts.md`). R2 seed 1 is **75.00** (was 78.40), seed 2 is 74.80, and R2b seed 1 is 77.20. R2 vs M43 is **+8.80 [+5.0, +12.8]**, so it still ships.
 
 ## The finding
