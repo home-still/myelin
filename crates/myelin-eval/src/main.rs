@@ -576,6 +576,11 @@ enum Command {
         /// answer about the entity the question names, then answer from those.
         #[arg(long, conflicts_with = "samples")]
         grounded: bool,
+        /// M79: the typed premise pass — the answer, then whether the question
+        /// fits the memories, adds an unstated detail, is contradicted, or asks
+        /// about something never mentioned; commits only on the first two.
+        #[arg(long, conflicts_with_all = ["samples", "grounded"])]
+        typed: bool,
     },
     /// Score LoCoMo end-to-end: retrieve, read, and grade the answer with
     /// a deterministic scorer (no LLM judge). See `bench.rs`.
@@ -1179,15 +1184,19 @@ async fn main() -> anyhow::Result<()> {
             seed,
             agree,
             grounded,
+            typed,
         } => {
             let cfg = MyelinConfig::load().context("load myelin config")?;
-            let pass = match (samples, agree, grounded) {
-                (Some(n), Some(a), false) => myelin_eval::commit_arm::Pass::Consensus(
+            let pass = match (samples, agree, grounded, typed) {
+                (Some(n), Some(a), false, false) => myelin_eval::commit_arm::Pass::Consensus(
                     myelin_eval::bench::Consensus::new(n, seed, a)?,
                 ),
-                (None, None, true) => myelin_eval::commit_arm::Pass::Grounded,
-                (None, None, false) => myelin_eval::commit_arm::Pass::Greedy,
-                _ => anyhow::bail!("--samples/--agree and --grounded are different second passes; pass one"),
+                (None, None, true, false) => myelin_eval::commit_arm::Pass::Grounded,
+                (None, None, false, true) => myelin_eval::commit_arm::Pass::Typed,
+                (None, None, false, false) => myelin_eval::commit_arm::Pass::Greedy,
+                _ => anyhow::bail!(
+                    "--samples/--agree, --grounded and --typed are different second passes; pass one"
+                ),
             };
             let report = myelin_eval::commit_arm::run(
                 &cfg,
@@ -1398,6 +1407,7 @@ async fn main() -> anyhow::Result<()> {
                     aggregation_k,
                     aggregation_budget_tokens,
                     commit_grounded: false,
+                    commit_typed: false,
                     untrusted_max,
                     decompose,
                     categories: categories.clone().unwrap_or_default(),
