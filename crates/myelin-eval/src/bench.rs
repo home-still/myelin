@@ -183,13 +183,24 @@ bears on the question.";
 /// [`READER_SYSTEM`]'s own "reply exactly: I don't know", not the premise
 /// clause, so the diagnosis above was wrong
 /// (`docs/measurements/m76b-advice-without-premise.md`).
+///
+/// M77: with `advice_profile_clause`, an advice request is shown
+/// [`READER_PREFERENCE_CLAUSE`], which `profile_clause` shows every
+/// question. M76b's traces put the preference declines on
+/// [`READER_SYSTEM`]'s own "reply exactly: I don't know", and this existing
+/// clause is the one that answers that line ("Do not reply I don't know
+/// when the memories state a relevant preference"). The user chose it on
+/// 2026-09-28 over new text. PrefEval (Zhao et al. 2025,
+/// `10.48550/arxiv.2502.09597`) finds that reminding the model of the stated
+/// preference is what turns a generic answer into a preference-following
+/// one (`docs/measurements/m77-advice-profile-clause.md`).
 fn reader_system(switches: &BenchSwitches, question: &str) -> String {
     let mut system = READER_SYSTEM.to_string();
-    if switches.profile_clause {
+    let advice = myelin_core::pipeline::query_shape::is_advice_request(question);
+    if switches.profile_clause || (switches.advice_profile_clause && advice) {
         system.push_str(READER_PREFERENCE_CLAUSE);
     }
-    let advice_skips_premise = switches.advice_without_premise
-        && myelin_core::pipeline::query_shape::is_advice_request(question);
+    let advice_skips_premise = switches.advice_without_premise && advice;
     if switches.reader_premise_clause && !advice_skips_premise {
         system.push_str(READER_PREMISE_CLAUSE);
     }
@@ -228,6 +239,7 @@ pub fn reader_system_of_run(metrics: &serde_json::Value, question: &str) -> Stri
             reader_premise_clause: flag("reader_premise_clause"),
             reader_best_guess: flag("reader_best_guess"),
             advice_without_premise: flag("advice_without_premise"),
+            advice_profile_clause: flag("advice_profile_clause"),
             ..Default::default()
         },
         question,
@@ -638,6 +650,10 @@ pub struct BenchRun {
     /// ([`reader_system`]). Absent on every run before M76b.
     #[serde(default)]
     pub advice_without_premise: bool,
+    /// M77: advice requests were shown the preference clause
+    /// ([`reader_system`]). Absent on every run before M77.
+    #[serde(default)]
+    pub advice_profile_clause: bool,
     /// The run composed evidence and never called the reader: every
     /// response is empty and every score is meaningless. It exists for
     /// `coverage`, the reader-free half of a gate (M74's first criterion).
@@ -816,6 +832,8 @@ pub struct BenchSwitches {
     pub user_words: bool,
     /// M76b: no premise clause for advice requests ([`reader_system`]).
     pub advice_without_premise: bool,
+    /// M77: the preference clause for advice requests ([`reader_system`]).
+    pub advice_profile_clause: bool,
     /// Compose the evidence and skip the reader (LongMemEval_S only), for
     /// `coverage`.
     pub evidence_only: bool,
@@ -2907,6 +2925,7 @@ fn finish_run(
         select_focus: spec.switches.select_focus,
         user_words: spec.switches.user_words,
         advice_without_premise: spec.switches.advice_without_premise,
+        advice_profile_clause: spec.switches.advice_profile_clause,
         evidence_only: spec.switches.evidence_only,
         aggregation_k: spec.switches.aggregation_k,
         aggregation_budget_tokens: spec.switches.aggregation_budget_tokens,
@@ -3112,6 +3131,7 @@ pub fn rescore_run(source: &Path, out_dir: &Path, scorer: Scorer) -> Result<Benc
             select_focus: flag("select_focus"),
             user_words: flag("user_words"),
             advice_without_premise: flag("advice_without_premise"),
+            advice_profile_clause: flag("advice_profile_clause"),
             evidence_only: flag("evidence_only"),
             aggregation_k: metrics
                 .get("aggregation_k")
@@ -3919,6 +3939,31 @@ mod config_tests {
         });
         assert_eq!(reader_system_of_run(&recorded, ADVICE_Q), READER_SYSTEM);
         assert_eq!(reader_system_of_run(&recorded, RECALL_Q), reader_system(&skip, RECALL_Q));
+    }
+
+    /// M77: with the switch, an advice request is shown the preference clause
+    /// ahead of the premise clause, and every other question is not; the
+    /// replay of a run rebuilds the same per-question prompt.
+    #[test]
+    fn an_advice_request_gets_the_preference_clause_only_under_its_switch() {
+        let shipped = BenchSwitches {
+            reader_premise_clause: true,
+            ..Default::default()
+        };
+        let advice = BenchSwitches {
+            reader_premise_clause: true,
+            advice_profile_clause: true,
+            ..Default::default()
+        };
+        let with_clause = format!("{READER_SYSTEM}{READER_PREFERENCE_CLAUSE}{READER_PREMISE_CLAUSE}");
+        assert_eq!(reader_system(&advice, ADVICE_Q), with_clause);
+        assert_eq!(reader_system(&advice, RECALL_Q), reader_system(&shipped, RECALL_Q));
+        assert!(!reader_system(&shipped, ADVICE_Q).contains(READER_PREFERENCE_CLAUSE));
+        let recorded = serde_json::json!({
+            "corpus": "longmemeval_s", "reader_premise_clause": true, "advice_profile_clause": true
+        });
+        assert_eq!(reader_system_of_run(&recorded, ADVICE_Q), with_clause);
+        assert_eq!(reader_system_of_run(&recorded, RECALL_Q), reader_system(&shipped, RECALL_Q));
     }
 
     /// M71: a replay rebuilds the base's system prompt from its artifact,

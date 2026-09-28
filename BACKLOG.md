@@ -197,6 +197,20 @@ lost under the strict judge):
 
 ---
 
+## M77 — the preference clause for advice requests, with the user's words, over three seeds *(user decision 2026-09-28; pre-registered)*
+
+The 30 preference questions hold LongMemEval_S's whole official gap (13 vs
+MemPro-15's 24). M76 put the user's sentence in the evidence (28/30). M76b
+showed the declines come from `READER_SYSTEM`'s own "reply exactly: I don't
+know", not the premise clause.
+- `--advice-profile-clause` shows the existing preference clause (M20 arm B)
+  to advice requests only. The user chose it over new text.
+- The gated arm is M77 (with the words); M77c, a diagnostic, is the clause
+  alone. Both run over reader seeds 1–3, against a three-seed base.
+- Doc: `docs/measurements/m77-advice-profile-clause.md`.
+
+---
+
 ## M75 — LME-V2 false-premise questions answered from the nearest real screen *(found 2026-09-27; not started)*
 
 M54's AgentRunbook-C point is weakest on abstention: 53.57 on enterprise's 56

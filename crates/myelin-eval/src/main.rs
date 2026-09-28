@@ -796,6 +796,10 @@ enum Command {
         /// to change anything.
         #[arg(long)]
         advice_without_premise: bool,
+        /// M77: advice requests are shown the existing preference clause
+        /// (`--profile-clause` shows it to every question).
+        #[arg(long)]
+        advice_profile_clause: bool,
         /// Compose each question's evidence and skip the reader, for
         /// `coverage` (LongMemEval_S only). The run is never quotable.
         #[arg(long)]
@@ -1315,6 +1319,7 @@ async fn main() -> anyhow::Result<()> {
             select_focus,
             user_words,
             advice_without_premise,
+            advice_profile_clause,
             evidence_only,
             aggregation_k,
             aggregation_budget_tokens,
@@ -1374,6 +1379,7 @@ async fn main() -> anyhow::Result<()> {
                     select_focus,
                     user_words,
                     advice_without_premise,
+                    advice_profile_clause,
                     evidence_only,
                     aggregation_k,
                     aggregation_budget_tokens,
