@@ -1,6 +1,6 @@
 {
-  "commit": "9e4ff83cb2494901a78c33e3105929d0cf6b1906-dirty",
-  "generated_at": "2026-09-28T13:38:04.197050Z",
+  "commit": "7aabadd42563c3cb7b6e03646827de448d530183-dirty",
+  "generated_at": "2026-09-29T11:03:55.625417Z",
   "rows": [
     {
       "registry_id": "locomo.judge.mempro15.gpt4omini",
@@ -341,9 +341,9 @@
       "metric": "longmemeval_s.judge_score.n500",
       "system": "MemPro-15",
       "theirs": 79.0,
-      "ours": 79.0,
+      "ours": 80.80000000000001,
       "ours_n": 500,
-      "gap": 0.0,
+      "gap": 1.8000000000000114,
       "verdict": {
         "verdict": "caveat_judge",
         "ours": "open_weights_local",
@@ -352,22 +352,50 @@
       "claim_allowed": false,
       "gate": false,
       "arm": false,
-      "run": "runs/m57_bonsai_premise_s1",
+      "run": "runs/r5_bundle_seeds",
       "source_doi": "10.48550/arXiv.2606.00619",
       "caveat": "The LongMemEval Avg. is a micro-average over the six official question types: (77.44*133 + 73.68*133 + 83.33*78 + 98.57*70 + 60.71*56 + 86.67*30)/500 = 79.00 exactly, so n = 500 and the 30 `_abs` abstention items are inside those type counts rather than excluded. Judge prompt follows GAM (L122).",
-      "detail": "judge qwen3.5-9b : 395 of 500 correct (49 declines scored 0)",
+      "detail": "seed mean of 3 (80.40 / 81.20 / 80.80); judge qwen3.5-9b : 402 of 500 correct (36 declines scored 0)",
       "candidates": [
         {
-          "run": "runs/m57_bonsai_premise_s1",
-          "value": 79.0
+          "run": "runs/r5_bundle_seeds",
+          "value": 80.80000000000001
         },
         {
-          "run": "runs/m57_pref_s2",
-          "value": 78.60000000000001
+          "run": "runs/r5_bundle_s2_grounded_c",
+          "value": 81.2
         },
         {
-          "run": "runs/m57_pref_s3",
-          "value": 78.60000000000001
+          "run": "runs/r5_bundle_s3_grounded_c",
+          "value": 80.60000000000001
+        },
+        {
+          "run": "runs/r5_bundle_s1_grounded_c",
+          "value": 80.4
+        },
+        {
+          "run": "runs/r5_bundle_s2_typed",
+          "value": 81.8
+        },
+        {
+          "run": "runs/r5b_bundle_s2_typed",
+          "value": 81.8
+        },
+        {
+          "run": "runs/r5b_bundle_s3_typed",
+          "value": 81.8
+        },
+        {
+          "run": "runs/r5_bundle_s3_typed",
+          "value": 81.6
+        },
+        {
+          "run": "runs/r5_bundle_s1_typed",
+          "value": 81.0
+        },
+        {
+          "run": "runs/r5b_bundle_s1_typed",
+          "value": 81.0
         },
         {
           "run": "runs/r4_bundle_s1_grounded",
@@ -379,6 +407,10 @@
         },
         {
           "run": "runs/m72_lme_agg",
+          "value": 80.2
+        },
+        {
+          "run": "runs/m78c_answer_s3",
           "value": 80.2
         },
         {
@@ -398,6 +430,18 @@
           "value": 79.80000000000001
         },
         {
+          "run": "runs/m78_answer_s1",
+          "value": 79.80000000000001
+        },
+        {
+          "run": "runs/m78_answer_s3",
+          "value": 79.80000000000001
+        },
+        {
+          "run": "runs/m79_base_s1",
+          "value": 79.80000000000001
+        },
+        {
           "run": "runs/m73b_events_s1",
           "value": 79.60000000000001
         },
@@ -407,6 +451,10 @@
         },
         {
           "run": "runs/m77c_clause_s1",
+          "value": 79.4
+        },
+        {
+          "run": "runs/m78b_picks_s1",
           "value": 79.4
         },
         {
@@ -420,6 +468,18 @@
         {
           "run": "runs/m77_words_clause_s3",
           "value": 79.2
+        },
+        {
+          "run": "runs/m78b_picks_s3",
+          "value": 79.2
+        },
+        {
+          "run": "runs/m78c_answer_s1",
+          "value": 79.2
+        },
+        {
+          "run": "runs/m57_bonsai_premise_s1",
+          "value": 79.0
         },
         {
           "run": "runs/m76_words_s1",
@@ -436,6 +496,42 @@
         {
           "run": "runs/m77c_clause_s3",
           "value": 79.0
+        },
+        {
+          "run": "runs/m78b_picks_s2",
+          "value": 79.0
+        },
+        {
+          "run": "runs/m78c_answer_s2",
+          "value": 79.0
+        },
+        {
+          "run": "runs/m78_answer_s2",
+          "value": 78.8
+        },
+        {
+          "run": "runs/m79_base_s2",
+          "value": 78.8
+        },
+        {
+          "run": "runs/m57_pref_s2",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m57_pref_s3",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m79_base_s3",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/r5_base_s2",
+          "value": 78.0
+        },
+        {
+          "run": "runs/r5_base_s3",
+          "value": 77.8
         },
         {
           "run": "runs/m44_r2b_s1",
@@ -612,9 +708,9 @@
       "metric": "longmemeval_s.judge_score_matched.n500",
       "system": "MemPro-15",
       "theirs": 79.0,
-      "ours": 78.60000000000001,
+      "ours": 81.13333333333334,
       "ours_n": 500,
-      "gap": -0.3999999999999915,
+      "gap": 2.13333333333334,
       "verdict": {
         "verdict": "caveat_backbone",
         "ours": "open_weights",
@@ -623,26 +719,58 @@
       "claim_allowed": false,
       "gate": false,
       "arm": false,
-      "run": "runs/m57_bonsai_premise_s1",
+      "run": "runs/r5_bundle_seeds",
       "source_doi": "10.48550/arXiv.2606.00619",
       "caveat": "MemPro-15 on gpt-4o-mini, compared under LongMemEval's own grader (M70).",
-      "detail": "the lowest of every reading: longmemeval_s.judge_score_official.n500 78.60",
+      "detail": "seed mean of 3 (80.20 / 81.60 / 81.60); the lowest of every reading: longmemeval_s.judge_score_official.n500 80.20",
       "candidates": [
         {
-          "run": "runs/m57_bonsai_premise_s1",
-          "value": 78.60000000000001
+          "run": "runs/r5_bundle_seeds",
+          "value": 81.13333333333334
         },
         {
-          "run": "runs/m57_pref_s2",
-          "value": 78.0
+          "run": "runs/r5_bundle_s2_grounded_c",
+          "value": 81.8
         },
         {
-          "run": "runs/m57_pref_s3",
-          "value": 77.8
+          "run": "runs/r5_bundle_s3_grounded_c",
+          "value": 81.39999999999999
+        },
+        {
+          "run": "runs/r5_bundle_s1_grounded_c",
+          "value": 80.0
+        },
+        {
+          "run": "runs/r5_bundle_s2",
+          "value": 81.0
+        },
+        {
+          "run": "runs/r5_bundle_s2_typed",
+          "value": 81.0
+        },
+        {
+          "run": "runs/r5_bundle_s3",
+          "value": 81.0
         },
         {
           "run": "runs/r4_bundle_s1_grounded",
           "value": 80.80000000000001
+        },
+        {
+          "run": "runs/r5_bundle_s3_typed",
+          "value": 80.60000000000001
+        },
+        {
+          "run": "runs/r5b_bundle_s2_typed",
+          "value": 80.60000000000001
+        },
+        {
+          "run": "runs/r5b_bundle_s3_typed",
+          "value": 80.2
+        },
+        {
+          "run": "runs/r5_bundle_s1",
+          "value": 79.80000000000001
         },
         {
           "run": "runs/m73b_events_s1",
@@ -650,6 +778,14 @@
         },
         {
           "run": "runs/m77c_clause_s2",
+          "value": 79.60000000000001
+        },
+        {
+          "run": "runs/m78_answer_s3",
+          "value": 79.60000000000001
+        },
+        {
+          "run": "runs/r5_bundle_s1_typed",
           "value": 79.60000000000001
         },
         {
@@ -669,6 +805,10 @@
           "value": 79.4
         },
         {
+          "run": "runs/r5b_bundle_s1_typed",
+          "value": 79.4
+        },
+        {
           "run": "runs/m55_bonsai_s1",
           "value": 79.2
         },
@@ -685,7 +825,19 @@
           "value": 79.2
         },
         {
+          "run": "runs/m78_answer_s1",
+          "value": 79.2
+        },
+        {
+          "run": "runs/m78c_answer_s3",
+          "value": 79.2
+        },
+        {
           "run": "runs/m72_lme_agg",
+          "value": 79.0
+        },
+        {
+          "run": "runs/m78b_picks_s1",
           "value": 79.0
         },
         {
@@ -693,7 +845,31 @@
           "value": 78.8
         },
         {
+          "run": "runs/m78c_answer_s1",
+          "value": 78.8
+        },
+        {
+          "run": "runs/m57_bonsai_premise_s1",
+          "value": 78.60000000000001
+        },
+        {
           "run": "runs/m76_words_s1",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m78_answer_s2",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m78b_picks_s2",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m78b_picks_s3",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m79_base_s1",
           "value": 78.60000000000001
         },
         {
@@ -701,12 +877,40 @@
           "value": 78.2
         },
         {
+          "run": "runs/m78c_answer_s2",
+          "value": 78.2
+        },
+        {
+          "run": "runs/m57_pref_s2",
+          "value": 78.0
+        },
+        {
+          "run": "runs/r5_base_s2",
+          "value": 78.0
+        },
+        {
+          "run": "runs/m57_pref_s3",
+          "value": 77.8
+        },
+        {
           "run": "runs/m76c_nopremise_s1",
+          "value": 77.8
+        },
+        {
+          "run": "runs/m79_base_s2",
           "value": 77.8
         },
         {
           "run": "runs/m76b_words_nopremise_s1",
           "value": 77.60000000000001
+        },
+        {
+          "run": "runs/m79_base_s3",
+          "value": 77.0
+        },
+        {
+          "run": "runs/r5_base_s3",
+          "value": 77.0
         },
         {
           "run": "runs/m44_r2b_s1",
@@ -723,9 +927,9 @@
       "metric": "longmemeval_s.judge_score.n500",
       "system": "MemPro-15 (Qwen3-30B)",
       "theirs": 80.8,
-      "ours": 79.0,
+      "ours": 80.80000000000001,
       "ours_n": 500,
-      "gap": -1.7999999999999972,
+      "gap": 1.4210854715202004e-14,
       "verdict": {
         "verdict": "caveat_judge",
         "ours": "open_weights_local",
@@ -734,22 +938,50 @@
       "claim_allowed": false,
       "gate": false,
       "arm": false,
-      "run": "runs/m57_bonsai_premise_s1",
+      "run": "runs/r5_bundle_seeds",
       "source_doi": "10.48550/arXiv.2606.00619",
       "caveat": "G2's LongMemEval_S bar (PLAN.md 11.5). Micro-average check: (71.43*133 + 75.94*133 + 82.05*78 + 92.86*70 + 98.21*56 + 80.00*30)/500 = 80.80. Note the open-weights backbone scores HIGHER here than gpt-4o-mini's 79.00 and lower on LoCoMo - cross-model comparison on these two benchmarks is not monotonic. The gate is decided on longmemeval_s.judge_score_matched.n500 (M70): LongMemEval's own grader, the one runnable reading of MemPro's judge.",
-      "detail": "judge qwen3.5-9b : 395 of 500 correct (49 declines scored 0)",
+      "detail": "seed mean of 3 (80.40 / 81.20 / 80.80); judge qwen3.5-9b : 402 of 500 correct (36 declines scored 0)",
       "candidates": [
         {
-          "run": "runs/m57_bonsai_premise_s1",
-          "value": 79.0
+          "run": "runs/r5_bundle_seeds",
+          "value": 80.80000000000001
         },
         {
-          "run": "runs/m57_pref_s2",
-          "value": 78.60000000000001
+          "run": "runs/r5_bundle_s2_grounded_c",
+          "value": 81.2
         },
         {
-          "run": "runs/m57_pref_s3",
-          "value": 78.60000000000001
+          "run": "runs/r5_bundle_s3_grounded_c",
+          "value": 80.60000000000001
+        },
+        {
+          "run": "runs/r5_bundle_s1_grounded_c",
+          "value": 80.4
+        },
+        {
+          "run": "runs/r5_bundle_s2_typed",
+          "value": 81.8
+        },
+        {
+          "run": "runs/r5b_bundle_s2_typed",
+          "value": 81.8
+        },
+        {
+          "run": "runs/r5b_bundle_s3_typed",
+          "value": 81.8
+        },
+        {
+          "run": "runs/r5_bundle_s3_typed",
+          "value": 81.6
+        },
+        {
+          "run": "runs/r5_bundle_s1_typed",
+          "value": 81.0
+        },
+        {
+          "run": "runs/r5b_bundle_s1_typed",
+          "value": 81.0
         },
         {
           "run": "runs/r4_bundle_s1_grounded",
@@ -761,6 +993,10 @@
         },
         {
           "run": "runs/m72_lme_agg",
+          "value": 80.2
+        },
+        {
+          "run": "runs/m78c_answer_s3",
           "value": 80.2
         },
         {
@@ -780,6 +1016,18 @@
           "value": 79.80000000000001
         },
         {
+          "run": "runs/m78_answer_s1",
+          "value": 79.80000000000001
+        },
+        {
+          "run": "runs/m78_answer_s3",
+          "value": 79.80000000000001
+        },
+        {
+          "run": "runs/m79_base_s1",
+          "value": 79.80000000000001
+        },
+        {
           "run": "runs/m73b_events_s1",
           "value": 79.60000000000001
         },
@@ -789,6 +1037,10 @@
         },
         {
           "run": "runs/m77c_clause_s1",
+          "value": 79.4
+        },
+        {
+          "run": "runs/m78b_picks_s1",
           "value": 79.4
         },
         {
@@ -802,6 +1054,18 @@
         {
           "run": "runs/m77_words_clause_s3",
           "value": 79.2
+        },
+        {
+          "run": "runs/m78b_picks_s3",
+          "value": 79.2
+        },
+        {
+          "run": "runs/m78c_answer_s1",
+          "value": 79.2
+        },
+        {
+          "run": "runs/m57_bonsai_premise_s1",
+          "value": 79.0
         },
         {
           "run": "runs/m76_words_s1",
@@ -818,6 +1082,42 @@
         {
           "run": "runs/m77c_clause_s3",
           "value": 79.0
+        },
+        {
+          "run": "runs/m78b_picks_s2",
+          "value": 79.0
+        },
+        {
+          "run": "runs/m78c_answer_s2",
+          "value": 79.0
+        },
+        {
+          "run": "runs/m78_answer_s2",
+          "value": 78.8
+        },
+        {
+          "run": "runs/m79_base_s2",
+          "value": 78.8
+        },
+        {
+          "run": "runs/m57_pref_s2",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m57_pref_s3",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m79_base_s3",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/r5_base_s2",
+          "value": 78.0
+        },
+        {
+          "run": "runs/r5_base_s3",
+          "value": 77.8
         },
         {
           "run": "runs/m44_r2b_s1",
@@ -994,35 +1294,67 @@
       "metric": "longmemeval_s.judge_score_matched.n500",
       "system": "MemPro-15 (Qwen3-30B)",
       "theirs": 80.8,
-      "ours": 78.60000000000001,
+      "ours": 81.13333333333334,
       "ours_n": 500,
-      "gap": -2.1999999999999886,
+      "gap": 0.3333333333333428,
       "verdict": {
         "verdict": "comparable"
       },
-      "claim_allowed": false,
+      "claim_allowed": true,
       "gate": true,
       "arm": false,
-      "run": "runs/m57_bonsai_premise_s1",
+      "run": "runs/r5_bundle_seeds",
       "source_doi": "10.48550/arXiv.2606.00619",
       "caveat": "G2's LongMemEval_S bar, graded the way LongMemEval grades (M70): the five official get_anscheck_prompt templates at xiaowu0162/LongMemEval@9e0b455 on gpt-4o-mini-2024-07-18, all 500 rows. MemPro says its judge 'follows GAM', which never published one; its Fig. 11 is a paraphrase without an abstention path and its repo grades summaries, so the benchmark's own grader is the one runnable reading.",
-      "detail": "the lowest of every reading: longmemeval_s.judge_score_official.n500 78.60",
+      "detail": "seed mean of 3 (80.20 / 81.60 / 81.60); the lowest of every reading: longmemeval_s.judge_score_official.n500 80.20",
       "candidates": [
         {
-          "run": "runs/m57_bonsai_premise_s1",
-          "value": 78.60000000000001
+          "run": "runs/r5_bundle_seeds",
+          "value": 81.13333333333334
         },
         {
-          "run": "runs/m57_pref_s2",
-          "value": 78.0
+          "run": "runs/r5_bundle_s2_grounded_c",
+          "value": 81.8
         },
         {
-          "run": "runs/m57_pref_s3",
-          "value": 77.8
+          "run": "runs/r5_bundle_s3_grounded_c",
+          "value": 81.39999999999999
+        },
+        {
+          "run": "runs/r5_bundle_s1_grounded_c",
+          "value": 80.0
+        },
+        {
+          "run": "runs/r5_bundle_s2",
+          "value": 81.0
+        },
+        {
+          "run": "runs/r5_bundle_s2_typed",
+          "value": 81.0
+        },
+        {
+          "run": "runs/r5_bundle_s3",
+          "value": 81.0
         },
         {
           "run": "runs/r4_bundle_s1_grounded",
           "value": 80.80000000000001
+        },
+        {
+          "run": "runs/r5_bundle_s3_typed",
+          "value": 80.60000000000001
+        },
+        {
+          "run": "runs/r5b_bundle_s2_typed",
+          "value": 80.60000000000001
+        },
+        {
+          "run": "runs/r5b_bundle_s3_typed",
+          "value": 80.2
+        },
+        {
+          "run": "runs/r5_bundle_s1",
+          "value": 79.80000000000001
         },
         {
           "run": "runs/m73b_events_s1",
@@ -1030,6 +1362,14 @@
         },
         {
           "run": "runs/m77c_clause_s2",
+          "value": 79.60000000000001
+        },
+        {
+          "run": "runs/m78_answer_s3",
+          "value": 79.60000000000001
+        },
+        {
+          "run": "runs/r5_bundle_s1_typed",
           "value": 79.60000000000001
         },
         {
@@ -1049,6 +1389,10 @@
           "value": 79.4
         },
         {
+          "run": "runs/r5b_bundle_s1_typed",
+          "value": 79.4
+        },
+        {
           "run": "runs/m55_bonsai_s1",
           "value": 79.2
         },
@@ -1065,7 +1409,19 @@
           "value": 79.2
         },
         {
+          "run": "runs/m78_answer_s1",
+          "value": 79.2
+        },
+        {
+          "run": "runs/m78c_answer_s3",
+          "value": 79.2
+        },
+        {
           "run": "runs/m72_lme_agg",
+          "value": 79.0
+        },
+        {
+          "run": "runs/m78b_picks_s1",
           "value": 79.0
         },
         {
@@ -1073,7 +1429,31 @@
           "value": 78.8
         },
         {
+          "run": "runs/m78c_answer_s1",
+          "value": 78.8
+        },
+        {
+          "run": "runs/m57_bonsai_premise_s1",
+          "value": 78.60000000000001
+        },
+        {
           "run": "runs/m76_words_s1",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m78_answer_s2",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m78b_picks_s2",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m78b_picks_s3",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m79_base_s1",
           "value": 78.60000000000001
         },
         {
@@ -1081,12 +1461,40 @@
           "value": 78.2
         },
         {
+          "run": "runs/m78c_answer_s2",
+          "value": 78.2
+        },
+        {
+          "run": "runs/m57_pref_s2",
+          "value": 78.0
+        },
+        {
+          "run": "runs/r5_base_s2",
+          "value": 78.0
+        },
+        {
+          "run": "runs/m57_pref_s3",
+          "value": 77.8
+        },
+        {
           "run": "runs/m76c_nopremise_s1",
+          "value": 77.8
+        },
+        {
+          "run": "runs/m79_base_s2",
           "value": 77.8
         },
         {
           "run": "runs/m76b_words_nopremise_s1",
           "value": 77.60000000000001
+        },
+        {
+          "run": "runs/m79_base_s3",
+          "value": 77.0
+        },
+        {
+          "run": "runs/r5_base_s3",
+          "value": 77.0
         },
         {
           "run": "runs/m44_r2b_s1",
@@ -1210,9 +1618,9 @@
       "metric": "longmemeval_s.judge_score.n500",
       "system": "EverMemOS",
       "theirs": 83.0,
-      "ours": 79.0,
+      "ours": 80.80000000000001,
       "ours_n": 500,
-      "gap": -4.0,
+      "gap": -2.1999999999999886,
       "verdict": {
         "verdict": "caveat_judge",
         "ours": "open_weights_local",
@@ -1221,22 +1629,50 @@
       "claim_allowed": false,
       "gate": false,
       "arm": false,
-      "run": "runs/m57_bonsai_premise_s1",
+      "run": "runs/r5_bundle_seeds",
       "source_doi": "10.48550/arXiv.2601.02163",
       "caveat": "Supersedes MemPro's 79.00 as the best frontier-backbone LongMemEval_S number, and was not in PLAN.md 11.5's table. Population stated: \"LongMemEval (S-setting, ~115k tokens per conversation) evaluates 500 questions\" (L110), #Questions 500 (L613). Table 2's baselines are re-reported from the MemOS leaderboard rather than run by the authors (L586).",
-      "detail": "judge qwen3.5-9b : 395 of 500 correct (49 declines scored 0)",
+      "detail": "seed mean of 3 (80.40 / 81.20 / 80.80); judge qwen3.5-9b : 402 of 500 correct (36 declines scored 0)",
       "candidates": [
         {
-          "run": "runs/m57_bonsai_premise_s1",
-          "value": 79.0
+          "run": "runs/r5_bundle_seeds",
+          "value": 80.80000000000001
         },
         {
-          "run": "runs/m57_pref_s2",
-          "value": 78.60000000000001
+          "run": "runs/r5_bundle_s2_grounded_c",
+          "value": 81.2
         },
         {
-          "run": "runs/m57_pref_s3",
-          "value": 78.60000000000001
+          "run": "runs/r5_bundle_s3_grounded_c",
+          "value": 80.60000000000001
+        },
+        {
+          "run": "runs/r5_bundle_s1_grounded_c",
+          "value": 80.4
+        },
+        {
+          "run": "runs/r5_bundle_s2_typed",
+          "value": 81.8
+        },
+        {
+          "run": "runs/r5b_bundle_s2_typed",
+          "value": 81.8
+        },
+        {
+          "run": "runs/r5b_bundle_s3_typed",
+          "value": 81.8
+        },
+        {
+          "run": "runs/r5_bundle_s3_typed",
+          "value": 81.6
+        },
+        {
+          "run": "runs/r5_bundle_s1_typed",
+          "value": 81.0
+        },
+        {
+          "run": "runs/r5b_bundle_s1_typed",
+          "value": 81.0
         },
         {
           "run": "runs/r4_bundle_s1_grounded",
@@ -1248,6 +1684,10 @@
         },
         {
           "run": "runs/m72_lme_agg",
+          "value": 80.2
+        },
+        {
+          "run": "runs/m78c_answer_s3",
           "value": 80.2
         },
         {
@@ -1267,6 +1707,18 @@
           "value": 79.80000000000001
         },
         {
+          "run": "runs/m78_answer_s1",
+          "value": 79.80000000000001
+        },
+        {
+          "run": "runs/m78_answer_s3",
+          "value": 79.80000000000001
+        },
+        {
+          "run": "runs/m79_base_s1",
+          "value": 79.80000000000001
+        },
+        {
           "run": "runs/m73b_events_s1",
           "value": 79.60000000000001
         },
@@ -1276,6 +1728,10 @@
         },
         {
           "run": "runs/m77c_clause_s1",
+          "value": 79.4
+        },
+        {
+          "run": "runs/m78b_picks_s1",
           "value": 79.4
         },
         {
@@ -1289,6 +1745,18 @@
         {
           "run": "runs/m77_words_clause_s3",
           "value": 79.2
+        },
+        {
+          "run": "runs/m78b_picks_s3",
+          "value": 79.2
+        },
+        {
+          "run": "runs/m78c_answer_s1",
+          "value": 79.2
+        },
+        {
+          "run": "runs/m57_bonsai_premise_s1",
+          "value": 79.0
         },
         {
           "run": "runs/m76_words_s1",
@@ -1305,6 +1773,42 @@
         {
           "run": "runs/m77c_clause_s3",
           "value": 79.0
+        },
+        {
+          "run": "runs/m78b_picks_s2",
+          "value": 79.0
+        },
+        {
+          "run": "runs/m78c_answer_s2",
+          "value": 79.0
+        },
+        {
+          "run": "runs/m78_answer_s2",
+          "value": 78.8
+        },
+        {
+          "run": "runs/m79_base_s2",
+          "value": 78.8
+        },
+        {
+          "run": "runs/m57_pref_s2",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m57_pref_s3",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m79_base_s3",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/r5_base_s2",
+          "value": 78.0
+        },
+        {
+          "run": "runs/r5_base_s3",
+          "value": 77.8
         },
         {
           "run": "runs/m44_r2b_s1",
@@ -1694,7 +2198,7 @@
       "metric": "longmemeval_s.judge_score.n500",
       "system": "Mem0 (vendor)",
       "theirs": 94.4,
-      "ours": 79.0,
+      "ours": 80.80000000000001,
       "ours_n": 500,
       "gap": null,
       "verdict": {
@@ -1704,22 +2208,50 @@
       "claim_allowed": false,
       "gate": false,
       "arm": false,
-      "run": "runs/m57_bonsai_premise_s1",
+      "run": "runs/r5_bundle_seeds",
       "source_doi": "",
       "caveat": "mem0.ai blog, 2026. Same objection as the LoCoMo vendor row; note it exceeds every peer-reviewed LongMemEval_S number in this registry by more than 11 points.",
-      "detail": "judge qwen3.5-9b : 395 of 500 correct (49 declines scored 0)",
+      "detail": "seed mean of 3 (80.40 / 81.20 / 80.80); judge qwen3.5-9b : 402 of 500 correct (36 declines scored 0)",
       "candidates": [
         {
-          "run": "runs/m57_bonsai_premise_s1",
-          "value": 79.0
+          "run": "runs/r5_bundle_seeds",
+          "value": 80.80000000000001
         },
         {
-          "run": "runs/m57_pref_s2",
-          "value": 78.60000000000001
+          "run": "runs/r5_bundle_s2_grounded_c",
+          "value": 81.2
         },
         {
-          "run": "runs/m57_pref_s3",
-          "value": 78.60000000000001
+          "run": "runs/r5_bundle_s3_grounded_c",
+          "value": 80.60000000000001
+        },
+        {
+          "run": "runs/r5_bundle_s1_grounded_c",
+          "value": 80.4
+        },
+        {
+          "run": "runs/r5_bundle_s2_typed",
+          "value": 81.8
+        },
+        {
+          "run": "runs/r5b_bundle_s2_typed",
+          "value": 81.8
+        },
+        {
+          "run": "runs/r5b_bundle_s3_typed",
+          "value": 81.8
+        },
+        {
+          "run": "runs/r5_bundle_s3_typed",
+          "value": 81.6
+        },
+        {
+          "run": "runs/r5_bundle_s1_typed",
+          "value": 81.0
+        },
+        {
+          "run": "runs/r5b_bundle_s1_typed",
+          "value": 81.0
         },
         {
           "run": "runs/r4_bundle_s1_grounded",
@@ -1731,6 +2263,10 @@
         },
         {
           "run": "runs/m72_lme_agg",
+          "value": 80.2
+        },
+        {
+          "run": "runs/m78c_answer_s3",
           "value": 80.2
         },
         {
@@ -1750,6 +2286,18 @@
           "value": 79.80000000000001
         },
         {
+          "run": "runs/m78_answer_s1",
+          "value": 79.80000000000001
+        },
+        {
+          "run": "runs/m78_answer_s3",
+          "value": 79.80000000000001
+        },
+        {
+          "run": "runs/m79_base_s1",
+          "value": 79.80000000000001
+        },
+        {
           "run": "runs/m73b_events_s1",
           "value": 79.60000000000001
         },
@@ -1759,6 +2307,10 @@
         },
         {
           "run": "runs/m77c_clause_s1",
+          "value": 79.4
+        },
+        {
+          "run": "runs/m78b_picks_s1",
           "value": 79.4
         },
         {
@@ -1772,6 +2324,18 @@
         {
           "run": "runs/m77_words_clause_s3",
           "value": 79.2
+        },
+        {
+          "run": "runs/m78b_picks_s3",
+          "value": 79.2
+        },
+        {
+          "run": "runs/m78c_answer_s1",
+          "value": 79.2
+        },
+        {
+          "run": "runs/m57_bonsai_premise_s1",
+          "value": 79.0
         },
         {
           "run": "runs/m76_words_s1",
@@ -1788,6 +2352,42 @@
         {
           "run": "runs/m77c_clause_s3",
           "value": 79.0
+        },
+        {
+          "run": "runs/m78b_picks_s2",
+          "value": 79.0
+        },
+        {
+          "run": "runs/m78c_answer_s2",
+          "value": 79.0
+        },
+        {
+          "run": "runs/m78_answer_s2",
+          "value": 78.8
+        },
+        {
+          "run": "runs/m79_base_s2",
+          "value": 78.8
+        },
+        {
+          "run": "runs/m57_pref_s2",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m57_pref_s3",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m79_base_s3",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/r5_base_s2",
+          "value": 78.0
+        },
+        {
+          "run": "runs/r5_base_s3",
+          "value": 77.8
         },
         {
           "run": "runs/m44_r2b_s1",
@@ -2221,9 +2821,9 @@
       "metric": "longmemeval_s.judge_score.n500",
       "system": "Zep",
       "theirs": 71.2,
-      "ours": 79.0,
+      "ours": 80.80000000000001,
       "ours_n": 500,
-      "gap": 7.799999999999997,
+      "gap": 9.600000000000009,
       "verdict": {
         "verdict": "caveat_judge",
         "ours": "open_weights_local",
@@ -2232,22 +2832,50 @@
       "claim_allowed": false,
       "gate": false,
       "arm": false,
-      "run": "runs/m57_bonsai_premise_s1",
+      "run": "runs/r5_bundle_seeds",
       "source_doi": "10.48550/arxiv.2501.13956",
       "caveat": "Judge is GPT-4o with LongMemEval's own question-specific prompts, which is the protocol our judge rubric was written against. The paper never states a question count; 500 is LongMemEval_S's released size (docs/EVALUATION.md 6.2, probed).",
-      "detail": "judge qwen3.5-9b : 395 of 500 correct (49 declines scored 0)",
+      "detail": "seed mean of 3 (80.40 / 81.20 / 80.80); judge qwen3.5-9b : 402 of 500 correct (36 declines scored 0)",
       "candidates": [
         {
-          "run": "runs/m57_bonsai_premise_s1",
-          "value": 79.0
+          "run": "runs/r5_bundle_seeds",
+          "value": 80.80000000000001
         },
         {
-          "run": "runs/m57_pref_s2",
-          "value": 78.60000000000001
+          "run": "runs/r5_bundle_s2_grounded_c",
+          "value": 81.2
         },
         {
-          "run": "runs/m57_pref_s3",
-          "value": 78.60000000000001
+          "run": "runs/r5_bundle_s3_grounded_c",
+          "value": 80.60000000000001
+        },
+        {
+          "run": "runs/r5_bundle_s1_grounded_c",
+          "value": 80.4
+        },
+        {
+          "run": "runs/r5_bundle_s2_typed",
+          "value": 81.8
+        },
+        {
+          "run": "runs/r5b_bundle_s2_typed",
+          "value": 81.8
+        },
+        {
+          "run": "runs/r5b_bundle_s3_typed",
+          "value": 81.8
+        },
+        {
+          "run": "runs/r5_bundle_s3_typed",
+          "value": 81.6
+        },
+        {
+          "run": "runs/r5_bundle_s1_typed",
+          "value": 81.0
+        },
+        {
+          "run": "runs/r5b_bundle_s1_typed",
+          "value": 81.0
         },
         {
           "run": "runs/r4_bundle_s1_grounded",
@@ -2259,6 +2887,10 @@
         },
         {
           "run": "runs/m72_lme_agg",
+          "value": 80.2
+        },
+        {
+          "run": "runs/m78c_answer_s3",
           "value": 80.2
         },
         {
@@ -2278,6 +2910,18 @@
           "value": 79.80000000000001
         },
         {
+          "run": "runs/m78_answer_s1",
+          "value": 79.80000000000001
+        },
+        {
+          "run": "runs/m78_answer_s3",
+          "value": 79.80000000000001
+        },
+        {
+          "run": "runs/m79_base_s1",
+          "value": 79.80000000000001
+        },
+        {
           "run": "runs/m73b_events_s1",
           "value": 79.60000000000001
         },
@@ -2287,6 +2931,10 @@
         },
         {
           "run": "runs/m77c_clause_s1",
+          "value": 79.4
+        },
+        {
+          "run": "runs/m78b_picks_s1",
           "value": 79.4
         },
         {
@@ -2300,6 +2948,18 @@
         {
           "run": "runs/m77_words_clause_s3",
           "value": 79.2
+        },
+        {
+          "run": "runs/m78b_picks_s3",
+          "value": 79.2
+        },
+        {
+          "run": "runs/m78c_answer_s1",
+          "value": 79.2
+        },
+        {
+          "run": "runs/m57_bonsai_premise_s1",
+          "value": 79.0
         },
         {
           "run": "runs/m76_words_s1",
@@ -2316,6 +2976,42 @@
         {
           "run": "runs/m77c_clause_s3",
           "value": 79.0
+        },
+        {
+          "run": "runs/m78b_picks_s2",
+          "value": 79.0
+        },
+        {
+          "run": "runs/m78c_answer_s2",
+          "value": 79.0
+        },
+        {
+          "run": "runs/m78_answer_s2",
+          "value": 78.8
+        },
+        {
+          "run": "runs/m79_base_s2",
+          "value": 78.8
+        },
+        {
+          "run": "runs/m57_pref_s2",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m57_pref_s3",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m79_base_s3",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/r5_base_s2",
+          "value": 78.0
+        },
+        {
+          "run": "runs/r5_base_s3",
+          "value": 77.8
         },
         {
           "run": "runs/m44_r2b_s1",
@@ -2796,9 +3492,9 @@
       "metric": "longmemeval_s.judge_score.n500",
       "system": "NEMORI",
       "theirs": 74.6,
-      "ours": 79.0,
+      "ours": 80.80000000000001,
       "ours_n": 500,
-      "gap": 4.400000000000006,
+      "gap": 6.200000000000017,
       "verdict": {
         "verdict": "caveat_judge",
         "ours": "open_weights_local",
@@ -2807,22 +3503,50 @@
       "claim_allowed": false,
       "gate": false,
       "arm": false,
-      "run": "runs/m57_bonsai_premise_s1",
+      "run": "runs/r5_bundle_seeds",
       "source_doi": "10.48550/arxiv.2508.03341",
       "caveat": "PLAN.md 11.5 recorded this as \"NEMORI @ gpt-4o\"; Table 8's two blocks are gpt-4o-mini (Average 64.2) and gpt-4.1-mini (Average 74.6) per L923, so 74.6 is the gpt-4.1-mini row. The Average is a micro-average over the six official type counts - (86.7*30 + 92.9*56 + 72.2*133 + 55.6*133 + 79.5*78 + 90.0*70)/500 = 74.60 - which independently confirms n = 500. The LongMemEval judge MODEL is never named: L480 says only that the LLM-judge prompts are adapted from Zep's task-specific set, so frontier_api is inferred from the paper's LoCoMo judge (gpt-4o-mini).",
-      "detail": "judge qwen3.5-9b : 395 of 500 correct (49 declines scored 0)",
+      "detail": "seed mean of 3 (80.40 / 81.20 / 80.80); judge qwen3.5-9b : 402 of 500 correct (36 declines scored 0)",
       "candidates": [
         {
-          "run": "runs/m57_bonsai_premise_s1",
-          "value": 79.0
+          "run": "runs/r5_bundle_seeds",
+          "value": 80.80000000000001
         },
         {
-          "run": "runs/m57_pref_s2",
-          "value": 78.60000000000001
+          "run": "runs/r5_bundle_s2_grounded_c",
+          "value": 81.2
         },
         {
-          "run": "runs/m57_pref_s3",
-          "value": 78.60000000000001
+          "run": "runs/r5_bundle_s3_grounded_c",
+          "value": 80.60000000000001
+        },
+        {
+          "run": "runs/r5_bundle_s1_grounded_c",
+          "value": 80.4
+        },
+        {
+          "run": "runs/r5_bundle_s2_typed",
+          "value": 81.8
+        },
+        {
+          "run": "runs/r5b_bundle_s2_typed",
+          "value": 81.8
+        },
+        {
+          "run": "runs/r5b_bundle_s3_typed",
+          "value": 81.8
+        },
+        {
+          "run": "runs/r5_bundle_s3_typed",
+          "value": 81.6
+        },
+        {
+          "run": "runs/r5_bundle_s1_typed",
+          "value": 81.0
+        },
+        {
+          "run": "runs/r5b_bundle_s1_typed",
+          "value": 81.0
         },
         {
           "run": "runs/r4_bundle_s1_grounded",
@@ -2834,6 +3558,10 @@
         },
         {
           "run": "runs/m72_lme_agg",
+          "value": 80.2
+        },
+        {
+          "run": "runs/m78c_answer_s3",
           "value": 80.2
         },
         {
@@ -2853,6 +3581,18 @@
           "value": 79.80000000000001
         },
         {
+          "run": "runs/m78_answer_s1",
+          "value": 79.80000000000001
+        },
+        {
+          "run": "runs/m78_answer_s3",
+          "value": 79.80000000000001
+        },
+        {
+          "run": "runs/m79_base_s1",
+          "value": 79.80000000000001
+        },
+        {
           "run": "runs/m73b_events_s1",
           "value": 79.60000000000001
         },
@@ -2862,6 +3602,10 @@
         },
         {
           "run": "runs/m77c_clause_s1",
+          "value": 79.4
+        },
+        {
+          "run": "runs/m78b_picks_s1",
           "value": 79.4
         },
         {
@@ -2875,6 +3619,18 @@
         {
           "run": "runs/m77_words_clause_s3",
           "value": 79.2
+        },
+        {
+          "run": "runs/m78b_picks_s3",
+          "value": 79.2
+        },
+        {
+          "run": "runs/m78c_answer_s1",
+          "value": 79.2
+        },
+        {
+          "run": "runs/m57_bonsai_premise_s1",
+          "value": 79.0
         },
         {
           "run": "runs/m76_words_s1",
@@ -2891,6 +3647,42 @@
         {
           "run": "runs/m77c_clause_s3",
           "value": 79.0
+        },
+        {
+          "run": "runs/m78b_picks_s2",
+          "value": 79.0
+        },
+        {
+          "run": "runs/m78c_answer_s2",
+          "value": 79.0
+        },
+        {
+          "run": "runs/m78_answer_s2",
+          "value": 78.8
+        },
+        {
+          "run": "runs/m79_base_s2",
+          "value": 78.8
+        },
+        {
+          "run": "runs/m57_pref_s2",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m57_pref_s3",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m79_base_s3",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/r5_base_s2",
+          "value": 78.0
+        },
+        {
+          "run": "runs/r5_base_s3",
+          "value": 77.8
         },
         {
           "run": "runs/m44_r2b_s1",
@@ -3296,9 +4088,9 @@
       "metric": "longmemeval_s.judge_score.n500",
       "system": "Memanto",
       "theirs": 89.8,
-      "ours": 79.0,
+      "ours": 80.80000000000001,
       "ours_n": 500,
-      "gap": -10.799999999999997,
+      "gap": -8.999999999999986,
       "verdict": {
         "verdict": "caveat_judge",
         "ours": "open_weights_local",
@@ -3307,22 +4099,50 @@
       "claim_allowed": false,
       "gate": false,
       "arm": false,
-      "run": "runs/m57_bonsai_premise_s1",
+      "run": "runs/r5_bundle_seeds",
       "source_doi": "10.48550/arXiv.2604.22085",
       "caveat": "n = 500 is stated, not assumed: \"the full 500-question suite under the standard S setting\". The judge is stated too - Claude Sonnet 4 - so this row's judge_class is read off the paper rather than inferred. The answer model is never named; the paper lists \"inference model selection\" as one of five ablation stages without saying which model the headline used.",
-      "detail": "judge qwen3.5-9b : 395 of 500 correct (49 declines scored 0)",
+      "detail": "seed mean of 3 (80.40 / 81.20 / 80.80); judge qwen3.5-9b : 402 of 500 correct (36 declines scored 0)",
       "candidates": [
         {
-          "run": "runs/m57_bonsai_premise_s1",
-          "value": 79.0
+          "run": "runs/r5_bundle_seeds",
+          "value": 80.80000000000001
         },
         {
-          "run": "runs/m57_pref_s2",
-          "value": 78.60000000000001
+          "run": "runs/r5_bundle_s2_grounded_c",
+          "value": 81.2
         },
         {
-          "run": "runs/m57_pref_s3",
-          "value": 78.60000000000001
+          "run": "runs/r5_bundle_s3_grounded_c",
+          "value": 80.60000000000001
+        },
+        {
+          "run": "runs/r5_bundle_s1_grounded_c",
+          "value": 80.4
+        },
+        {
+          "run": "runs/r5_bundle_s2_typed",
+          "value": 81.8
+        },
+        {
+          "run": "runs/r5b_bundle_s2_typed",
+          "value": 81.8
+        },
+        {
+          "run": "runs/r5b_bundle_s3_typed",
+          "value": 81.8
+        },
+        {
+          "run": "runs/r5_bundle_s3_typed",
+          "value": 81.6
+        },
+        {
+          "run": "runs/r5_bundle_s1_typed",
+          "value": 81.0
+        },
+        {
+          "run": "runs/r5b_bundle_s1_typed",
+          "value": 81.0
         },
         {
           "run": "runs/r4_bundle_s1_grounded",
@@ -3334,6 +4154,10 @@
         },
         {
           "run": "runs/m72_lme_agg",
+          "value": 80.2
+        },
+        {
+          "run": "runs/m78c_answer_s3",
           "value": 80.2
         },
         {
@@ -3353,6 +4177,18 @@
           "value": 79.80000000000001
         },
         {
+          "run": "runs/m78_answer_s1",
+          "value": 79.80000000000001
+        },
+        {
+          "run": "runs/m78_answer_s3",
+          "value": 79.80000000000001
+        },
+        {
+          "run": "runs/m79_base_s1",
+          "value": 79.80000000000001
+        },
+        {
           "run": "runs/m73b_events_s1",
           "value": 79.60000000000001
         },
@@ -3362,6 +4198,10 @@
         },
         {
           "run": "runs/m77c_clause_s1",
+          "value": 79.4
+        },
+        {
+          "run": "runs/m78b_picks_s1",
           "value": 79.4
         },
         {
@@ -3375,6 +4215,18 @@
         {
           "run": "runs/m77_words_clause_s3",
           "value": 79.2
+        },
+        {
+          "run": "runs/m78b_picks_s3",
+          "value": 79.2
+        },
+        {
+          "run": "runs/m78c_answer_s1",
+          "value": 79.2
+        },
+        {
+          "run": "runs/m57_bonsai_premise_s1",
+          "value": 79.0
         },
         {
           "run": "runs/m76_words_s1",
@@ -3391,6 +4243,42 @@
         {
           "run": "runs/m77c_clause_s3",
           "value": 79.0
+        },
+        {
+          "run": "runs/m78b_picks_s2",
+          "value": 79.0
+        },
+        {
+          "run": "runs/m78c_answer_s2",
+          "value": 79.0
+        },
+        {
+          "run": "runs/m78_answer_s2",
+          "value": 78.8
+        },
+        {
+          "run": "runs/m79_base_s2",
+          "value": 78.8
+        },
+        {
+          "run": "runs/m57_pref_s2",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m57_pref_s3",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m79_base_s3",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/r5_base_s2",
+          "value": 78.0
+        },
+        {
+          "run": "runs/r5_base_s3",
+          "value": 77.8
         },
         {
           "run": "runs/m44_r2b_s1",
@@ -3781,9 +4669,9 @@
       "metric": "longmemeval_s.judge_score.n500",
       "system": "APEX-MEM",
       "theirs": 86.2,
-      "ours": 79.0,
+      "ours": 80.80000000000001,
       "ours_n": 500,
-      "gap": -7.200000000000003,
+      "gap": -5.3999999999999915,
       "verdict": {
         "verdict": "caveat_judge",
         "ours": "open_weights_local",
@@ -3792,22 +4680,50 @@
       "claim_allowed": false,
       "gate": false,
       "arm": false,
-      "run": "runs/m57_bonsai_premise_s1",
+      "run": "runs/r5_bundle_seeds",
       "source_doi": "10.48550/arXiv.2604.14362",
       "caveat": "Companion figure to locomo.judge.apex_mem, from the same sentence. The PDF is converted (20 pages) but the conversion's retrievable text covers the front matter only - abstract, introduction, related work and the architecture section - so the quote is the abstract's results sentence rather than a table row, and neither the per-category cells, the question counts, the answer model nor the judge could be read. n is this registry's assumption from the benchmarks' own populations. Re-read the results section before this row is used for anything but context.",
-      "detail": "judge qwen3.5-9b : 395 of 500 correct (49 declines scored 0)",
+      "detail": "seed mean of 3 (80.40 / 81.20 / 80.80); judge qwen3.5-9b : 402 of 500 correct (36 declines scored 0)",
       "candidates": [
         {
-          "run": "runs/m57_bonsai_premise_s1",
-          "value": 79.0
+          "run": "runs/r5_bundle_seeds",
+          "value": 80.80000000000001
         },
         {
-          "run": "runs/m57_pref_s2",
-          "value": 78.60000000000001
+          "run": "runs/r5_bundle_s2_grounded_c",
+          "value": 81.2
         },
         {
-          "run": "runs/m57_pref_s3",
-          "value": 78.60000000000001
+          "run": "runs/r5_bundle_s3_grounded_c",
+          "value": 80.60000000000001
+        },
+        {
+          "run": "runs/r5_bundle_s1_grounded_c",
+          "value": 80.4
+        },
+        {
+          "run": "runs/r5_bundle_s2_typed",
+          "value": 81.8
+        },
+        {
+          "run": "runs/r5b_bundle_s2_typed",
+          "value": 81.8
+        },
+        {
+          "run": "runs/r5b_bundle_s3_typed",
+          "value": 81.8
+        },
+        {
+          "run": "runs/r5_bundle_s3_typed",
+          "value": 81.6
+        },
+        {
+          "run": "runs/r5_bundle_s1_typed",
+          "value": 81.0
+        },
+        {
+          "run": "runs/r5b_bundle_s1_typed",
+          "value": 81.0
         },
         {
           "run": "runs/r4_bundle_s1_grounded",
@@ -3819,6 +4735,10 @@
         },
         {
           "run": "runs/m72_lme_agg",
+          "value": 80.2
+        },
+        {
+          "run": "runs/m78c_answer_s3",
           "value": 80.2
         },
         {
@@ -3838,6 +4758,18 @@
           "value": 79.80000000000001
         },
         {
+          "run": "runs/m78_answer_s1",
+          "value": 79.80000000000001
+        },
+        {
+          "run": "runs/m78_answer_s3",
+          "value": 79.80000000000001
+        },
+        {
+          "run": "runs/m79_base_s1",
+          "value": 79.80000000000001
+        },
+        {
           "run": "runs/m73b_events_s1",
           "value": 79.60000000000001
         },
@@ -3847,6 +4779,10 @@
         },
         {
           "run": "runs/m77c_clause_s1",
+          "value": 79.4
+        },
+        {
+          "run": "runs/m78b_picks_s1",
           "value": 79.4
         },
         {
@@ -3860,6 +4796,18 @@
         {
           "run": "runs/m77_words_clause_s3",
           "value": 79.2
+        },
+        {
+          "run": "runs/m78b_picks_s3",
+          "value": 79.2
+        },
+        {
+          "run": "runs/m78c_answer_s1",
+          "value": 79.2
+        },
+        {
+          "run": "runs/m57_bonsai_premise_s1",
+          "value": 79.0
         },
         {
           "run": "runs/m76_words_s1",
@@ -3876,6 +4824,42 @@
         {
           "run": "runs/m77c_clause_s3",
           "value": 79.0
+        },
+        {
+          "run": "runs/m78b_picks_s2",
+          "value": 79.0
+        },
+        {
+          "run": "runs/m78c_answer_s2",
+          "value": 79.0
+        },
+        {
+          "run": "runs/m78_answer_s2",
+          "value": 78.8
+        },
+        {
+          "run": "runs/m79_base_s2",
+          "value": 78.8
+        },
+        {
+          "run": "runs/m57_pref_s2",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m57_pref_s3",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m79_base_s3",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/r5_base_s2",
+          "value": 78.0
+        },
+        {
+          "run": "runs/r5_base_s3",
+          "value": 77.8
         },
         {
           "run": "runs/m44_r2b_s1",
@@ -4052,9 +5036,9 @@
       "metric": "longmemeval_s.judge_score.n500",
       "system": "Chronos High",
       "theirs": 95.6,
-      "ours": 79.0,
+      "ours": 80.80000000000001,
       "ours_n": 500,
-      "gap": -16.599999999999994,
+      "gap": -14.799999999999983,
       "verdict": {
         "verdict": "caveat_judge",
         "ours": "open_weights_local",
@@ -4063,22 +5047,50 @@
       "claim_allowed": false,
       "gate": false,
       "arm": false,
-      "run": "runs/m57_bonsai_premise_s1",
+      "run": "runs/r5_bundle_seeds",
       "source_doi": "10.48550/arXiv.2603.16862",
       "caveat": "The highest LongMemEval_S number known to this project, and the population is stated: \"the LongMemEvalS benchmark comprising 500 questions across six categories\". It also reproduces arithmetically - the per-category cells the paper reports for Chronos High (98.57 ss-user, 100 ss-assistant, 100 ss-preference, 88.72 multi-session, 95.50 temporal-reasoning, 100 knowledge-update) micro-average over the official counts 70/56/30/133/133/78 to exactly 95.60, which independently confirms n = 500. Backbone is the paper's own definition of \"High\": \"High configurations refer to evaluations with advanced frontier models, such as Opus 4.6 and Gemini 3 Pro\"; Chronos Low, on \"GPT-4o, or similar\", is 92.60 on the same set. The **judge is never named** - the converted text contains no occurrence of \"judge\" or \"grader\" - so judge_class is inferred from the backbone class and must be treated as unverified. Chronos is also the published form of M19's mechanism: it \"decomposes raw dialogue into subject-verb-object event tuples with resolved datetime ranges\" at write time, and reports the events calendar alone as a 58.9% gain over its baseline.",
-      "detail": "judge qwen3.5-9b : 395 of 500 correct (49 declines scored 0)",
+      "detail": "seed mean of 3 (80.40 / 81.20 / 80.80); judge qwen3.5-9b : 402 of 500 correct (36 declines scored 0)",
       "candidates": [
         {
-          "run": "runs/m57_bonsai_premise_s1",
-          "value": 79.0
+          "run": "runs/r5_bundle_seeds",
+          "value": 80.80000000000001
         },
         {
-          "run": "runs/m57_pref_s2",
-          "value": 78.60000000000001
+          "run": "runs/r5_bundle_s2_grounded_c",
+          "value": 81.2
         },
         {
-          "run": "runs/m57_pref_s3",
-          "value": 78.60000000000001
+          "run": "runs/r5_bundle_s3_grounded_c",
+          "value": 80.60000000000001
+        },
+        {
+          "run": "runs/r5_bundle_s1_grounded_c",
+          "value": 80.4
+        },
+        {
+          "run": "runs/r5_bundle_s2_typed",
+          "value": 81.8
+        },
+        {
+          "run": "runs/r5b_bundle_s2_typed",
+          "value": 81.8
+        },
+        {
+          "run": "runs/r5b_bundle_s3_typed",
+          "value": 81.8
+        },
+        {
+          "run": "runs/r5_bundle_s3_typed",
+          "value": 81.6
+        },
+        {
+          "run": "runs/r5_bundle_s1_typed",
+          "value": 81.0
+        },
+        {
+          "run": "runs/r5b_bundle_s1_typed",
+          "value": 81.0
         },
         {
           "run": "runs/r4_bundle_s1_grounded",
@@ -4090,6 +5102,10 @@
         },
         {
           "run": "runs/m72_lme_agg",
+          "value": 80.2
+        },
+        {
+          "run": "runs/m78c_answer_s3",
           "value": 80.2
         },
         {
@@ -4109,6 +5125,18 @@
           "value": 79.80000000000001
         },
         {
+          "run": "runs/m78_answer_s1",
+          "value": 79.80000000000001
+        },
+        {
+          "run": "runs/m78_answer_s3",
+          "value": 79.80000000000001
+        },
+        {
+          "run": "runs/m79_base_s1",
+          "value": 79.80000000000001
+        },
+        {
           "run": "runs/m73b_events_s1",
           "value": 79.60000000000001
         },
@@ -4118,6 +5146,10 @@
         },
         {
           "run": "runs/m77c_clause_s1",
+          "value": 79.4
+        },
+        {
+          "run": "runs/m78b_picks_s1",
           "value": 79.4
         },
         {
@@ -4131,6 +5163,18 @@
         {
           "run": "runs/m77_words_clause_s3",
           "value": 79.2
+        },
+        {
+          "run": "runs/m78b_picks_s3",
+          "value": 79.2
+        },
+        {
+          "run": "runs/m78c_answer_s1",
+          "value": 79.2
+        },
+        {
+          "run": "runs/m57_bonsai_premise_s1",
+          "value": 79.0
         },
         {
           "run": "runs/m76_words_s1",
@@ -4147,6 +5191,42 @@
         {
           "run": "runs/m77c_clause_s3",
           "value": 79.0
+        },
+        {
+          "run": "runs/m78b_picks_s2",
+          "value": 79.0
+        },
+        {
+          "run": "runs/m78c_answer_s2",
+          "value": 79.0
+        },
+        {
+          "run": "runs/m78_answer_s2",
+          "value": 78.8
+        },
+        {
+          "run": "runs/m79_base_s2",
+          "value": 78.8
+        },
+        {
+          "run": "runs/m57_pref_s2",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m57_pref_s3",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m79_base_s3",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/r5_base_s2",
+          "value": 78.0
+        },
+        {
+          "run": "runs/r5_base_s3",
+          "value": 77.8
         },
         {
           "run": "runs/m44_r2b_s1",
@@ -4320,7 +5400,6 @@
     }
   ],
   "gated_failures": [
-    "longmemeval_s.judge_matched.mempro15.qwen3_30b [longmemeval_s.judge_score_matched.n500] behind by 2.20 (ours 78.60, gate needs >= 80.80)",
     "lme_v2_small.agentrunbook_c [lme_v2_small.overall_full_set.combined] ahead by 3.15 (ours 78.05, theirs 74.90), but caveat-judge(open_weights_local vs frontier_api); a gate closes only on a comparable row",
     "lme_v2_small.lafs_gain.frontier [lme_v2_small.lafs_gain.small] artifact predates today's operating point (artifact does not record mode, max_steps, prefetch_limit, rerank_depth, select, dated, pool_rerank, premise, typed_probes, decompose; re-measure on this code before quoting it)"
   ],
@@ -4336,6 +5415,7 @@
       "detail": "adapters/lafs_point.py over 9 submission point(s): m22_base_web+m22_base_ent 36.59@18.31s, m22_nodate_web+m22_nodate_ent 39.02@10.95s, m22_sel_web+m22_sel_ent 37.92@14.45s, m34_pools_web+m34_pools_ent 38.58@16.04s, m47_base_web+m47_base_ent 38.80@90.00s, m47_check_web+m47_check_ent 38.36@160.56s, m54_full_web+m54_full_ent 78.05@438.33s, myelin_inv2_web_small+myelin_inv2_enterprise_small 39.91@12.76s, myelin_k25_web_small+myelin_k25_enterprise_small 35.70@1.97s",
       "incomplete": null,
       "arm": true,
+      "replicates": 1,
       "unrecorded": [
         "mode",
         "max_steps",
@@ -4366,6 +5446,7 @@
       "detail": "memory_query.avg_seconds over 211 questions",
       "incomplete": null,
       "arm": false,
+      "replicates": 1,
       "unrecorded": [],
       "candidates": [
         {
@@ -4433,6 +5514,7 @@
       "detail": "memory_query.avg_seconds over 240 questions",
       "incomplete": null,
       "arm": false,
+      "replicates": 1,
       "unrecorded": [],
       "candidates": [
         {
@@ -4532,6 +5614,7 @@
       "detail": "question-weighted mean of m54_full_web (81.67 over 240) and m54_full_ent (73.93 over 211); memory_type=agentrunbook_c evidence_mode=\"axtree\" controller_model=\"Ternary Bonsai 2 27B\" reader_served_model=\"Qwen3.5-9B-UD-Q4_K_XL.gguf\"; method: AgentRunbook-C (10.48550/arXiv.2605.12493), run locally with a Bonsai 27B controller",
       "incomplete": null,
       "arm": false,
+      "replicates": 1,
       "unrecorded": [],
       "candidates": [
         {
@@ -4583,6 +5666,7 @@
       "detail": "overall.overall_full_set x 100 over 211 questions, evaluator Qwen/Qwen3.5-9B",
       "incomplete": null,
       "arm": false,
+      "replicates": 1,
       "unrecorded": [],
       "candidates": [
         {
@@ -4650,6 +5734,7 @@
       "detail": "overall.overall_full_set x 100 over 240 questions, evaluator Qwen/Qwen3.5-9B",
       "incomplete": null,
       "arm": false,
+      "replicates": 1,
       "unrecorded": [],
       "candidates": [
         {
@@ -4749,6 +5834,7 @@
       "detail": "aggregated_metrics.json abstention_accuracy over category 5",
       "incomplete": null,
       "arm": false,
+      "replicates": 1,
       "unrecorded": [],
       "candidates": [
         {
@@ -4948,6 +6034,7 @@
       "detail": "judge qwen3.5-9b : 1086 of 1540 correct (116 declines scored 0)",
       "incomplete": null,
       "arm": false,
+      "replicates": 1,
       "unrecorded": [],
       "candidates": [
         {
@@ -5047,6 +6134,7 @@
       "detail": "protocol lightmem-locomo (openai/gpt-4o-mini): 1204 of 1540 correct",
       "incomplete": null,
       "arm": false,
+      "replicates": 1,
       "unrecorded": [],
       "candidates": [
         {
@@ -5070,6 +6158,7 @@
       "detail": "the lowest of every reading: locomo.judge_score_lightmem.n1540 78.18, locomo.judge_score_mempro.n1540 80.26",
       "incomplete": null,
       "arm": false,
+      "replicates": 1,
       "unrecorded": [],
       "candidates": [
         {
@@ -5093,6 +6182,7 @@
       "detail": "protocol mempro-locomo (openai/gpt-4o-mini): 1236 of 1540 correct",
       "incomplete": null,
       "arm": false,
+      "replicates": 1,
       "unrecorded": [],
       "candidates": [
         {
@@ -5116,6 +6206,7 @@
       "detail": "date-aware scorer, f1_answerable over categories 1-4, rescored_from=live run",
       "incomplete": null,
       "arm": false,
+      "replicates": 1,
       "unrecorded": [],
       "candidates": [
         {
@@ -5303,6 +6394,7 @@
       "detail": "aggregated_metrics.json f1_answerable over categories 1-4, mode=recall k=6",
       "incomplete": null,
       "arm": false,
+      "replicates": 1,
       "unrecorded": [
         "resolve_dates",
         "timeline"
@@ -5340,28 +6432,57 @@
     },
     {
       "metric": "longmemeval_s.judge_score.n500",
-      "value": 79.0,
+      "value": 80.80000000000001,
       "unit": "pct_0_100",
       "n": 500,
       "judge_class": "open_weights_local",
       "backbone_class": "open_weights",
-      "run": "runs/m57_bonsai_premise_s1",
-      "detail": "judge qwen3.5-9b : 395 of 500 correct (49 declines scored 0)",
+      "run": "runs/r5_bundle_seeds",
+      "detail": "seed mean of 3 (80.40 / 81.20 / 80.80); judge qwen3.5-9b : 402 of 500 correct (36 declines scored 0)",
       "incomplete": null,
       "arm": false,
+      "replicates": 3,
       "unrecorded": [],
       "candidates": [
         {
-          "run": "runs/m57_bonsai_premise_s1",
-          "value": 79.0
+          "run": "runs/r5_bundle_seeds",
+          "value": 80.80000000000001
         },
         {
-          "run": "runs/m57_pref_s2",
-          "value": 78.60000000000001
+          "run": "runs/r5_bundle_s2_grounded_c",
+          "value": 81.2
         },
         {
-          "run": "runs/m57_pref_s3",
-          "value": 78.60000000000001
+          "run": "runs/r5_bundle_s3_grounded_c",
+          "value": 80.60000000000001
+        },
+        {
+          "run": "runs/r5_bundle_s1_grounded_c",
+          "value": 80.4
+        },
+        {
+          "run": "runs/r5_bundle_s2_typed",
+          "value": 81.8
+        },
+        {
+          "run": "runs/r5b_bundle_s2_typed",
+          "value": 81.8
+        },
+        {
+          "run": "runs/r5b_bundle_s3_typed",
+          "value": 81.8
+        },
+        {
+          "run": "runs/r5_bundle_s3_typed",
+          "value": 81.6
+        },
+        {
+          "run": "runs/r5_bundle_s1_typed",
+          "value": 81.0
+        },
+        {
+          "run": "runs/r5b_bundle_s1_typed",
+          "value": 81.0
         },
         {
           "run": "runs/r4_bundle_s1_grounded",
@@ -5373,6 +6494,10 @@
         },
         {
           "run": "runs/m72_lme_agg",
+          "value": 80.2
+        },
+        {
+          "run": "runs/m78c_answer_s3",
           "value": 80.2
         },
         {
@@ -5392,6 +6517,18 @@
           "value": 79.80000000000001
         },
         {
+          "run": "runs/m78_answer_s1",
+          "value": 79.80000000000001
+        },
+        {
+          "run": "runs/m78_answer_s3",
+          "value": 79.80000000000001
+        },
+        {
+          "run": "runs/m79_base_s1",
+          "value": 79.80000000000001
+        },
+        {
           "run": "runs/m73b_events_s1",
           "value": 79.60000000000001
         },
@@ -5401,6 +6538,10 @@
         },
         {
           "run": "runs/m77c_clause_s1",
+          "value": 79.4
+        },
+        {
+          "run": "runs/m78b_picks_s1",
           "value": 79.4
         },
         {
@@ -5414,6 +6555,18 @@
         {
           "run": "runs/m77_words_clause_s3",
           "value": 79.2
+        },
+        {
+          "run": "runs/m78b_picks_s3",
+          "value": 79.2
+        },
+        {
+          "run": "runs/m78c_answer_s1",
+          "value": 79.2
+        },
+        {
+          "run": "runs/m57_bonsai_premise_s1",
+          "value": 79.0
         },
         {
           "run": "runs/m76_words_s1",
@@ -5430,6 +6583,42 @@
         {
           "run": "runs/m77c_clause_s3",
           "value": 79.0
+        },
+        {
+          "run": "runs/m78b_picks_s2",
+          "value": 79.0
+        },
+        {
+          "run": "runs/m78c_answer_s2",
+          "value": 79.0
+        },
+        {
+          "run": "runs/m78_answer_s2",
+          "value": 78.8
+        },
+        {
+          "run": "runs/m79_base_s2",
+          "value": 78.8
+        },
+        {
+          "run": "runs/m57_pref_s2",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m57_pref_s3",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m79_base_s3",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/r5_base_s2",
+          "value": 78.0
+        },
+        {
+          "run": "runs/r5_base_s3",
+          "value": 77.8
         },
         {
           "run": "runs/m44_r2b_s1",
@@ -5603,32 +6792,65 @@
     },
     {
       "metric": "longmemeval_s.judge_score_matched.n500",
-      "value": 78.60000000000001,
+      "value": 81.13333333333334,
       "unit": "pct_0_100",
       "n": 500,
       "judge_class": "frontier_api",
       "backbone_class": "open_weights",
-      "run": "runs/m57_bonsai_premise_s1",
-      "detail": "the lowest of every reading: longmemeval_s.judge_score_official.n500 78.60",
+      "run": "runs/r5_bundle_seeds",
+      "detail": "seed mean of 3 (80.20 / 81.60 / 81.60); the lowest of every reading: longmemeval_s.judge_score_official.n500 80.20",
       "incomplete": null,
       "arm": false,
+      "replicates": 3,
       "unrecorded": [],
       "candidates": [
         {
-          "run": "runs/m57_bonsai_premise_s1",
-          "value": 78.60000000000001
+          "run": "runs/r5_bundle_seeds",
+          "value": 81.13333333333334
         },
         {
-          "run": "runs/m57_pref_s2",
-          "value": 78.0
+          "run": "runs/r5_bundle_s2_grounded_c",
+          "value": 81.8
         },
         {
-          "run": "runs/m57_pref_s3",
-          "value": 77.8
+          "run": "runs/r5_bundle_s3_grounded_c",
+          "value": 81.39999999999999
+        },
+        {
+          "run": "runs/r5_bundle_s1_grounded_c",
+          "value": 80.0
+        },
+        {
+          "run": "runs/r5_bundle_s2",
+          "value": 81.0
+        },
+        {
+          "run": "runs/r5_bundle_s2_typed",
+          "value": 81.0
+        },
+        {
+          "run": "runs/r5_bundle_s3",
+          "value": 81.0
         },
         {
           "run": "runs/r4_bundle_s1_grounded",
           "value": 80.80000000000001
+        },
+        {
+          "run": "runs/r5_bundle_s3_typed",
+          "value": 80.60000000000001
+        },
+        {
+          "run": "runs/r5b_bundle_s2_typed",
+          "value": 80.60000000000001
+        },
+        {
+          "run": "runs/r5b_bundle_s3_typed",
+          "value": 80.2
+        },
+        {
+          "run": "runs/r5_bundle_s1",
+          "value": 79.80000000000001
         },
         {
           "run": "runs/m73b_events_s1",
@@ -5636,6 +6858,14 @@
         },
         {
           "run": "runs/m77c_clause_s2",
+          "value": 79.60000000000001
+        },
+        {
+          "run": "runs/m78_answer_s3",
+          "value": 79.60000000000001
+        },
+        {
+          "run": "runs/r5_bundle_s1_typed",
           "value": 79.60000000000001
         },
         {
@@ -5655,6 +6885,10 @@
           "value": 79.4
         },
         {
+          "run": "runs/r5b_bundle_s1_typed",
+          "value": 79.4
+        },
+        {
           "run": "runs/m55_bonsai_s1",
           "value": 79.2
         },
@@ -5671,7 +6905,19 @@
           "value": 79.2
         },
         {
+          "run": "runs/m78_answer_s1",
+          "value": 79.2
+        },
+        {
+          "run": "runs/m78c_answer_s3",
+          "value": 79.2
+        },
+        {
           "run": "runs/m72_lme_agg",
+          "value": 79.0
+        },
+        {
+          "run": "runs/m78b_picks_s1",
           "value": 79.0
         },
         {
@@ -5679,7 +6925,31 @@
           "value": 78.8
         },
         {
+          "run": "runs/m78c_answer_s1",
+          "value": 78.8
+        },
+        {
+          "run": "runs/m57_bonsai_premise_s1",
+          "value": 78.60000000000001
+        },
+        {
           "run": "runs/m76_words_s1",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m78_answer_s2",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m78b_picks_s2",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m78b_picks_s3",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m79_base_s1",
           "value": 78.60000000000001
         },
         {
@@ -5687,12 +6957,40 @@
           "value": 78.2
         },
         {
+          "run": "runs/m78c_answer_s2",
+          "value": 78.2
+        },
+        {
+          "run": "runs/m57_pref_s2",
+          "value": 78.0
+        },
+        {
+          "run": "runs/r5_base_s2",
+          "value": 78.0
+        },
+        {
+          "run": "runs/m57_pref_s3",
+          "value": 77.8
+        },
+        {
           "run": "runs/m76c_nopremise_s1",
+          "value": 77.8
+        },
+        {
+          "run": "runs/m79_base_s2",
           "value": 77.8
         },
         {
           "run": "runs/m76b_words_nopremise_s1",
           "value": 77.60000000000001
+        },
+        {
+          "run": "runs/m79_base_s3",
+          "value": 77.0
+        },
+        {
+          "run": "runs/r5_base_s3",
+          "value": 77.0
         },
         {
           "run": "runs/m44_r2b_s1",
@@ -5706,32 +7004,65 @@
     },
     {
       "metric": "longmemeval_s.judge_score_official.n500",
-      "value": 78.60000000000001,
+      "value": 81.13333333333334,
       "unit": "pct_0_100",
       "n": 500,
       "judge_class": "frontier_api",
       "backbone_class": "open_weights",
-      "run": "runs/m57_bonsai_premise_s1",
-      "detail": "protocol longmemeval-official (openai/gpt-4o-mini-2024-07-18): 393 of 500 correct",
+      "run": "runs/r5_bundle_seeds",
+      "detail": "seed mean of 3 (80.20 / 81.60 / 81.60); protocol longmemeval-official (openai/gpt-4o-mini-2024-07-18): 401 of 500 correct",
       "incomplete": null,
       "arm": false,
+      "replicates": 3,
       "unrecorded": [],
       "candidates": [
         {
-          "run": "runs/m57_bonsai_premise_s1",
-          "value": 78.60000000000001
+          "run": "runs/r5_bundle_seeds",
+          "value": 81.13333333333334
         },
         {
-          "run": "runs/m57_pref_s2",
-          "value": 78.0
+          "run": "runs/r5_bundle_s2_grounded_c",
+          "value": 81.8
         },
         {
-          "run": "runs/m57_pref_s3",
-          "value": 77.8
+          "run": "runs/r5_bundle_s3_grounded_c",
+          "value": 81.39999999999999
+        },
+        {
+          "run": "runs/r5_bundle_s1_grounded_c",
+          "value": 80.0
+        },
+        {
+          "run": "runs/r5_bundle_s2",
+          "value": 81.0
+        },
+        {
+          "run": "runs/r5_bundle_s2_typed",
+          "value": 81.0
+        },
+        {
+          "run": "runs/r5_bundle_s3",
+          "value": 81.0
         },
         {
           "run": "runs/r4_bundle_s1_grounded",
           "value": 80.80000000000001
+        },
+        {
+          "run": "runs/r5_bundle_s3_typed",
+          "value": 80.60000000000001
+        },
+        {
+          "run": "runs/r5b_bundle_s2_typed",
+          "value": 80.60000000000001
+        },
+        {
+          "run": "runs/r5b_bundle_s3_typed",
+          "value": 80.2
+        },
+        {
+          "run": "runs/r5_bundle_s1",
+          "value": 79.80000000000001
         },
         {
           "run": "runs/m73b_events_s1",
@@ -5739,6 +7070,14 @@
         },
         {
           "run": "runs/m77c_clause_s2",
+          "value": 79.60000000000001
+        },
+        {
+          "run": "runs/m78_answer_s3",
+          "value": 79.60000000000001
+        },
+        {
+          "run": "runs/r5_bundle_s1_typed",
           "value": 79.60000000000001
         },
         {
@@ -5758,6 +7097,10 @@
           "value": 79.4
         },
         {
+          "run": "runs/r5b_bundle_s1_typed",
+          "value": 79.4
+        },
+        {
           "run": "runs/m55_bonsai_s1",
           "value": 79.2
         },
@@ -5774,7 +7117,19 @@
           "value": 79.2
         },
         {
+          "run": "runs/m78_answer_s1",
+          "value": 79.2
+        },
+        {
+          "run": "runs/m78c_answer_s3",
+          "value": 79.2
+        },
+        {
           "run": "runs/m72_lme_agg",
+          "value": 79.0
+        },
+        {
+          "run": "runs/m78b_picks_s1",
           "value": 79.0
         },
         {
@@ -5782,7 +7137,31 @@
           "value": 78.8
         },
         {
+          "run": "runs/m78c_answer_s1",
+          "value": 78.8
+        },
+        {
+          "run": "runs/m57_bonsai_premise_s1",
+          "value": 78.60000000000001
+        },
+        {
           "run": "runs/m76_words_s1",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m78_answer_s2",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m78b_picks_s2",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m78b_picks_s3",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m79_base_s1",
           "value": 78.60000000000001
         },
         {
@@ -5790,12 +7169,40 @@
           "value": 78.2
         },
         {
+          "run": "runs/m78c_answer_s2",
+          "value": 78.2
+        },
+        {
+          "run": "runs/m57_pref_s2",
+          "value": 78.0
+        },
+        {
+          "run": "runs/r5_base_s2",
+          "value": 78.0
+        },
+        {
+          "run": "runs/m57_pref_s3",
+          "value": 77.8
+        },
+        {
           "run": "runs/m76c_nopremise_s1",
+          "value": 77.8
+        },
+        {
+          "run": "runs/m79_base_s2",
           "value": 77.8
         },
         {
           "run": "runs/m76b_words_nopremise_s1",
           "value": 77.60000000000001
+        },
+        {
+          "run": "runs/m79_base_s3",
+          "value": 77.0
+        },
+        {
+          "run": "runs/r5_base_s3",
+          "value": 77.0
         },
         {
           "run": "runs/m44_r2b_s1",
@@ -5809,36 +7216,33 @@
     },
     {
       "metric": "longmemeval_s.token_f1.n500",
-      "value": 60.81649848682908,
+      "value": 60.484971494365276,
       "unit": "pct_0_100",
       "n": 470,
       "judge_class": "deterministic",
       "backbone_class": "open_weights",
-      "run": "runs/m57_bonsai_premise_s1",
-      "detail": "aggregated_metrics.json f1_answerable over the 470 answerable rows, mode=investigate k=6",
+      "run": "runs/r5_bundle_seeds",
+      "detail": "seed mean of 3 (60.06 / 61.22 / 60.17); aggregated_metrics.json f1_answerable over the 470 answerable rows, mode=investigate k=6",
       "incomplete": null,
       "arm": false,
+      "replicates": 3,
       "unrecorded": [],
       "candidates": [
         {
-          "run": "runs/m57_bonsai_premise_s1",
-          "value": 60.81649848682908
+          "run": "runs/r5_bundle_seeds",
+          "value": 60.484971494365276
         },
         {
-          "run": "runs/m57_pref_s3",
-          "value": 60.79554814378587
+          "run": "runs/r5_bundle_s2_grounded_c",
+          "value": 61.223703534330284
         },
         {
-          "run": "runs/m57_pref_s2",
-          "value": 60.72890154729757
+          "run": "runs/r5_bundle_s3_grounded_c",
+          "value": 60.16877316863473
         },
         {
-          "run": "runs/m57_bonsai_premise_s1.part1",
-          "value": 62.21297137771996
-        },
-        {
-          "run": "runs/m57_bonsai_premise_s1.part0",
-          "value": 59.42002559593816
+          "run": "runs/r5_bundle_s1_grounded_c",
+          "value": 60.06243778013079
         },
         {
           "run": "runs/m55_bonsai_s1",
@@ -5849,12 +7253,64 @@
           "value": 61.89921434345956
         },
         {
+          "run": "runs/m79_base_s2",
+          "value": 61.566141914715736
+        },
+        {
+          "run": "runs/r5_base_s2",
+          "value": 61.566141914715736
+        },
+        {
+          "run": "runs/r5b_bundle_s2_typed",
+          "value": 61.48046872340338
+        },
+        {
+          "run": "runs/m78b_picks_s1",
+          "value": 61.33767701126713
+        },
+        {
           "run": "runs/m73b_events_s1",
           "value": 61.285285019445425
         },
         {
+          "run": "runs/m78b_picks_s3",
+          "value": 61.25483445864178
+        },
+        {
+          "run": "runs/r5_bundle_s2",
+          "value": 61.223703534330284
+        },
+        {
+          "run": "runs/r5_bundle_s2_typed",
+          "value": 61.223703534330284
+        },
+        {
+          "run": "runs/m78b_picks_s2",
+          "value": 61.17109350677381
+        },
+        {
+          "run": "runs/m78_answer_s3",
+          "value": 61.161606045783515
+        },
+        {
+          "run": "runs/m78_answer_s2",
+          "value": 61.09130667680495
+        },
+        {
+          "run": "runs/m78c_answer_s1",
+          "value": 61.06654956515997
+        },
+        {
           "run": "runs/m77c_clause_s2",
           "value": 61.05319933216673
+        },
+        {
+          "run": "runs/m78_answer_s1",
+          "value": 61.04489695106145
+        },
+        {
+          "run": "runs/m78c_answer_s3",
+          "value": 61.0171485191423
         },
         {
           "run": "runs/m77_words_clause_s3",
@@ -5869,6 +7325,10 @@
           "value": 60.93978643825591
         },
         {
+          "run": "runs/m78c_answer_s2",
+          "value": 60.9116088006192
+        },
+        {
           "run": "runs/m77c_clause_s3",
           "value": 60.90543460876368
         },
@@ -5881,6 +7341,10 @@
           "value": 60.84271531681927
         },
         {
+          "run": "runs/m57_bonsai_premise_s1",
+          "value": 60.81649848682908
+        },
+        {
           "run": "runs/m71_lme_grounded",
           "value": 60.81649848682908
         },
@@ -5889,8 +7353,20 @@
           "value": 60.81649848682908
         },
         {
+          "run": "runs/m79_base_s1",
+          "value": 60.81649848682908
+        },
+        {
+          "run": "runs/m57_pref_s3",
+          "value": 60.79554814378587
+        },
+        {
           "run": "runs/m20b_profile_s1",
           "value": 60.73152430343233
+        },
+        {
+          "run": "runs/m57_pref_s2",
+          "value": 60.72890154729757
         },
         {
           "run": "runs/m76_words_s1",
@@ -5905,12 +7381,44 @@
           "value": 60.68351987637455
         },
         {
+          "run": "runs/r5b_bundle_s3_typed",
+          "value": 60.57449387029118
+        },
+        {
+          "run": "runs/r5b_bundle_s1_typed",
+          "value": 60.4586053219477
+        },
+        {
           "run": "runs/m44_r2b_s2",
           "value": 60.39886505261581
         },
         {
+          "run": "runs/r5_bundle_s3",
+          "value": 60.16877316863473
+        },
+        {
+          "run": "runs/r5_bundle_s3_typed",
+          "value": 60.16877316863473
+        },
+        {
+          "run": "runs/r5_bundle_s1",
+          "value": 60.06243778013079
+        },
+        {
+          "run": "runs/r5_bundle_s1_typed",
+          "value": 60.06243778013079
+        },
+        {
           "run": "runs/m72b_lme_agg",
           "value": 59.99084855305908
+        },
+        {
+          "run": "runs/m79_base_s3",
+          "value": 59.90483242513305
+        },
+        {
+          "run": "runs/r5_base_s3",
+          "value": 59.90483242513305
         },
         {
           "run": "runs/r4_bundle_s1",
@@ -5995,6 +7503,14 @@
         {
           "run": "runs/m74_focus_evidence",
           "value": 0.0
+        },
+        {
+          "run": "runs/m57_bonsai_premise_s1.part1",
+          "value": 62.21297137771996
+        },
+        {
+          "run": "runs/m57_bonsai_premise_s1.part0",
+          "value": 59.42002559593816
         },
         {
           "run": "runs/m55_bonsai_s1.part1",
@@ -6153,6 +7669,7 @@
       "detail": "condition \"pre-pop/untrusted/undefended\": 31/40 at k=6 over 8 cohorts, 39 injections admitted",
       "incomplete": null,
       "arm": false,
+      "replicates": 1,
       "unrecorded": [],
       "candidates": [
         {
@@ -6176,6 +7693,7 @@
       "detail": "condition \"pre-pop/untrusted/defended\": 3/40 at k=6 over 8 cohorts, 5 injections admitted",
       "incomplete": null,
       "arm": false,
+      "replicates": 1,
       "unrecorded": [],
       "candidates": [
         {
@@ -6199,6 +7717,7 @@
       "detail": "condition \"pre-pop/untrusted/undefended\": 37/40 at k=6 over 8 cohorts, 39 injections admitted",
       "incomplete": null,
       "arm": false,
+      "replicates": 1,
       "unrecorded": [],
       "candidates": [
         {

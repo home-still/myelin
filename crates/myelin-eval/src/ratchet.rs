@@ -404,6 +404,7 @@ mod tests {
 
     fn ours(metric: &str, value: f64) -> Ours {
         Ours {
+            replicates: 1,
             metric: metric.into(),
             value,
             unit: Unit::PctZeroHundred,

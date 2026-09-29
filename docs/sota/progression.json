@@ -68,28 +68,28 @@
       "recorded": "2026-09-25"
     },
     "longmemeval_s.judge_score.n500": {
-      "value": 79.0,
+      "value": 80.80000000000001,
       "n": 500,
-      "run": "runs/m57_bonsai_premise_s1",
-      "recorded": "2026-09-28"
+      "run": "runs/r5_bundle_seeds",
+      "recorded": "2026-09-29"
     },
     "longmemeval_s.judge_score_matched.n500": {
-      "value": 78.60000000000001,
+      "value": 81.13333333333334,
       "n": 500,
-      "run": "runs/m57_bonsai_premise_s1",
-      "recorded": "2026-09-25"
+      "run": "runs/r5_bundle_seeds",
+      "recorded": "2026-09-29"
     },
     "longmemeval_s.judge_score_official.n500": {
-      "value": 78.60000000000001,
+      "value": 81.13333333333334,
       "n": 500,
-      "run": "runs/m57_bonsai_premise_s1",
-      "recorded": "2026-09-25"
+      "run": "runs/r5_bundle_seeds",
+      "recorded": "2026-09-29"
     },
     "longmemeval_s.token_f1.n500": {
-      "value": 60.81649848682908,
+      "value": 60.48,
       "n": 470,
-      "run": "runs/m57_bonsai_premise_s1",
-      "recorded": "2026-09-24"
+      "run": "runs/r5_bundle_seeds",
+      "recorded": "2026-09-29"
     },
     "minja.asr.k6_prepopulated": {
       "value": 77.5,

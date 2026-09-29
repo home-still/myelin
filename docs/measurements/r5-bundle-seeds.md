@@ -160,3 +160,26 @@ the user's call (plan step 2.4).
   `merge_close` asserts the 183/154 rerun rows and 500 total per run.
 - Since then, reads retry through a transport failure (#168), and the
   drivers wait on named PIDs or units.
+
+## Shipped *(user's decision, 2026-09-29)*
+
+The user chose to ship the bundle on the official gate, even though strict
+missed the +3.0 bar.
+- `bench::shipped_{events_ledger, aggregation, advice_profile_clause,
+  commit_grounded}` make its four mechanisms LongMemEval_S's shipped
+  configuration. `standing` marks their absence as an arm, and M79's typed
+  pass as one.
+- **`standing` quotes seed means.** `runs/r5_bundle_seeds/replicates.json`
+  names the three grounded replicates, and a replicate set outranks any
+  single draw of its configuration. Otherwise `standing` would quote the
+  best seed (official 81.6), which is a seed's luck.
+- **Standing:**
+  - `longmemeval_s.judge_score_matched.n500` is **81.13**, comparable,
+    +0.33 against MemPro-15 (Qwen): **the gate closes**;
+  - `judge_score.n500` is 80.80, caveat-judge.
+- **The ratchet** pins the seed means. `token_f1` is lowered by hand from
+  M57's single-seed 60.82 to 60.48. The base's own seed mean is 60.76, so
+  the bundle costs −0.28 token F1: personalized advice answers are longer,
+  and word overlap with rubric-shaped references falls while every judged
+  reading rises. This is a known trade, recorded rather than hidden.
+- `ratchet --strict` passes.
