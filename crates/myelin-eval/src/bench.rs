@@ -573,6 +573,10 @@ pub struct BenchRun {
     /// Absent on every run before M81.
     #[serde(default)]
     pub commit_typed_cited: bool,
+    /// M82: the typed pass's statement was checked by an NLI model on the
+    /// cited memories. Absent on every run before M82.
+    #[serde(default)]
+    pub commit_typed_nli: bool,
     /// Rows inherited from an earlier attempt by `bench --resume`. Non-zero
     /// means the run's two halves may have been served by differently
     /// configured readers (slots, context): a greedy answer does not depend
@@ -876,6 +880,8 @@ pub struct BenchSwitches {
     pub commit_premise_finding: bool,
     /// M81: the typed pass cited its memories, and code decided the premise.
     pub commit_typed_cited: bool,
+    /// M82: an NLI model decided the premise on the cited memories.
+    pub commit_typed_nli: bool,
     /// Cap untrusted occupancy in the composed set — M23 B1,
     /// `ComposeConfig::untrusted_max`.
     ///
@@ -1500,6 +1506,182 @@ pub(crate) async fn commit_typed_cited(
     match accept_typed_cited(&second.text, question, memories) {
         Some(answer) => (answer, CommitOutcome { fired: true, committed: true }, Some(second.text)),
         None => (response, fired, Some(second.text)),
+    }
+}
+
+/// M82: an NLI model's three probabilities for one (premise, hypothesis).
+#[derive(Debug, Clone, Copy, Deserialize, PartialEq)]
+pub struct NliProbs {
+    pub entailment: f64,
+    pub neutral: f64,
+    pub contradiction: f64,
+}
+
+impl NliProbs {
+    /// The model's own decision is entailment: it is the most probable of
+    /// the three labels. The argmax is the NLI model's decision rule, not a
+    /// threshold tuned on our rows.
+    pub fn entails(&self) -> bool {
+        self.entailment > self.neutral && self.entailment > self.contradiction
+    }
+}
+
+/// An NLI cross-encoder (M82). A trait so tests can stand in for the served
+/// model.
+#[async_trait::async_trait]
+pub trait Nli: Send + Sync {
+    async fn classify(&self, premise: &str, hypothesis: &str) -> Result<NliProbs>;
+}
+
+/// The served NLI model (`ops/big/nli_server.py`): `POST {url}/nli`.
+pub struct HttpNli {
+    url: String,
+    client: reqwest::Client,
+}
+
+impl HttpNli {
+    pub fn new(url: &str) -> Self {
+        Self {
+            url: url.trim_end_matches('/').to_string(),
+            client: reqwest::Client::new(),
+        }
+    }
+}
+
+#[async_trait::async_trait]
+impl Nli for HttpNli {
+    async fn classify(&self, premise: &str, hypothesis: &str) -> Result<NliProbs> {
+        let response = self
+            .client
+            .post(format!("{}/nli", self.url))
+            .json(&serde_json::json!({ "premise": premise, "hypothesis": hypothesis }))
+            .send()
+            .await
+            .with_context(|| format!("nli request to {}", self.url))?;
+        let status = response.status();
+        anyhow::ensure!(status.is_success(), "nli server {} answered {status}", self.url);
+        response.json::<NliProbs>().await.context("parse the nli response")
+    }
+}
+
+/// M82's addition to M79's instruction: the statement the NLI model checks.
+const READER_TYPED_NLI_SYSTEM: &str = "Then write `statement`: the question and \
+your answer as one first-person sentence that keeps every detail the question \
+states. Last, cite in `supporting` the memories that state the answer.";
+/// A statement's ceiling; it is one sentence.
+const TYPED_NLI_STATEMENT_MAX_CHARS: usize = 300;
+/// Completion room for M82's JSON: M81's, plus the statement.
+const TYPED_NLI_MAX_TOKENS: u32 = 280;
+
+/// M82: `{answer, mismatch, statement, supporting}`. M79's two fields keep
+/// their measured order; the statement and the citations follow.
+pub(crate) fn typed_nli_schema(n_memories: usize) -> serde_json::Value {
+    serde_json::json!({
+        "type": "object",
+        "properties": {
+            "answer": { "type": "string", "maxLength": TYPED_ANSWER_MAX_CHARS },
+            "mismatch": { "type": "string", "enum": TYPED_MISMATCHES },
+            "statement": { "type": "string", "minLength": 1, "maxLength": TYPED_NLI_STATEMENT_MAX_CHARS },
+            "supporting": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": TYPED_CITED_MAX,
+                "items": { "type": "integer", "minimum": 0, "maximum": n_memories.saturating_sub(1) }
+            }
+        },
+        "required": ["answer", "mismatch", "statement", "supporting"],
+        "additionalProperties": false
+    })
+}
+
+#[derive(Debug, Deserialize)]
+struct TypedNliAnswer {
+    answer: String,
+    mismatch: String,
+    statement: String,
+    supporting: Vec<usize>,
+}
+
+/// What M82 hands the NLI model, if the typed answer passes the checks made in
+/// code before it. It returns the answer, the statement and the cited memories.
+///
+/// - The label and the answer must pass M79's rule.
+/// - Every citation must be a shown memory.
+/// - **The statement must keep every content word of the question**
+///   ([`uncited_terms`] against the statement). Without this the reader could
+///   write "I baked a cake for the party" for a question about the *uncle's*
+///   party, and the NLI model would entail a claim the question never made.
+fn prepare_typed_nli(text: &str, question: &str, memories: &[String]) -> Option<(String, String, Vec<String>)> {
+    let parsed = serde_json::from_str::<TypedNliAnswer>(text).ok()?;
+    let answer = parsed.answer.trim();
+    let statement = parsed.statement.trim();
+    if answer.is_empty() || is_abstention(answer) || !TYPED_ANSWERABLE.contains(&parsed.mismatch.as_str()) {
+        return None;
+    }
+    let cited: Vec<String> = parsed
+        .supporting
+        .iter()
+        .map(|&i| memories.get(i).cloned())
+        .collect::<Option<Vec<_>>>()?;
+    if cited.is_empty() || statement.is_empty() || !uncited_terms(question, &[statement.to_string()]).is_empty() {
+        return None;
+    }
+    Some((answer.to_string(), statement.to_string(), cited))
+}
+
+/// M82. The premise is decided by an NLI model on the memories the answer cites
+/// (`docs/measurements/m82-nli-premise.md`).
+///
+/// This is presupposition verification by textual entailment (Kim et al.
+/// 2021, "Which Linguist Invented the Lightbulb? Presupposition Verification
+/// for Question-Answering", ACL, arXiv 2101.00391). The reader writes the
+/// question and its answer as one statement. Code checks that the statement
+/// keeps every question word, and an MNLI/FEVER/ANLI-trained cross-encoder
+/// (Laurer et al. 2023, `10.1017/pan.2023.20`) decides whether the cited
+/// memories entail it. On M81's 31 candidates the model scored every trap at
+/// P(entailment) ≤ 0.38, and never as its argmax (AUROC 0.873;
+/// `m81-cited-premise.md`).
+///
+/// An NLI failure is an error, not a kept decline: a dead server must not
+/// read as "no commits".
+pub(crate) async fn commit_typed_nli(
+    llm: &dyn Llm,
+    nli: &dyn Nli,
+    system: &str,
+    user: &str,
+    response: String,
+    question: &str,
+    memories: &[String],
+) -> Result<(String, CommitOutcome, Option<String>)> {
+    if !is_abstention(&response) {
+        return Ok((response, CommitOutcome::default(), None));
+    }
+    let fired = CommitOutcome { fired: true, committed: false };
+    let Ok(second) = llm
+        .complete(
+            &CompletionRequest::new(vec![
+                Message::system(format!("{system}\n{READER_TYPED_SYSTEM}\n{READER_TYPED_NLI_SYSTEM}")),
+                Message::user(user.to_string()),
+            ])
+            .with_max_tokens(TYPED_NLI_MAX_TOKENS)
+            .with_schema(typed_nli_schema(memories.len())),
+        )
+        .await
+    else {
+        return Ok((response, fired, None));
+    };
+    let Some((answer, statement, cited)) = prepare_typed_nli(&second.text, question, memories) else {
+        return Ok((response, fired, Some(second.text)));
+    };
+    let probs = nli.classify(&cited.join("\n"), &statement).await?;
+    let raw = format!(
+        "{} nli=entailment {:.3} neutral {:.3} contradiction {:.3}",
+        second.text, probs.entailment, probs.neutral, probs.contradiction
+    );
+    if probs.entails() {
+        Ok((answer, CommitOutcome { fired: true, committed: true }, Some(raw)))
+    } else {
+        Ok((response, fired, Some(raw)))
     }
 }
 
@@ -3474,6 +3656,7 @@ fn finish_run(
         commit_typed: spec.switches.commit_typed,
         commit_premise_finding: spec.switches.commit_premise_finding,
         commit_typed_cited: spec.switches.commit_typed_cited,
+        commit_typed_nli: spec.switches.commit_typed_nli,
         resumed_rows: resumed,
         commit_samples: None,
         commit_agree: None,
@@ -3690,6 +3873,7 @@ pub fn rescore_run(source: &Path, out_dir: &Path, scorer: Scorer) -> Result<Benc
             commit_typed: flag("commit_typed"),
             commit_premise_finding: flag("commit_premise_finding"),
             commit_typed_cited: flag("commit_typed_cited"),
+            commit_typed_nli: flag("commit_typed_nli"),
             commit_answer: flag("commit_answer"),
             untrusted_max: metrics
                 .get("untrusted_max")
@@ -4890,6 +5074,82 @@ mod reader_tests {
         assert!(!req.thinking);
         assert_eq!((req.temperature, req.top_p, req.seed), (0.0, None, None));
         assert_eq!(req.max_tokens, Some(READER_ANSWER_TOKENS));
+    }
+
+    struct FixedNli(NliProbs);
+
+    #[async_trait::async_trait]
+    impl Nli for FixedNli {
+        async fn classify(&self, _premise: &str, _hypothesis: &str) -> Result<NliProbs> {
+            Ok(self.0)
+        }
+    }
+
+    struct DeadNli;
+
+    #[async_trait::async_trait]
+    impl Nli for DeadNli {
+        async fn classify(&self, _premise: &str, _hypothesis: &str) -> Result<NliProbs> {
+            anyhow::bail!("connection refused")
+        }
+    }
+
+    const ENTAILS: NliProbs = NliProbs { entailment: 0.55, neutral: 0.34, contradiction: 0.11 };
+    const CONTRADICTS: NliProbs = NliProbs { entailment: 0.0, neutral: 0.0, contradiction: 1.0 };
+
+    /// M82 commits on the NLI model's own decision (its argmax), not on a
+    /// tuned threshold.
+    #[test]
+    fn the_nli_decision_is_the_models_argmax() {
+        assert!(ENTAILS.entails());
+        assert!(!CONTRADICTS.entails());
+        assert!(!NliProbs { entailment: 0.41, neutral: 0.59, contradiction: 0.0 }.entails(), "neutral wins");
+    }
+
+    /// The statement must keep every question word; the reader cannot drop the
+    /// trap's detail and have the NLI model entail a claim the question never
+    /// made.
+    #[test]
+    fn a_statement_that_drops_a_question_word_never_reaches_the_nli_model() {
+        let memories = vec!["[2023-05-02] user: I made a lemon blueberry cake for my niece's birthday party.".to_string()];
+        let q = "What did I bake for my uncle's birthday party?";
+        let reply = |statement: &str| {
+            serde_json::json!({"answer": "lemon blueberry cake", "mismatch": "detail unstated",
+                               "statement": statement, "supporting": [0]}).to_string()
+        };
+        assert!(prepare_typed_nli(&reply("I baked a lemon blueberry cake for the birthday party."), q, &memories).is_none());
+        let kept = prepare_typed_nli(&reply("I baked a lemon blueberry cake for my uncle's birthday party."), q, &memories)
+            .expect("every question word kept");
+        assert_eq!(kept.0, "lemon blueberry cake");
+        assert_eq!(kept.2, memories, "the cited memories are the premise");
+    }
+
+    #[tokio::test]
+    async fn the_nli_pass_commits_only_on_entailment_and_an_nli_failure_is_an_error() {
+        let memories = vec!["[2023-05-02] user: I packed 7 shirts for my trip to Costa Rica.".to_string()];
+        let q = "How many shirts did I pack for my trip to Costa Rica?";
+        let reply = r#"{"answer":"7","mismatch":"none","statement":"I packed 7 shirts for my trip to Costa Rica.","supporting":[0]}"#;
+        let (answer, outcome, raw) =
+            commit_typed_nli(&Says(reply), &FixedNli(ENTAILS), "sys", "user", "I don't know.".into(), q, &memories)
+                .await
+                .expect("nli answered");
+        assert_eq!((answer.as_str(), outcome.committed), ("7", true));
+        assert!(raw.is_some_and(|r| r.contains("nli=entailment 0.550")));
+        let (answer, outcome, _) =
+            commit_typed_nli(&Says(reply), &FixedNli(CONTRADICTS), "sys", "user", "I don't know.".into(), q, &memories)
+                .await
+                .expect("nli answered");
+        assert_eq!((answer.as_str(), outcome.committed), ("I don't know.", false));
+        assert!(
+            commit_typed_nli(&Says(reply), &DeadNli, "sys", "user", "I don't know.".into(), q, &memories).await.is_err(),
+            "a dead NLI server must not read as no commits"
+        );
+    }
+
+    #[test]
+    fn the_nli_schema_keeps_m79s_order_then_the_statement_then_citations() {
+        let orders = myelin_core::llm::schema_property_orders(&typed_nli_schema(5));
+        assert_eq!(orders[0].1, vec!["answer", "mismatch", "statement", "supporting"]);
     }
 
     /// M81: code decides the premise on the memories the answer cites. The

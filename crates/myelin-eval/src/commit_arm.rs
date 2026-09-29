@@ -34,7 +34,8 @@ use myelin_core::llm::openai::OpenAiLlm;
 
 use crate::bench::{
     commit_answer, commit_consensus, commit_grounded, commit_typed, commit_typed_cited,
-    commit_typed_with, is_abstention, premise_finding, Consensus, ScoredQuestion,
+    commit_typed_nli, commit_typed_with, is_abstention, premise_finding, Consensus, Nli,
+    ScoredQuestion,
 };
 use crate::datasets::longmemeval;
 
@@ -78,6 +79,9 @@ pub enum Pass {
     /// M81: M79's pass with citations; code decides the premise on the cited
     /// memories (`bench::commit_typed_cited`).
     TypedCited,
+    /// M82: an NLI model decides the premise on the cited memories
+    /// (`bench::commit_typed_nli`). Needs the NLI client passed to [`run`].
+    TypedNli,
 }
 
 /// The corpora whose first-pass prompt this replays. The prompt must be the
@@ -104,7 +108,12 @@ pub async fn run(
     dataset: &Path,
     out: &Path,
     pass: Pass,
+    nli: Option<&dyn Nli>,
 ) -> Result<CommitArmReport> {
+    anyhow::ensure!(
+        matches!(pass, Pass::TypedNli) == nli.is_some(),
+        "an NLI client goes with --typed-nli and only with it"
+    );
     anyhow::ensure!(
         base != out,
         "refusing to write into the source run {}; an arm must not overwrite the base it is paired against",
@@ -194,6 +203,25 @@ pub async fn run(
             Pass::Grounded => {
                 let (response, outcome) =
                     commit_grounded(&llm, &system, &user, first, &row.evidence).await;
+                (response, outcome.fired, outcome.committed)
+            }
+            Pass::TypedNli => {
+                let nli = nli.context("--typed-nli needs an NLI client")?;
+                let (response, outcome, raw) = commit_typed_nli(
+                    &llm,
+                    nli,
+                    &system,
+                    &user,
+                    first,
+                    &row.question_text,
+                    &row.evidence,
+                )
+                .await
+                .with_context(|| format!("typed-nli pass on {}", row.question_id))?;
+                if let Some(raw) = raw {
+                    let trace = row.reader_trace.take().unwrap_or_default();
+                    row.reader_trace = Some(format!("{trace}\n[{}] {raw}", crate::bench::TYPED_TRACE));
+                }
                 (response, outcome.fired, outcome.committed)
             }
             Pass::TypedCited => {
@@ -316,6 +344,10 @@ fn write_arm(
             Pass::TypedCited => {
                 obj.insert("commit_typed".into(), serde_json::Value::Bool(true));
                 obj.insert("commit_typed_cited".into(), serde_json::Value::Bool(true));
+            }
+            Pass::TypedNli => {
+                obj.insert("commit_typed".into(), serde_json::Value::Bool(true));
+                obj.insert("commit_typed_nli".into(), serde_json::Value::Bool(true));
             }
         }
     }

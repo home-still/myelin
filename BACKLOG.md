@@ -200,6 +200,19 @@ lost under the strict judge):
 
 ---
 
+## M82 — the premise decided by an NLI model on the cited memories *(user decision 2026-09-29; pre-registered)*
+
+The user chose to add an entailment model after M79–M81.
+- `commit-arm --typed-nli`: the reader writes the question and answer as a
+  statement that keeps every question word, and a DeBERTa-v3 NLI
+  cross-encoder (served on big, `ops/big/nli_server.py`) must entail it
+  from the cited memories.
+- Screen: AUROC 0.873, all six traps below the model's entailment decision.
+- The same gate as M81, plus the LoCoMo transfer.
+- Doc: `docs/measurements/m82-nli-premise.md`.
+
+---
+
 ## Readout rigour — discordant counts, the exact sign test, and a repeated official grader *(round-5 catalog, 2026-09-28; not started)*
 
 Small strata need the right test, and our grader is noisy (catalog §c, §e):
