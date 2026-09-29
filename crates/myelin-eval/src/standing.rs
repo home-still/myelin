@@ -1092,8 +1092,15 @@ fn bench_metrics(dir: &Path, agg_text: &str) -> Result<Vec<Ours>> {
         // grounded one elsewhere, is an arm.
         || run.commit_answer != crate::bench::shipped_commit_answer(&run.corpus)
         || run.commit_grounded != crate::bench::shipped_commit_grounded(&run.corpus)
-        // M79's typed pass ships off.
-        || run.commit_typed
+        // M79's typed pass ships only as the NLI premise pass (M82 with M83's
+        // speaker contrast and M83b's assert rule), and only for
+        // LongMemEval_S. M80's finding and M81's code check ship off.
+        || run.commit_typed != crate::bench::shipped_commit_nli(&run.corpus)
+        || run.commit_typed_nli != crate::bench::shipped_commit_nli(&run.corpus)
+        || run.commit_speaker_contrast != crate::bench::shipped_commit_nli(&run.corpus)
+        || run.commit_assert_statement != crate::bench::shipped_commit_nli(&run.corpus)
+        || run.commit_premise_finding
+        || run.commit_typed_cited
         // M84's second look at declined non-recall requests ships for LoCoMo
         // only.
         || run.commit_non_recall != crate::bench::shipped_commit_non_recall(&run.corpus)
@@ -3210,6 +3217,31 @@ mod tests {
         assert!(!judged.arm, "{judged:?}");
     }
 
+    /// The NLI premise pass ships for LongMemEval_S only, and only as the
+    /// whole: typed NLI, the speaker contrast and the assert rule together.
+    #[test]
+    fn the_nli_premise_pass_ships_for_longmemeval_s_only() {
+        assert!(crate::bench::shipped_commit_nli("longmemeval_s"));
+        assert!(!crate::bench::shipped_commit_nli("locomo"));
+        for partial in ["commit_typed_nli", "commit_speaker_contrast", "commit_assert_statement"] {
+            let tmp = tempfile::tempdir().unwrap();
+            let runs = tmp.path().join("runs");
+            let whole = runs.join("whole");
+            shipped_lme_s_run(&whole, 0.5);
+            let part = runs.join("partial");
+            shipped_lme_s_run(&part, 0.9);
+            let path = part.join("aggregated_metrics.json");
+            let mut agg: serde_json::Value =
+                serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+            agg[partial] = serde_json::json!(false);
+            std::fs::write(&path, agg.to_string()).unwrap();
+            let ours = collect(&runs, "/nonexistent/python").unwrap();
+            let f1 = &ours["longmemeval_s.token_f1.n500"];
+            assert!(f1.run.ends_with("whole"), "{partial} off is an arm however it scores: {f1:?}");
+            assert!(!f1.arm, "{f1:?}");
+        }
+    }
+
     /// M84: the second look at declined non-recall requests ships for LoCoMo
     /// only. A LoCoMo run without it is an arm and never displaces the
     /// shipped run, however it scores.
@@ -4331,6 +4363,8 @@ mod tests {
             "aggregation_k": crate::bench::shipped_aggregation(corpus).map(|(k, _)| k),
             "aggregation_budget_tokens": crate::bench::shipped_aggregation(corpus).map(|(_, b)| b),
             "advice_profile_clause": true, "commit_answer": true, "commit_grounded": true,
+            "commit_typed": true, "commit_typed_nli": true,
+            "commit_speaker_contrast": true, "commit_assert_statement": true,
             "questions": 1, "f1_answerable": score, "em_answerable": score,
             "abstention_accuracy": 0.0, "by_category": [],
             "query_p50_seconds": 0.2, "query_avg_seconds": 0.2
@@ -4439,6 +4473,10 @@ mod tests {
                 "commit_answer": crate::bench::shipped_commit_answer(corpus),
                 "commit_grounded": crate::bench::shipped_commit_grounded(corpus),
                 "commit_non_recall": crate::bench::shipped_commit_non_recall(corpus),
+                "commit_typed": crate::bench::shipped_commit_nli(corpus),
+                "commit_typed_nli": crate::bench::shipped_commit_nli(corpus),
+                "commit_speaker_contrast": crate::bench::shipped_commit_nli(corpus),
+                "commit_assert_statement": crate::bench::shipped_commit_nli(corpus),
                 "questions": 1, "f1_answerable": 0.5, "em_answerable": 0.1,
                 "abstention_accuracy": 0.0, "by_category": [],
                 "query_p50_seconds": 0.2, "query_avg_seconds": 0.2

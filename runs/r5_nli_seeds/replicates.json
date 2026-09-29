@@ -1,0 +1,8 @@
+{
+  "note": "The shipped LongMemEval_S point since 2026-09-29 (user decision): the round-5 bundle plus the NLI premise pass (M82 typed NLI + M83 speaker contrast + M83b assert rule, docs/measurements/m83b-assert-statement.md) over each of its three reader seeds, quoted as their mean.",
+  "replicates": [
+    "runs/r5_nli_s1",
+    "runs/r5_nli_s2",
+    "runs/r5_nli_s3"
+  ]
+}

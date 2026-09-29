@@ -120,3 +120,48 @@ to the user.
   `m84_locomo_base`.
 - **A new service in the shipped path:** the NLI cross-encoder (DeBERTa-v3
   large, ~1.7 GB of VRAM) beside the reader.
+
+## Shipped for LongMemEval_S *(user decision 2026-09-29: "ship on LongMemEval_S")*
+
+**The ship run** (main 3f9acd7, 14:07–14:38): the full pass with the exact
+shipped flags over the round-5 bundle's three replicates →
+`runs/r5_nli_s{1,2,3}`, quoted as the replicate set `runs/r5_nli_seeds`.
+
+| | seed 1 | seed 2 | seed 3 | **seed mean** | round-5 bundle |
+|---|---|---|---|---|---|
+| commits (answerable) | 2 | 2 | 2 | | |
+| false fits | 0 | 0 | 0 | | |
+| official | | | | **81.53** | 81.13 |
+| strict | | | | **81.20** | 80.80 |
+| abstention (official / strict, of 30) | | | | 28.00 / 29.33 | 28.00 / 29.33 |
+
+- **Paired against the bundle:** +0.4 [+0.0, +1.0] under both graders (2/0
+  per seed), and abstention +0.0.
+- **It reproduces M82's recorded stack row for row.** The same two questions
+  are committed on every seed.
+- **Official reads 81.53 here, where M82's stack read 81.40.** The ship run's
+  untouched rows keep the bundle's own official verdicts. M82's readout had
+  seeded them from another run, and two untouched rows on seed 2 were graded
+  differently.
+- **Standing:**
+  - `longmemeval_s.judge_score_matched.n500` reads **81.53**, +0.73 over
+    MemPro-15 (Qwen3-30B), `comparable`, gate closed;
+  - strict reads 81.20, +0.40, `caveat-judge`;
+  - `ratchet --strict` holds.
+
+**The shipped LongMemEval_S recipe, end to end:**
+1. `myelin-eval bench --corpus longmemeval-s --mode investigate --k 6
+   --budget-tokens 4096 --max-steps 2 --select-sufficient --item-digest
+   --digest-dates --reader-thinking --reader-premise-clause --events-ledger
+   data/longmemeval_s_events.ledger --aggregation-k 18
+   --aggregation-budget-tokens 8192 --advice-profile-clause`. These are the
+   round-5 flags (`r5-bundle-seeds.md`).
+2. `myelin-eval commit-arm --run <bench> --grounded --out <grounded>` (M71b).
+3. `bash ops/big/serve-nli.sh`, then `myelin-eval commit-arm --run
+   <grounded> --typed-nli --speaker-contrast --assert-statement --nli-url
+   http://127.0.0.1:5820 --out <shipped>`.
+
+**On the record:**
+- It shipped on the user's decision, not on M82's pre-registered rule. That
+  rule's stratum criterion (+6.1 [+0.0, +14.3]) touched 0.
+- The gain is two questions per seed.

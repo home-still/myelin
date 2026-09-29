@@ -140,9 +140,9 @@ standing`; the full table with comparability verdicts is
 |---|---|---|---|---|
 | `minja.asr.k6_prepopulated_defended` | **7.50%** | ≤10% | **CLOSED** | M15 |
 | `locomo.judge_score_matched.n1540` | **78.64** | 77.85 MemPro-15 (Qwen), same judge | **+0.79** § | M84 |
-| `longmemeval_s.judge_score_matched.n500` | **81.13** ◊ | 80.80 MemPro-15 (Qwen), LongMemEval's own judge | **+0.33, CLOSED** | round 5 |
+| `longmemeval_s.judge_score_matched.n500` | **81.53** ◊ | 80.80 MemPro-15 (Qwen), LongMemEval's own judge | **+0.73, CLOSED** | round 5 + NLI premise |
 | `locomo.judge_score.n1540` (strict 9B judge) | 70.84 | 77.85 MemPro-15 (Qwen) | −7.01 ‡ | M84 |
-| `longmemeval_s.judge_score.n500` (strict 9B judge) | 80.80 ◊ | 80.80 MemPro-15 (Qwen) | +0.00 ‡ | round 5 |
+| `longmemeval_s.judge_score.n500` (strict 9B judge) | 81.20 ◊ | 80.80 MemPro-15 (Qwen) | +0.40 ‡ | round 5 + NLI premise |
 | `lme_v2_small.overall_full_set.combined` | **78.05** | 74.90 AgentRunbook-C (frontier controller) | **+3.15** ¶ | M54 |
 
 Every literature row is judged by a frontier API where we are judged by a
@@ -207,6 +207,23 @@ advice requests, after two structured-answer designs failed
 ([M78](docs/measurements/m78-advice-answer-structure.md), [M78b](docs/measurements/m78b-advice-picks.md)).
 `standing` quotes a seed mean ahead of any single lucky seed; the best
 single seed read 81.6.
+
+**Then an NLI model checks the premise (2026-09-29, the user's call).**
+After the grounded pass, a declined question gets a typed second look:
+- the reader writes the question and its answer as one statement;
+- an NLI cross-encoder (DeBERTa-v3-large) must entail it from the memories
+  the answer cites
+  ([M82](docs/measurements/m82-nli-premise.md));
+- on dialogue, the same claim about the other speaker must *not* be
+  entailed ([M83](docs/measurements/m83-speaker-contrast.md));
+- the statement must assert the question, not dispute it
+  ([M83b](docs/measurements/m83b-assert-statement.md)).
+
+It never answered an unanswerable trap. On LoCoMo's held-out runs it
+flipped 0 adversarial questions, where the NLI model alone flipped up to 17.
+The seed means rise to **81.53 official / 81.20 strict**. The gain is two
+questions per seed, and M82's own stratum CI touched 0, so it shipped on the
+user's decision rather than on the pre-registered rule.
 
 ¶ **LME-V2 ([M54](docs/measurements/m54-local-file-controller.md), 2026-09-27).** The benchmark
 authors' own file-reading agent, AgentRunbook-C, now answers LME-V2 for myelin. It runs locally,

@@ -1,6 +1,6 @@
 {
-  "commit": "db4f5043f88cbd8decbf0a528902c4780bfd25fb-dirty",
-  "generated_at": "2026-09-29T18:55:54.316178Z",
+  "commit": "3f9acd7f3f33aa9d8b03f4bfb2bce1e6b7110825-dirty",
+  "generated_at": "2026-09-29T19:40:43.623350Z",
   "rows": [
     {
       "registry_id": "locomo.judge.mempro15.gpt4omini",
@@ -453,9 +453,9 @@
       "metric": "longmemeval_s.judge_score.n500",
       "system": "MemPro-15",
       "theirs": 79.0,
-      "ours": 80.80000000000001,
+      "ours": 81.2,
       "ours_n": 500,
-      "gap": 1.8000000000000114,
+      "gap": 2.200000000000003,
       "verdict": {
         "verdict": "caveat_judge",
         "ours": "open_weights_local",
@@ -464,26 +464,18 @@
       "claim_allowed": false,
       "gate": false,
       "arm": false,
-      "run": "runs/r5_bundle_seeds",
+      "run": "runs/r5_nli_seeds",
       "source_doi": "10.48550/arXiv.2606.00619",
       "caveat": "The LongMemEval Avg. is a micro-average over the six official question types: (77.44*133 + 73.68*133 + 83.33*78 + 98.57*70 + 60.71*56 + 86.67*30)/500 = 79.00 exactly, so n = 500 and the 30 `_abs` abstention items are inside those type counts rather than excluded. Judge prompt follows GAM (L122).",
-      "detail": "seed mean of 3 (80.40 / 81.20 / 80.80); judge qwen3.5-9b : 402 of 500 correct (36 declines scored 0)",
+      "detail": "seed mean of 3 (80.80 / 81.60 / 81.20); judge qwen3.5-9b : 404 of 500 correct (34 declines scored 0)",
       "candidates": [
         {
-          "run": "runs/r5_bundle_seeds",
-          "value": 80.80000000000001
-        },
-        {
-          "run": "runs/r5_bundle_s2_grounded_c",
+          "run": "runs/r5_nli_seeds",
           "value": 81.2
         },
         {
-          "run": "runs/r5_bundle_s3_grounded_c",
-          "value": 80.60000000000001
-        },
-        {
-          "run": "runs/r5_bundle_s1_grounded_c",
-          "value": 80.4
+          "run": "runs/r5_bundle_seeds",
+          "value": 80.80000000000001
         },
         {
           "run": "runs/r5_bundle_s2_m80",
@@ -526,6 +518,10 @@
           "value": 81.39999999999999
         },
         {
+          "run": "runs/r5_bundle_s2_grounded_c",
+          "value": 81.2
+        },
+        {
           "run": "runs/r5_bundle_s3_m82",
           "value": 81.2
         },
@@ -558,7 +554,15 @@
           "value": 80.60000000000001
         },
         {
+          "run": "runs/r5_bundle_s3_grounded_c",
+          "value": 80.60000000000001
+        },
+        {
           "run": "runs/m71_lme_grounded",
+          "value": 80.4
+        },
+        {
+          "run": "runs/r5_bundle_s1_grounded_c",
           "value": 80.4
         },
         {
@@ -904,9 +908,9 @@
       "metric": "longmemeval_s.judge_score_matched.n500",
       "system": "MemPro-15",
       "theirs": 79.0,
-      "ours": 81.13333333333334,
+      "ours": 81.53333333333335,
       "ours_n": 500,
-      "gap": 2.13333333333334,
+      "gap": 2.5333333333333456,
       "verdict": {
         "verdict": "caveat_backbone",
         "ours": "open_weights",
@@ -915,26 +919,18 @@
       "claim_allowed": false,
       "gate": false,
       "arm": false,
-      "run": "runs/r5_bundle_seeds",
+      "run": "runs/r5_nli_seeds",
       "source_doi": "10.48550/arXiv.2606.00619",
       "caveat": "MemPro-15 on gpt-4o-mini, compared under LongMemEval's own grader (M70).",
-      "detail": "seed mean of 3 (80.20 / 81.60 / 81.60); the lowest of every reading: longmemeval_s.judge_score_official.n500 80.20",
+      "detail": "seed mean of 3 (80.60 / 82.00 / 82.00); the lowest of every reading: longmemeval_s.judge_score_official.n500 80.60",
       "candidates": [
+        {
+          "run": "runs/r5_nli_seeds",
+          "value": 81.53333333333335
+        },
         {
           "run": "runs/r5_bundle_seeds",
           "value": 81.13333333333334
-        },
-        {
-          "run": "runs/r5_bundle_s2_grounded_c",
-          "value": 81.8
-        },
-        {
-          "run": "runs/r5_bundle_s3_grounded_c",
-          "value": 81.39999999999999
-        },
-        {
-          "run": "runs/r5_bundle_s1_grounded_c",
-          "value": 80.0
         },
         {
           "run": "runs/r5_bundle_s3_m84",
@@ -943,6 +939,10 @@
         {
           "run": "runs/r5_bundle_s3_m82",
           "value": 82.0
+        },
+        {
+          "run": "runs/r5_bundle_s2_grounded_c",
+          "value": 81.8
         },
         {
           "run": "runs/r5_bundle_s2_m84",
@@ -954,6 +954,10 @@
         },
         {
           "run": "runs/r5_bundle_s2_m81",
+          "value": 81.39999999999999
+        },
+        {
+          "run": "runs/r5_bundle_s3_grounded_c",
           "value": 81.39999999999999
         },
         {
@@ -1007,6 +1011,10 @@
         {
           "run": "runs/r5b_bundle_s3_typed",
           "value": 80.2
+        },
+        {
+          "run": "runs/r5_bundle_s1_grounded_c",
+          "value": 80.0
         },
         {
           "run": "runs/r5_bundle_s1_m80",
@@ -1207,9 +1215,9 @@
       "metric": "longmemeval_s.judge_score.n500",
       "system": "MemPro-15 (Qwen3-30B)",
       "theirs": 80.8,
-      "ours": 80.80000000000001,
+      "ours": 81.2,
       "ours_n": 500,
-      "gap": 1.4210854715202004e-14,
+      "gap": 0.4000000000000057,
       "verdict": {
         "verdict": "caveat_judge",
         "ours": "open_weights_local",
@@ -1218,26 +1226,18 @@
       "claim_allowed": false,
       "gate": false,
       "arm": false,
-      "run": "runs/r5_bundle_seeds",
+      "run": "runs/r5_nli_seeds",
       "source_doi": "10.48550/arXiv.2606.00619",
       "caveat": "G2's LongMemEval_S bar (PLAN.md 11.5). Micro-average check: (71.43*133 + 75.94*133 + 82.05*78 + 92.86*70 + 98.21*56 + 80.00*30)/500 = 80.80. Note the open-weights backbone scores HIGHER here than gpt-4o-mini's 79.00 and lower on LoCoMo - cross-model comparison on these two benchmarks is not monotonic. The gate is decided on longmemeval_s.judge_score_matched.n500 (M70): LongMemEval's own grader, the one runnable reading of MemPro's judge.",
-      "detail": "seed mean of 3 (80.40 / 81.20 / 80.80); judge qwen3.5-9b : 402 of 500 correct (36 declines scored 0)",
+      "detail": "seed mean of 3 (80.80 / 81.60 / 81.20); judge qwen3.5-9b : 404 of 500 correct (34 declines scored 0)",
       "candidates": [
         {
-          "run": "runs/r5_bundle_seeds",
-          "value": 80.80000000000001
-        },
-        {
-          "run": "runs/r5_bundle_s2_grounded_c",
+          "run": "runs/r5_nli_seeds",
           "value": 81.2
         },
         {
-          "run": "runs/r5_bundle_s3_grounded_c",
-          "value": 80.60000000000001
-        },
-        {
-          "run": "runs/r5_bundle_s1_grounded_c",
-          "value": 80.4
+          "run": "runs/r5_bundle_seeds",
+          "value": 80.80000000000001
         },
         {
           "run": "runs/r5_bundle_s2_m80",
@@ -1280,6 +1280,10 @@
           "value": 81.39999999999999
         },
         {
+          "run": "runs/r5_bundle_s2_grounded_c",
+          "value": 81.2
+        },
+        {
           "run": "runs/r5_bundle_s3_m82",
           "value": 81.2
         },
@@ -1312,7 +1316,15 @@
           "value": 80.60000000000001
         },
         {
+          "run": "runs/r5_bundle_s3_grounded_c",
+          "value": 80.60000000000001
+        },
+        {
           "run": "runs/m71_lme_grounded",
+          "value": 80.4
+        },
+        {
+          "run": "runs/r5_bundle_s1_grounded_c",
           "value": 80.4
         },
         {
@@ -1658,35 +1670,27 @@
       "metric": "longmemeval_s.judge_score_matched.n500",
       "system": "MemPro-15 (Qwen3-30B)",
       "theirs": 80.8,
-      "ours": 81.13333333333334,
+      "ours": 81.53333333333335,
       "ours_n": 500,
-      "gap": 0.3333333333333428,
+      "gap": 0.7333333333333485,
       "verdict": {
         "verdict": "comparable"
       },
       "claim_allowed": true,
       "gate": true,
       "arm": false,
-      "run": "runs/r5_bundle_seeds",
+      "run": "runs/r5_nli_seeds",
       "source_doi": "10.48550/arXiv.2606.00619",
       "caveat": "G2's LongMemEval_S bar, graded the way LongMemEval grades (M70): the five official get_anscheck_prompt templates at xiaowu0162/LongMemEval@9e0b455 on gpt-4o-mini-2024-07-18, all 500 rows. MemPro says its judge 'follows GAM', which never published one; its Fig. 11 is a paraphrase without an abstention path and its repo grades summaries, so the benchmark's own grader is the one runnable reading.",
-      "detail": "seed mean of 3 (80.20 / 81.60 / 81.60); the lowest of every reading: longmemeval_s.judge_score_official.n500 80.20",
+      "detail": "seed mean of 3 (80.60 / 82.00 / 82.00); the lowest of every reading: longmemeval_s.judge_score_official.n500 80.60",
       "candidates": [
+        {
+          "run": "runs/r5_nli_seeds",
+          "value": 81.53333333333335
+        },
         {
           "run": "runs/r5_bundle_seeds",
           "value": 81.13333333333334
-        },
-        {
-          "run": "runs/r5_bundle_s2_grounded_c",
-          "value": 81.8
-        },
-        {
-          "run": "runs/r5_bundle_s3_grounded_c",
-          "value": 81.39999999999999
-        },
-        {
-          "run": "runs/r5_bundle_s1_grounded_c",
-          "value": 80.0
         },
         {
           "run": "runs/r5_bundle_s3_m84",
@@ -1695,6 +1699,10 @@
         {
           "run": "runs/r5_bundle_s3_m82",
           "value": 82.0
+        },
+        {
+          "run": "runs/r5_bundle_s2_grounded_c",
+          "value": 81.8
         },
         {
           "run": "runs/r5_bundle_s2_m84",
@@ -1706,6 +1714,10 @@
         },
         {
           "run": "runs/r5_bundle_s2_m81",
+          "value": 81.39999999999999
+        },
+        {
+          "run": "runs/r5_bundle_s3_grounded_c",
           "value": 81.39999999999999
         },
         {
@@ -1759,6 +1771,10 @@
         {
           "run": "runs/r5b_bundle_s3_typed",
           "value": 80.2
+        },
+        {
+          "run": "runs/r5_bundle_s1_grounded_c",
+          "value": 80.0
         },
         {
           "run": "runs/r5_bundle_s1_m80",
@@ -2106,9 +2122,9 @@
       "metric": "longmemeval_s.judge_score.n500",
       "system": "EverMemOS",
       "theirs": 83.0,
-      "ours": 80.80000000000001,
+      "ours": 81.2,
       "ours_n": 500,
-      "gap": -2.1999999999999886,
+      "gap": -1.7999999999999972,
       "verdict": {
         "verdict": "caveat_judge",
         "ours": "open_weights_local",
@@ -2117,26 +2133,18 @@
       "claim_allowed": false,
       "gate": false,
       "arm": false,
-      "run": "runs/r5_bundle_seeds",
+      "run": "runs/r5_nli_seeds",
       "source_doi": "10.48550/arXiv.2601.02163",
       "caveat": "Supersedes MemPro's 79.00 as the best frontier-backbone LongMemEval_S number, and was not in PLAN.md 11.5's table. Population stated: \"LongMemEval (S-setting, ~115k tokens per conversation) evaluates 500 questions\" (L110), #Questions 500 (L613). Table 2's baselines are re-reported from the MemOS leaderboard rather than run by the authors (L586).",
-      "detail": "seed mean of 3 (80.40 / 81.20 / 80.80); judge qwen3.5-9b : 402 of 500 correct (36 declines scored 0)",
+      "detail": "seed mean of 3 (80.80 / 81.60 / 81.20); judge qwen3.5-9b : 404 of 500 correct (34 declines scored 0)",
       "candidates": [
         {
-          "run": "runs/r5_bundle_seeds",
-          "value": 80.80000000000001
-        },
-        {
-          "run": "runs/r5_bundle_s2_grounded_c",
+          "run": "runs/r5_nli_seeds",
           "value": 81.2
         },
         {
-          "run": "runs/r5_bundle_s3_grounded_c",
-          "value": 80.60000000000001
-        },
-        {
-          "run": "runs/r5_bundle_s1_grounded_c",
-          "value": 80.4
+          "run": "runs/r5_bundle_seeds",
+          "value": 80.80000000000001
         },
         {
           "run": "runs/r5_bundle_s2_m80",
@@ -2179,6 +2187,10 @@
           "value": 81.39999999999999
         },
         {
+          "run": "runs/r5_bundle_s2_grounded_c",
+          "value": 81.2
+        },
+        {
           "run": "runs/r5_bundle_s3_m82",
           "value": 81.2
         },
@@ -2211,7 +2223,15 @@
           "value": 80.60000000000001
         },
         {
+          "run": "runs/r5_bundle_s3_grounded_c",
+          "value": 80.60000000000001
+        },
+        {
           "run": "runs/m71_lme_grounded",
+          "value": 80.4
+        },
+        {
+          "run": "runs/r5_bundle_s1_grounded_c",
           "value": 80.4
         },
         {
@@ -2850,7 +2870,7 @@
       "metric": "longmemeval_s.judge_score.n500",
       "system": "Mem0 (vendor)",
       "theirs": 94.4,
-      "ours": 80.80000000000001,
+      "ours": 81.2,
       "ours_n": 500,
       "gap": null,
       "verdict": {
@@ -2860,26 +2880,18 @@
       "claim_allowed": false,
       "gate": false,
       "arm": false,
-      "run": "runs/r5_bundle_seeds",
+      "run": "runs/r5_nli_seeds",
       "source_doi": "",
       "caveat": "mem0.ai blog, 2026. Same objection as the LoCoMo vendor row; note it exceeds every peer-reviewed LongMemEval_S number in this registry by more than 11 points.",
-      "detail": "seed mean of 3 (80.40 / 81.20 / 80.80); judge qwen3.5-9b : 402 of 500 correct (36 declines scored 0)",
+      "detail": "seed mean of 3 (80.80 / 81.60 / 81.20); judge qwen3.5-9b : 404 of 500 correct (34 declines scored 0)",
       "candidates": [
         {
-          "run": "runs/r5_bundle_seeds",
-          "value": 80.80000000000001
-        },
-        {
-          "run": "runs/r5_bundle_s2_grounded_c",
+          "run": "runs/r5_nli_seeds",
           "value": 81.2
         },
         {
-          "run": "runs/r5_bundle_s3_grounded_c",
-          "value": 80.60000000000001
-        },
-        {
-          "run": "runs/r5_bundle_s1_grounded_c",
-          "value": 80.4
+          "run": "runs/r5_bundle_seeds",
+          "value": 80.80000000000001
         },
         {
           "run": "runs/r5_bundle_s2_m80",
@@ -2922,6 +2934,10 @@
           "value": 81.39999999999999
         },
         {
+          "run": "runs/r5_bundle_s2_grounded_c",
+          "value": 81.2
+        },
+        {
           "run": "runs/r5_bundle_s3_m82",
           "value": 81.2
         },
@@ -2954,7 +2970,15 @@
           "value": 80.60000000000001
         },
         {
+          "run": "runs/r5_bundle_s3_grounded_c",
+          "value": 80.60000000000001
+        },
+        {
           "run": "runs/m71_lme_grounded",
+          "value": 80.4
+        },
+        {
+          "run": "runs/r5_bundle_s1_grounded_c",
           "value": 80.4
         },
         {
@@ -3520,7 +3544,7 @@
         },
         {
           "run": "runs/m55b_locomo_bonsai.part0",
-          "value": 92.88888888888887
+          "value": 92.88888888888889
         },
         {
           "run": "runs/m63_locomo_inline.part0",
@@ -3584,7 +3608,7 @@
         },
         {
           "run": "runs/m51_locomo_s1.part10",
-          "value": 91.30434782608697
+          "value": 91.30434782608695
         },
         {
           "run": "runs/m51_locomo_s1.part11",
@@ -3657,9 +3681,9 @@
       "metric": "longmemeval_s.judge_score.n500",
       "system": "Zep",
       "theirs": 71.2,
-      "ours": 80.80000000000001,
+      "ours": 81.2,
       "ours_n": 500,
-      "gap": 9.600000000000009,
+      "gap": 10.0,
       "verdict": {
         "verdict": "caveat_judge",
         "ours": "open_weights_local",
@@ -3668,26 +3692,18 @@
       "claim_allowed": false,
       "gate": false,
       "arm": false,
-      "run": "runs/r5_bundle_seeds",
+      "run": "runs/r5_nli_seeds",
       "source_doi": "10.48550/arxiv.2501.13956",
       "caveat": "Judge is GPT-4o with LongMemEval's own question-specific prompts, which is the protocol our judge rubric was written against. The paper never states a question count; 500 is LongMemEval_S's released size (docs/EVALUATION.md 6.2, probed).",
-      "detail": "seed mean of 3 (80.40 / 81.20 / 80.80); judge qwen3.5-9b : 402 of 500 correct (36 declines scored 0)",
+      "detail": "seed mean of 3 (80.80 / 81.60 / 81.20); judge qwen3.5-9b : 404 of 500 correct (34 declines scored 0)",
       "candidates": [
         {
-          "run": "runs/r5_bundle_seeds",
-          "value": 80.80000000000001
-        },
-        {
-          "run": "runs/r5_bundle_s2_grounded_c",
+          "run": "runs/r5_nli_seeds",
           "value": 81.2
         },
         {
-          "run": "runs/r5_bundle_s3_grounded_c",
-          "value": 80.60000000000001
-        },
-        {
-          "run": "runs/r5_bundle_s1_grounded_c",
-          "value": 80.4
+          "run": "runs/r5_bundle_seeds",
+          "value": 80.80000000000001
         },
         {
           "run": "runs/r5_bundle_s2_m80",
@@ -3730,6 +3746,10 @@
           "value": 81.39999999999999
         },
         {
+          "run": "runs/r5_bundle_s2_grounded_c",
+          "value": 81.2
+        },
+        {
           "run": "runs/r5_bundle_s3_m82",
           "value": 81.2
         },
@@ -3762,7 +3782,15 @@
           "value": 80.60000000000001
         },
         {
+          "run": "runs/r5_bundle_s3_grounded_c",
+          "value": 80.60000000000001
+        },
+        {
           "run": "runs/m71_lme_grounded",
+          "value": 80.4
+        },
+        {
+          "run": "runs/r5_bundle_s1_grounded_c",
           "value": 80.4
         },
         {
@@ -4412,9 +4440,9 @@
       "metric": "longmemeval_s.judge_score.n500",
       "system": "NEMORI",
       "theirs": 74.6,
-      "ours": 80.80000000000001,
+      "ours": 81.2,
       "ours_n": 500,
-      "gap": 6.200000000000017,
+      "gap": 6.6000000000000085,
       "verdict": {
         "verdict": "caveat_judge",
         "ours": "open_weights_local",
@@ -4423,26 +4451,18 @@
       "claim_allowed": false,
       "gate": false,
       "arm": false,
-      "run": "runs/r5_bundle_seeds",
+      "run": "runs/r5_nli_seeds",
       "source_doi": "10.48550/arxiv.2508.03341",
       "caveat": "PLAN.md 11.5 recorded this as \"NEMORI @ gpt-4o\"; Table 8's two blocks are gpt-4o-mini (Average 64.2) and gpt-4.1-mini (Average 74.6) per L923, so 74.6 is the gpt-4.1-mini row. The Average is a micro-average over the six official type counts - (86.7*30 + 92.9*56 + 72.2*133 + 55.6*133 + 79.5*78 + 90.0*70)/500 = 74.60 - which independently confirms n = 500. The LongMemEval judge MODEL is never named: L480 says only that the LLM-judge prompts are adapted from Zep's task-specific set, so frontier_api is inferred from the paper's LoCoMo judge (gpt-4o-mini).",
-      "detail": "seed mean of 3 (80.40 / 81.20 / 80.80); judge qwen3.5-9b : 402 of 500 correct (36 declines scored 0)",
+      "detail": "seed mean of 3 (80.80 / 81.60 / 81.20); judge qwen3.5-9b : 404 of 500 correct (34 declines scored 0)",
       "candidates": [
         {
-          "run": "runs/r5_bundle_seeds",
-          "value": 80.80000000000001
-        },
-        {
-          "run": "runs/r5_bundle_s2_grounded_c",
+          "run": "runs/r5_nli_seeds",
           "value": 81.2
         },
         {
-          "run": "runs/r5_bundle_s3_grounded_c",
-          "value": 80.60000000000001
-        },
-        {
-          "run": "runs/r5_bundle_s1_grounded_c",
-          "value": 80.4
+          "run": "runs/r5_bundle_seeds",
+          "value": 80.80000000000001
         },
         {
           "run": "runs/r5_bundle_s2_m80",
@@ -4485,6 +4505,10 @@
           "value": 81.39999999999999
         },
         {
+          "run": "runs/r5_bundle_s2_grounded_c",
+          "value": 81.2
+        },
+        {
           "run": "runs/r5_bundle_s3_m82",
           "value": 81.2
         },
@@ -4517,7 +4541,15 @@
           "value": 80.60000000000001
         },
         {
+          "run": "runs/r5_bundle_s3_grounded_c",
+          "value": 80.60000000000001
+        },
+        {
           "run": "runs/m71_lme_grounded",
+          "value": 80.4
+        },
+        {
+          "run": "runs/r5_bundle_s1_grounded_c",
           "value": 80.4
         },
         {
@@ -5132,9 +5164,9 @@
       "metric": "longmemeval_s.judge_score.n500",
       "system": "Memanto",
       "theirs": 89.8,
-      "ours": 80.80000000000001,
+      "ours": 81.2,
       "ours_n": 500,
-      "gap": -8.999999999999986,
+      "gap": -8.599999999999994,
       "verdict": {
         "verdict": "caveat_judge",
         "ours": "open_weights_local",
@@ -5143,26 +5175,18 @@
       "claim_allowed": false,
       "gate": false,
       "arm": false,
-      "run": "runs/r5_bundle_seeds",
+      "run": "runs/r5_nli_seeds",
       "source_doi": "10.48550/arXiv.2604.22085",
       "caveat": "n = 500 is stated, not assumed: \"the full 500-question suite under the standard S setting\". The judge is stated too - Claude Sonnet 4 - so this row's judge_class is read off the paper rather than inferred. The answer model is never named; the paper lists \"inference model selection\" as one of five ablation stages without saying which model the headline used.",
-      "detail": "seed mean of 3 (80.40 / 81.20 / 80.80); judge qwen3.5-9b : 402 of 500 correct (36 declines scored 0)",
+      "detail": "seed mean of 3 (80.80 / 81.60 / 81.20); judge qwen3.5-9b : 404 of 500 correct (34 declines scored 0)",
       "candidates": [
         {
-          "run": "runs/r5_bundle_seeds",
-          "value": 80.80000000000001
-        },
-        {
-          "run": "runs/r5_bundle_s2_grounded_c",
+          "run": "runs/r5_nli_seeds",
           "value": 81.2
         },
         {
-          "run": "runs/r5_bundle_s3_grounded_c",
-          "value": 80.60000000000001
-        },
-        {
-          "run": "runs/r5_bundle_s1_grounded_c",
-          "value": 80.4
+          "run": "runs/r5_bundle_seeds",
+          "value": 80.80000000000001
         },
         {
           "run": "runs/r5_bundle_s2_m80",
@@ -5205,6 +5229,10 @@
           "value": 81.39999999999999
         },
         {
+          "run": "runs/r5_bundle_s2_grounded_c",
+          "value": 81.2
+        },
+        {
           "run": "runs/r5_bundle_s3_m82",
           "value": 81.2
         },
@@ -5237,7 +5265,15 @@
           "value": 80.60000000000001
         },
         {
+          "run": "runs/r5_bundle_s3_grounded_c",
+          "value": 80.60000000000001
+        },
+        {
           "run": "runs/m71_lme_grounded",
+          "value": 80.4
+        },
+        {
+          "run": "runs/r5_bundle_s1_grounded_c",
           "value": 80.4
         },
         {
@@ -5877,9 +5913,9 @@
       "metric": "longmemeval_s.judge_score.n500",
       "system": "APEX-MEM",
       "theirs": 86.2,
-      "ours": 80.80000000000001,
+      "ours": 81.2,
       "ours_n": 500,
-      "gap": -5.3999999999999915,
+      "gap": -5.0,
       "verdict": {
         "verdict": "caveat_judge",
         "ours": "open_weights_local",
@@ -5888,26 +5924,18 @@
       "claim_allowed": false,
       "gate": false,
       "arm": false,
-      "run": "runs/r5_bundle_seeds",
+      "run": "runs/r5_nli_seeds",
       "source_doi": "10.48550/arXiv.2604.14362",
       "caveat": "Companion figure to locomo.judge.apex_mem, from the same sentence. The PDF is converted (20 pages) but the conversion's retrievable text covers the front matter only - abstract, introduction, related work and the architecture section - so the quote is the abstract's results sentence rather than a table row, and neither the per-category cells, the question counts, the answer model nor the judge could be read. n is this registry's assumption from the benchmarks' own populations. Re-read the results section before this row is used for anything but context.",
-      "detail": "seed mean of 3 (80.40 / 81.20 / 80.80); judge qwen3.5-9b : 402 of 500 correct (36 declines scored 0)",
+      "detail": "seed mean of 3 (80.80 / 81.60 / 81.20); judge qwen3.5-9b : 404 of 500 correct (34 declines scored 0)",
       "candidates": [
         {
-          "run": "runs/r5_bundle_seeds",
-          "value": 80.80000000000001
-        },
-        {
-          "run": "runs/r5_bundle_s2_grounded_c",
+          "run": "runs/r5_nli_seeds",
           "value": 81.2
         },
         {
-          "run": "runs/r5_bundle_s3_grounded_c",
-          "value": 80.60000000000001
-        },
-        {
-          "run": "runs/r5_bundle_s1_grounded_c",
-          "value": 80.4
+          "run": "runs/r5_bundle_seeds",
+          "value": 80.80000000000001
         },
         {
           "run": "runs/r5_bundle_s2_m80",
@@ -5950,6 +5978,10 @@
           "value": 81.39999999999999
         },
         {
+          "run": "runs/r5_bundle_s2_grounded_c",
+          "value": 81.2
+        },
+        {
           "run": "runs/r5_bundle_s3_m82",
           "value": 81.2
         },
@@ -5982,7 +6014,15 @@
           "value": 80.60000000000001
         },
         {
+          "run": "runs/r5_bundle_s3_grounded_c",
+          "value": 80.60000000000001
+        },
+        {
           "run": "runs/m71_lme_grounded",
+          "value": 80.4
+        },
+        {
+          "run": "runs/r5_bundle_s1_grounded_c",
           "value": 80.4
         },
         {
@@ -6328,9 +6368,9 @@
       "metric": "longmemeval_s.judge_score.n500",
       "system": "Chronos High",
       "theirs": 95.6,
-      "ours": 80.80000000000001,
+      "ours": 81.2,
       "ours_n": 500,
-      "gap": -14.799999999999983,
+      "gap": -14.399999999999991,
       "verdict": {
         "verdict": "caveat_judge",
         "ours": "open_weights_local",
@@ -6339,26 +6379,18 @@
       "claim_allowed": false,
       "gate": false,
       "arm": false,
-      "run": "runs/r5_bundle_seeds",
+      "run": "runs/r5_nli_seeds",
       "source_doi": "10.48550/arXiv.2603.16862",
       "caveat": "The highest LongMemEval_S number known to this project, and the population is stated: \"the LongMemEvalS benchmark comprising 500 questions across six categories\". It also reproduces arithmetically - the per-category cells the paper reports for Chronos High (98.57 ss-user, 100 ss-assistant, 100 ss-preference, 88.72 multi-session, 95.50 temporal-reasoning, 100 knowledge-update) micro-average over the official counts 70/56/30/133/133/78 to exactly 95.60, which independently confirms n = 500. Backbone is the paper's own definition of \"High\": \"High configurations refer to evaluations with advanced frontier models, such as Opus 4.6 and Gemini 3 Pro\"; Chronos Low, on \"GPT-4o, or similar\", is 92.60 on the same set. The **judge is never named** - the converted text contains no occurrence of \"judge\" or \"grader\" - so judge_class is inferred from the backbone class and must be treated as unverified. Chronos is also the published form of M19's mechanism: it \"decomposes raw dialogue into subject-verb-object event tuples with resolved datetime ranges\" at write time, and reports the events calendar alone as a 58.9% gain over its baseline.",
-      "detail": "seed mean of 3 (80.40 / 81.20 / 80.80); judge qwen3.5-9b : 402 of 500 correct (36 declines scored 0)",
+      "detail": "seed mean of 3 (80.80 / 81.60 / 81.20); judge qwen3.5-9b : 404 of 500 correct (34 declines scored 0)",
       "candidates": [
         {
-          "run": "runs/r5_bundle_seeds",
-          "value": 80.80000000000001
-        },
-        {
-          "run": "runs/r5_bundle_s2_grounded_c",
+          "run": "runs/r5_nli_seeds",
           "value": 81.2
         },
         {
-          "run": "runs/r5_bundle_s3_grounded_c",
-          "value": 80.60000000000001
-        },
-        {
-          "run": "runs/r5_bundle_s1_grounded_c",
-          "value": 80.4
+          "run": "runs/r5_bundle_seeds",
+          "value": 80.80000000000001
         },
         {
           "run": "runs/r5_bundle_s2_m80",
@@ -6401,6 +6433,10 @@
           "value": 81.39999999999999
         },
         {
+          "run": "runs/r5_bundle_s2_grounded_c",
+          "value": 81.2
+        },
+        {
           "run": "runs/r5_bundle_s3_m82",
           "value": 81.2
         },
@@ -6433,7 +6469,15 @@
           "value": 80.60000000000001
         },
         {
+          "run": "runs/r5_bundle_s3_grounded_c",
+          "value": 80.60000000000001
+        },
+        {
           "run": "runs/m71_lme_grounded",
+          "value": 80.4
+        },
+        {
+          "run": "runs/r5_bundle_s1_grounded_c",
           "value": 80.4
         },
         {
@@ -6863,7 +6907,7 @@
         },
         {
           "run": "runs/m22_sel_ent",
-          "value": 14.673792037900736
+          "value": 14.673792037900737
         },
         {
           "run": "runs/m22_base_ent",
@@ -6899,7 +6943,7 @@
         },
         {
           "run": "runs/m34_pools_web",
-          "value": 15.369498229642096
+          "value": 15.369498229642097
         },
         {
           "run": "runs/m35_typed_web",
@@ -6947,11 +6991,11 @@
         },
         {
           "run": "runs/m22_base_web",
-          "value": 14.139020609409153
+          "value": 14.139020609409151
         },
         {
           "run": "runs/m22_sel_web",
-          "value": 14.2584205737597
+          "value": 14.258420573759699
         },
         {
           "run": "runs/m22_pilot_base",
@@ -6967,7 +7011,7 @@
         },
         {
           "run": "runs/myelin_inv2_web_small",
-          "value": 11.059355974995771
+          "value": 11.059355974995773
         },
         {
           "run": "runs/myelin_k25_web_small",
@@ -7367,7 +7411,7 @@
         },
         {
           "run": "runs/m55b_locomo_bonsai.part0",
-          "value": 92.88888888888887
+          "value": 92.88888888888889
         },
         {
           "run": "runs/m63_locomo_inline.part0",
@@ -7431,7 +7475,7 @@
         },
         {
           "run": "runs/m51_locomo_s1.part10",
-          "value": 91.30434782608697
+          "value": 91.30434782608695
         },
         {
           "run": "runs/m51_locomo_s1.part11",
@@ -7891,11 +7935,11 @@
         },
         {
           "run": "runs/m21_mh_base",
-          "value": 42.52377963713383
+          "value": 42.523779637133835
         },
         {
           "run": "runs/m21_mh_sel",
-          "value": 41.53701417072413
+          "value": 41.53701417072412
         },
         {
           "run": "runs/m51_locomo_s1.part10",
@@ -8008,33 +8052,25 @@
     },
     {
       "metric": "longmemeval_s.judge_score.n500",
-      "value": 80.80000000000001,
+      "value": 81.2,
       "unit": "pct_0_100",
       "n": 500,
       "judge_class": "open_weights_local",
       "backbone_class": "open_weights",
-      "run": "runs/r5_bundle_seeds",
-      "detail": "seed mean of 3 (80.40 / 81.20 / 80.80); judge qwen3.5-9b : 402 of 500 correct (36 declines scored 0)",
+      "run": "runs/r5_nli_seeds",
+      "detail": "seed mean of 3 (80.80 / 81.60 / 81.20); judge qwen3.5-9b : 404 of 500 correct (34 declines scored 0)",
       "incomplete": null,
       "arm": false,
       "replicates": 3,
       "unrecorded": [],
       "candidates": [
         {
-          "run": "runs/r5_bundle_seeds",
-          "value": 80.80000000000001
-        },
-        {
-          "run": "runs/r5_bundle_s2_grounded_c",
+          "run": "runs/r5_nli_seeds",
           "value": 81.2
         },
         {
-          "run": "runs/r5_bundle_s3_grounded_c",
-          "value": 80.60000000000001
-        },
-        {
-          "run": "runs/r5_bundle_s1_grounded_c",
-          "value": 80.4
+          "run": "runs/r5_bundle_seeds",
+          "value": 80.80000000000001
         },
         {
           "run": "runs/r5_bundle_s2_m80",
@@ -8077,6 +8113,10 @@
           "value": 81.39999999999999
         },
         {
+          "run": "runs/r5_bundle_s2_grounded_c",
+          "value": 81.2
+        },
+        {
           "run": "runs/r5_bundle_s3_m82",
           "value": 81.2
         },
@@ -8109,7 +8149,15 @@
           "value": 80.60000000000001
         },
         {
+          "run": "runs/r5_bundle_s3_grounded_c",
+          "value": 80.60000000000001
+        },
+        {
           "run": "runs/m71_lme_grounded",
+          "value": 80.4
+        },
+        {
+          "run": "runs/r5_bundle_s1_grounded_c",
           "value": 80.4
         },
         {
@@ -8452,33 +8500,25 @@
     },
     {
       "metric": "longmemeval_s.judge_score_matched.n500",
-      "value": 81.13333333333334,
+      "value": 81.53333333333335,
       "unit": "pct_0_100",
       "n": 500,
       "judge_class": "frontier_api",
       "backbone_class": "open_weights",
-      "run": "runs/r5_bundle_seeds",
-      "detail": "seed mean of 3 (80.20 / 81.60 / 81.60); the lowest of every reading: longmemeval_s.judge_score_official.n500 80.20",
+      "run": "runs/r5_nli_seeds",
+      "detail": "seed mean of 3 (80.60 / 82.00 / 82.00); the lowest of every reading: longmemeval_s.judge_score_official.n500 80.60",
       "incomplete": null,
       "arm": false,
       "replicates": 3,
       "unrecorded": [],
       "candidates": [
         {
+          "run": "runs/r5_nli_seeds",
+          "value": 81.53333333333335
+        },
+        {
           "run": "runs/r5_bundle_seeds",
           "value": 81.13333333333334
-        },
-        {
-          "run": "runs/r5_bundle_s2_grounded_c",
-          "value": 81.8
-        },
-        {
-          "run": "runs/r5_bundle_s3_grounded_c",
-          "value": 81.39999999999999
-        },
-        {
-          "run": "runs/r5_bundle_s1_grounded_c",
-          "value": 80.0
         },
         {
           "run": "runs/r5_bundle_s3_m84",
@@ -8487,6 +8527,10 @@
         {
           "run": "runs/r5_bundle_s3_m82",
           "value": 82.0
+        },
+        {
+          "run": "runs/r5_bundle_s2_grounded_c",
+          "value": 81.8
         },
         {
           "run": "runs/r5_bundle_s2_m84",
@@ -8498,6 +8542,10 @@
         },
         {
           "run": "runs/r5_bundle_s2_m81",
+          "value": 81.39999999999999
+        },
+        {
+          "run": "runs/r5_bundle_s3_grounded_c",
           "value": 81.39999999999999
         },
         {
@@ -8551,6 +8599,10 @@
         {
           "run": "runs/r5b_bundle_s3_typed",
           "value": 80.2
+        },
+        {
+          "run": "runs/r5_bundle_s1_grounded_c",
+          "value": 80.0
         },
         {
           "run": "runs/r5_bundle_s1_m80",
@@ -8748,33 +8800,25 @@
     },
     {
       "metric": "longmemeval_s.judge_score_official.n500",
-      "value": 81.13333333333334,
+      "value": 81.53333333333335,
       "unit": "pct_0_100",
       "n": 500,
       "judge_class": "frontier_api",
       "backbone_class": "open_weights",
-      "run": "runs/r5_bundle_seeds",
-      "detail": "seed mean of 3 (80.20 / 81.60 / 81.60); protocol longmemeval-official (openai/gpt-4o-mini-2024-07-18): 401 of 500 correct",
+      "run": "runs/r5_nli_seeds",
+      "detail": "seed mean of 3 (80.60 / 82.00 / 82.00); protocol longmemeval-official (openai/gpt-4o-mini-2024-07-18): 403 of 500 correct",
       "incomplete": null,
       "arm": false,
       "replicates": 3,
       "unrecorded": [],
       "candidates": [
         {
+          "run": "runs/r5_nli_seeds",
+          "value": 81.53333333333335
+        },
+        {
           "run": "runs/r5_bundle_seeds",
           "value": 81.13333333333334
-        },
-        {
-          "run": "runs/r5_bundle_s2_grounded_c",
-          "value": 81.8
-        },
-        {
-          "run": "runs/r5_bundle_s3_grounded_c",
-          "value": 81.39999999999999
-        },
-        {
-          "run": "runs/r5_bundle_s1_grounded_c",
-          "value": 80.0
         },
         {
           "run": "runs/r5_bundle_s3_m84",
@@ -8783,6 +8827,10 @@
         {
           "run": "runs/r5_bundle_s3_m82",
           "value": 82.0
+        },
+        {
+          "run": "runs/r5_bundle_s2_grounded_c",
+          "value": 81.8
         },
         {
           "run": "runs/r5_bundle_s2_m84",
@@ -8794,6 +8842,10 @@
         },
         {
           "run": "runs/r5_bundle_s2_m81",
+          "value": 81.39999999999999
+        },
+        {
+          "run": "runs/r5_bundle_s3_grounded_c",
           "value": 81.39999999999999
         },
         {
@@ -8847,6 +8899,10 @@
         {
           "run": "runs/r5b_bundle_s3_typed",
           "value": 80.2
+        },
+        {
+          "run": "runs/r5_bundle_s1_grounded_c",
+          "value": 80.0
         },
         {
           "run": "runs/r5_bundle_s1_m80",
@@ -9049,7 +9105,7 @@
       "n": 470,
       "judge_class": "deterministic",
       "backbone_class": "open_weights",
-      "run": "runs/r5_bundle_seeds",
+      "run": "runs/r5_nli_seeds",
       "detail": "seed mean of 3 (60.06 / 61.22 / 60.17); aggregated_metrics.json f1_answerable over the 470 answerable rows, mode=investigate k=6",
       "incomplete": null,
       "arm": false,
@@ -9057,20 +9113,12 @@
       "unrecorded": [],
       "candidates": [
         {
-          "run": "runs/r5_bundle_seeds",
+          "run": "runs/r5_nli_seeds",
           "value": 60.484971494365276
         },
         {
-          "run": "runs/r5_bundle_s2_grounded_c",
-          "value": 61.223703534330284
-        },
-        {
-          "run": "runs/r5_bundle_s3_grounded_c",
-          "value": 60.16877316863473
-        },
-        {
-          "run": "runs/r5_bundle_s1_grounded_c",
-          "value": 60.06243778013079
+          "run": "runs/r5_bundle_seeds",
+          "value": 60.484971494365276
         },
         {
           "run": "runs/m55_bonsai_s1",
@@ -9118,6 +9166,10 @@
         },
         {
           "run": "runs/r5_bundle_s2",
+          "value": 61.223703534330284
+        },
+        {
+          "run": "runs/r5_bundle_s2_grounded_c",
           "value": 61.223703534330284
         },
         {
@@ -9265,6 +9317,10 @@
           "value": 60.16877316863473
         },
         {
+          "run": "runs/r5_bundle_s3_grounded_c",
+          "value": 60.16877316863473
+        },
+        {
           "run": "runs/r5_bundle_s3_m80",
           "value": 60.16877316863473
         },
@@ -9286,6 +9342,10 @@
         },
         {
           "run": "runs/r5_bundle_s1",
+          "value": 60.06243778013079
+        },
+        {
+          "run": "runs/r5_bundle_s1_grounded_c",
           "value": 60.06243778013079
         },
         {
@@ -9406,7 +9466,7 @@
         },
         {
           "run": "runs/m19_lme_s_full",
-          "value": 46.8196956652891
+          "value": 46.81969566528911
         },
         {
           "run": "runs/m32_inv_base",
@@ -9462,7 +9522,7 @@
         },
         {
           "run": "runs/m19_lme_t_base",
-          "value": 22.640789826123
+          "value": 22.640789826122997
         },
         {
           "run": "runs/m19_lme_t_armWinv",

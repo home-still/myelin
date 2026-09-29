@@ -20,15 +20,18 @@ Literature lives in home-still; the guidance this backlog was built from is
 See [`BACKLOG_DONE.md`](BACKLOG_DONE.md#sota-standing) for the full table and
 its history. Short version:
 - **One gate closed:** MINJA 7.50% ≤ 10%.
-- **LongMemEval_S: the gate closes (round 5, 2026-09-29).**
-  - Seed means of the shipped round-5 bundle (`runs/r5_bundle_seeds`):
-    **81.13** under LongMemEval's own grader, against MemPro-15 (Qwen3-30B)
-    at 80.80, so +0.33 and `comparable`; **80.80** under the strict 9B
-    judge.
+- **LongMemEval_S: the gate closes (round 5, 2026-09-29), widened by
+  the NLI premise pass the same day.**
+  - Seed means of the shipped point (`runs/r5_nli_seeds`, the round-5 bundle
+    plus M82, M83 and M83b's pass): **81.53** under LongMemEval's own grader,
+    against MemPro-15 (Qwen3-30B) at 80.80. That is +0.73 and `comparable`.
+    Under the strict 9B judge it reads **81.20**.
+  - The round-5 bundle alone read 81.13 / 80.80.
   - Against a base measured the same way: official +3.3 [+1.7, +5.0] and
     strict +2.5 [+1.0, +4.2]. Abstention holds.
   - The climb, corrected throughout: 62.00 → 66.20 → 75.00 → 79.20 (M57)
-    → 79.00 (preference rubric) → **80.80 strict / 81.13 official**.
+    → 79.00 (preference rubric) → 80.80 strict / 81.13 official (round 5)
+    → **81.20 strict / 81.53 official** (NLI premise).
   - The margin is small, and every number is a seed mean
     (`docs/measurements/r5-bundle-seeds.md`).
 - **LoCoMo: the gate closes under MemPro's own judge (M68, 2026-09-25),
@@ -201,25 +204,6 @@ lost under the strict judge):
   version (M62) stays open.
 
 ---
-
-## M83b — the typed statement must assert the question, not dispute it: **passes** (0 flips on both held-out runs) *(2026-09-29; ship decision with the user)*
-
-- **The rule:** reject a statement that adds a negation the question lacks,
-  or that names a dialogue speaker the question does not name.
-- **Post hoc** on M83's runs: it blocks all 4 held-out flips and none of the
-  7 right answers.
-- It needs fresh held-out LoCoMo runs (`m55b_locomo_bonsai`,
-  `m50b_locomo_events`).
-- **Low value on LongMemEval_S:** M82's stack is +0.27 official, and its
-  stratum CI touched 0.
-- **User (2026-09-29):** "run M83b, then ask to ship". Held out:
-  `m55b_locomo_bonsai` (≤ 4 of 414) and `m50b_locomo_events` (≤ 3 of 317).
-  Doc: `m83b-assert-statement.md`.
-- **Result:** 0 flips on every run, `m51` included (M83: 4). Held out: +0.5
-  (9/0) and +0.0. It waits on the user's ship decision:
-  - the LongMemEval_S stack is 81.40 / 81.20;
-  - M82's stratum CI touched 0;
-  - the NLI service would join the shipped path.
 
 ## M75 — LME-V2 false-premise questions answered from the nearest real screen *(found 2026-09-27; not started)*
 
