@@ -902,6 +902,19 @@ pub fn print(report: &AuditReport) {
 
 #[cfg(test)]
 mod tests {
+    /// Written in the order every measured run received (alphabetical before
+    /// `preserve_order`; `docs/measurements/defect-2026-09-28-schema-field-order.md`).
+    #[test]
+    fn the_audit_verdict_schema_keeps_its_measured_order() {
+        for (label, schema) in [("verdict", verdict_schema())] {
+            for (path, keys) in myelin_core::llm::schema_property_orders(&schema) {
+                let mut sorted = keys.clone();
+                sorted.sort();
+                assert_eq!(keys, sorted, "{label}{path}");
+            }
+        }
+    }
+
     use super::*;
 
     fn row(id: &str, category: &str, score: f64, abstention: bool) -> HarnessRow {

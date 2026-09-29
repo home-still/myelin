@@ -156,9 +156,9 @@ impl ToolKind {
             ),
             ToolKind::Read => (
                 serde_json::json!({
-                    "trajectory": {"type": "string"},
+                    "from_line": {"type": "integer", "minimum": 0},
                     "state": {"type": "integer", "minimum": 0},
-                    "from_line": {"type": "integer", "minimum": 0}
+                    "trajectory": {"type": "string"}
                 }),
                 vec!["trajectory", "state"],
             ),
@@ -170,9 +170,9 @@ impl ToolKind {
                         "items": {
                             "type": "object",
                             "properties": {
-                                "trajectory": {"type": "string"},
                                 "first": {"type": "integer", "minimum": 0},
-                                "last": {"type": "integer", "minimum": 0}
+                                "last": {"type": "integer", "minimum": 0},
+                                "trajectory": {"type": "string"}
                             },
                             "required": ["trajectory", "first", "last"],
                             "additionalProperties": false
@@ -188,6 +188,10 @@ impl ToolKind {
         if let serde_json::Value::Object(extra) = props {
             properties.extend(extra);
         }
+        // Every measured run received these keys alphabetically (serde_json
+        // sorted them before `preserve_order`), so they stay in that order
+        // (`docs/measurements/defect-2026-09-28-schema-field-order.md`).
+        properties.sort_keys();
         let mut req = vec!["thought", "tool"];
         req.extend(required);
         serde_json::json!({

@@ -288,11 +288,13 @@ pub fn judgement_schema() -> serde_json::Value {
         "type": "object",
         "additionalProperties": false,
         "required": ["op", "reason"],
+        // Alphabetical: the order every consolidation pass received
+        // (`docs/measurements/defect-2026-09-28-schema-field-order.md`).
         "properties": {
-            "op": { "type": "string", "enum": ["add", "update", "delete", "noop"] },
-            "target": { "type": ["integer", "null"], "minimum": 0 },
             "contradicts_target": { "type": "boolean" },
-            "reason": { "type": "string", "maxLength": 400 }
+            "op": { "type": "string", "enum": ["add", "update", "delete", "noop"] },
+            "reason": { "type": "string", "maxLength": 400 },
+            "target": { "type": ["integer", "null"], "minimum": 0 }
         }
     })
 }

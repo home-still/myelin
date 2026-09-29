@@ -102,17 +102,19 @@ pub fn events_schema() -> serde_json::Value {
                     "type": "object",
                     "additionalProperties": false,
                     "required": ["subject", "verb", "object", "when", "aliases"],
+                    // Alphabetical: the order the events ledger was extracted
+                    // with (`defect-2026-09-28-schema-field-order.md`).
                     "properties": {
-                        "subject": {"type": "string", "maxLength": SUBJECT_MAX_CHARS},
-                        "verb": {"type": "string", "maxLength": VERB_MAX_CHARS},
-                        "object": {"type": "string", "maxLength": OBJECT_MAX_CHARS},
-                        "when": {"type": "string", "maxLength": WHEN_MAX_CHARS},
                         "aliases": {
                             "type": "array",
                             "minItems": MIN_ALIASES,
                             "maxItems": MAX_ALIASES,
                             "items": {"type": "string", "maxLength": ALIAS_MAX_CHARS}
-                        }
+                        },
+                        "object": {"type": "string", "maxLength": OBJECT_MAX_CHARS},
+                        "subject": {"type": "string", "maxLength": SUBJECT_MAX_CHARS},
+                        "verb": {"type": "string", "maxLength": VERB_MAX_CHARS},
+                        "when": {"type": "string", "maxLength": WHEN_MAX_CHARS}
                     }
                 }
             }

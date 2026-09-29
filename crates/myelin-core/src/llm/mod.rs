@@ -271,6 +271,42 @@ fn truncate(s: &str, n: usize) -> &str {
     }
 }
 
+/// Every `properties` object in a JSON schema, as its path and its keys in
+/// wire order.
+///
+/// llama.cpp builds its grammar from a schema's `properties` in the order
+/// they arrive, so a model writes its fields in that order. Tests pin each
+/// schema's order with this, because the order is part of the mechanism: M42
+/// answers before it may decline, M79 answers before it types the mismatch.
+/// Until 2026-09-28 serde_json sorted every key, and no source order reached
+/// the model (`docs/measurements/defect-2026-09-28-schema-field-order.md`).
+pub fn schema_property_orders(schema: &serde_json::Value) -> Vec<(String, Vec<String>)> {
+    fn walk(v: &serde_json::Value, path: &str, out: &mut Vec<(String, Vec<String>)>) {
+        match v {
+            serde_json::Value::Object(map) => {
+                for (k, child) in map {
+                    let here = format!("{path}/{k}");
+                    if k == "properties" {
+                        if let serde_json::Value::Object(props) = child {
+                            out.push((here.clone(), props.keys().cloned().collect()));
+                        }
+                    }
+                    walk(child, &here, out);
+                }
+            }
+            serde_json::Value::Array(items) => {
+                for (n, child) in items.iter().enumerate() {
+                    walk(child, &format!("{path}/{n}"), out);
+                }
+            }
+            _ => {}
+        }
+    }
+    let mut out = Vec::new();
+    walk(schema, "", &mut out);
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
