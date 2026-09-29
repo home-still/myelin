@@ -183,3 +183,29 @@ missed the +3.0 bar.
   and word overlap with rubric-shaped references falls while every judged
   reading rises. This is a known trade, recorded rather than hidden.
 - `ratchet --strict` passes.
+
+## Is the lead the grader's noise? Re-graded twice *(2026-09-29)*
+
+The lead over 80.80 is +0.33, about 1.7 questions, and gpt-4o-mini-class
+graders are not perfectly repeatable (*The Coin Flip Judge?*, arXiv
+2606.13685). So the three shipped replicates were graded twice more by the
+official grader, from scratch, with no seed and no cache, into scratch
+copies. The committed verdicts are untouched. Prediction, written before
+running: under 2% of verdicts flip at temperature 0, and every grading's
+seed mean stays above 80.80.
+
+| grading | seed 1 | seed 2 | seed 3 | seed mean |
+|---|---|---|---|---|
+| committed | 80.20 | 81.60 | 81.60 | **81.13** |
+| repeat A | 80.20 | 82.00 | 82.00 | 81.40 |
+| repeat B | 79.80 | 81.40 | 82.00 | 81.07 |
+| majority of the three | 80.00 | 81.60 | 81.80 | **81.13** |
+
+- **Flips:** 1–5 verdicts per 500 between any two gradings (0.2–1.0%).
+- **Prediction held:** every grading, and the majority, is above 80.80. The
+  lowest is 81.07 (+0.27).
+- **What this does not settle:** question-sampling uncertainty. The +3.3
+  [+1.7, +5.0] over the base is paired over questions. The absolute
+  comparison with MemPro-15's published 80.80 is a point estimate against
+  a point estimate from a different system, and no CI is available for
+  theirs.

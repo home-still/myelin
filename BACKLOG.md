@@ -208,9 +208,10 @@ Small strata need the right test, and our grader is noisy (catalog §c, §e):
   every stratum line now carries `W/L` and `sign p`. **Derived:** on the 30
   preference rows, significance needs at least 6–0, 8–1 or 10–2. M77c's
   official gain is 11/1, sign p 0.0063.
-- The official grader (gpt-4o-mini) flips 13.6% of pairwise verdicts (*The
-  Coin Flip Judge?*, arXiv 2606.13685). The 30 preference rows should be
-  judged 3 times, taking the majority, and its own flip rate reported.
+- ~~Repeat the official grader.~~ **Done 2026-09-29, on the shipped
+  bundle:** two fresh gradings flip 0.2–1.0% of verdicts, and every seed
+  mean (81.13 / 81.40 / 81.07, majority 81.13) stays above 80.80
+  (`r5-bundle-seeds.md`).
 - Agreement between the strict and official judges should be reported as κ,
   not percent (Norman et al. 2026, arXiv 2606.19544).
 
