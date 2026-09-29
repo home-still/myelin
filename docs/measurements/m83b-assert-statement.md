@@ -78,3 +78,45 @@ with M82 plus M83b's numbers:
   question, so the NLI model is entailing a claim the memories do not make.
   Report the statements.
 - **Held-out Δ < 0:** the right commits are fewer than the flips.
+
+## Result — passes: 0 flips on both held-out runs, and on every run *(measured 2026-09-29, 12:43–13:47, main db4f504)*
+
+| run | role | adversarial declines | **flips** (limit) | answerable commits (strict right) | statements rejected by the rule | strict Δ, all 1,986 rows |
+|---|---|---|---|---|---|---|
+| `m83b_locomo_m55b` | held out | 414 | **0** (≤ 4) ✅ | 24 (9) | 9 | **+0.5 [+0.2, +0.8]** (9/0) ✅ |
+| `m83b_locomo_m50b` | held out | 317 | **0** (≤ 3) ✅ | 3 (0) | 3 | +0.0 (0/0) ✅ |
+| `m83b_locomo_base` | the shipped point, reported | 303 | 0 | 3 (1) | 1 | +0.1 [+0.0, +0.2] (1/0) |
+| `m83b_locomo_m51` | where the rule was found, reported | 370 | 0 (M83: 4) | 8 (3) | 6 | +0.2 [+0.0, +0.4] (3/0) |
+
+On the shipped point, LightMem's grader gives +0.1 [+0.0, +0.3] (2/0).
+
+**Verdict:** both gate criteria hold on both held-out runs. **M82 plus M83b
+now clears its LoCoMo criterion.** As pre-registered, whether it ships goes
+to the user.
+
+**The M82 line on LoCoMo, start to finish:**
+
+| mechanism | flips, M82's design run | the worst held-out run |
+|---|---|---|
+| M82 (NLI alone) | 13 | 17 (`m51`) |
+| M83 (+ speaker contrast) | 0 | 4 (`m51`) |
+| **M83b (+ the statement must assert)** | **0** | **0** |
+
+**Predictions:**
+- held out, 0–2 flips per run: **0 and 0, held**;
+- held out, 3–10 answerable commits: 24 and 3, **wrong** (the Bonsai-read
+  base declines far more);
+- strict Δ 0 to +0.3: +0.5 and +0.0 (the first is above the range);
+- `m51` at most 1 flip: **0, held**.
+
+**What shipping would carry, for the user's decision:**
+- **LongMemEval_S stack** (M82's rows; M83b blocks none of them): official
+  81.40 and strict 81.20, against the shipped 81.13 and 80.80. Abstention
+  is unchanged.
+  - M82's stratum CI on the 49 answerable declines, +6.1 [+0.0, +14.3],
+    touched 0.
+- **LoCoMo:** +0.1 on `m63_locomo_base`. LoCoMo now ships with M84's
+  non-recall pass, so M83b there would need one stacked pass over
+  `m84_locomo_base`.
+- **A new service in the shipped path:** the NLI cross-encoder (DeBERTa-v3
+  large, ~1.7 GB of VRAM) beside the reader.
