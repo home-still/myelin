@@ -88,3 +88,41 @@ It then:
   "Can you recommend a hotel?" picked as the stated preference: the excerpt
   then carries no preference. Report the share of picks whose excerpt is a
   request.
+
+## Result — declines vanish, answers do not improve; the gate fails and M77c stays *(measured 2026-09-28, 21:41–23:08)*
+
+The runs are `runs/m78b_picks_s{1,2,3}`: the 29 advice rows under the
+round-5 bundle's switches plus `--user-words --advice-picks`, merged with
+M57's other rows. They were graded by the strict 9B and the official
+grader.
+
+**Per seed, on the 30 preference rows** (declines / official right):
+
+| arm | seed 1 | seed 2 | seed 3 |
+|---|---|---|---|
+| base | 7 / 13 | 10 / 10 | 8 / 9 |
+| round-5 bundle (M77c) | 7 / 16 | 5 / 14 | 8 / 16 |
+| **M78b** | **0** / 15 | **0** / 13 | **0** / 13 |
+
+| comparison | strict Δ | official Δ |
+|---|---|---|
+| M78b vs base | +7.8 [−6.7, +22.2] | +10.0 [−4.4, +25.6] |
+| **M78b vs M77c** (head-to-head, same switches) | — | **−5.6 [−17.8, +7.8]** (5/10) |
+
+- **Verdict:** criterion 1 fails, and M78b loses the head-to-head. As
+  pre-registered, it does not replace M77c, and the round-5 bundle stays as
+  measured.
+- **The structure worked, but the reader's choices did not.** No parse
+  failures, no refused picks, and zero declines on every seed.
+- **Both falsifiers fire:**
+  - declines fell and official did not rise over M77c, so the answers that
+    replaced declines were wrong or generic;
+  - about 29% of picks (19/62, 10/52 and 21/60 per seed) have a *request*
+    as their excerpt ("Can you recommend…?") rather than a stated
+    preference.
+- **The lesson for preference:** the reader cannot tell a stated preference
+  from a request, whether it quotes (M78) or picks (M78b). The clause (M77c)
+  does better because it lets the reader write generally, and the official
+  rubric rewards "recalls and utilizes" even loosely. A next step would rank
+  the user's turns *in code* by whether they state a preference, rather
+  than asking the reader to choose.

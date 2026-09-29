@@ -94,6 +94,28 @@ first arm to question the measurement apparatus rather than the mechanism.
 
 ---
 
+## Overnight 2026-09-28/29: M78b, M79 and M71c all fail their pre-registered rules; #166 ships as zero-change
+
+- **M78b** (the advice answer picks user turns by index):
+  - declines vanish (0 per seed), but official preference is 13.7 per seed
+    against M77c's 15.3, a head-to-head −5.6 (5/10);
+  - 29% of picks are requests, not preferences;
+  - M77c stays. Doc: `m78b-advice-picks.md`.
+- **M79** (the typed premise pass):
+  - answerable declines strict +19.7 [+9.5, +31.3] (10/0);
+  - **abstention −20.0** on the six traps typed `detail unstated`, so the
+    veto fires;
+  - its false-challenge rate is ~57%, Wagner's own figure;
+  - stacked on the bundle: strict +3.2, but abstention 23.3/30 and official
+    80.40. Doc: `m79-typed-premise.md`.
+- **M71c** (the grounded pass in its designed order): fewer commits
+  (5/5/5 vs 8/8/6) and one abstention flip, so M71b's answer-first order
+  stays. #167 closed. Doc: `m71c-grounded-order.md`.
+- **Schema field order (#166): shipped.** `preserve_order` is on, every
+  schema is written in its measured order, wire-order tests pin them, and
+  the 5-row evidence control is byte-identical to M57's. The defect's fix is
+  done; any future order change is its own measured item.
+
 ## Round-5 bundle, seed-replicated: **official 81.13, past 80.80; strict +2.5 [+1.0, +4.2]**, short of the +3.0 bar *(2026-09-28)*
 
 - **What ran:** M71b, M72b, M73b and the preference clause M77c, measured as

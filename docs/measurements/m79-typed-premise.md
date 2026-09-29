@@ -115,3 +115,49 @@ If the label is noisy, the catalog's next step is to state the premise
 finding upstream, in code, and hand it to the reader. That is
 LongMemEval-V2's AgentRunbook-C pattern, which "improves abstention" where
 handing over raw evidence does not.
+
+## Result — the target moves, and the veto fires on exactly the predicted rows *(measured 2026-09-29, 00:27)*
+
+The typed pass ran over each base replicate's declines (`m79_base_s{1,2,3}`)
+and was paired against the base replicates.
+
+| stratum | strict Δ [95% CI] | W/L | official Δ [95% CI] | W/L |
+|---|---|---|---|---|
+| M57's 49 answerable declines | **+19.7 [+9.5, +31.3]** | 10/0 | **+10.9 [+0.7, +21.1]** | 7/1 |
+| non-abstention (470) | +2.1 [+0.9, +3.5] | 11/0 | +1.2 [+0.1, +2.3] | 8/1 |
+| **abstention (30)** | **−20.0 [−36.7, −6.7]** | 0/6 | **−20.0** | 0/6 |
+| overall | +0.8 [−0.7, +2.4] | 11/6 | −0.1 | 8/7 |
+
+**Verdict:** criteria 1 and 2 pass, and **criterion 3, the abstention veto,
+fails.** Six abstention rows are answered in every replicate. M79 does not
+ship and does not stack.
+
+**Wagner's two error rates (the pre-data amendment):**
+- **False challenges:** of the answerable declines, 28/49, 29/51 and 30/52
+  are typed `contradicted` or `never mentioned`. That is **~57%, Wagner's
+  own figure** ("57% false challenges"), reproduced on a different model and
+  benchmark.
+- **False fits:** 6 per replicate. They are the same six abstention
+  declines, typed `detail unstated` every time. This is the risk the
+  pre-registration named: LongMemEval's traps add a thing the memories never
+  mention, and the reader calls it a detail.
+
+**The label distribution is stable across seeds** (answerable: none 5,
+detail unstated 16–17, never mentioned 24–25, contradicted 4–5;
+abstention: never mentioned 20, detail unstated 6, contradicted 3). The
+typed label is a consistent judgement, not noise, and on these six rows it
+is consistently wrong.
+
+**The stack on the round-5 bundle** (`r5_bundle_s*_typed`) shows what the
+veto is for:
+- strict **+3.2 [+1.1, +5.5]**, which clears the +3.0 bar;
+- abstention **23.3/30**, and official **80.40**, *below* 80.80.
+
+The abstention losses cost the official grader more than the recovered
+answers gain.
+
+**Next (plan step 3, M80):** the premise finding moves to code and is handed
+to the reader. That is LongMemEval-V2's AgentRunbook-C pattern. The six
+traps all name a thing (chili, a 30-gallon tank, a university…) that no
+memory contains, and a code check can see that where the reader's label
+cannot. M80 is a reader-input change, so it goes to the user first.
