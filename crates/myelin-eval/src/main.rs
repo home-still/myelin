@@ -596,6 +596,11 @@ enum Command {
         /// The NLI server (`ops/big/nli_server.py`), e.g. http://127.0.0.1:5820.
         #[arg(long, requires = "typed_nli")]
         nli_url: Option<String>,
+        /// M83: with `--typed-nli`, an entailed statement naming one of the
+        /// dialogue's two speakers commits only if the same statement about
+        /// the other speaker is not entailed.
+        #[arg(long, requires = "typed_nli")]
+        speaker_contrast: bool,
     },
     /// Score LoCoMo end-to-end: retrieve, read, and grade the answer with
     /// a deterministic scorer (no LLM judge). See `bench.rs`.
@@ -1204,6 +1209,7 @@ async fn main() -> anyhow::Result<()> {
             typed_cited,
             typed_nli,
             ref nli_url,
+            speaker_contrast,
         } => {
             let cfg = MyelinConfig::load().context("load myelin config")?;
             let pass = match (samples, agree, grounded, typed, typed_premise, typed_cited, typed_nli) {
@@ -1214,7 +1220,9 @@ async fn main() -> anyhow::Result<()> {
                 (None, None, false, true, false, false, false) => myelin_eval::commit_arm::Pass::Typed,
                 (None, None, false, false, true, false, false) => myelin_eval::commit_arm::Pass::TypedPremise,
                 (None, None, false, false, false, true, false) => myelin_eval::commit_arm::Pass::TypedCited,
-                (None, None, false, false, false, false, true) => myelin_eval::commit_arm::Pass::TypedNli,
+                (None, None, false, false, false, false, true) => {
+                    myelin_eval::commit_arm::Pass::TypedNli { speaker_contrast }
+                }
                 (None, None, false, false, false, false, false) => myelin_eval::commit_arm::Pass::Greedy,
                 _ => anyhow::bail!(
                     "--samples/--agree, --grounded, --typed, --typed-premise, --typed-cited and --typed-nli are different second passes; pass one"
@@ -1435,6 +1443,7 @@ async fn main() -> anyhow::Result<()> {
                     commit_premise_finding: false,
                     commit_typed_cited: false,
                     commit_typed_nli: false,
+                    commit_speaker_contrast: false,
                     untrusted_max,
                     decompose,
                     categories: categories.clone().unwrap_or_default(),
