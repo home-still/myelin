@@ -565,6 +565,10 @@ pub struct BenchRun {
     /// possibly after the grounded one. Absent on every run before M79.
     #[serde(default)]
     pub commit_typed: bool,
+    /// M80: that typed pass was shown a premise finding computed in code.
+    /// Absent on every run before M80.
+    #[serde(default)]
+    pub commit_premise_finding: bool,
     /// Rows inherited from an earlier attempt by `bench --resume`. Non-zero
     /// means the run's two halves may have been served by differently
     /// configured readers (slots, context): a greedy answer does not depend
@@ -864,6 +868,8 @@ pub struct BenchSwitches {
     pub commit_grounded: bool,
     /// M79: a typed premise pass ran. Only `commit-arm --typed` produces it.
     pub commit_typed: bool,
+    /// M80: the typed pass was shown a premise finding computed in code.
+    pub commit_premise_finding: bool,
     /// Cap untrusted occupancy in the composed set — M23 B1,
     /// `ComposeConfig::untrusted_max`.
     ///
@@ -1314,6 +1320,73 @@ pub(crate) async fn commit_typed(
     user: &str,
     response: String,
 ) -> (String, CommitOutcome, Option<String>) {
+    commit_typed_with(llm, system, user, response, None).await
+}
+
+/// Question words that name nothing, so their absence from the memories says
+/// nothing about the question's premise. The question's own function words,
+/// plus [`THING_CONNECTIVES`].
+const QUESTION_FUNCTION_WORDS: [&str; 44] = [
+    "what", "when", "where", "which", "who", "whom", "whose", "why", "how", "many", "much",
+    "did", "does", "have", "has", "had", "was", "were", "are", "can", "could", "would",
+    "should", "will", "about", "that", "this", "these", "those", "there", "their", "them",
+    "they", "then", "than", "into", "over", "total", "time", "times", "ago", "last", "first", "before",
+];
+
+/// M80: the question's content words that no shown memory contains, in
+/// question order, without repeats. A word counts when it has at least
+/// [`MIN_THING_WORD_CHARS`] letters or is a number of any length ("30" of a
+/// "30-gallon tank"), and it is not a function word. It is matched up to one
+/// plural ending, the same rule as M71b's `memory_states`.
+pub(crate) fn unmentioned_terms(question: &str, memories: &[String]) -> Vec<String> {
+    let have: Vec<String> = memories.iter().flat_map(|m| words(m)).collect();
+    let mut out: Vec<String> = Vec::new();
+    for w in words(question) {
+        let numeric = w.chars().all(|c| c.is_ascii_digit());
+        if !numeric && w.len() < MIN_THING_WORD_CHARS {
+            continue;
+        }
+        if QUESTION_FUNCTION_WORDS.contains(&w.as_str()) || THING_CONNECTIVES.contains(&w.as_str()) {
+            continue;
+        }
+        let stated = have.iter().any(|h| *h == w || singular(h) == singular(&w));
+        if !stated && !out.contains(&w) {
+            out.push(w);
+        }
+    }
+    out
+}
+
+/// M80: the premise finding the typed pass is shown, computed in code.
+pub(crate) fn premise_finding(question: &str, memories: &[String]) -> String {
+    let missing = unmentioned_terms(question, memories);
+    if missing.is_empty() {
+        "<premise_check>Every word the question uses appears in the memories.</premise_check>".to_string()
+    } else {
+        let listed = missing.iter().map(|w| format!("\"{w}\"")).collect::<Vec<_>>().join(", ");
+        format!("<premise_check>No memory contains these words from the question: {listed}.</premise_check>")
+    }
+}
+
+/// [`commit_typed`], optionally with a premise finding appended to the user
+/// message (M80, `docs/measurements/m80-premise-finding.md`).
+///
+/// LongMemEval-V2's best memory method, AgentRunbook-C, has its memory
+/// module "identify the inconsistencies and wrong question premises and
+/// present them to the downstream model", and it is the only method there
+/// whose abstention improves (Wu et al. 2026, arXiv 2605.12493). M79 asked the
+/// reader to find the premise problem itself. It disputed ~57% of answerable
+/// declines and typed six unanswerable traps as a "detail unstated", which is
+/// Wagner's (2026, arXiv 2607.08456) finding that a model's own premise check
+/// is near chance. Here code states what the memories lack, and the reader
+/// types the mismatch knowing it.
+pub(crate) async fn commit_typed_with(
+    llm: &dyn Llm,
+    system: &str,
+    user: &str,
+    response: String,
+    finding: Option<&str>,
+) -> (String, CommitOutcome, Option<String>) {
     if !is_abstention(&response) {
         return (response, CommitOutcome::default(), None);
     }
@@ -1322,7 +1395,10 @@ pub(crate) async fn commit_typed(
         .complete(
             &CompletionRequest::new(vec![
                 Message::system(format!("{system}\n{READER_TYPED_SYSTEM}")),
-                Message::user(user.to_string()),
+                Message::user(match finding {
+                    Some(f) => format!("{user}\n{f}"),
+                    None => user.to_string(),
+                }),
             ])
             .with_max_tokens(TYPED_MAX_TOKENS)
             .with_schema(typed_schema()),
@@ -3261,6 +3337,7 @@ fn finish_run(
         commit_answer: spec.switches.commit_answer,
         commit_grounded: spec.switches.commit_grounded,
         commit_typed: spec.switches.commit_typed,
+        commit_premise_finding: spec.switches.commit_premise_finding,
         resumed_rows: resumed,
         commit_samples: None,
         commit_agree: None,
@@ -3475,6 +3552,7 @@ pub fn rescore_run(source: &Path, out_dir: &Path, scorer: Scorer) -> Result<Benc
                 .and_then(|n| usize::try_from(n).ok()),
             commit_grounded: flag("commit_grounded"),
             commit_typed: flag("commit_typed"),
+            commit_premise_finding: flag("commit_premise_finding"),
             commit_answer: flag("commit_answer"),
             untrusted_max: metrics
                 .get("untrusted_max")
@@ -4675,6 +4753,46 @@ mod reader_tests {
         assert!(!req.thinking);
         assert_eq!((req.temperature, req.top_p, req.seed), (0.0, None, None));
         assert_eq!(req.max_tokens, Some(READER_ANSWER_TOKENS));
+    }
+
+    /// M80: LongMemEval's trap names a thing no memory contains; a detail
+    /// the memories do state is not flagged.
+    #[test]
+    fn the_premise_finding_names_what_no_memory_contains() {
+        let memories = vec![
+            "[2023-05-02] user: I planted 5 tomato plants in the garden this spring.".to_string(),
+            "[2023-05-09] user: My 20-gallon tank and my 10-gallon tank both need cleaning.".to_string(),
+        ];
+        let chili = unmentioned_terms(
+            "How many plants did I initially plant for tomatoes and chili peppers?",
+            &memories,
+        );
+        assert!(chili.contains(&"chili".to_string()) && chili.contains(&"peppers".to_string()), "{chili:?}");
+        assert!(!chili.contains(&"tomatoes".to_string()), "tomatoes meets tomato: {chili:?}");
+        assert!(!chili.iter().any(|w| w == "how" || w == "many" || w == "and"), "{chili:?}");
+        let tank = unmentioned_terms("How many fish are there in my 30-gallon tank?", &memories);
+        assert!(tank.contains(&"30".to_string()), "a number of any length: {tank:?}");
+        assert!(!tank.contains(&"tank".to_string()) && !tank.contains(&"gallon".to_string()), "{tank:?}");
+        assert_eq!(
+            premise_finding("How many tomato plants did I plant?", &memories),
+            "<premise_check>Every word the question uses appears in the memories.</premise_check>"
+        );
+        assert!(premise_finding("What about the chili?", &memories).contains("\"chili\""));
+    }
+
+    /// M80's pass is M79's request with the finding after the question, and
+    /// M79's own request is unchanged.
+    #[tokio::test]
+    async fn the_premise_finding_reaches_the_typed_pass_and_only_there() {
+        let llm = Captures(std::sync::Mutex::new(None));
+        commit_typed_with(&llm, "sys", "user", "I don't know.".into(), Some("<premise_check>x</premise_check>")).await;
+        let req = llm.0.lock().unwrap().clone().expect("captured");
+        assert_eq!(req.messages[1].content, "user\n<premise_check>x</premise_check>");
+        assert_eq!(req.json_schema, Some(typed_schema()));
+        let llm = Captures(std::sync::Mutex::new(None));
+        commit_typed(&llm, "sys", "user", "I don't know.".into()).await;
+        let req = llm.0.lock().unwrap().clone().expect("captured");
+        assert_eq!(req.messages[1].content, "user", "M79's request is byte-identical");
     }
 
     /// M79: the answer comes first on the wire, and the mismatch is one of

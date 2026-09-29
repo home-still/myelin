@@ -200,6 +200,18 @@ lost under the strict judge):
 
 ---
 
+## M80 — the premise finding, computed in code, shown to the typed pass *(user decision 2026-09-29; pre-registered)*
+
+M79 recovered answerable declines, strict +19.7 (10/0), but answered six
+unanswerable traps it typed "detail unstated".
+- `commit-arm --typed-premise` hands the reader the question's words that
+  no memory contains. This is LongMemEval-V2's AgentRunbook-C pattern.
+- It is a post-pass over the base and bundle replicates, with the strict
+  abstention veto.
+- Doc: `docs/measurements/m80-premise-finding.md`.
+
+---
+
 ## Readout rigour — discordant counts, the exact sign test, and a repeated official grader *(round-5 catalog, 2026-09-28; not started)*
 
 Small strata need the right test, and our grader is noisy (catalog §c, §e):

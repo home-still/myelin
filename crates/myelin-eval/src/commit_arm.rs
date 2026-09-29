@@ -33,8 +33,8 @@ use myelin_core::config::MyelinConfig;
 use myelin_core::llm::openai::OpenAiLlm;
 
 use crate::bench::{
-    commit_answer, commit_consensus, commit_grounded, commit_typed, is_abstention, Consensus,
-    ScoredQuestion,
+    commit_answer, commit_consensus, commit_grounded, commit_typed, commit_typed_with,
+    is_abstention, premise_finding, Consensus, ScoredQuestion,
 };
 use crate::datasets::longmemeval;
 
@@ -72,6 +72,9 @@ pub enum Pass {
     /// M79: the answer, then the kind of mismatch; commit only when the
     /// premise fits or adds an unstated detail (`bench::commit_typed`).
     Typed,
+    /// M80: M79's pass, shown the question's words that no memory contains
+    /// (`bench::premise_finding`).
+    TypedPremise,
 }
 
 /// The corpora whose first-pass prompt this replays. The prompt must be the
@@ -190,8 +193,13 @@ pub async fn run(
                     commit_grounded(&llm, &system, &user, first, &row.evidence).await;
                 (response, outcome.fired, outcome.committed)
             }
-            Pass::Typed => {
-                let (response, outcome, raw) = commit_typed(&llm, &system, &user, first).await;
+            Pass::Typed | Pass::TypedPremise => {
+                let finding = matches!(pass, Pass::TypedPremise)
+                    .then(|| premise_finding(&row.question_text, &row.evidence));
+                let (response, outcome, raw) = match &finding {
+                    None => commit_typed(&llm, &system, &user, first).await,
+                    Some(f) => commit_typed_with(&llm, &system, &user, first, Some(f)).await,
+                };
                 // The typed JSON joins the row's trace, so the `mismatch`
                 // label of every declining row can be counted afterwards.
                 if let Some(raw) = raw {
@@ -281,6 +289,10 @@ fn write_arm(
             // the base's `commit_grounded` then stays on the record beside it.
             Pass::Typed => {
                 obj.insert("commit_typed".into(), serde_json::Value::Bool(true));
+            }
+            Pass::TypedPremise => {
+                obj.insert("commit_typed".into(), serde_json::Value::Bool(true));
+                obj.insert("commit_premise_finding".into(), serde_json::Value::Bool(true));
             }
         }
     }
