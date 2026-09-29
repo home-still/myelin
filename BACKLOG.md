@@ -200,7 +200,7 @@ lost under the strict judge):
 
 ---
 
-## Declines on requests that are not recall *(found 2026-09-29; awaits the user: a reader-prompt change)*
+## M84 — declines on requests that are not recall *(user chose "post-pass on those declines" 2026-09-29; pre-registered, queued on big)*
 
 - **The finding:** the reader's recall rule ("If the memories do not
   contain the answer, reply exactly: I don't know.") also fires on requests
@@ -223,7 +223,10 @@ lost under the strict judge):
 - **Grounds:** over-abstention (Wen et al. 2024, "Know Your Limits", TACL,
   `10.1162/tacl_a_00754`); requests that call for a response rather than a
   refusal (Brahman et al. 2024, `10.52202/079017-1573`).
-- Needs the user: it changes what the reader is told.
+- **User (2026-09-29): a post-pass on those declines.**
+  `commit-arm --non-recall` asks a declined row of that shape again, without
+  the recall rule. It runs on the shipped bundle's replicates and on
+  `m63_locomo_base`. Doc: `m84-non-recall.md`.
 
 ## M83b — the typed statement must assert the question, not dispute it *(user chose it 2026-09-29; pre-registered, queued on big)*
 

@@ -33,9 +33,9 @@ use myelin_core::config::MyelinConfig;
 use myelin_core::llm::openai::OpenAiLlm;
 
 use crate::bench::{
-    commit_answer, commit_consensus, commit_grounded, commit_typed, commit_typed_cited,
-    commit_typed_nli, commit_typed_with, is_abstention, premise_finding, Consensus, Nli,
-    ScoredQuestion,
+    commit_answer, commit_consensus, commit_grounded, commit_non_recall, commit_typed,
+    commit_typed_cited, commit_typed_nli, commit_typed_with, is_abstention, premise_finding,
+    Consensus, Nli, ScoredQuestion,
 };
 use crate::datasets::longmemeval;
 
@@ -85,6 +85,9 @@ pub enum Pass {
     /// the dialogue's other speaker is not entailed; M83b's
     /// `assert_statement` rejects a statement that disputes the question.
     TypedNli { speaker_contrast: bool, assert_statement: bool },
+    /// M84: a declined request for advice or an inference is asked again
+    /// without the recall rule (`bench::commit_non_recall`).
+    NonRecall,
 }
 
 /// The corpora whose first-pass prompt this replays. The prompt must be the
@@ -206,6 +209,15 @@ pub async fn run(
             Pass::Grounded => {
                 let (response, outcome) =
                     commit_grounded(&llm, &system, &user, first, &row.evidence).await;
+                (response, outcome.fired, outcome.committed)
+            }
+            Pass::NonRecall => {
+                let (response, outcome, raw) =
+                    commit_non_recall(&llm, &system, &user, first, &row.question_text).await;
+                if let Some(raw) = raw {
+                    let trace = row.reader_trace.take().unwrap_or_default();
+                    row.reader_trace = Some(format!("{trace}\n[{}] {raw}", crate::bench::NON_RECALL_TRACE));
+                }
                 (response, outcome.fired, outcome.committed)
             }
             Pass::TypedNli { speaker_contrast, assert_statement } => {
@@ -359,6 +371,11 @@ fn write_arm(
                 if assert_statement {
                     obj.insert("commit_assert_statement".into(), serde_json::Value::Bool(true));
                 }
+            }
+            // Runs over a grounded arm's remaining declines; the base's
+            // `commit_grounded` stays on the record beside it.
+            Pass::NonRecall => {
+                obj.insert("commit_non_recall".into(), serde_json::Value::Bool(true));
             }
         }
     }

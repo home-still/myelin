@@ -587,6 +587,10 @@ pub struct BenchRun {
     /// run before M83b.
     #[serde(default)]
     pub commit_assert_statement: bool,
+    /// M84: declined requests for advice or an inference were asked again
+    /// without the recall rule. Absent on every run before M84.
+    #[serde(default)]
+    pub commit_non_recall: bool,
     /// Rows inherited from an earlier attempt by `bench --resume`. Non-zero
     /// means the run's two halves may have been served by differently
     /// configured readers (slots, context): a greedy answer does not depend
@@ -896,6 +900,8 @@ pub struct BenchSwitches {
     pub commit_speaker_contrast: bool,
     /// M83b: the typed statement had to assert the question.
     pub commit_assert_statement: bool,
+    /// M84: declined non-recall requests were asked again.
+    pub commit_non_recall: bool,
     /// Cap untrusted occupancy in the composed set — M23 B1,
     /// `ComposeConfig::untrusted_max`.
     ///
@@ -1900,6 +1906,97 @@ pub(crate) async fn commit_typed_with(
 
 /// Marks the typed pass's raw content inside a row's `reader_trace`.
 pub const TYPED_TRACE: &str = "m79:typed";
+
+/// Marks M84's raw content inside a row's `reader_trace`.
+pub const NON_RECALL_TRACE: &str = "m84:non-recall";
+
+/// M84's instruction, appended to the base's own system prompt for a
+/// declined request that asks for advice or an inference.
+const READER_NON_RECALL_SYSTEM: &str = "This question does not ask you to recall \
+a recorded fact: it asks for advice or a recommendation, or for a judgement about \
+what is likely. The instruction to reply \"I don't know\" is for recall questions, \
+so it does not apply here. Answer from what the memories say about the people \
+involved: fit advice to the preferences, plans and experiences they record; for a \
+judgement, give the most likely answer and the memory it rests on. Write `answer` \
+in at most three sentences.";
+/// An answer's ceiling: three sentences.
+const NON_RECALL_ANSWER_MAX_CHARS: usize = 600;
+/// Completion room for `{answer}` at that ceiling.
+const NON_RECALL_MAX_TOKENS: u32 = 240;
+
+/// M84: `{answer}`, with no field to decline in.
+fn non_recall_schema() -> serde_json::Value {
+    serde_json::json!({
+        "type": "object",
+        "properties": {
+            "answer": { "type": "string", "minLength": 1, "maxLength": NON_RECALL_ANSWER_MAX_CHARS }
+        },
+        "required": ["answer"],
+        "additionalProperties": false
+    })
+}
+
+#[derive(Debug, Deserialize)]
+struct NonRecallAnswer {
+    answer: String,
+}
+
+/// M84. A declined request for advice or an inference, asked again without
+/// the recall rule (`docs/measurements/m84-non-recall.md`).
+///
+/// The reader's system prompt tells it to "reply exactly: I don't know" when
+/// the memories do not contain the answer. That rule is for recall. A request
+/// for advice or for what is likely has no recorded answer to find, so the
+/// rule turns it into a refusal. M76b traced LongMemEval_S's preference
+/// declines to that line, and 33 of LoCoMo's 61 open-domain losses are
+/// declines on "Would X likely…?" questions. Declining a request that calls
+/// for a response is over-abstention (Wen et al. 2024, "Know Your Limits",
+/// TACL, `10.1162/tacl_a_00754`; Brahman et al. 2024, "The Art of Saying No",
+/// `10.52202/079017-1573`).
+///
+/// Only a declined row whose question has that shape
+/// ([`myelin_core::pipeline::query_shape::is_non_recall_request`]) is asked
+/// again. No LongMemEval_S abstention trap and no LoCoMo adversarial question
+/// has it, so every recall question keeps its decline. The second call is
+/// greedy and its schema has no decline field. An error, unparseable content
+/// or a decline-shaped answer keeps the decline, as in [`commit_answer`].
+pub(crate) async fn commit_non_recall(
+    llm: &dyn Llm,
+    system: &str,
+    user: &str,
+    response: String,
+    question: &str,
+) -> (String, CommitOutcome, Option<String>) {
+    if !is_abstention(&response) {
+        return (response, CommitOutcome::default(), None);
+    }
+    let fired = CommitOutcome { fired: true, committed: false };
+    if !myelin_core::pipeline::query_shape::is_non_recall_request(question) {
+        return (response, fired, None);
+    }
+    let Ok(second) = llm
+        .complete(
+            &CompletionRequest::new(vec![
+                Message::system(format!("{system}\n{READER_NON_RECALL_SYSTEM}")),
+                Message::user(user.to_string()),
+            ])
+            .with_max_tokens(NON_RECALL_MAX_TOKENS)
+            .with_schema(non_recall_schema()),
+        )
+        .await
+    else {
+        return (response, fired, None);
+    };
+    match serde_json::from_str::<NonRecallAnswer>(&second.text) {
+        Ok(parsed) if !parsed.answer.trim().is_empty() && !is_abstention(&parsed.answer) => (
+            parsed.answer.trim().to_string(),
+            CommitOutcome { fired: true, committed: true },
+            Some(second.text),
+        ),
+        _ => (response, fired, Some(second.text)),
+    }
+}
+
 
 /// M61. The second pass, grounded: which memories state the answer, then the
 /// answer from those alone.
@@ -3827,6 +3924,7 @@ fn finish_run(
         commit_typed_nli: spec.switches.commit_typed_nli,
         commit_speaker_contrast: spec.switches.commit_speaker_contrast,
         commit_assert_statement: spec.switches.commit_assert_statement,
+        commit_non_recall: spec.switches.commit_non_recall,
         resumed_rows: resumed,
         commit_samples: None,
         commit_agree: None,
@@ -4046,6 +4144,7 @@ pub fn rescore_run(source: &Path, out_dir: &Path, scorer: Scorer) -> Result<Benc
             commit_typed_nli: flag("commit_typed_nli"),
             commit_speaker_contrast: flag("commit_speaker_contrast"),
             commit_assert_statement: flag("commit_assert_statement"),
+            commit_non_recall: flag("commit_non_recall"),
             commit_answer: flag("commit_answer"),
             untrusted_max: metrics
                 .get("untrusted_max")
@@ -5427,6 +5526,48 @@ mod reader_tests {
                 .expect("rejected in code, so the dead NLI server is never called");
         assert_eq!((answer.as_str(), outcome.committed), ("I don't know.", false));
         assert!(raw.is_some_and(|r| r.contains("assert=rejected: negates the question")));
+    }
+
+    /// M84: a declined request for advice is answered; a declined recall
+    /// question is never asked again; a decline-shaped answer keeps the
+    /// decline.
+    #[tokio::test]
+    async fn the_non_recall_pass_answers_only_requests_for_advice_or_inference() {
+        let advice = "I'm planning my meal prep next week, any suggestions for new recipes?";
+        let (answer, outcome, raw) = commit_non_recall(
+            &Says(r#"{"answer":"Quinoa bowls with roasted vegetables, since you enjoyed those."}"#),
+            "sys",
+            "user",
+            "I don't know.".into(),
+            advice,
+        )
+        .await;
+        assert_eq!(
+            (answer.as_str(), outcome.committed),
+            ("Quinoa bowls with roasted vegetables, since you enjoyed those.", true)
+        );
+        assert!(raw.is_some());
+
+        let recall = "What did Caroline realize after her charity race?";
+        let (answer, outcome, raw) =
+            commit_non_recall(&Says(r#"{"answer":"self-care"}"#), "sys", "user", "I don't know.".into(), recall).await;
+        assert_eq!((answer.as_str(), outcome.committed, outcome.fired), ("I don't know.", false, true));
+        assert!(raw.is_none(), "a recall question is never asked again");
+
+        let (answer, outcome, _) =
+            commit_non_recall(&Says(r#"{"answer":"I don't know."}"#), "sys", "user", "I don't know.".into(), advice).await;
+        assert_eq!((answer.as_str(), outcome.committed), ("I don't know.", false));
+
+        let (answer, outcome, _) =
+            commit_non_recall(&Says("not json"), "sys", "user", "Try the soup.".into(), advice).await;
+        assert_eq!((answer.as_str(), outcome.fired), ("Try the soup.", false), "an answered row is untouched");
+    }
+
+    #[test]
+    fn the_non_recall_schema_has_no_decline_field() {
+        let schema = non_recall_schema();
+        let keys: Vec<&String> = schema["properties"].as_object().map(|o| o.keys().collect()).unwrap_or_default();
+        assert_eq!(keys, vec!["answer"]);
     }
 
     #[test]
