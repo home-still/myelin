@@ -107,3 +107,73 @@ grader.
 - **Answerable commits < 5:** statements that keep every question word
   overstate the memories; NLI calls them neutral.
 - **LoCoMo flips > 3:** NLI misses person swaps in conversational text.
+
+## Result — safe and positive on LongMemEval_S; fails the LoCoMo transfer on speaker attribution; does not ship *(measured 2026-09-29, 09:38–10:50)*
+
+**LongMemEval_S gate** (`m82_base_s*`, the typed-NLI pass over the base
+replicates):
+
+| per replicate | M79 | M81 | **M82** |
+|---|---|---|---|
+| answerable commits | 19–21 | 1–2 | **3–6** |
+| false fits (abstention commits) | 6 | 0 | **0** |
+
+| stratum | strict Δ [95% CI] | official Δ |
+|---|---|---|
+| 49 answerable declines | +6.1 [+0.0, +14.3] (3/0) | +6.1 (3/0) |
+| overall | **+0.7 [+0.1, +1.5]** (4/0) | **+0.7 [+0.1, +1.5]** (4/0) |
+| abstention | +0.0 | +0.0 |
+
+**Stack on the shipped bundle** (`r5_bundle_s*_m82`, seed means):
+- strict **81.20** (+0.40 over the shipped 80.80);
+- official **81.40** (+0.27 over the shipped 81.13);
+- abstention unchanged (29.33 / 28.00).
+
+Against the base: strict +2.9 [+1.3, +4.7], official +3.5 [+1.9, +5.3].
+
+**LoCoMo transfer** (`m82_locomo_base`, on the 9B): **13 of 303
+adversarial declines flipped**, against a limit of 3. Five answerable
+declines were committed, and 2 judged right.
+
+**Verdict:**
+- criterion 1 fails narrowly, since the stratum CI touches 0;
+- criterion 2, the LoCoMo transfer, fails badly;
+- the stack clears criterion 3 (it beats the shipped bundle with no
+  abstention loss), but a mechanism must pass all three.
+
+M82 does not ship.
+
+**Predictions:**
+- false fits 0–1: **0, held**;
+- answerable commits 8–15: 3–6, wrong;
+- stratum +8 to +16 with CI > 0: +6.1, CI touches 0;
+- LoCoMo ≤ 3: **13, wrong**;
+- stack strict +0.8 to +2.0 and official +0.4 to +1.6 over the shipped
+  bundle: +0.40 and +0.27, both under the range.
+
+**Where the answers are lost on LongMemEval_S** (per replicate, of 24–27
+candidates that pass M79's label rule):
+- 15–17 fail the statement guard;
+- 9–11 reach the NLI model;
+- 3–6 are entailed.
+
+The guard catches real softening: the chili trap's statement became "I
+initially planted 5 tomato plants". It also rejects honest answers:
+irregular verbs defeat the stemmer ("spend" and "spent"), and idioms drop
+out ("in terms of", "brand of"). Strict entailment calls an unstated detail
+neutral ("7 shirts for my 5-day trip": neutral 1.00).
+
+**Why LoCoMo fails: speaker attribution, again.** In LoCoMo's person-swap
+traps, the cited turn is a dialogue:
+- statement "Caroline realized self-care is really important after her
+  charity race";
+- cited turn "**Melanie**: Hey Caroline… I ran a charity race…".
+
+The NLI model reads the name and the first person as the same claimant. It
+does not track who is speaking. That is the same failure M78 measured in
+the reader, which quoted the assistant's words as the user's.
+
+**What would fix it (recorded, not queued):** a speaker-resolved premise.
+Each dialogue turn would be rewritten in the third person before NLI
+("Melanie ran a charity race for mental health"), so a swapped speaker
+becomes a contradiction and not an entailment.
