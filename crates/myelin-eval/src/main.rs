@@ -585,6 +585,10 @@ enum Command {
         /// question's words that no memory contains).
         #[arg(long, conflicts_with_all = ["samples", "grounded", "typed"])]
         typed_premise: bool,
+        /// M81: the typed pass cites its memories, and code commits only when
+        /// every question word appears in them.
+        #[arg(long, conflicts_with_all = ["samples", "grounded", "typed", "typed_premise"])]
+        typed_cited: bool,
     },
     /// Score LoCoMo end-to-end: retrieve, read, and grade the answer with
     /// a deterministic scorer (no LLM judge). See `bench.rs`.
@@ -1190,18 +1194,20 @@ async fn main() -> anyhow::Result<()> {
             grounded,
             typed,
             typed_premise,
+            typed_cited,
         } => {
             let cfg = MyelinConfig::load().context("load myelin config")?;
-            let pass = match (samples, agree, grounded, typed, typed_premise) {
-                (Some(n), Some(a), false, false, false) => myelin_eval::commit_arm::Pass::Consensus(
+            let pass = match (samples, agree, grounded, typed, typed_premise, typed_cited) {
+                (Some(n), Some(a), false, false, false, false) => myelin_eval::commit_arm::Pass::Consensus(
                     myelin_eval::bench::Consensus::new(n, seed, a)?,
                 ),
-                (None, None, true, false, false) => myelin_eval::commit_arm::Pass::Grounded,
-                (None, None, false, true, false) => myelin_eval::commit_arm::Pass::Typed,
-                (None, None, false, false, true) => myelin_eval::commit_arm::Pass::TypedPremise,
-                (None, None, false, false, false) => myelin_eval::commit_arm::Pass::Greedy,
+                (None, None, true, false, false, false) => myelin_eval::commit_arm::Pass::Grounded,
+                (None, None, false, true, false, false) => myelin_eval::commit_arm::Pass::Typed,
+                (None, None, false, false, true, false) => myelin_eval::commit_arm::Pass::TypedPremise,
+                (None, None, false, false, false, true) => myelin_eval::commit_arm::Pass::TypedCited,
+                (None, None, false, false, false, false) => myelin_eval::commit_arm::Pass::Greedy,
                 _ => anyhow::bail!(
-                    "--samples/--agree, --grounded, --typed and --typed-premise are different second passes; pass one"
+                    "--samples/--agree, --grounded, --typed, --typed-premise and --typed-cited are different second passes; pass one"
                 ),
             };
             let report = myelin_eval::commit_arm::run(
@@ -1415,6 +1421,7 @@ async fn main() -> anyhow::Result<()> {
                     commit_grounded: false,
                     commit_typed: false,
                     commit_premise_finding: false,
+                    commit_typed_cited: false,
                     untrusted_max,
                     decompose,
                     categories: categories.clone().unwrap_or_default(),

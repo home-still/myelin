@@ -18,6 +18,9 @@ figment = { version = "0.10", features = ["yaml", "env"] }
 futures-util = "0.3"
 petgraph = "0.8"
 qdrant-client = { version = "1.19", features = ["serde"] }
+# Snowball English (Porter's suffix stripping), for M81's question-word match:
+# "bake" meets "baked" (`myelin_eval::bench::uncited_terms`).
+rust-stemmers = "1.2"
 # The gRPC status type qdrant-client's errors carry, named so a transport
 # failure can be told from an API error (`store::qdrant::is_transient`). The same
 # major as qdrant-client's own tonic, so the types unify.
