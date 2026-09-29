@@ -601,6 +601,11 @@ enum Command {
         /// the other speaker is not entailed.
         #[arg(long, requires = "typed_nli")]
         speaker_contrast: bool,
+        /// M83b: with `--typed-nli`, a statement that adds a negation the
+        /// question lacks, or names a dialogue speaker the question does not,
+        /// keeps the decline without reaching the NLI model.
+        #[arg(long, requires = "typed_nli")]
+        assert_statement: bool,
     },
     /// Score LoCoMo end-to-end: retrieve, read, and grade the answer with
     /// a deterministic scorer (no LLM judge). See `bench.rs`.
@@ -1210,6 +1215,7 @@ async fn main() -> anyhow::Result<()> {
             typed_nli,
             ref nli_url,
             speaker_contrast,
+            assert_statement,
         } => {
             let cfg = MyelinConfig::load().context("load myelin config")?;
             let pass = match (samples, agree, grounded, typed, typed_premise, typed_cited, typed_nli) {
@@ -1221,7 +1227,7 @@ async fn main() -> anyhow::Result<()> {
                 (None, None, false, false, true, false, false) => myelin_eval::commit_arm::Pass::TypedPremise,
                 (None, None, false, false, false, true, false) => myelin_eval::commit_arm::Pass::TypedCited,
                 (None, None, false, false, false, false, true) => {
-                    myelin_eval::commit_arm::Pass::TypedNli { speaker_contrast }
+                    myelin_eval::commit_arm::Pass::TypedNli { speaker_contrast, assert_statement }
                 }
                 (None, None, false, false, false, false, false) => myelin_eval::commit_arm::Pass::Greedy,
                 _ => anyhow::bail!(
@@ -1444,6 +1450,7 @@ async fn main() -> anyhow::Result<()> {
                     commit_typed_cited: false,
                     commit_typed_nli: false,
                     commit_speaker_contrast: false,
+                    commit_assert_statement: false,
                     untrusted_max,
                     decompose,
                     categories: categories.clone().unwrap_or_default(),
