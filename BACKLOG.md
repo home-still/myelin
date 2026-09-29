@@ -43,6 +43,15 @@ its history. Short version:
     70.84.
   - Multi-hop (−4.6) and open-domain (−27.1, was −34.4) still trail MemPro
     under its own judge. Temporal (+5.3) and single-hop (+4.0) lead.
+- **A stronger same-class LongMemEval_S row exists (found 2026-09-29):**
+  Hindsight on gpt-oss-20b reports **83.6** (arXiv 2512.12818, December
+  2025, missed by every earlier catalog). Its judge is GPT-OSS-120B with
+  LongMemEval's own prompts.
+  - It leads our shipped point by 10.3 questions, all in single-session-user,
+    preference, multi-session and single-session-assistant.
+  - It also reports 83.18 on LoCoMo, under an unstated LoCoMo prompt.
+  - It is in the registry but is not a gate.
+    `docs/research/sota-catalog-2026-09-29.md`.
 - **LME-V2 78.05, 3.15 past the 74.90 AgentRunbook-C row (M54, 2026-09-27).**
   AgentRunbook-C driven locally by Bonsai 27B, +39.25 [+34.15, +44.12] over
   myelin's own memory (38.80). The lead is `caveat-judge` (our 9B judge). It

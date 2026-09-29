@@ -1,6 +1,6 @@
 {
-  "commit": "3f9acd7f3f33aa9d8b03f4bfb2bce1e6b7110825-dirty",
-  "generated_at": "2026-09-29T19:40:43.623350Z",
+  "commit": "e79f66457c4528e6bbcbe54ac23419d1141f24bf-dirty",
+  "generated_at": "2026-09-29T19:59:42.031633Z",
   "rows": [
     {
       "registry_id": "locomo.judge.mempro15.gpt4omini",
@@ -246,6 +246,151 @@
       "run": "runs/m84_locomo_base",
       "source_doi": "10.48550/arXiv.2606.00619",
       "caveat": "G2's LoCoMo bar (PLAN.md 11.5): MemPro's own open-weights backbone, so the answer-model class matches ours. The judge is still GPT-4o-mini (L122), which is the one asymmetry left in this comparison. Avg. reproduces as the micro-average over the full 1,540: (75.17*282 + 70.83*96 + 83.47*841 + 67.60*321)/1540 = 77.85. The gate moved to locomo.judge_lightmem.mempro15.qwen3_30b (M68, user 2026-09-25): the same row graded by the same judge. This strict-judge comparison stays published and caveat-judge.",
+      "detail": "judge qwen3.5-9b : 1091 of 1540 correct (102 declines scored 0)",
+      "candidates": [
+        {
+          "run": "runs/m84_locomo_base",
+          "value": 70.84415584415584
+        },
+        {
+          "run": "runs/m63_locomo_inline",
+          "value": 70.71428571428572
+        },
+        {
+          "run": "runs/m82_locomo_base",
+          "value": 70.64935064935065
+        },
+        {
+          "run": "runs/m81_locomo_base",
+          "value": 70.58441558441558
+        },
+        {
+          "run": "runs/m83_locomo_base",
+          "value": 70.58441558441558
+        },
+        {
+          "run": "runs/m83b_locomo_base",
+          "value": 70.58441558441558
+        },
+        {
+          "run": "runs/m63_locomo_base",
+          "value": 70.51948051948051
+        },
+        {
+          "run": "runs/m61_locomo_grounded",
+          "value": 70.06493506493506
+        },
+        {
+          "run": "runs/m83_locomo_m50c",
+          "value": 70.06493506493506
+        },
+        {
+          "run": "runs/m19_locomo_full",
+          "value": 69.87012987012987
+        },
+        {
+          "run": "runs/m50c_locomo_events",
+          "value": 69.87012987012987
+        },
+        {
+          "run": "runs/m50b_locomo_events",
+          "value": 69.74025974025973
+        },
+        {
+          "run": "runs/m83b_locomo_m50b",
+          "value": 69.74025974025973
+        },
+        {
+          "run": "runs/m59_locomo_bonsai_bestguess",
+          "value": 67.92207792207792
+        },
+        {
+          "run": "runs/m83b_locomo_m55b",
+          "value": 67.27272727272727
+        },
+        {
+          "run": "runs/m55b_locomo_bonsai",
+          "value": 66.68831168831169
+        },
+        {
+          "run": "runs/m83_locomo_m51",
+          "value": 65.25974025974025
+        },
+        {
+          "run": "runs/m83b_locomo_m51",
+          "value": 65.25974025974025
+        },
+        {
+          "run": "runs/m51_locomo_s1",
+          "value": 65.06493506493507
+        },
+        {
+          "run": "runs/m63_locomo_dedupe",
+          "value": 62.5974025974026
+        },
+        {
+          "run": "runs/m21_mh_base",
+          "value": 58.156028368794324
+        },
+        {
+          "run": "runs/m21_mh_sel",
+          "value": 54.96453900709219
+        },
+        {
+          "run": "runs/m51_locomo_s1.part10",
+          "value": 68.55345911949685
+        },
+        {
+          "run": "runs/m51_locomo_s1.part11",
+          "value": 66.66666666666666
+        },
+        {
+          "run": "runs/m51_locomo_s1.part5",
+          "value": 65.40880503144653
+        },
+        {
+          "run": "runs/m51_locomo_s1.part9",
+          "value": 63.52201257861635
+        },
+        {
+          "run": "runs/m51_locomo_s1.part6",
+          "value": 69.62025316455697
+        },
+        {
+          "run": "runs/m51_locomo_s1.part7",
+          "value": 66.45569620253164
+        },
+        {
+          "run": "runs/m51_locomo_s1.part4",
+          "value": 60.75949367088608
+        },
+        {
+          "run": "runs/m51_locomo_s1.part8",
+          "value": 63.69426751592356
+        },
+        {
+          "run": "runs/locomo_recall",
+          "value": 62.66233766233766
+        }
+      ]
+    },
+    {
+      "registry_id": "locomo.judge.hindsight.gptoss20b",
+      "metric": "locomo.judge_score.n1540",
+      "system": "Hindsight (gpt-oss-20b)",
+      "theirs": 83.18,
+      "ours": 70.84415584415584,
+      "ours_n": 1540,
+      "gap": -12.335844155844171,
+      "verdict": {
+        "verdict": "comparable"
+      },
+      "claim_allowed": false,
+      "gate": false,
+      "arm": false,
+      "run": "runs/m84_locomo_base",
+      "source_doi": "10.48550/arXiv.2512.12818",
+      "caveat": "Found 2026-09-29. Judge: GPT-OSS-120B for every system; the paper gives LongMemEval's judge templates but no LoCoMo prompt, so this row is not matched to LightMem's prompt (our 78.64) nor to our strict 9B judge (70.84). Four categories (single-hop, open-domain, multi-hop, temporal): the 1,540 non-adversarial questions.",
       "detail": "judge qwen3.5-9b : 1091 of 1540 correct (102 declines scored 0)",
       "candidates": [
         {
@@ -1229,6 +1374,459 @@
       "run": "runs/r5_nli_seeds",
       "source_doi": "10.48550/arXiv.2606.00619",
       "caveat": "G2's LongMemEval_S bar (PLAN.md 11.5). Micro-average check: (71.43*133 + 75.94*133 + 82.05*78 + 92.86*70 + 98.21*56 + 80.00*30)/500 = 80.80. Note the open-weights backbone scores HIGHER here than gpt-4o-mini's 79.00 and lower on LoCoMo - cross-model comparison on these two benchmarks is not monotonic. The gate is decided on longmemeval_s.judge_score_matched.n500 (M70): LongMemEval's own grader, the one runnable reading of MemPro's judge.",
+      "detail": "seed mean of 3 (80.80 / 81.60 / 81.20); judge qwen3.5-9b : 404 of 500 correct (34 declines scored 0)",
+      "candidates": [
+        {
+          "run": "runs/r5_nli_seeds",
+          "value": 81.2
+        },
+        {
+          "run": "runs/r5_bundle_seeds",
+          "value": 80.80000000000001
+        },
+        {
+          "run": "runs/r5_bundle_s2_m80",
+          "value": 82.0
+        },
+        {
+          "run": "runs/r5_bundle_s2_typed",
+          "value": 81.8
+        },
+        {
+          "run": "runs/r5b_bundle_s2_typed",
+          "value": 81.8
+        },
+        {
+          "run": "runs/r5b_bundle_s3_typed",
+          "value": 81.8
+        },
+        {
+          "run": "runs/r5_bundle_s2_m82",
+          "value": 81.6
+        },
+        {
+          "run": "runs/r5_bundle_s3_typed",
+          "value": 81.6
+        },
+        {
+          "run": "runs/r5_bundle_s1_m80",
+          "value": 81.39999999999999
+        },
+        {
+          "run": "runs/r5_bundle_s2_m81",
+          "value": 81.39999999999999
+        },
+        {
+          "run": "runs/r5_bundle_s2_m84",
+          "value": 81.39999999999999
+        },
+        {
+          "run": "runs/r5_bundle_s3_m80",
+          "value": 81.39999999999999
+        },
+        {
+          "run": "runs/r5_bundle_s2_grounded_c",
+          "value": 81.2
+        },
+        {
+          "run": "runs/r5_bundle_s3_m82",
+          "value": 81.2
+        },
+        {
+          "run": "runs/r5_bundle_s3_m84",
+          "value": 81.2
+        },
+        {
+          "run": "runs/r5_bundle_s1_typed",
+          "value": 81.0
+        },
+        {
+          "run": "runs/r5_bundle_s3_m81",
+          "value": 81.0
+        },
+        {
+          "run": "runs/r5b_bundle_s1_typed",
+          "value": 81.0
+        },
+        {
+          "run": "runs/r5_bundle_s1_m82",
+          "value": 80.80000000000001
+        },
+        {
+          "run": "runs/r4_bundle_s1_grounded",
+          "value": 80.60000000000001
+        },
+        {
+          "run": "runs/r5_bundle_s1_m84",
+          "value": 80.60000000000001
+        },
+        {
+          "run": "runs/r5_bundle_s3_grounded_c",
+          "value": 80.60000000000001
+        },
+        {
+          "run": "runs/m71_lme_grounded",
+          "value": 80.4
+        },
+        {
+          "run": "runs/r5_bundle_s1_grounded_c",
+          "value": 80.4
+        },
+        {
+          "run": "runs/r5_bundle_s1_m81",
+          "value": 80.4
+        },
+        {
+          "run": "runs/m72_lme_agg",
+          "value": 80.2
+        },
+        {
+          "run": "runs/m78c_answer_s3",
+          "value": 80.2
+        },
+        {
+          "run": "runs/m55_bonsai_s1",
+          "value": 80.0
+        },
+        {
+          "run": "runs/m80_base_s1",
+          "value": 80.0
+        },
+        {
+          "run": "runs/m71b_lme_grounded",
+          "value": 79.80000000000001
+        },
+        {
+          "run": "runs/m72b_lme_agg",
+          "value": 79.80000000000001
+        },
+        {
+          "run": "runs/m77c_clause_s2",
+          "value": 79.80000000000001
+        },
+        {
+          "run": "runs/m78_answer_s1",
+          "value": 79.80000000000001
+        },
+        {
+          "run": "runs/m78_answer_s3",
+          "value": 79.80000000000001
+        },
+        {
+          "run": "runs/m79_base_s1",
+          "value": 79.80000000000001
+        },
+        {
+          "run": "runs/m73b_events_s1",
+          "value": 79.60000000000001
+        },
+        {
+          "run": "runs/m77_words_clause_s2",
+          "value": 79.60000000000001
+        },
+        {
+          "run": "runs/m82_base_s1",
+          "value": 79.60000000000001
+        },
+        {
+          "run": "runs/m77c_clause_s1",
+          "value": 79.4
+        },
+        {
+          "run": "runs/m78b_picks_s1",
+          "value": 79.4
+        },
+        {
+          "run": "runs/m20b_profile_s1",
+          "value": 79.2
+        },
+        {
+          "run": "runs/m77_words_clause_s1",
+          "value": 79.2
+        },
+        {
+          "run": "runs/m77_words_clause_s3",
+          "value": 79.2
+        },
+        {
+          "run": "runs/m78b_picks_s3",
+          "value": 79.2
+        },
+        {
+          "run": "runs/m78c_answer_s1",
+          "value": 79.2
+        },
+        {
+          "run": "runs/m81_base_s1",
+          "value": 79.2
+        },
+        {
+          "run": "runs/m57_bonsai_premise_s1",
+          "value": 79.0
+        },
+        {
+          "run": "runs/m76_words_s1",
+          "value": 79.0
+        },
+        {
+          "run": "runs/m76b_words_nopremise_s1",
+          "value": 79.0
+        },
+        {
+          "run": "runs/m76c_nopremise_s1",
+          "value": 79.0
+        },
+        {
+          "run": "runs/m77c_clause_s3",
+          "value": 79.0
+        },
+        {
+          "run": "runs/m78b_picks_s2",
+          "value": 79.0
+        },
+        {
+          "run": "runs/m78c_answer_s2",
+          "value": 79.0
+        },
+        {
+          "run": "runs/m80_base_s2",
+          "value": 79.0
+        },
+        {
+          "run": "runs/m78_answer_s2",
+          "value": 78.8
+        },
+        {
+          "run": "runs/m79_base_s2",
+          "value": 78.8
+        },
+        {
+          "run": "runs/m80_base_s3",
+          "value": 78.8
+        },
+        {
+          "run": "runs/m57_pref_s2",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m57_pref_s3",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m79_base_s3",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m82_base_s2",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m82_base_s3",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m81_base_s2",
+          "value": 78.2
+        },
+        {
+          "run": "runs/m81_base_s3",
+          "value": 78.0
+        },
+        {
+          "run": "runs/r5_base_s2",
+          "value": 78.0
+        },
+        {
+          "run": "runs/r5_base_s3",
+          "value": 77.8
+        },
+        {
+          "run": "runs/m44_r2b_s1",
+          "value": 77.2
+        },
+        {
+          "run": "runs/m44_r2b_s2",
+          "value": 76.0
+        },
+        {
+          "run": "runs/m44_r2_s1",
+          "value": 75.0
+        },
+        {
+          "run": "runs/m44_r2_s2",
+          "value": 74.8
+        },
+        {
+          "run": "runs/m44_r1",
+          "value": 66.4
+        },
+        {
+          "run": "runs/m43_dated",
+          "value": 66.2
+        },
+        {
+          "run": "runs/m45_consensus",
+          "value": 66.2
+        },
+        {
+          "run": "runs/m46_ago",
+          "value": 66.0
+        },
+        {
+          "run": "runs/m48_role",
+          "value": 65.60000000000001
+        },
+        {
+          "run": "runs/m40_digest",
+          "value": 64.4
+        },
+        {
+          "run": "runs/m42_commit",
+          "value": 64.2
+        },
+        {
+          "run": "runs/m43_filtered",
+          "value": 63.0
+        },
+        {
+          "run": "runs/m39_selfask",
+          "value": 62.8
+        },
+        {
+          "run": "runs/m32_inv_sel",
+          "value": 62.0
+        },
+        {
+          "run": "runs/m32_inv_sel_certified",
+          "value": 62.0
+        },
+        {
+          "run": "runs/m21_full_sel",
+          "value": 60.4
+        },
+        {
+          "run": "runs/m32_sel",
+          "value": 60.4
+        },
+        {
+          "run": "runs/m21_full_base",
+          "value": 56.599999999999994
+        },
+        {
+          "run": "runs/m32_base",
+          "value": 56.599999999999994
+        },
+        {
+          "run": "runs/m19_lme_s_full",
+          "value": 56.39999999999999
+        },
+        {
+          "run": "runs/m32_inv_base",
+          "value": 56.2
+        },
+        {
+          "run": "runs/m21_ms_sel",
+          "value": 45.86466165413533
+        },
+        {
+          "run": "runs/m21_tr_sel",
+          "value": 39.849624060150376
+        },
+        {
+          "run": "runs/m21_ms_base",
+          "value": 38.34586466165413
+        },
+        {
+          "run": "runs/m19_lme_t_armDW25",
+          "value": 37.59398496240601
+        },
+        {
+          "run": "runs/m21_inv_base",
+          "value": 36.84210526315789
+        },
+        {
+          "run": "runs/m21_inv_sel",
+          "value": 36.84210526315789
+        },
+        {
+          "run": "runs/m19_lme_t_armD",
+          "value": 33.83458646616541
+        },
+        {
+          "run": "runs/m21_tr_base",
+          "value": 33.83458646616541
+        },
+        {
+          "run": "runs/m21_ms_mmr",
+          "value": 33.08270676691729
+        },
+        {
+          "run": "runs/m19_lme_t_armW25",
+          "value": 30.82706766917293
+        },
+        {
+          "run": "runs/m19_lme_t_armWinv",
+          "value": 27.06766917293233
+        },
+        {
+          "run": "runs/m19_lme_t_base",
+          "value": 27.06766917293233
+        },
+        {
+          "run": "runs/m21_tr_mmr",
+          "value": 24.06015037593985
+        },
+        {
+          "run": "runs/m55_bonsai_pilot_s1",
+          "value": 77.0
+        },
+        {
+          "run": "runs/m50_pilot_base_s1",
+          "value": 69.0
+        },
+        {
+          "run": "runs/m50_pilot_s1",
+          "value": 69.0
+        },
+        {
+          "run": "runs/m20_pref_armAB",
+          "value": 36.666666666666664
+        },
+        {
+          "run": "runs/m20_pref_armB",
+          "value": 33.33333333333333
+        },
+        {
+          "run": "runs/m20_pref_armA",
+          "value": 30.0
+        },
+        {
+          "run": "runs/m20_pref_base",
+          "value": 30.0
+        },
+        {
+          "run": "runs/lme_s_recall",
+          "value": 52.0
+        }
+      ]
+    },
+    {
+      "registry_id": "longmemeval_s.judge.hindsight.gptoss20b",
+      "metric": "longmemeval_s.judge_score.n500",
+      "system": "Hindsight (gpt-oss-20b)",
+      "theirs": 83.6,
+      "ours": 81.2,
+      "ours_n": 500,
+      "gap": -2.3999999999999915,
+      "verdict": {
+        "verdict": "comparable"
+      },
+      "claim_allowed": false,
+      "gate": false,
+      "arm": false,
+      "run": "runs/r5_nli_seeds",
+      "source_doi": "10.48550/arXiv.2512.12818",
+      "caveat": "Found 2026-09-29 by the landscape check; v1 is dated 2025-12-14 and was missed by every earlier catalog. The strongest same-class LongMemEval_S row we know: gpt-oss-20b does fact extraction, reflection and answering. Judge: GPT-OSS-120B for every system in the table, with LongMemEval's own per-question-type judge templates (App. A.4) - the official grader's prompts on a different model, so it sits between our strict 9B judge and LongMemEval's gpt-4o-mini grader. Micro-average check: (95.7*70 + 94.6*56 + 66.7*30 + 84.6*78 + 79.7*133 + 79.7*133)/500 = 83.6 (418/500). Single run, no CI. Its lead over our shipped point sits in the single-session strata (user 95.7, assistant 94.6, preference 66.7).",
       "detail": "seed mean of 3 (80.80 / 81.60 / 81.20); judge qwen3.5-9b : 404 of 500 correct (34 declines scored 0)",
       "candidates": [
         {

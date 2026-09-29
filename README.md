@@ -147,6 +147,21 @@ standing`; the full table with comparability verdicts is
 
 Every literature row is judged by a frontier API where we are judged by a
 local Qwen3.5-9B (`caveat-judge`).
+
+**A stronger same-class row, found after the gates closed (2026-09-29):**
+[Hindsight](docs/research/sota-catalog-2026-09-29.md) (arXiv 2512.12818,
+December 2025) runs gpt-oss-20b, an open 20B model, and reports **83.6 on
+LongMemEval_S**. That is 2.1 points above our 81.53. Its judge is
+GPT-OSS-120B with LongMemEval's own per-type prompts: the official prompts,
+graded by a different model.
+- Per question type, it leads us on single-session-user (−4.0 questions),
+  preference (−4.3), multi-session (−2.3) and single-session-assistant
+  (−2.0).
+- We lead on temporal (+2.0) and knowledge-update (+0.3).
+- It also reports 83.18 on LoCoMo, under a judge whose LoCoMo prompt it does
+  not give.
+- Both rows are in the registry, so `standing` tracks them. The MemPro-15
+  bar we closed is no longer the strongest same-class number.
 § **LoCoMo, graded the way the row we chase was graded
 ([M68](docs/measurements/m68-matched-judge.md)):** MemPro's 77.85 came from
 gpt-4o-mini with LightMem's lenient prompt. The same grader, byte for byte,
