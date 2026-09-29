@@ -249,6 +249,26 @@ researched before a design:
 The ceiling is +9.1 on the combined 451 (all 41 rows); realistically, a few
 points.
 
+**Screened 2026-09-29: a lexical absence rule fails.** The question was
+whether the controller's notes say "no such…", "not found", "there is no…"
+often enough, and only on false premises, for code to decline on them.
+
+| rows | web | enterprise |
+|---|---|---|
+| abstention, right | cue in 48 of 57 | 24 of 30 |
+| abstention, wrong (the target) | 7 of 15 | 13 of 26 |
+| answerable, right | **49 of 139** | **34 of 126** |
+| answerable, wrong | 14 of 29 | 10 of 29 |
+
+- A cue-triggered decline would take back about a third of the right
+  answers. It is too blunt, as M81 was on LongMemEval_S.
+- The separating signal is semantic: does the premise hold in the notes?
+  The shipped NLI premise machinery (M82/M83/M83b) is the natural tool, but
+  here it would *turn answers into declines*, so a false decline costs a
+  right answer. A design needs a statement writer for UI-state questions and
+  an offline screen of NLI on the notes, and there are ~380 answerable rows
+  to protect.
+
 ---
 
 ## M56 — an external checker on when to answer *(0b, used per the manual: safe; LoCoMo 70.65, short of the gate)*
