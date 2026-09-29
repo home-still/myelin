@@ -104,6 +104,25 @@ first arm to question the measurement apparatus rather than the mechanism.
 
 ---
 
+## M82 — the premise decided by an NLI model: **safe and positive on LongMemEval_S** (stack official 81.40, strict 81.20), **fails the LoCoMo transfer** (13/303) *(2026-09-29)*
+
+- **Mechanism:** the typed pass writes a statement that keeps every
+  question word, and a DeBERTa-v3 NLI cross-encoder (served on big) must
+  entail it from the cited memories. It commits on the model's argmax.
+- **LongMemEval_S:**
+  - 0 false fits, 3–6 commits per replicate;
+  - overall +0.7 [+0.1, +1.5] (4/0) under both readings;
+  - stratum +6.1 [+0.0, +14.3], which touches 0.
+- **Stack on the shipped bundle:** strict 81.20 and official 81.40, beating
+  the shipped 80.80 / 81.13 with abstention held.
+- **LoCoMo transfer: 13 of 303 adversarial declines flipped** (limit 3).
+  NLI entails person-swapped statements, because it does not track who is
+  speaking in a dialogue turn.
+- **Verdict:** criteria 1 and 2 fail, so M82 does not ship.
+- **Next, recorded:** a speaker-resolved premise (turns rewritten in the
+  third person) before NLI.
+- Doc: `m82-nli-premise.md`.
+
 ## M81 — the premise decided in code on the cited memories: **safe but inert** (1–2 commits per replicate), and it **fails the LoCoMo transfer** (5/303) *(2026-09-29)*
 
 - **Mechanism:** the typed pass cites its memories, and code commits only
