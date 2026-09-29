@@ -200,6 +200,25 @@ lost under the strict judge):
 
 ---
 
+## M83 — the speaker contrast for M82's NLI premise *(pre-registered 2026-09-29; running on big)*
+
+- **The problem:** M82 flipped 13 of LoCoMo's 303 adversarial declines,
+  and every one was a person swap.
+- **The fix:** an entailed statement that names one of the dialogue's two
+  speakers commits only if the same statement about the other speaker is
+  *not* entailed. This is FactCC's entity swap used as a contrast.
+- **The screen, on M82's own rows:** 13 → 0 flips, with every LongMemEval_S
+  commit kept. Two alternatives were rejected:
+  - the recorded fix, a speaker-resolved premise, still left 10 of 13
+    entailed;
+  - a head-word exemption let "What *cult* did Tim join?" through.
+- **The gate runs on two held-out LoCoMo runs:** ≤ 2 of 277 and ≤ 3 of 375
+  flips, with no LoCoMo loss.
+- **LongMemEval_S is M82's by construction,** because the contrast cannot
+  fire there. If the gate passes, whether it ships is the user's call,
+  because M82's stratum CI touched 0.
+- Doc: `docs/measurements/m83-speaker-contrast.md`.
+
 ## Readout rigour — discordant counts, the exact sign test, and a repeated official grader *(round-5 catalog, 2026-09-28; not started)*
 
 Small strata need the right test, and our grader is noisy (catalog §c, §e):

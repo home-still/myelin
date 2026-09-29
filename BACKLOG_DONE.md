@@ -121,6 +121,8 @@ first arm to question the measurement apparatus rather than the mechanism.
 - **Verdict:** criteria 1 and 2 fail, so M82 does not ship.
 - **Next, recorded:** a speaker-resolved premise (turns rewritten in the
   third person) before NLI.
+  - *Screened 2026-09-29: not enough* (10 of 13 still entailed).
+  - Taken up instead as M83's speaker contrast (`m83-speaker-contrast.md`).
 - Doc: `m82-nli-premise.md`.
 
 ## M81 — the premise decided in code on the cited memories: **safe but inert** (1–2 commits per replicate), and it **fails the LoCoMo transfer** (5/303) *(2026-09-29)*

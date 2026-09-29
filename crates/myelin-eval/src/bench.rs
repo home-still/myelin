@@ -577,6 +577,11 @@ pub struct BenchRun {
     /// cited memories. Absent on every run before M82.
     #[serde(default)]
     pub commit_typed_nli: bool,
+    /// M83: an entailed statement naming one of a dialogue's two speakers
+    /// committed only if the same statement about the other speaker was not
+    /// entailed. Absent on every run before M83.
+    #[serde(default)]
+    pub commit_speaker_contrast: bool,
     /// Rows inherited from an earlier attempt by `bench --resume`. Non-zero
     /// means the run's two halves may have been served by differently
     /// configured readers (slots, context): a greedy answer does not depend
@@ -882,6 +887,8 @@ pub struct BenchSwitches {
     pub commit_typed_cited: bool,
     /// M82: an NLI model decided the premise on the cited memories.
     pub commit_typed_nli: bool,
+    /// M83: the NLI decision was contrasted with the other dialogue speaker.
+    pub commit_speaker_contrast: bool,
     /// Cap untrusted occupancy in the composed set — M23 B1,
     /// `ComposeConfig::untrusted_max`.
     ///
@@ -1629,6 +1636,88 @@ fn prepare_typed_nli(text: &str, question: &str, memories: &[String]) -> Option<
     Some((answer.to_string(), statement.to_string(), cited))
 }
 
+/// M83: the names that speak in the shown memories' dialogues, in first-seen
+/// order.
+///
+/// A memory counts as a dialogue when its first line is a turn
+/// (`[date] Name: text`) and it holds turns by at least two different names.
+/// A name is one capitalised alphabetic word, so LongMemEval_S's `user:` and
+/// `assistant:` turns never count, and neither does a lone `Answer:` or
+/// `Note:` line inside an answer.
+fn dialogue_speakers(memories: &[String]) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for memory in memories {
+        let turns: Vec<Option<&str>> = memory.lines().map(turn_speaker).collect();
+        if !matches!(turns.first(), Some(Some(_))) {
+            continue;
+        }
+        let mut names: Vec<&str> = Vec::new();
+        for name in turns.into_iter().flatten() {
+            if !names.contains(&name) {
+                names.push(name);
+            }
+        }
+        if names.len() < 2 {
+            continue;
+        }
+        for name in names {
+            if !out.iter().any(|n| n == name) {
+                out.push(name.to_string());
+            }
+        }
+    }
+    out
+}
+
+/// The speaker of one dialogue line, `[date] Name: text`, if it is a turn.
+fn turn_speaker(line: &str) -> Option<&str> {
+    let mut rest = line.trim_start();
+    while let Some(after) = rest.strip_prefix('[') {
+        rest = after.split_once(']')?.1.trim_start();
+    }
+    let (name, text) = rest.split_once(':')?;
+    let is_name = name.chars().next().is_some_and(|c| c.is_ascii_uppercase())
+        && name.chars().all(|c| c.is_ascii_alphabetic());
+    (is_name && text.starts_with(' ')).then_some(name)
+}
+
+/// Whole-word occurrences of `name` in `text`, as byte offsets. "Jon" does not
+/// occur in "Jonathan"; it does in "Jon's".
+fn name_occurrences(text: &str, name: &str) -> Vec<usize> {
+    let bytes = text.as_bytes();
+    text.match_indices(name)
+        .map(|(at, _)| at)
+        .filter(|&at| {
+            let before = at.checked_sub(1).map(|i| bytes[i]);
+            let after = bytes.get(at + name.len()).copied();
+            !before.is_some_and(|b| b.is_ascii_alphanumeric()) && !after.is_some_and(|b| b.is_ascii_alphanumeric())
+        })
+        .collect()
+}
+
+/// M83: the statement about the dialogue's other speaker. It is `Some` only
+/// when the memories hold exactly two speakers and the statement names exactly
+/// one of them; every mention of that one becomes the other.
+fn speaker_swap(statement: &str, speakers: &[String]) -> Option<String> {
+    let [a, b] = speakers else {
+        return None;
+    };
+    let (named, other) = match (name_occurrences(statement, a).is_empty(), name_occurrences(statement, b).is_empty()) {
+        (false, true) => (a, b),
+        (true, false) => (b, a),
+        _ => return None,
+    };
+    let mut swapped = String::with_capacity(statement.len());
+    let mut last = 0;
+    for at in name_occurrences(statement, named) {
+        swapped.push_str(&statement[last..at]);
+        swapped.push_str(other);
+        last = at + named.len();
+    }
+    swapped.push_str(&statement[last..]);
+    Some(swapped)
+}
+
 /// M82. The premise is decided by an NLI model on the memories the answer cites
 /// (`docs/measurements/m82-nli-premise.md`).
 ///
@@ -1644,6 +1733,22 @@ fn prepare_typed_nli(text: &str, question: &str, memories: &[String]) -> Option<
 ///
 /// An NLI failure is an error, not a kept decline: a dead server must not
 /// read as "no commits".
+///
+/// **M83, `speaker_contrast`** (`docs/measurements/m83-speaker-contrast.md`).
+/// M82 committed 13 of LoCoMo's 303 adversarial declines. Each swaps the
+/// person a dialogue turn is about ("Caroline realized…" from Melanie's "I
+/// ran a charity race"), and the NLI model entailed it, because it does not
+/// bind a turn's first person to its speaker. With the contrast, an entailed
+/// statement that names one of the dialogue's two speakers commits only if
+/// the same statement about the other speaker is *not* entailed. That is the
+/// entity swap FactCC uses to make inconsistent claims (Kryściński et al.
+/// 2020, `10.18653/v1/2020.emnlp-main.750`), applied as a contrast set at
+/// decision time (Gardner et al. 2020, `10.18653/v1/2020.findings-emnlp.117`):
+/// memories that support a claim about both speakers do not say which one it
+/// is about. Both decisions are the model's argmax, so there is no threshold.
+/// On M82's rows it separated all 13 swaps and kept every LongMemEval_S
+/// commit (the screen in the measurement doc).
+#[allow(clippy::too_many_arguments)]
 pub(crate) async fn commit_typed_nli(
     llm: &dyn Llm,
     nli: &dyn Nli,
@@ -1652,6 +1757,7 @@ pub(crate) async fn commit_typed_nli(
     response: String,
     question: &str,
     memories: &[String],
+    speaker_contrast: bool,
 ) -> Result<(String, CommitOutcome, Option<String>)> {
     if !is_abstention(&response) {
         return Ok((response, CommitOutcome::default(), None));
@@ -1673,12 +1779,24 @@ pub(crate) async fn commit_typed_nli(
     let Some((answer, statement, cited)) = prepare_typed_nli(&second.text, question, memories) else {
         return Ok((response, fired, Some(second.text)));
     };
-    let probs = nli.classify(&cited.join("\n"), &statement).await?;
-    let raw = format!(
+    let premise = cited.join("\n");
+    let probs = nli.classify(&premise, &statement).await?;
+    let mut raw = format!(
         "{} nli=entailment {:.3} neutral {:.3} contradiction {:.3}",
         second.text, probs.entailment, probs.neutral, probs.contradiction
     );
-    if probs.entails() {
+    let mut entailed = probs.entails();
+    if entailed && speaker_contrast {
+        if let Some(swapped) = speaker_swap(&statement, &dialogue_speakers(memories)) {
+            let other = nli.classify(&premise, &swapped).await?;
+            raw.push_str(&format!(
+                " swap=entailment {:.3} neutral {:.3} contradiction {:.3}",
+                other.entailment, other.neutral, other.contradiction
+            ));
+            entailed = !other.entails();
+        }
+    }
+    if entailed {
         Ok((answer, CommitOutcome { fired: true, committed: true }, Some(raw)))
     } else {
         Ok((response, fired, Some(raw)))
@@ -3657,6 +3775,7 @@ fn finish_run(
         commit_premise_finding: spec.switches.commit_premise_finding,
         commit_typed_cited: spec.switches.commit_typed_cited,
         commit_typed_nli: spec.switches.commit_typed_nli,
+        commit_speaker_contrast: spec.switches.commit_speaker_contrast,
         resumed_rows: resumed,
         commit_samples: None,
         commit_agree: None,
@@ -3874,6 +3993,7 @@ pub fn rescore_run(source: &Path, out_dir: &Path, scorer: Scorer) -> Result<Benc
             commit_premise_finding: flag("commit_premise_finding"),
             commit_typed_cited: flag("commit_typed_cited"),
             commit_typed_nli: flag("commit_typed_nli"),
+            commit_speaker_contrast: flag("commit_speaker_contrast"),
             commit_answer: flag("commit_answer"),
             untrusted_max: metrics
                 .get("untrusted_max")
@@ -5130,20 +5250,91 @@ mod reader_tests {
         let q = "How many shirts did I pack for my trip to Costa Rica?";
         let reply = r#"{"answer":"7","mismatch":"none","statement":"I packed 7 shirts for my trip to Costa Rica.","supporting":[0]}"#;
         let (answer, outcome, raw) =
-            commit_typed_nli(&Says(reply), &FixedNli(ENTAILS), "sys", "user", "I don't know.".into(), q, &memories)
+            commit_typed_nli(&Says(reply), &FixedNli(ENTAILS), "sys", "user", "I don't know.".into(), q, &memories, false)
                 .await
                 .expect("nli answered");
         assert_eq!((answer.as_str(), outcome.committed), ("7", true));
         assert!(raw.is_some_and(|r| r.contains("nli=entailment 0.550")));
         let (answer, outcome, _) =
-            commit_typed_nli(&Says(reply), &FixedNli(CONTRADICTS), "sys", "user", "I don't know.".into(), q, &memories)
+            commit_typed_nli(&Says(reply), &FixedNli(CONTRADICTS), "sys", "user", "I don't know.".into(), q, &memories, false)
                 .await
                 .expect("nli answered");
         assert_eq!((answer.as_str(), outcome.committed), ("I don't know.", false));
         assert!(
-            commit_typed_nli(&Says(reply), &DeadNli, "sys", "user", "I don't know.".into(), q, &memories).await.is_err(),
+            commit_typed_nli(&Says(reply), &DeadNli, "sys", "user", "I don't know.".into(), q, &memories, false).await.is_err(),
             "a dead NLI server must not read as no commits"
         );
+    }
+
+    /// LoCoMo's dialogue memories name their two speakers; LongMemEval_S's
+    /// `user:`/`assistant:` turns and an answer's `Answer:` line name none.
+    #[test]
+    fn dialogue_speakers_come_from_memories_that_are_dialogues() {
+        let locomo = vec![
+            "[2023-05-25] Caroline joined a new activist group.".to_string(),
+            "[2023-05-25] Melanie: Hey Caroline, I ran a charity race last Saturday.\nCaroline: That sounds great, Mel!".to_string(),
+        ];
+        assert_eq!(dialogue_speakers(&locomo), vec!["Melanie".to_string(), "Caroline".to_string()]);
+        let lme = vec![
+            "[2023-05-02] user: I packed 7 shirts.\nassistant: Here is a list.\nAnswer: 7\nNote: pack light.".to_string(),
+            "[2023-05-03] Note: a single labelled line.".to_string(),
+        ];
+        assert!(dialogue_speakers(&lme).is_empty());
+    }
+
+    /// The swap needs exactly two speakers and a statement naming exactly one;
+    /// names match as whole words.
+    #[test]
+    fn the_speaker_swap_names_the_other_speaker() {
+        let two = vec!["Caroline".to_string(), "Melanie".to_string()];
+        assert_eq!(
+            speaker_swap("Caroline realized self-care matters after Caroline's race.", &two).as_deref(),
+            Some("Melanie realized self-care matters after Melanie's race.")
+        );
+        assert_eq!(speaker_swap("Caroline and Melanie went camping.", &two), None, "both named");
+        assert_eq!(speaker_swap("I ran a charity race.", &two), None, "neither named");
+        assert_eq!(speaker_swap("Caroline ran a race.", &two[..1]), None, "one speaker");
+        let jon = vec!["Jon".to_string(), "Gina".to_string()];
+        assert_eq!(speaker_swap("Jonathan opened a studio.", &jon), None, "Jon is not in Jonathan");
+    }
+
+    /// Entails a hypothesis only if it names `self.0`.
+    struct EntailsAbout(&'static str);
+
+    #[async_trait::async_trait]
+    impl Nli for EntailsAbout {
+        async fn classify(&self, _premise: &str, hypothesis: &str) -> Result<NliProbs> {
+            Ok(if hypothesis.contains(self.0) { ENTAILS } else { CONTRADICTS })
+        }
+    }
+
+    /// M83: memories that entail the claim about either speaker do not say
+    /// which one it is about, so the pass keeps the decline. Without the
+    /// contrast (M82) the same row commits.
+    #[tokio::test]
+    async fn the_speaker_contrast_keeps_a_decline_the_memories_cannot_attribute() {
+        let memories = vec![
+            "[2023-05-25] Melanie: Hey Caroline, I ran a charity race last Saturday.\nCaroline: That sounds great, Mel!".to_string(),
+        ];
+        let q = "What did Caroline realize after her charity race?";
+        let reply = r#"{"answer":"self-care matters","mismatch":"none","statement":"Caroline realized after her charity race that self-care matters.","supporting":[0]}"#;
+        let run = |nli: &'static dyn Nli, contrast: bool| {
+            let memories = memories.clone();
+            async move {
+                commit_typed_nli(&Says(reply), nli, "sys", "user", "I don't know.".into(), q, &memories, contrast)
+                    .await
+                    .expect("nli answered")
+            }
+        };
+        static BOTH: FixedNli = FixedNli(ENTAILS);
+        let (_, outcome, _) = run(&BOTH, false).await;
+        assert!(outcome.committed, "M82 commits");
+        let (answer, outcome, raw) = run(&BOTH, true).await;
+        assert_eq!((answer.as_str(), outcome.committed), ("I don't know.", false));
+        assert!(raw.is_some_and(|r| r.contains(" swap=entailment 0.550")));
+        static CAROLINE: EntailsAbout = EntailsAbout("Caroline");
+        let (answer, outcome, _) = run(&CAROLINE, true).await;
+        assert_eq!((answer.as_str(), outcome.committed), ("self-care matters", true), "only Caroline's claim is entailed");
     }
 
     #[test]

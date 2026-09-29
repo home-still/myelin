@@ -81,7 +81,9 @@ pub enum Pass {
     TypedCited,
     /// M82: an NLI model decides the premise on the cited memories
     /// (`bench::commit_typed_nli`). Needs the NLI client passed to [`run`].
-    TypedNli,
+    /// M83's `speaker_contrast` also requires that the same statement about
+    /// the dialogue's other speaker is not entailed.
+    TypedNli { speaker_contrast: bool },
 }
 
 /// The corpora whose first-pass prompt this replays. The prompt must be the
@@ -111,7 +113,7 @@ pub async fn run(
     nli: Option<&dyn Nli>,
 ) -> Result<CommitArmReport> {
     anyhow::ensure!(
-        matches!(pass, Pass::TypedNli) == nli.is_some(),
+        matches!(pass, Pass::TypedNli { .. }) == nli.is_some(),
         "an NLI client goes with --typed-nli and only with it"
     );
     anyhow::ensure!(
@@ -205,7 +207,7 @@ pub async fn run(
                     commit_grounded(&llm, &system, &user, first, &row.evidence).await;
                 (response, outcome.fired, outcome.committed)
             }
-            Pass::TypedNli => {
+            Pass::TypedNli { speaker_contrast } => {
                 let nli = nli.context("--typed-nli needs an NLI client")?;
                 let (response, outcome, raw) = commit_typed_nli(
                     &llm,
@@ -215,6 +217,7 @@ pub async fn run(
                     first,
                     &row.question_text,
                     &row.evidence,
+                    speaker_contrast,
                 )
                 .await
                 .with_context(|| format!("typed-nli pass on {}", row.question_id))?;
@@ -345,9 +348,12 @@ fn write_arm(
                 obj.insert("commit_typed".into(), serde_json::Value::Bool(true));
                 obj.insert("commit_typed_cited".into(), serde_json::Value::Bool(true));
             }
-            Pass::TypedNli => {
+            Pass::TypedNli { speaker_contrast } => {
                 obj.insert("commit_typed".into(), serde_json::Value::Bool(true));
                 obj.insert("commit_typed_nli".into(), serde_json::Value::Bool(true));
+                if speaker_contrast {
+                    obj.insert("commit_speaker_contrast".into(), serde_json::Value::Bool(true));
+                }
             }
         }
     }
