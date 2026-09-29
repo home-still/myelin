@@ -1,0 +1,8 @@
+{
+  "note": "The round-5 bundle, shipped 2026-09-29 (docs/measurements/r5-bundle-seeds.md): three reader seeds of the same configuration, quoted as their mean.",
+  "replicates": [
+    "runs/r5_bundle_s1_grounded",
+    "runs/r5_bundle_s2_grounded",
+    "runs/r5_bundle_s3_grounded"
+  ]
+}

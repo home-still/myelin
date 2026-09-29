@@ -259,6 +259,13 @@ pub struct Ours {
     /// published the arm. "Where we stand" is what the defaults do.
     #[serde(default)]
     pub arm: bool,
+    /// How many seed replicates the value averages: 1 for a single run, k
+    /// for a replicate set (`replicates.json`). A seed mean outranks any
+    /// single draw of the same configuration, because a single draw's value
+    /// is partly its seed. The round-5 bundle's three seeds scored official
+    /// 80.2, 81.6 and 81.6, and quoting the best of them would publish the
+    /// luck of the draw (`docs/measurements/r5-bundle-seeds.md`).
+    pub replicates: usize,
     /// The run's recorded switch set disagrees with **today's** shipped
     /// defaults, so it measures a configuration this code no longer
     /// produces. `None` is a run that today's defaults could have written.
@@ -764,7 +771,22 @@ pub fn collect(runs: &Path, python: &str) -> Result<BTreeMap<String, Ours>> {
     walk(runs, 0, &mut dirs)?;
     dirs.sort();
 
+    // Replicate sets first: their members are quoted only through the set.
+    let mut members: std::collections::BTreeSet<PathBuf> = std::collections::BTreeSet::new();
     for dir in &dirs {
+        if dir.join("replicates.json").exists() {
+            let (metrics, set_members) = replicate_set_metrics(dir, runs)?;
+            for o in metrics {
+                found.entry(o.metric.clone()).or_default().push(o);
+            }
+            members.extend(set_members.iter().map(|m| m.components().collect::<PathBuf>()));
+        }
+    }
+
+    for dir in &dirs {
+        if members.contains(&dir.components().collect::<PathBuf>()) {
+            continue;
+        }
         let agg = dir.join("aggregated_metrics.json");
         if agg.exists() {
             let text =
@@ -866,9 +888,86 @@ fn prefer(a: &Ours, b: &Ours, direction: Direction) -> std::cmp::Ordering {
         // and 36.59 is the number M22 actually measured the defaults at.
         .then_with(|| a.unrecorded.len().cmp(&b.unrecorded.len()))
         .then_with(|| a.arm.cmp(&b.arm))
+        // A seed mean before any single draw of a configuration.
+        .then_with(|| b.replicates.cmp(&a.replicates))
         .then_with(|| b.n.cmp(&a.n))
         .then_with(|| x.partial_cmp(&y).unwrap_or(std::cmp::Ordering::Equal))
         .then_with(|| a.run.cmp(&b.run))
+}
+
+/// A replicate set: a run directory with `replicates.json`,
+/// `{"replicates": ["runs/<seed 1>", "runs/<seed 2>", ...]}`, whose paths are
+/// relative to the directory that holds `runs`. Its metrics are each member's
+/// bench metrics averaged. Every member must supply the same metrics over the
+/// same population, or the set is refused, because a mean over unlike
+/// populations measures nothing (Miller 2024, "Adding Error Bars to Evals",
+/// arXiv 2411.00640, on resampling the answer and averaging per question).
+/// It returns the metrics and the member directories, so the members are not
+/// also quoted one by one.
+fn replicate_set_metrics(set_dir: &Path, runs: &Path) -> Result<(Vec<Ours>, Vec<PathBuf>)> {
+    let path = set_dir.join("replicates.json");
+    let spec: Value = serde_json::from_str(
+        &std::fs::read_to_string(&path).with_context(|| format!("read {}", path.display()))?,
+    )
+    .with_context(|| format!("parse {}", path.display()))?;
+    let root = runs.parent().unwrap_or(Path::new("."));
+    let members: Vec<PathBuf> = spec
+        .get("replicates")
+        .and_then(Value::as_array)
+        .with_context(|| format!("{} has no `replicates` array", path.display()))?
+        .iter()
+        .map(|v| {
+            v.as_str()
+                .map(|s| root.join(s))
+                .with_context(|| format!("{}: a replicate is not a path", path.display()))
+        })
+        .collect::<Result<_>>()?;
+    anyhow::ensure!(
+        members.len() >= 2,
+        "{}: a replicate set needs at least two members",
+        path.display()
+    );
+    let mut per_member: Vec<Vec<Ours>> = Vec::new();
+    for m in &members {
+        let agg = m.join("aggregated_metrics.json");
+        let text = std::fs::read_to_string(&agg)
+            .with_context(|| format!("{}: read member {}", path.display(), agg.display()))?;
+        per_member.push(bench_metrics(m, &text)?);
+    }
+    let ids = |v: &[Ours]| v.iter().map(|o| o.metric.clone()).collect::<Vec<_>>();
+    let first_ids = ids(&per_member[0]);
+    for (m, metrics) in members.iter().zip(&per_member) {
+        anyhow::ensure!(
+            ids(metrics) == first_ids,
+            "{}: member {} supplies different metrics than {}",
+            path.display(),
+            m.display(),
+            members[0].display()
+        );
+    }
+    let k = members.len();
+    let mut out = Vec::new();
+    for (i, first) in per_member[0].iter().enumerate() {
+        let draws: Vec<&Ours> = per_member.iter().map(|v| &v[i]).collect();
+        anyhow::ensure!(
+            draws.iter().all(|o| o.n == first.n),
+            "{}: members disagree on the population of {}",
+            path.display(),
+            first.metric
+        );
+        let values: Vec<f64> = draws.iter().map(|o| o.value).collect();
+        let mean = values.iter().sum::<f64>() / k as f64;
+        let shown = values.iter().map(|v| format!("{v:.2}")).collect::<Vec<_>>().join(" / ");
+        let mut o = first.clone();
+        o.value = mean;
+        o.run = set_dir.to_path_buf();
+        o.replicates = k;
+        o.arm = draws.iter().any(|d| d.arm);
+        o.incomplete = draws.iter().find_map(|d| d.incomplete.clone());
+        o.detail = format!("seed mean of {k} ({shown}); {}", first.detail);
+        out.push(o);
+    }
+    Ok((out, members))
 }
 
 /// Depth-capped directory walk. `runs/rescored/<run>` is two levels down, and
@@ -988,8 +1087,13 @@ fn bench_metrics(dir: &Path, agg_text: &str) -> Result<Vec<Ours>> {
         // configuration rather than as "where we stand".
         || run.item_digest != shipped_item_digest(&run.mode)
         || run.digest_dates != shipped_digest_dates(&run.mode)
-        // M42's decline-recovery second pass.
-        || run.commit_answer
+        // The grounded second pass over declines (M42's machinery, M71b's
+        // check) ships for LongMemEval_S since round 5; any other pass, or the
+        // grounded one elsewhere, is an arm.
+        || run.commit_answer != crate::bench::shipped_commit_grounded(&run.corpus)
+        || run.commit_grounded != crate::bench::shipped_commit_grounded(&run.corpus)
+        // M79's typed pass ships off.
+        || run.commit_typed
         // M43's digest relevance filter, and M48's three-way label.
         || run.digest_relevance
         || run.digest_role
@@ -1011,7 +1115,7 @@ fn bench_metrics(dir: &Path, agg_text: &str) -> Result<Vec<Ours>> {
         // M50c's events block, and its successors M73b's dated events and
         // M20b's ranked profile, shipping off pending their arms.
         || run.events_collection.is_some()
-        || run.events_ledger.is_some()
+        || run.events_ledger.as_deref() != crate::bench::shipped_events_ledger(&run.corpus)
         || run.profile_ledger.is_some()
         // L1's lineage-aware dedupe, shipping off pending its arm.
         || run.dedupe_lineage
@@ -1025,14 +1129,16 @@ fn bench_metrics(dir: &Path, agg_text: &str) -> Result<Vec<Ours>> {
         // M76b's premise clause off for advice requests, shipping off pending its arm.
         || run.advice_without_premise
         // M77's preference clause for advice requests, shipping off pending its arm.
-        || run.advice_profile_clause
+        || run.advice_profile_clause != crate::bench::shipped_advice_profile_clause(&run.corpus)
         // M78's advice answer as structure, shipping off pending its arm.
         || run.advice_answer
         // M78b's advice picks, shipping off pending its arm.
         || run.advice_picks
         // A reader-free coverage run is never a quotable score.
         || run.evidence_only
-        || run.aggregation_k.is_some()
+        || (run.aggregation_k, run.aggregation_budget_tokens)
+            != crate::bench::shipped_aggregation(&run.corpus)
+                .map_or((None, None), |(k, budget)| (Some(k), Some(budget)))
         // M47's presupposition check.
         || run.premise_check
         // A run against another store (M50's events copies, M20's preference
@@ -1069,6 +1175,7 @@ fn bench_metrics(dir: &Path, agg_text: &str) -> Result<Vec<Ours>> {
 
             if scorer == "token_f1" {
                 out.push(Ours {
+                    replicates: 1,
                     metric: "locomo.token_f1.n1540".into(),
                     value: run.f1_answerable * 100.0,
                     unit: Unit::PctZeroHundred,
@@ -1088,6 +1195,7 @@ fn bench_metrics(dir: &Path, agg_text: &str) -> Result<Vec<Ours>> {
             }
             if scorer == "temporal" {
                 out.push(Ours {
+                    replicates: 1,
                     metric: "locomo.temporal.n1540".into(),
                     value: run.f1_answerable * 100.0,
                     unit: Unit::PctZeroHundred,
@@ -1108,6 +1216,7 @@ fn bench_metrics(dir: &Path, agg_text: &str) -> Result<Vec<Ours>> {
                 });
             }
             out.push(Ours {
+                replicates: 1,
                 metric: "locomo.abstention_accuracy.n446".into(),
                 value: run.abstention_accuracy * 100.0,
                 unit: Unit::PctZeroHundred,
@@ -1141,6 +1250,7 @@ fn bench_metrics(dir: &Path, agg_text: &str) -> Result<Vec<Ours>> {
                 rows.iter().filter(|r| !r.is_abstention_problem).collect();
             if scorer == "token_f1" {
                 out.push(Ours {
+                    replicates: 1,
                     metric: "longmemeval_s.token_f1.n500".into(),
                     value: run.f1_answerable * 100.0,
                     unit: Unit::PctZeroHundred,
@@ -1322,6 +1432,7 @@ fn judged(
     let n = stratum.len();
     let incomplete = (covered < n).then(|| format!("{covered}/{n} judged"));
     Ours {
+        replicates: 1,
         metric: metric.into(),
         // The denominator is the whole stratum, so a decline costs what it
         // costs. On the full corpora that is LoCoMo's 1,540 (`PLAN.md` §1.1)
@@ -1494,6 +1605,7 @@ fn protocol_judged(
     }
     let n = population.len();
     Ours {
+        replicates: 1,
         metric: p.metric.into(),
         value: if n == 0 {
             0.0
@@ -1542,6 +1654,7 @@ fn matched_metrics(
             .collect();
         let incomplete: Vec<String> = out.iter().filter_map(|o| o.incomplete.clone()).collect();
         out.push(Ours {
+            replicates: 1,
             metric: metric.into(),
             detail: format!("the lowest of every reading: {}", readings.join(", ")),
             incomplete: (!incomplete.is_empty()).then(|| incomplete.join("; ")),
@@ -1608,6 +1721,7 @@ fn harness_metrics(dir: &Path, agg: &Value) -> Result<(HarnessRun, Vec<Ours>)> {
     let arm = harness_arm(dir)?;
     if !control && (domain == "web" || domain == "enterprise") {
         out.push(Ours {
+            replicates: 1,
             metric: format!("lme_v2_small.overall_full_set.{domain}"),
             value: acc,
             unit: Unit::PctZeroHundred,
@@ -1629,6 +1743,7 @@ fn harness_metrics(dir: &Path, agg: &Value) -> Result<(HarnessRun, Vec<Ours>)> {
             candidates: Vec::new(),
         });
         out.push(Ours {
+            replicates: 1,
             metric: format!("lme_v2_small.memory_query_avg_seconds.{domain}"),
             value: avg_seconds,
             unit: Unit::Seconds,
@@ -1952,6 +2067,7 @@ fn pair_metrics(harness: &[HarnessRun], python: &str) -> Vec<Ours> {
             (web.avg_seconds * web.count as f64 + ent.avg_seconds * ent.count as f64) / n as f64;
         let name = format!("{}+{}", stem(&web.dir), stem(&ent.dir));
         out.push(Ours {
+            replicates: 1,
             metric: "lme_v2_small.overall_full_set.combined".into(),
             value: acc,
             unit: Unit::PctZeroHundred,
@@ -2015,6 +2131,7 @@ fn pair_metrics(harness: &[HarnessRun], python: &str) -> Vec<Ours> {
     let run = points[0].4.clone();
     match lafs_gain(python, &request) {
         Ok(gain) => out.push(Ours {
+            replicates: 1,
             metric: "lme_v2_small.lafs_gain.small".into(),
             value: gain,
             unit: Unit::PctZeroHundred,
@@ -2151,6 +2268,7 @@ fn attack_metrics(dir: &Path, path: &Path) -> Result<Vec<Ours>> {
         };
         let Some(hits) = hits else { continue };
         out.push(Ours {
+            replicates: 1,
             metric: metric.into(),
             value: cond.rate(hits) * 100.0,
             unit: Unit::PctZeroHundred,
@@ -2692,6 +2810,7 @@ mod tests {
 
     fn mine(metric: &str, value: f64, n: usize) -> Ours {
         Ours {
+            replicates: 1,
             metric: metric.into(),
             value,
             unit: Unit::PctZeroHundred,
@@ -2727,10 +2846,12 @@ mod tests {
     #[test]
     fn a_higher_scoring_arm_never_displaces_the_shipped_configuration() {
         let shipped = |value: f64| Ours {
+            replicates: 1,
             run: PathBuf::from("runs/m21_full_base"),
             ..mine("longmemeval_s.judge_score.n500", value, 500)
         };
         let arm = |value: f64| Ours {
+            replicates: 1,
             run: PathBuf::from("runs/m21_full_sel"),
             arm: true,
             unrecorded: Vec::new(),
@@ -2745,10 +2866,12 @@ mod tests {
         // the defaults do not produce is not where we stand.
         let mut wider = [
             Ours {
+                replicates: 1,
                 n: 500,
                 ..arm(60.40)
             },
             Ours {
+                replicates: 1,
                 n: 470,
                 ..shipped(56.60)
             },
@@ -2761,6 +2884,7 @@ mod tests {
         let mut partial = [
             arm(60.40),
             Ours {
+                replicates: 1,
                 incomplete: Some("300/500 judged".into()),
                 ..shipped(56.60)
             },
@@ -4145,6 +4269,92 @@ mod tests {
     /// else, so the reader mode is an arm against its own corpus's default:
     /// a plain-reader LongMemEval_S run is an off-arm of today's reader; a
     /// plain-reader LoCoMo run — the pinned standing row — is not.
+    /// A shipped LongMemEval_S run artifact whose one row scores `score`.
+    fn shipped_lme_s_run(dir: &Path, score: f64) {
+        std::fs::create_dir_all(dir).unwrap();
+        let corpus = "longmemeval_s";
+        let agg = serde_json::json!({
+            "corpus": corpus, "collection": crate::bench::shipped_collection(corpus).unwrap(),
+            "mode": "investigate", "k": 6, "max_steps": 2, "scorer": "token_f1",
+            "resolve_dates": true, "timeline": true,
+            "select_sufficient": true, "item_digest": true, "digest_dates": true,
+            "reader_thinking": true,
+            "llm_served_model": crate::bench::shipped_llm_model(corpus),
+            "reader_premise_clause": true,
+            "events_ledger": crate::bench::shipped_events_ledger(corpus),
+            "aggregation_k": crate::bench::shipped_aggregation(corpus).map(|(k, _)| k),
+            "aggregation_budget_tokens": crate::bench::shipped_aggregation(corpus).map(|(_, b)| b),
+            "advice_profile_clause": true, "commit_answer": true, "commit_grounded": true,
+            "questions": 1, "f1_answerable": score, "em_answerable": score,
+            "abstention_accuracy": 0.0, "by_category": [],
+            "query_p50_seconds": 0.2, "query_avg_seconds": 0.2
+        });
+        let row = serde_json::json!({
+            "question_id": "q", "tenant": "lme_s/q", "category": 1,
+            "question_text": "what?", "answer_gold": "g", "response_raw": "g",
+            "score": score, "exact_match": score, "score_token_f1": score,
+            "is_abstention_problem": false, "retrieved_items": 6,
+            "memory_query_duration_seconds": 0.1
+        });
+        std::fs::write(dir.join("per_question.jsonl"), row.to_string()).unwrap();
+        std::fs::write(dir.join("aggregated_metrics.json"), agg.to_string()).unwrap();
+    }
+
+    /// A seed mean is quoted in place of its members, and outranks a single
+    /// draw of the same configuration that happens to score higher. Quoting
+    /// the best draw would publish the seed's luck
+    /// (`docs/measurements/r5-bundle-seeds.md`).
+    #[test]
+    fn a_replicate_set_quotes_its_seed_mean_over_any_single_draw() {
+        let tmp = tempfile::tempdir().unwrap();
+        let runs = tmp.path().join("runs");
+        shipped_lme_s_run(&runs.join("s1"), 0.2);
+        shipped_lme_s_run(&runs.join("s2"), 0.6);
+        shipped_lme_s_run(&runs.join("lucky"), 0.9);
+        std::fs::create_dir_all(runs.join("set")).unwrap();
+        std::fs::write(
+            runs.join("set/replicates.json"),
+            r#"{"replicates": ["runs/s1", "runs/s2"]}"#,
+        )
+        .unwrap();
+        let ours = collect(&runs, "/nonexistent/python").unwrap();
+        let metric = "longmemeval_s.token_f1.n500";
+        let quoted = &ours[metric];
+        assert_eq!(quoted.run, runs.join("set"), "{:?}", quoted.candidates);
+        assert_eq!(quoted.replicates, 2);
+        let single = |p: &str| {
+            let dir = runs.join(p);
+            bench_metrics(&dir, &std::fs::read_to_string(dir.join("aggregated_metrics.json")).unwrap())
+                .unwrap()
+                .into_iter()
+                .find(|o| o.metric == metric)
+                .unwrap()
+                .value
+        };
+        assert!((quoted.value - (single("s1") + single("s2")) / 2.0).abs() < 1e-9);
+        assert!(
+            quoted.candidates.iter().all(|c| c.run != runs.join("s1") && c.run != runs.join("s2")),
+            "members are quoted only through the set"
+        );
+        assert!(quoted.candidates.iter().any(|c| c.run == runs.join("lucky")), "the single draw is still listed");
+    }
+
+    #[test]
+    fn a_replicate_set_over_unlike_members_is_refused() {
+        let tmp = tempfile::tempdir().unwrap();
+        let runs = tmp.path().join("runs");
+        shipped_lme_s_run(&runs.join("s1"), 0.2);
+        std::fs::create_dir_all(runs.join("set")).unwrap();
+        std::fs::write(runs.join("set/replicates.json"), r#"{"replicates": ["runs/s1"]}"#).unwrap();
+        assert!(collect(&runs, "/nonexistent/python").is_err(), "one member is not a set");
+        std::fs::write(
+            runs.join("set/replicates.json"),
+            r#"{"replicates": ["runs/s1", "runs/missing"]}"#,
+        )
+        .unwrap();
+        assert!(collect(&runs, "/nonexistent/python").is_err(), "a missing member fails loudly");
+    }
+
     #[test]
     fn reader_thinking_is_an_arm_only_against_its_own_corpus_default() {
         let row = serde_json::json!({
@@ -4174,6 +4384,14 @@ mod tests {
                 // thing this test varies (M55 made the model per corpus).
                 "llm_served_model": crate::bench::shipped_llm_model(corpus),
                 "reader_premise_clause": crate::bench::shipped_reader_premise_clause(corpus),
+                // Round 5's shipped LongMemEval_S mechanisms, so thinking stays
+                // the only thing this test varies.
+                "events_ledger": crate::bench::shipped_events_ledger(corpus),
+                "aggregation_k": crate::bench::shipped_aggregation(corpus).map(|(k, _)| k),
+                "aggregation_budget_tokens": crate::bench::shipped_aggregation(corpus).map(|(_, b)| b),
+                "advice_profile_clause": crate::bench::shipped_advice_profile_clause(corpus),
+                "commit_answer": crate::bench::shipped_commit_grounded(corpus),
+                "commit_grounded": crate::bench::shipped_commit_grounded(corpus),
                 "questions": 1, "f1_answerable": 0.5, "em_answerable": 0.1,
                 "abstention_accuracy": 0.0, "by_category": [],
                 "query_p50_seconds": 0.2, "query_avg_seconds": 0.2

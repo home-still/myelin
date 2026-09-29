@@ -140,9 +140,9 @@ standing`; the full table with comparability verdicts is
 |---|---|---|---|---|
 | `minja.asr.k6_prepopulated_defended` | **7.50%** | ≤10% | **CLOSED** | M15 |
 | `locomo.judge_score_matched.n1540` | **78.18** | 77.85 MemPro-15 (Qwen), same judge | **+0.33** § | M68/M68b |
-| `longmemeval_s.judge_score_matched.n500` | 78.60 | 80.80 MemPro-15 (Qwen), LongMemEval's own judge | −2.20 | M70 |
+| `longmemeval_s.judge_score_matched.n500` | **81.13** ◊ | 80.80 MemPro-15 (Qwen), LongMemEval's own judge | **+0.33, CLOSED** | round 5 |
 | `locomo.judge_score.n1540` (strict 9B judge) | 70.52 | 77.85 MemPro-15 (Qwen) | −7.33 ‡ | M63 base |
-| `longmemeval_s.judge_score.n500` | 79.00 | 80.80 MemPro-15 (Qwen) | −1.80 ‡ | M57 (corrected twice) |
+| `longmemeval_s.judge_score.n500` (strict 9B judge) | 80.80 ◊ | 80.80 MemPro-15 (Qwen) | +0.00 ‡ | round 5 |
 | `lme_v2_small.overall_full_set.combined` | **78.05** | 74.90 AgentRunbook-C (frontier controller) | **+3.15** ¶ | M54 |
 
 Every literature row is judged by a frontier API where we are judged by a
@@ -179,6 +179,29 @@ prefer responses that …"). They now get LongMemEval's own preference criterion
 ([judge-preference-rubric](docs/measurements/judge-preference-rubric.md)). Under it the
 strict judge is harsher on this stratum, and one of M57's preference answers no longer
 counts.
+◊ **LongMemEval_S closes its gate
+([round-5 bundle](docs/measurements/r5-bundle-seeds.md), 2026-09-29).** Four
+mechanisms ship together:
+- dated events ([M73b](docs/measurements/m73b-dated-events.md));
+- deeper retrieval for counting questions ([M72b](docs/measurements/m72b-aggregation-depth-uncapped.md));
+- a preference clause for advice requests ([M77c](docs/measurements/m77-advice-profile-clause.md));
+- a grounded second look at declines ([M71b](docs/measurements/m71b-grounded-every-named.md)).
+
+Measured as the user chose: only the 183 rows a mechanism can change were
+rerun, at three reader seeds each, against a base measured the same way. The
+numbers are seed means:
+- **81.13 under LongMemEval's own grader**, +3.3 [+1.7, +5.0], winning 31
+  questions and losing 11;
+- **80.80 under our strict judge**, +2.5 [+1.0, +4.2].
+
+Abstention holds. The matched gate against MemPro-15 on Qwen3-30B (80.80)
+is closed, by a small margin. The biggest single move is preference:
+official +16.7 on its 30 questions. That came from one clause shown only to
+advice requests, after two structured-answer designs failed
+([M78](docs/measurements/m78-advice-answer-structure.md), [M78b](docs/measurements/m78b-advice-picks.md)).
+`standing` quotes a seed mean ahead of any single lucky seed; the best
+single seed read 81.6.
+
 ¶ **LME-V2 ([M54](docs/measurements/m54-local-file-controller.md), 2026-09-27).** The benchmark
 authors' own file-reading agent, AgentRunbook-C, now answers LME-V2 for myelin. It runs locally,
 driven by Bonsai 27B instead of a frontier model. Over all 451 questions it scores **78.05**,

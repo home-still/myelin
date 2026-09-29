@@ -1923,6 +1923,38 @@ pub fn shipped_reader_premise_clause(corpus: &str) -> bool {
     corpus == "longmemeval_s"
 }
 
+/// The round-5 bundle ships for LongMemEval_S (user's decision, 2026-09-29;
+/// `docs/measurements/r5-bundle-seeds.md`). On 3-seed means it scored
+/// official 81.13 (+3.3 [+1.7, +5.0] over the base) and strict 80.80
+/// (+2.5 [+1.0, +4.2]), with abstention held. Four mechanisms:
+/// - M73b's dated events block;
+/// - M72b's aggregation depth;
+/// - M77c's preference clause for advice requests;
+/// - M71b's grounded second pass over declines.
+///
+/// Read by `standing`, so a LongMemEval_S run without them is an arm of
+/// today's configuration, and a LoCoMo run with them is one too.
+pub const LME_S_EVENTS_LEDGER: &str = "data/longmemeval_s_events.ledger";
+/// M72b: a counting or summing question's `k` and token budget.
+pub const LME_S_AGGREGATION_K: usize = 18;
+pub const LME_S_AGGREGATION_BUDGET_TOKENS: usize = 8192;
+
+pub fn shipped_events_ledger(corpus: &str) -> Option<&'static str> {
+    (corpus == "longmemeval_s").then_some(LME_S_EVENTS_LEDGER)
+}
+
+pub fn shipped_aggregation(corpus: &str) -> Option<(usize, usize)> {
+    (corpus == "longmemeval_s").then_some((LME_S_AGGREGATION_K, LME_S_AGGREGATION_BUDGET_TOKENS))
+}
+
+pub fn shipped_advice_profile_clause(corpus: &str) -> bool {
+    corpus == "longmemeval_s"
+}
+
+pub fn shipped_commit_grounded(corpus: &str) -> bool {
+    corpus == "longmemeval_s"
+}
+
 /// Qwen3.5-9B, as `GET /v1/models` names the file `ops/big/serve-models.sh`
 /// serves by default. The only model any run was served before M55.
 pub const QWEN35_9B_GGUF: &str = "Qwen3.5-9B-UD-Q4_K_XL.gguf";

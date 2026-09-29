@@ -20,16 +20,17 @@ Literature lives in home-still; the guidance this backlog was built from is
 See [`BACKLOG_DONE.md`](BACKLOG_DONE.md#sota-standing) for the full table and
 its history. Short version:
 - **One gate closed:** MINJA 7.50% ≤ 10%.
-- **LongMemEval_S is 1.80 behind the same-size SOTA row:** **79.00** (strict)
-  against MemPro-15 (Qwen3-30B) at 80.80.
-  - 79.20 until 2026-09-28, when preference rows got their own rubric in
-    the strict judge (`docs/measurements/judge-preference-rubric.md`).
-  - LongMemEval's own grader gives 78.60 (M70), so the matched gate is open,
-    2.20 behind.
-  - We first reported 83.40 as past it. A judge defect inflated that
-    (`docs/measurements/defect-2026-09-25-stale-verdicts.md`). The claim was
-    wrong and is recorded as such.
-  - The climb since M32, corrected: 62.00 → 66.20 → 75.00 → 79.20.
+- **LongMemEval_S: the gate closes (round 5, 2026-09-29).**
+  - Seed means of the shipped round-5 bundle (`runs/r5_bundle_seeds`):
+    **81.13** under LongMemEval's own grader, against MemPro-15 (Qwen3-30B)
+    at 80.80, so +0.33 and `comparable`; **80.80** under the strict 9B
+    judge.
+  - Against a base measured the same way: official +3.3 [+1.7, +5.0] and
+    strict +2.5 [+1.0, +4.2]. Abstention holds.
+  - The climb, corrected throughout: 62.00 → 66.20 → 75.00 → 79.20 (M57)
+    → 79.00 (preference rubric) → **80.80 strict / 81.13 official**.
+  - The margin is small, and every number is a seed mean
+    (`docs/measurements/r5-bundle-seeds.md`).
 - **LoCoMo: the gate closes under MemPro's own judge (M68, 2026-09-25).**
   - Graded the way the 77.85 row was graded (gpt-4o-mini, LightMem's
     prompt), we score **78.18**, a `comparable` row, +0.33.
