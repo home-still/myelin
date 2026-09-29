@@ -104,6 +104,23 @@ first arm to question the measurement apparatus rather than the mechanism.
 
 ---
 
+## M80 — the premise finding in code: **answerable +19.7 again, abstention −16.7**; the veto fires *(2026-09-29)*
+
+- **Mechanism:** M79's typed pass, shown the question's words that no
+  memory contains. This is LongMemEval-V2's AgentRunbook-C pattern.
+- **Result:**
+  - answerable declines strict +19.7 [+9.5, +31.3] (10/0);
+  - **abstention −16.7**: 5 false fits per replicate, against M79's 6;
+  - stacked on the shipped bundle: strict 81.60, but official 80.60, below
+    the shipped 81.13.
+- **Why:**
+  - the reader ignored a correct finding ("uncle" named, answered anyway);
+  - word absence across all memories is too coarse: "chili", "peppers"
+    and "films" occur elsewhere in the evidence.
+- **What it rules out:** handing the reader a premise finding. What would
+  remain is a premise *decision* in code, finer than word absence.
+- Doc: `m80-premise-finding.md`.
+
 ## Overnight 2026-09-28/29: M78b, M79 and M71c all fail their pre-registered rules; #166 ships as zero-change
 
 - **M78b** (the advice answer picks user turns by index):

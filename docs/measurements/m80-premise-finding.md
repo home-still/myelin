@@ -85,3 +85,62 @@ loss. The +3.0 bar is from the round-5 pre-registration.
   structure.
 - **Answerable commits fall below 8:** the finding scares the reader off
   true answers as well.
+
+## Result — the veto fires again; the reader ignores the finding, and the finding is too coarse *(measured 2026-09-29, 06:18–07:04)*
+
+The runs are `m80_base_s{1,2,3}` (the typed-premise pass over the base
+replicates) and `r5_bundle_s*_m80` (the same pass over the shipped
+bundle). They were graded by the strict 9B and the official grader.
+
+| stratum | strict Δ [95% CI] | W/L | official Δ | W/L |
+|---|---|---|---|---|
+| M57's 49 answerable declines | **+19.7 [+9.5, +31.3]** | 10/0 | +8.8 [+0.0, +19.0] | 6/1 |
+| **abstention (30)** | **−16.7 [−30.0, −3.3]** | 0/5 | −16.7 | 0/5 |
+| overall | +1.0 [−0.5, +2.5] | 11/5 | −0.1 | 7/6 |
+
+**Verdict:** criterion 1 passes. Criterion 2 is borderline, since the
+official CI touches 0. **Criterion 3, the abstention veto, fails.** M80 does
+not ship or stack.
+
+**Predictions:**
+- false fits 6 → ≤ 1: **wrong, 5 per replicate**;
+- answerable commits 12–18: 21–24 per replicate;
+- strict on the 49 +10 to +18: +19.7.
+
+The falsifier "false fits stay ≥ 3: the reader ignores the finding"
+**fires.**
+
+**The stack on the shipped bundle:** strict 81.60 (+3.3 [+1.2, +5.5]), but
+abstention 24/30 and official **80.60**, below the shipped 81.13.
+
+**Why, row by row.** What the code showed the reader on the five abstention
+rows it still answered:
+
+| question (trap) | finding | reader's label |
+|---|---|---|
+| "bake for my **uncle's** party" (it was a niece) | `uncle` | detail unstated |
+| "tomatoes and **chili peppers**" | *(empty)* | detail unstated |
+| "which **university** … undergrad course" | `present`, `undergrad` | detail unstated |
+| "collecting vintage **films**" (cameras) | `long` | detail unstated |
+| "engineers … as Software Engineer **Manager**" | `just`, `started` | detail unstated |
+
+**Two failure modes:**
+1. **The reader ignores a correct finding.** "uncle" was named, and the
+   reader still called it an unstated detail and answered. This is the one
+   law again (M38–M43): information handed over as text does not move this
+   reader's decision.
+2. **Absence across all memories is too coarse.** "chili", "peppers" and
+   "films" do occur somewhere in the evidence, just not about the thing
+   asked. The traps swap a detail within a context where the word itself
+   appears elsewhere, and a bag-of-words test cannot see that. Noise words
+   ("long", "just", "started") dilute the rest.
+
+**What this rules in and out:**
+- A premise *finding* is not enough on this reader. A premise *decision*
+  would have to be made in code, where the reader never gets a vote.
+- It would also need to be finer than word absence, for example checking
+  that a flagged word is absent from the memories the answer comes from,
+  not from all of them.
+- Declines stay the largest recoverable pool: 44 answerable declines.
+  M79/M80's answerable gain (+19.7, 10/0) is real and repeatable, but it
+  cannot ship while the same pass answers the traps.
