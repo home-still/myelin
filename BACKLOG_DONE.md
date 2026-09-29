@@ -104,6 +104,20 @@ first arm to question the measurement apparatus rather than the mechanism.
 
 ---
 
+## M81 — the premise decided in code on the cited memories: **safe but inert** (1–2 commits per replicate), and it **fails the LoCoMo transfer** (5/303) *(2026-09-29)*
+
+- **Mechanism:** the typed pass cites its memories, and code commits only
+  if every question word (Snowball-stemmed) appears in them.
+- **LongMemEval_S:** 0 false fits, but only 1–2 answerable commits per
+  replicate, strict +2.0 [+0.0, +6.1], so the gate fails.
+- **LoCoMo:** 5 of 303 adversarial declines flipped, over the limit of 3.
+  The person-swap traps pass a word check.
+- **The lesson across M79/M80/M81:** a reader vote answers the traps, and
+  lexical code is too blunt either way. The separating signal is semantic
+  (entailment or entity linking between the question and the cited
+  memory). Recorded as the open problem.
+- Doc: `m81-cited-premise.md`.
+
 ## M80 — the premise finding in code: **answerable +19.7 again, abstention −16.7**; the veto fires *(2026-09-29)*
 
 - **Mechanism:** M79's typed pass, shown the question's words that no
