@@ -200,6 +200,17 @@ lost under the strict judge):
 
 ---
 
+## M81 — the premise decided in code, on the memories the answer cites *(user decision 2026-09-29; pre-registered)*
+
+M79 and M80 recover answerable declines (+19.7, 10/0) but answer 5–6 traps.
+- `commit-arm --typed-cited`: the typed pass cites its memories, and code
+  commits only if every question word (stemmed) appears in them.
+- LongMemEval_S gate, stack on the shipped bundle, and a LoCoMo adversarial
+  transfer check.
+- Doc: `docs/measurements/m81-cited-premise.md`.
+
+---
+
 ## Readout rigour — discordant counts, the exact sign test, and a repeated official grader *(round-5 catalog, 2026-09-28; not started)*
 
 Small strata need the right test, and our grader is noisy (catalog §c, §e):

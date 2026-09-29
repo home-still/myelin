@@ -33,8 +33,8 @@ use myelin_core::config::MyelinConfig;
 use myelin_core::llm::openai::OpenAiLlm;
 
 use crate::bench::{
-    commit_answer, commit_consensus, commit_grounded, commit_typed, commit_typed_with,
-    is_abstention, premise_finding, Consensus, ScoredQuestion,
+    commit_answer, commit_consensus, commit_grounded, commit_typed, commit_typed_cited,
+    commit_typed_with, is_abstention, premise_finding, Consensus, ScoredQuestion,
 };
 use crate::datasets::longmemeval;
 
@@ -75,6 +75,9 @@ pub enum Pass {
     /// M80: M79's pass, shown the question's words that no memory contains
     /// (`bench::premise_finding`).
     TypedPremise,
+    /// M81: M79's pass with citations; code decides the premise on the cited
+    /// memories (`bench::commit_typed_cited`).
+    TypedCited,
 }
 
 /// The corpora whose first-pass prompt this replays. The prompt must be the
@@ -193,6 +196,22 @@ pub async fn run(
                     commit_grounded(&llm, &system, &user, first, &row.evidence).await;
                 (response, outcome.fired, outcome.committed)
             }
+            Pass::TypedCited => {
+                let (response, outcome, raw) = commit_typed_cited(
+                    &llm,
+                    &system,
+                    &user,
+                    first,
+                    &row.question_text,
+                    &row.evidence,
+                )
+                .await;
+                if let Some(raw) = raw {
+                    let trace = row.reader_trace.take().unwrap_or_default();
+                    row.reader_trace = Some(format!("{trace}\n[{}] {raw}", crate::bench::TYPED_TRACE));
+                }
+                (response, outcome.fired, outcome.committed)
+            }
             Pass::Typed | Pass::TypedPremise => {
                 let finding = matches!(pass, Pass::TypedPremise)
                     .then(|| premise_finding(&row.question_text, &row.evidence));
@@ -293,6 +312,10 @@ fn write_arm(
             Pass::TypedPremise => {
                 obj.insert("commit_typed".into(), serde_json::Value::Bool(true));
                 obj.insert("commit_premise_finding".into(), serde_json::Value::Bool(true));
+            }
+            Pass::TypedCited => {
+                obj.insert("commit_typed".into(), serde_json::Value::Bool(true));
+                obj.insert("commit_typed_cited".into(), serde_json::Value::Bool(true));
             }
         }
     }

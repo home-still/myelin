@@ -569,6 +569,10 @@ pub struct BenchRun {
     /// Absent on every run before M80.
     #[serde(default)]
     pub commit_premise_finding: bool,
+    /// M81: the typed pass cited its memories, and code decided the premise.
+    /// Absent on every run before M81.
+    #[serde(default)]
+    pub commit_typed_cited: bool,
     /// Rows inherited from an earlier attempt by `bench --resume`. Non-zero
     /// means the run's two halves may have been served by differently
     /// configured readers (slots, context): a greedy answer does not depend
@@ -870,6 +874,8 @@ pub struct BenchSwitches {
     pub commit_typed: bool,
     /// M80: the typed pass was shown a premise finding computed in code.
     pub commit_premise_finding: bool,
+    /// M81: the typed pass cited its memories, and code decided the premise.
+    pub commit_typed_cited: bool,
     /// Cap untrusted occupancy in the composed set — M23 B1,
     /// `ComposeConfig::untrusted_max`.
     ///
@@ -1365,6 +1371,135 @@ pub(crate) fn premise_finding(question: &str, memories: &[String]) -> String {
     } else {
         let listed = missing.iter().map(|w| format!("\"{w}\"")).collect::<Vec<_>>().join(", ");
         format!("<premise_check>No memory contains these words from the question: {listed}.</premise_check>")
+    }
+}
+
+/// The most memories an M81 answer may cite.
+const TYPED_CITED_MAX: usize = 4;
+/// Completion room for M81's JSON: M79's, plus the citation list.
+const TYPED_CITED_MAX_TOKENS: u32 = 200;
+
+/// M81: M79's `{answer, mismatch}`, then the memories the answer comes from.
+/// The first two fields keep M79's measured order; the citations come last.
+pub(crate) fn typed_cited_schema(n_memories: usize) -> serde_json::Value {
+    serde_json::json!({
+        "type": "object",
+        "properties": {
+            "answer": { "type": "string", "maxLength": TYPED_ANSWER_MAX_CHARS },
+            "mismatch": { "type": "string", "enum": TYPED_MISMATCHES },
+            "supporting": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": TYPED_CITED_MAX,
+                "items": { "type": "integer", "minimum": 0, "maximum": n_memories.saturating_sub(1) }
+            }
+        },
+        "required": ["answer", "mismatch", "supporting"],
+        "additionalProperties": false
+    })
+}
+
+#[derive(Debug, Deserialize)]
+struct TypedCitedAnswer {
+    answer: String,
+    mismatch: String,
+    supporting: Vec<usize>,
+}
+
+/// M81's commit rule. The reader's label and answer must pass M79's rule,
+/// **and code decides the premise:** every content word of the question
+/// ([`uncited_terms`]; numbers included, matched on stems) must appear in the
+/// memories the answer cites. An unanswerable LongMemEval question swaps one thing for a
+/// thing the memories never state *about this*: the uncle's party that was a
+/// niece's, the chili beside the tomatoes, the films that were cameras. M80
+/// found those words elsewhere in the evidence, so the test is on the cited
+/// memories, not all of them.
+///
+/// It is M71b's `accept_grounded` check applied to the question's own words
+/// rather than a list the reader names. The reader gets no vote on the
+/// premise; M79 and M80 measured what its vote costs (six traps answered).
+/// It works like ALCE's citation check (Gao et al. 2023,
+/// `10.18653/v1/2023.emnlp-main.398`), and it is a lexical proxy for Sufficient
+/// Context's question (Joren et al., arXiv 2411.06037): does the context the
+/// answer rests on cover what the question asks?
+fn accept_typed_cited(text: &str, question: &str, memories: &[String]) -> Option<String> {
+    let parsed = serde_json::from_str::<TypedCitedAnswer>(text).ok()?;
+    let answer = parsed.answer.trim();
+    if answer.is_empty() || is_abstention(answer) || !TYPED_ANSWERABLE.contains(&parsed.mismatch.as_str()) {
+        return None;
+    }
+    let cited: Vec<String> = parsed
+        .supporting
+        .iter()
+        .map(|&i| memories.get(i).cloned())
+        .collect::<Option<Vec<_>>>()?;
+    if cited.is_empty() || !uncited_terms(question, &cited).is_empty() {
+        return None;
+    }
+    Some(answer.to_string())
+}
+
+/// M81's question words that the cited memories do not contain. They are the
+/// same words [`unmentioned_terms`] considers (content words of three or more
+/// letters, and numbers), but matched on Snowball English stems (Porter 1980,
+/// "An algorithm for suffix stripping", `10.1108/eb046814`), so a question's
+/// "bake" meets a memory's "baked". M80's and M71b's plural-only matchers are
+/// unchanged, so their measured results stand.
+pub(crate) fn uncited_terms(question: &str, cited: &[String]) -> Vec<String> {
+    let stemmer = rust_stemmers::Stemmer::create(rust_stemmers::Algorithm::English);
+    let have: std::collections::HashSet<String> = cited
+        .iter()
+        .flat_map(|m| words(m))
+        .map(|w| stemmer.stem(&w).into_owned())
+        .collect();
+    let mut out: Vec<String> = Vec::new();
+    for w in words(question) {
+        let numeric = w.chars().all(|c| c.is_ascii_digit());
+        if !numeric && w.len() < MIN_THING_WORD_CHARS {
+            continue;
+        }
+        if QUESTION_FUNCTION_WORDS.contains(&w.as_str()) || THING_CONNECTIVES.contains(&w.as_str()) {
+            continue;
+        }
+        if !have.contains(stemmer.stem(&w).as_ref()) && !out.contains(&w) {
+            out.push(w);
+        }
+    }
+    out
+}
+
+/// M81. The typed pass with citations, the premise decided in code
+/// (`docs/measurements/m81-cited-premise.md`). Greedy, one call per
+/// declining row. Every failure keeps the decline, and the raw content is
+/// returned for the row's trace, as in [`commit_typed_with`].
+pub(crate) async fn commit_typed_cited(
+    llm: &dyn Llm,
+    system: &str,
+    user: &str,
+    response: String,
+    question: &str,
+    memories: &[String],
+) -> (String, CommitOutcome, Option<String>) {
+    if !is_abstention(&response) {
+        return (response, CommitOutcome::default(), None);
+    }
+    let fired = CommitOutcome { fired: true, committed: false };
+    let Ok(second) = llm
+        .complete(
+            &CompletionRequest::new(vec![
+                Message::system(format!("{system}\n{READER_TYPED_SYSTEM}")),
+                Message::user(user.to_string()),
+            ])
+            .with_max_tokens(TYPED_CITED_MAX_TOKENS)
+            .with_schema(typed_cited_schema(memories.len())),
+        )
+        .await
+    else {
+        return (response, fired, None);
+    };
+    match accept_typed_cited(&second.text, question, memories) {
+        Some(answer) => (answer, CommitOutcome { fired: true, committed: true }, Some(second.text)),
+        None => (response, fired, Some(second.text)),
     }
 }
 
@@ -3338,6 +3473,7 @@ fn finish_run(
         commit_grounded: spec.switches.commit_grounded,
         commit_typed: spec.switches.commit_typed,
         commit_premise_finding: spec.switches.commit_premise_finding,
+        commit_typed_cited: spec.switches.commit_typed_cited,
         resumed_rows: resumed,
         commit_samples: None,
         commit_agree: None,
@@ -3553,6 +3689,7 @@ pub fn rescore_run(source: &Path, out_dir: &Path, scorer: Scorer) -> Result<Benc
             commit_grounded: flag("commit_grounded"),
             commit_typed: flag("commit_typed"),
             commit_premise_finding: flag("commit_premise_finding"),
+            commit_typed_cited: flag("commit_typed_cited"),
             commit_answer: flag("commit_answer"),
             untrusted_max: metrics
                 .get("untrusted_max")
@@ -4753,6 +4890,43 @@ mod reader_tests {
         assert!(!req.thinking);
         assert_eq!((req.temperature, req.top_p, req.seed), (0.0, None, None));
         assert_eq!(req.max_tokens, Some(READER_ANSWER_TOKENS));
+    }
+
+    /// M81: code decides the premise on the memories the answer cites. The
+    /// trap's swapped word is absent from the cited memory even when it
+    /// occurs elsewhere in the evidence, and an answerable question passes.
+    #[test]
+    fn the_cited_premise_is_decided_in_code() {
+        let memories = vec![
+            "[2023-05-02] user: I made a lemon blueberry cake for my niece's birthday party.".to_string(),
+            "[2023-05-09] user: My uncle visited and we talked about the garden.".to_string(),
+            "[2023-05-10] user: I baked a cake for the birthday party of my niece last weekend.".to_string(),
+        ];
+        let reply = |cite: usize| {
+            serde_json::json!({"answer": "lemon blueberry cake", "mismatch": "detail unstated", "supporting": [cite]})
+                .to_string()
+        };
+        assert_eq!(
+            accept_typed_cited(&reply(0), "What did I bake for my uncle's birthday party?", &memories),
+            None,
+            "'uncle' is in memory 1, not in the cited memory 0"
+        );
+        assert_eq!(
+            accept_typed_cited(&reply(2), "What did I bake for my niece's birthday party?", &memories).as_deref(),
+            Some("lemon blueberry cake"),
+            "every question word is in the cited memory"
+        );
+        let contradicted = serde_json::json!({"answer": "cake", "mismatch": "contradicted", "supporting": [2]}).to_string();
+        assert_eq!(accept_typed_cited(&contradicted, "What did I bake for my niece's birthday party?", &memories), None);
+        let out_of_range = serde_json::json!({"answer": "cake", "mismatch": "none", "supporting": [9]}).to_string();
+        assert_eq!(accept_typed_cited(&out_of_range, "What did I bake?", &memories), None);
+    }
+
+    #[test]
+    fn the_cited_schema_keeps_m79s_order_and_adds_citations_last() {
+        let orders = myelin_core::llm::schema_property_orders(&typed_cited_schema(5));
+        assert_eq!(orders[0].1, vec!["answer", "mismatch", "supporting"]);
+        assert_eq!(typed_cited_schema(5)["properties"]["supporting"]["items"]["maximum"], 4);
     }
 
     /// M80: LongMemEval's trap names a thing no memory contains; a detail
