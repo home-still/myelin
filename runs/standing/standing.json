@@ -1,15 +1,15 @@
 {
-  "commit": "7aabadd42563c3cb7b6e03646827de448d530183-dirty",
-  "generated_at": "2026-09-29T11:03:55.625417Z",
+  "commit": "db4f5043f88cbd8decbf0a528902c4780bfd25fb-dirty",
+  "generated_at": "2026-09-29T18:55:54.316178Z",
   "rows": [
     {
       "registry_id": "locomo.judge.mempro15.gpt4omini",
       "metric": "locomo.judge_score.n1540",
       "system": "MemPro-15",
       "theirs": 84.93,
-      "ours": 70.51948051948051,
+      "ours": 70.84415584415584,
       "ours_n": 1540,
-      "gap": -14.410519480519497,
+      "gap": -14.085844155844171,
       "verdict": {
         "verdict": "caveat_judge",
         "ours": "open_weights_local",
@@ -18,30 +18,50 @@
       "claim_allowed": false,
       "gate": false,
       "arm": false,
-      "run": "runs/m63_locomo_base",
+      "run": "runs/m84_locomo_base",
       "source_doi": "10.48550/arXiv.2606.00619",
       "caveat": "Judge is GPT-4o-mini with LightMem's LoCoMo prompt (L122). 10% of each dataset was sampled for MemPro's evolution training and the numbers are on the remainder (L120) - but the Avg. column reproduces exactly as the micro-average over the FULL official category counts (82.26*282 + 62.50*96 + 90.01*841 + 80.68*321)/1540 = 84.93, so the population is LoCoMo's 1,540 non-adversarial questions in their official proportions.",
-      "detail": "judge qwen3.5-9b : 1086 of 1540 correct (116 declines scored 0)",
+      "detail": "judge qwen3.5-9b : 1091 of 1540 correct (102 declines scored 0)",
       "candidates": [
         {
-          "run": "runs/m63_locomo_base",
-          "value": 70.51948051948051
-        },
-        {
-          "run": "runs/m19_locomo_full",
-          "value": 69.87012987012987
-        },
-        {
-          "run": "runs/m21_mh_base",
-          "value": 58.156028368794324
+          "run": "runs/m84_locomo_base",
+          "value": 70.84415584415584
         },
         {
           "run": "runs/m63_locomo_inline",
           "value": 70.71428571428572
         },
         {
+          "run": "runs/m82_locomo_base",
+          "value": 70.64935064935065
+        },
+        {
+          "run": "runs/m81_locomo_base",
+          "value": 70.58441558441558
+        },
+        {
+          "run": "runs/m83_locomo_base",
+          "value": 70.58441558441558
+        },
+        {
+          "run": "runs/m83b_locomo_base",
+          "value": 70.58441558441558
+        },
+        {
+          "run": "runs/m63_locomo_base",
+          "value": 70.51948051948051
+        },
+        {
           "run": "runs/m61_locomo_grounded",
           "value": 70.06493506493506
+        },
+        {
+          "run": "runs/m83_locomo_m50c",
+          "value": 70.06493506493506
+        },
+        {
+          "run": "runs/m19_locomo_full",
+          "value": 69.87012987012987
         },
         {
           "run": "runs/m50c_locomo_events",
@@ -52,12 +72,28 @@
           "value": 69.74025974025973
         },
         {
+          "run": "runs/m83b_locomo_m50b",
+          "value": 69.74025974025973
+        },
+        {
           "run": "runs/m59_locomo_bonsai_bestguess",
           "value": 67.92207792207792
         },
         {
+          "run": "runs/m83b_locomo_m55b",
+          "value": 67.27272727272727
+        },
+        {
           "run": "runs/m55b_locomo_bonsai",
           "value": 66.68831168831169
+        },
+        {
+          "run": "runs/m83_locomo_m51",
+          "value": 65.25974025974025
+        },
+        {
+          "run": "runs/m83b_locomo_m51",
+          "value": 65.25974025974025
         },
         {
           "run": "runs/m51_locomo_s1",
@@ -66,6 +102,10 @@
         {
           "run": "runs/m63_locomo_dedupe",
           "value": 62.5974025974026
+        },
+        {
+          "run": "runs/m21_mh_base",
+          "value": 58.156028368794324
         },
         {
           "run": "runs/m21_mh_sel",
@@ -114,9 +154,9 @@
       "metric": "locomo.judge_score_lightmem.n1540",
       "system": "MemPro-15",
       "theirs": 84.93,
-      "ours": 78.18181818181819,
+      "ours": 78.63636363636364,
       "ours_n": 1540,
-      "gap": -6.74818181818182,
+      "gap": -6.293636363636367,
       "verdict": {
         "verdict": "caveat_backbone",
         "ours": "open_weights",
@@ -125,11 +165,23 @@
       "claim_allowed": false,
       "gate": false,
       "arm": false,
-      "run": "runs/m63_locomo_base",
+      "run": "runs/m84_locomo_base",
       "source_doi": "10.48550/arXiv.2606.00619",
       "caveat": "MemPro-15 on gpt-4o-mini, graded with LightMem's LoCoMo prompt on GPT-4o-mini (L122) - the protocol M68 reproduces. The Avg. column reproduces exactly as the micro-average over the FULL official category counts (82.26*282 + 62.50*96 + 90.01*841 + 80.68*321)/1540 = 84.93, so the population is LoCoMo's 1,540 non-adversarial questions in their official proportions.",
-      "detail": "protocol lightmem-locomo (openai/gpt-4o-mini): 1204 of 1540 correct",
+      "detail": "protocol lightmem-locomo (openai/gpt-4o-mini): 1211 of 1540 correct",
       "candidates": [
+        {
+          "run": "runs/m84_locomo_base",
+          "value": 78.63636363636364
+        },
+        {
+          "run": "runs/m83_locomo_base",
+          "value": 78.31168831168831
+        },
+        {
+          "run": "runs/m83b_locomo_base",
+          "value": 78.31168831168831
+        },
         {
           "run": "runs/m63_locomo_base",
           "value": 78.18181818181819
@@ -145,9 +197,9 @@
       "metric": "locomo.judge_score_matched.n1540",
       "system": "MemPro-15",
       "theirs": 84.93,
-      "ours": 78.18181818181819,
+      "ours": 78.63636363636364,
       "ours_n": 1540,
-      "gap": -6.74818181818182,
+      "gap": -6.293636363636367,
       "verdict": {
         "verdict": "caveat_backbone",
         "ours": "open_weights",
@@ -156,11 +208,15 @@
       "claim_allowed": false,
       "gate": false,
       "arm": false,
-      "run": "runs/m63_locomo_base",
+      "run": "runs/m84_locomo_base",
       "source_doi": "10.48550/arXiv.2606.00619",
       "caveat": "MemPro-15 on gpt-4o-mini under the every-reading matched metric (LightMem's prompt and MemPro's repo judge, lowest of the two). The Avg. column reproduces exactly as the micro-average over the FULL official category counts (82.26*282 + 62.50*96 + 90.01*841 + 80.68*321)/1540 = 84.93, so the population is LoCoMo's 1,540 non-adversarial questions in their official proportions.",
-      "detail": "the lowest of every reading: locomo.judge_score_lightmem.n1540 78.18, locomo.judge_score_mempro.n1540 80.26",
+      "detail": "the lowest of every reading: locomo.judge_score_lightmem.n1540 78.64, locomo.judge_score_mempro.n1540 80.78",
       "candidates": [
+        {
+          "run": "runs/m84_locomo_base",
+          "value": 78.63636363636364
+        },
         {
           "run": "runs/m63_locomo_base",
           "value": 78.18181818181819
@@ -176,9 +232,9 @@
       "metric": "locomo.judge_score.n1540",
       "system": "MemPro-15 (Qwen3-30B)",
       "theirs": 77.85,
-      "ours": 70.51948051948051,
+      "ours": 70.84415584415584,
       "ours_n": 1540,
-      "gap": -7.330519480519484,
+      "gap": -7.005844155844159,
       "verdict": {
         "verdict": "caveat_judge",
         "ours": "open_weights_local",
@@ -187,30 +243,50 @@
       "claim_allowed": false,
       "gate": false,
       "arm": false,
-      "run": "runs/m63_locomo_base",
+      "run": "runs/m84_locomo_base",
       "source_doi": "10.48550/arXiv.2606.00619",
       "caveat": "G2's LoCoMo bar (PLAN.md 11.5): MemPro's own open-weights backbone, so the answer-model class matches ours. The judge is still GPT-4o-mini (L122), which is the one asymmetry left in this comparison. Avg. reproduces as the micro-average over the full 1,540: (75.17*282 + 70.83*96 + 83.47*841 + 67.60*321)/1540 = 77.85. The gate moved to locomo.judge_lightmem.mempro15.qwen3_30b (M68, user 2026-09-25): the same row graded by the same judge. This strict-judge comparison stays published and caveat-judge.",
-      "detail": "judge qwen3.5-9b : 1086 of 1540 correct (116 declines scored 0)",
+      "detail": "judge qwen3.5-9b : 1091 of 1540 correct (102 declines scored 0)",
       "candidates": [
         {
-          "run": "runs/m63_locomo_base",
-          "value": 70.51948051948051
-        },
-        {
-          "run": "runs/m19_locomo_full",
-          "value": 69.87012987012987
-        },
-        {
-          "run": "runs/m21_mh_base",
-          "value": 58.156028368794324
+          "run": "runs/m84_locomo_base",
+          "value": 70.84415584415584
         },
         {
           "run": "runs/m63_locomo_inline",
           "value": 70.71428571428572
         },
         {
+          "run": "runs/m82_locomo_base",
+          "value": 70.64935064935065
+        },
+        {
+          "run": "runs/m81_locomo_base",
+          "value": 70.58441558441558
+        },
+        {
+          "run": "runs/m83_locomo_base",
+          "value": 70.58441558441558
+        },
+        {
+          "run": "runs/m83b_locomo_base",
+          "value": 70.58441558441558
+        },
+        {
+          "run": "runs/m63_locomo_base",
+          "value": 70.51948051948051
+        },
+        {
           "run": "runs/m61_locomo_grounded",
           "value": 70.06493506493506
+        },
+        {
+          "run": "runs/m83_locomo_m50c",
+          "value": 70.06493506493506
+        },
+        {
+          "run": "runs/m19_locomo_full",
+          "value": 69.87012987012987
         },
         {
           "run": "runs/m50c_locomo_events",
@@ -221,12 +297,28 @@
           "value": 69.74025974025973
         },
         {
+          "run": "runs/m83b_locomo_m50b",
+          "value": 69.74025974025973
+        },
+        {
           "run": "runs/m59_locomo_bonsai_bestguess",
           "value": 67.92207792207792
         },
         {
+          "run": "runs/m83b_locomo_m55b",
+          "value": 67.27272727272727
+        },
+        {
           "run": "runs/m55b_locomo_bonsai",
           "value": 66.68831168831169
+        },
+        {
+          "run": "runs/m83_locomo_m51",
+          "value": 65.25974025974025
+        },
+        {
+          "run": "runs/m83b_locomo_m51",
+          "value": 65.25974025974025
         },
         {
           "run": "runs/m51_locomo_s1",
@@ -235,6 +327,10 @@
         {
           "run": "runs/m63_locomo_dedupe",
           "value": 62.5974025974026
+        },
+        {
+          "run": "runs/m21_mh_base",
+          "value": 58.156028368794324
         },
         {
           "run": "runs/m21_mh_sel",
@@ -283,20 +379,32 @@
       "metric": "locomo.judge_score_lightmem.n1540",
       "system": "MemPro-15 (Qwen3-30B)",
       "theirs": 77.85,
-      "ours": 78.18181818181819,
+      "ours": 78.63636363636364,
       "ours_n": 1540,
-      "gap": 0.33181818181819267,
+      "gap": 0.7863636363636459,
       "verdict": {
         "verdict": "comparable"
       },
       "claim_allowed": true,
       "gate": false,
       "arm": false,
-      "run": "runs/m63_locomo_base",
+      "run": "runs/m84_locomo_base",
       "source_doi": "10.48550/arXiv.2606.00619",
       "caveat": "G2's LoCoMo bar, graded the way it was graded (M68): GPT-4o-mini with LightMem's LoCoMo prompt (L122, Fig. 10), the protocol adapters/judge_lightmem.py reproduces byte for byte. One reading of MemPro's protocol; the gate is decided on locomo.judge_score_matched.n1540, the lowest of every runnable reading (M68b).",
-      "detail": "protocol lightmem-locomo (openai/gpt-4o-mini): 1204 of 1540 correct",
+      "detail": "protocol lightmem-locomo (openai/gpt-4o-mini): 1211 of 1540 correct",
       "candidates": [
+        {
+          "run": "runs/m84_locomo_base",
+          "value": 78.63636363636364
+        },
+        {
+          "run": "runs/m83_locomo_base",
+          "value": 78.31168831168831
+        },
+        {
+          "run": "runs/m83b_locomo_base",
+          "value": 78.31168831168831
+        },
         {
           "run": "runs/m63_locomo_base",
           "value": 78.18181818181819
@@ -312,20 +420,24 @@
       "metric": "locomo.judge_score_matched.n1540",
       "system": "MemPro-15 (Qwen3-30B)",
       "theirs": 77.85,
-      "ours": 78.18181818181819,
+      "ours": 78.63636363636364,
       "ours_n": 1540,
-      "gap": 0.33181818181819267,
+      "gap": 0.7863636363636459,
       "verdict": {
         "verdict": "comparable"
       },
       "claim_allowed": true,
       "gate": true,
       "arm": false,
-      "run": "runs/m63_locomo_base",
+      "run": "runs/m84_locomo_base",
       "source_doi": "10.48550/arXiv.2606.00619",
       "caveat": "G2's LoCoMo bar under the every-reading rule (user, 2026-09-25): our number is the lowest of LightMem's prompt (what the paper cites, L122/Fig. 10) and MemPro's own repo judge (eval/locomo_test.py@834b1ce), both gpt-4o-mini. Their number is a mean of 3 runs at temperature 0.7; ours is one run. Avg. reproduces as (75.17*282 + 70.83*96 + 83.47*841 + 67.60*321)/1540 = 77.85.",
-      "detail": "the lowest of every reading: locomo.judge_score_lightmem.n1540 78.18, locomo.judge_score_mempro.n1540 80.26",
+      "detail": "the lowest of every reading: locomo.judge_score_lightmem.n1540 78.64, locomo.judge_score_mempro.n1540 80.78",
       "candidates": [
+        {
+          "run": "runs/m84_locomo_base",
+          "value": 78.63636363636364
+        },
         {
           "run": "runs/m63_locomo_base",
           "value": 78.18181818181819
@@ -374,6 +486,10 @@
           "value": 80.4
         },
         {
+          "run": "runs/r5_bundle_s2_m80",
+          "value": 82.0
+        },
+        {
           "run": "runs/r5_bundle_s2_typed",
           "value": 81.8
         },
@@ -386,11 +502,43 @@
           "value": 81.8
         },
         {
+          "run": "runs/r5_bundle_s2_m82",
+          "value": 81.6
+        },
+        {
           "run": "runs/r5_bundle_s3_typed",
           "value": 81.6
         },
         {
+          "run": "runs/r5_bundle_s1_m80",
+          "value": 81.39999999999999
+        },
+        {
+          "run": "runs/r5_bundle_s2_m81",
+          "value": 81.39999999999999
+        },
+        {
+          "run": "runs/r5_bundle_s2_m84",
+          "value": 81.39999999999999
+        },
+        {
+          "run": "runs/r5_bundle_s3_m80",
+          "value": 81.39999999999999
+        },
+        {
+          "run": "runs/r5_bundle_s3_m82",
+          "value": 81.2
+        },
+        {
+          "run": "runs/r5_bundle_s3_m84",
+          "value": 81.2
+        },
+        {
           "run": "runs/r5_bundle_s1_typed",
+          "value": 81.0
+        },
+        {
+          "run": "runs/r5_bundle_s3_m81",
           "value": 81.0
         },
         {
@@ -398,11 +546,23 @@
           "value": 81.0
         },
         {
+          "run": "runs/r5_bundle_s1_m82",
+          "value": 80.80000000000001
+        },
+        {
           "run": "runs/r4_bundle_s1_grounded",
           "value": 80.60000000000001
         },
         {
+          "run": "runs/r5_bundle_s1_m84",
+          "value": 80.60000000000001
+        },
+        {
           "run": "runs/m71_lme_grounded",
+          "value": 80.4
+        },
+        {
+          "run": "runs/r5_bundle_s1_m81",
           "value": 80.4
         },
         {
@@ -415,6 +575,10 @@
         },
         {
           "run": "runs/m55_bonsai_s1",
+          "value": 80.0
+        },
+        {
+          "run": "runs/m80_base_s1",
           "value": 80.0
         },
         {
@@ -450,6 +614,10 @@
           "value": 79.60000000000001
         },
         {
+          "run": "runs/m82_base_s1",
+          "value": 79.60000000000001
+        },
+        {
           "run": "runs/m77c_clause_s1",
           "value": 79.4
         },
@@ -475,6 +643,10 @@
         },
         {
           "run": "runs/m78c_answer_s1",
+          "value": 79.2
+        },
+        {
+          "run": "runs/m81_base_s1",
           "value": 79.2
         },
         {
@@ -506,11 +678,19 @@
           "value": 79.0
         },
         {
+          "run": "runs/m80_base_s2",
+          "value": 79.0
+        },
+        {
           "run": "runs/m78_answer_s2",
           "value": 78.8
         },
         {
           "run": "runs/m79_base_s2",
+          "value": 78.8
+        },
+        {
+          "run": "runs/m80_base_s3",
           "value": 78.8
         },
         {
@@ -524,6 +704,22 @@
         {
           "run": "runs/m79_base_s3",
           "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m82_base_s2",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m82_base_s3",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m81_base_s2",
+          "value": 78.2
+        },
+        {
+          "run": "runs/m81_base_s3",
+          "value": 78.0
         },
         {
           "run": "runs/r5_base_s2",
@@ -741,7 +937,35 @@
           "value": 80.0
         },
         {
+          "run": "runs/r5_bundle_s3_m84",
+          "value": 82.19999999999999
+        },
+        {
+          "run": "runs/r5_bundle_s3_m82",
+          "value": 82.0
+        },
+        {
+          "run": "runs/r5_bundle_s2_m84",
+          "value": 81.8
+        },
+        {
+          "run": "runs/r5_bundle_s2_m82",
+          "value": 81.6
+        },
+        {
+          "run": "runs/r5_bundle_s2_m81",
+          "value": 81.39999999999999
+        },
+        {
+          "run": "runs/r5_bundle_s3_m81",
+          "value": 81.39999999999999
+        },
+        {
           "run": "runs/r5_bundle_s2",
+          "value": 81.0
+        },
+        {
+          "run": "runs/r5_bundle_s2_m80",
           "value": 81.0
         },
         {
@@ -757,6 +981,18 @@
           "value": 80.80000000000001
         },
         {
+          "run": "runs/r5_bundle_s3_m80",
+          "value": 80.80000000000001
+        },
+        {
+          "run": "runs/r5_bundle_s1_m82",
+          "value": 80.60000000000001
+        },
+        {
+          "run": "runs/r5_bundle_s1_m84",
+          "value": 80.60000000000001
+        },
+        {
           "run": "runs/r5_bundle_s3_typed",
           "value": 80.60000000000001
         },
@@ -765,8 +1001,16 @@
           "value": 80.60000000000001
         },
         {
+          "run": "runs/r5_bundle_s1_m81",
+          "value": 80.2
+        },
+        {
           "run": "runs/r5b_bundle_s3_typed",
           "value": 80.2
+        },
+        {
+          "run": "runs/r5_bundle_s1_m80",
+          "value": 80.0
         },
         {
           "run": "runs/r5_bundle_s1",
@@ -833,6 +1077,10 @@
           "value": 79.2
         },
         {
+          "run": "runs/m82_base_s1",
+          "value": 79.2
+        },
+        {
           "run": "runs/m72_lme_agg",
           "value": 79.0
         },
@@ -846,6 +1094,10 @@
         },
         {
           "run": "runs/m78c_answer_s1",
+          "value": 78.8
+        },
+        {
+          "run": "runs/m81_base_s1",
           "value": 78.8
         },
         {
@@ -873,11 +1125,23 @@
           "value": 78.60000000000001
         },
         {
+          "run": "runs/m80_base_s1",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m82_base_s2",
+          "value": 78.60000000000001
+        },
+        {
           "run": "runs/m20b_profile_s1",
           "value": 78.2
         },
         {
           "run": "runs/m78c_answer_s2",
+          "value": 78.2
+        },
+        {
+          "run": "runs/m81_base_s2",
           "value": 78.2
         },
         {
@@ -901,11 +1165,27 @@
           "value": 77.8
         },
         {
+          "run": "runs/m80_base_s2",
+          "value": 77.8
+        },
+        {
+          "run": "runs/m82_base_s3",
+          "value": 77.8
+        },
+        {
           "run": "runs/m76b_words_nopremise_s1",
           "value": 77.60000000000001
         },
         {
+          "run": "runs/m81_base_s3",
+          "value": 77.2
+        },
+        {
           "run": "runs/m79_base_s3",
+          "value": 77.0
+        },
+        {
+          "run": "runs/m80_base_s3",
           "value": 77.0
         },
         {
@@ -960,6 +1240,10 @@
           "value": 80.4
         },
         {
+          "run": "runs/r5_bundle_s2_m80",
+          "value": 82.0
+        },
+        {
           "run": "runs/r5_bundle_s2_typed",
           "value": 81.8
         },
@@ -972,11 +1256,43 @@
           "value": 81.8
         },
         {
+          "run": "runs/r5_bundle_s2_m82",
+          "value": 81.6
+        },
+        {
           "run": "runs/r5_bundle_s3_typed",
           "value": 81.6
         },
         {
+          "run": "runs/r5_bundle_s1_m80",
+          "value": 81.39999999999999
+        },
+        {
+          "run": "runs/r5_bundle_s2_m81",
+          "value": 81.39999999999999
+        },
+        {
+          "run": "runs/r5_bundle_s2_m84",
+          "value": 81.39999999999999
+        },
+        {
+          "run": "runs/r5_bundle_s3_m80",
+          "value": 81.39999999999999
+        },
+        {
+          "run": "runs/r5_bundle_s3_m82",
+          "value": 81.2
+        },
+        {
+          "run": "runs/r5_bundle_s3_m84",
+          "value": 81.2
+        },
+        {
           "run": "runs/r5_bundle_s1_typed",
+          "value": 81.0
+        },
+        {
+          "run": "runs/r5_bundle_s3_m81",
           "value": 81.0
         },
         {
@@ -984,11 +1300,23 @@
           "value": 81.0
         },
         {
+          "run": "runs/r5_bundle_s1_m82",
+          "value": 80.80000000000001
+        },
+        {
           "run": "runs/r4_bundle_s1_grounded",
           "value": 80.60000000000001
         },
         {
+          "run": "runs/r5_bundle_s1_m84",
+          "value": 80.60000000000001
+        },
+        {
           "run": "runs/m71_lme_grounded",
+          "value": 80.4
+        },
+        {
+          "run": "runs/r5_bundle_s1_m81",
           "value": 80.4
         },
         {
@@ -1001,6 +1329,10 @@
         },
         {
           "run": "runs/m55_bonsai_s1",
+          "value": 80.0
+        },
+        {
+          "run": "runs/m80_base_s1",
           "value": 80.0
         },
         {
@@ -1036,6 +1368,10 @@
           "value": 79.60000000000001
         },
         {
+          "run": "runs/m82_base_s1",
+          "value": 79.60000000000001
+        },
+        {
           "run": "runs/m77c_clause_s1",
           "value": 79.4
         },
@@ -1061,6 +1397,10 @@
         },
         {
           "run": "runs/m78c_answer_s1",
+          "value": 79.2
+        },
+        {
+          "run": "runs/m81_base_s1",
           "value": 79.2
         },
         {
@@ -1092,11 +1432,19 @@
           "value": 79.0
         },
         {
+          "run": "runs/m80_base_s2",
+          "value": 79.0
+        },
+        {
           "run": "runs/m78_answer_s2",
           "value": 78.8
         },
         {
           "run": "runs/m79_base_s2",
+          "value": 78.8
+        },
+        {
+          "run": "runs/m80_base_s3",
           "value": 78.8
         },
         {
@@ -1110,6 +1458,22 @@
         {
           "run": "runs/m79_base_s3",
           "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m82_base_s2",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m82_base_s3",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m81_base_s2",
+          "value": 78.2
+        },
+        {
+          "run": "runs/m81_base_s3",
+          "value": 78.0
         },
         {
           "run": "runs/r5_base_s2",
@@ -1325,7 +1689,35 @@
           "value": 80.0
         },
         {
+          "run": "runs/r5_bundle_s3_m84",
+          "value": 82.19999999999999
+        },
+        {
+          "run": "runs/r5_bundle_s3_m82",
+          "value": 82.0
+        },
+        {
+          "run": "runs/r5_bundle_s2_m84",
+          "value": 81.8
+        },
+        {
+          "run": "runs/r5_bundle_s2_m82",
+          "value": 81.6
+        },
+        {
+          "run": "runs/r5_bundle_s2_m81",
+          "value": 81.39999999999999
+        },
+        {
+          "run": "runs/r5_bundle_s3_m81",
+          "value": 81.39999999999999
+        },
+        {
           "run": "runs/r5_bundle_s2",
+          "value": 81.0
+        },
+        {
+          "run": "runs/r5_bundle_s2_m80",
           "value": 81.0
         },
         {
@@ -1341,6 +1733,18 @@
           "value": 80.80000000000001
         },
         {
+          "run": "runs/r5_bundle_s3_m80",
+          "value": 80.80000000000001
+        },
+        {
+          "run": "runs/r5_bundle_s1_m82",
+          "value": 80.60000000000001
+        },
+        {
+          "run": "runs/r5_bundle_s1_m84",
+          "value": 80.60000000000001
+        },
+        {
           "run": "runs/r5_bundle_s3_typed",
           "value": 80.60000000000001
         },
@@ -1349,8 +1753,16 @@
           "value": 80.60000000000001
         },
         {
+          "run": "runs/r5_bundle_s1_m81",
+          "value": 80.2
+        },
+        {
           "run": "runs/r5b_bundle_s3_typed",
           "value": 80.2
+        },
+        {
+          "run": "runs/r5_bundle_s1_m80",
+          "value": 80.0
         },
         {
           "run": "runs/r5_bundle_s1",
@@ -1417,6 +1829,10 @@
           "value": 79.2
         },
         {
+          "run": "runs/m82_base_s1",
+          "value": 79.2
+        },
+        {
           "run": "runs/m72_lme_agg",
           "value": 79.0
         },
@@ -1430,6 +1846,10 @@
         },
         {
           "run": "runs/m78c_answer_s1",
+          "value": 78.8
+        },
+        {
+          "run": "runs/m81_base_s1",
           "value": 78.8
         },
         {
@@ -1457,11 +1877,23 @@
           "value": 78.60000000000001
         },
         {
+          "run": "runs/m80_base_s1",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m82_base_s2",
+          "value": 78.60000000000001
+        },
+        {
           "run": "runs/m20b_profile_s1",
           "value": 78.2
         },
         {
           "run": "runs/m78c_answer_s2",
+          "value": 78.2
+        },
+        {
+          "run": "runs/m81_base_s2",
           "value": 78.2
         },
         {
@@ -1485,11 +1917,27 @@
           "value": 77.8
         },
         {
+          "run": "runs/m80_base_s2",
+          "value": 77.8
+        },
+        {
+          "run": "runs/m82_base_s3",
+          "value": 77.8
+        },
+        {
           "run": "runs/m76b_words_nopremise_s1",
           "value": 77.60000000000001
         },
         {
+          "run": "runs/m81_base_s3",
+          "value": 77.2
+        },
+        {
           "run": "runs/m79_base_s3",
+          "value": 77.0
+        },
+        {
+          "run": "runs/m80_base_s3",
           "value": 77.0
         },
         {
@@ -1511,9 +1959,9 @@
       "metric": "locomo.judge_score.n1540",
       "system": "EverMemOS",
       "theirs": 93.05,
-      "ours": 70.51948051948051,
+      "ours": 70.84415584415584,
       "ours_n": 1540,
-      "gap": -22.530519480519487,
+      "gap": -22.20584415584416,
       "verdict": {
         "verdict": "caveat_judge",
         "ours": "open_weights_local",
@@ -1522,30 +1970,50 @@
       "claim_allowed": false,
       "gate": false,
       "arm": false,
-      "run": "runs/m63_locomo_base",
+      "run": "runs/m84_locomo_base",
       "source_doi": "10.48550/arXiv.2601.02163",
       "caveat": "Highest LoCoMo number in this registry. Population stated directly: \"LoCoMo contains 1,540 questions over 10 ultra-long dialogues\" (L110), repeated as #Questions 1,540 (L612). Judge is GPT-4o-mini plus two auxiliary judges that the paper never names, averaged blind (L114).",
-      "detail": "judge qwen3.5-9b : 1086 of 1540 correct (116 declines scored 0)",
+      "detail": "judge qwen3.5-9b : 1091 of 1540 correct (102 declines scored 0)",
       "candidates": [
         {
-          "run": "runs/m63_locomo_base",
-          "value": 70.51948051948051
-        },
-        {
-          "run": "runs/m19_locomo_full",
-          "value": 69.87012987012987
-        },
-        {
-          "run": "runs/m21_mh_base",
-          "value": 58.156028368794324
+          "run": "runs/m84_locomo_base",
+          "value": 70.84415584415584
         },
         {
           "run": "runs/m63_locomo_inline",
           "value": 70.71428571428572
         },
         {
+          "run": "runs/m82_locomo_base",
+          "value": 70.64935064935065
+        },
+        {
+          "run": "runs/m81_locomo_base",
+          "value": 70.58441558441558
+        },
+        {
+          "run": "runs/m83_locomo_base",
+          "value": 70.58441558441558
+        },
+        {
+          "run": "runs/m83b_locomo_base",
+          "value": 70.58441558441558
+        },
+        {
+          "run": "runs/m63_locomo_base",
+          "value": 70.51948051948051
+        },
+        {
           "run": "runs/m61_locomo_grounded",
           "value": 70.06493506493506
+        },
+        {
+          "run": "runs/m83_locomo_m50c",
+          "value": 70.06493506493506
+        },
+        {
+          "run": "runs/m19_locomo_full",
+          "value": 69.87012987012987
         },
         {
           "run": "runs/m50c_locomo_events",
@@ -1556,12 +2024,28 @@
           "value": 69.74025974025973
         },
         {
+          "run": "runs/m83b_locomo_m50b",
+          "value": 69.74025974025973
+        },
+        {
           "run": "runs/m59_locomo_bonsai_bestguess",
           "value": 67.92207792207792
         },
         {
+          "run": "runs/m83b_locomo_m55b",
+          "value": 67.27272727272727
+        },
+        {
           "run": "runs/m55b_locomo_bonsai",
           "value": 66.68831168831169
+        },
+        {
+          "run": "runs/m83_locomo_m51",
+          "value": 65.25974025974025
+        },
+        {
+          "run": "runs/m83b_locomo_m51",
+          "value": 65.25974025974025
         },
         {
           "run": "runs/m51_locomo_s1",
@@ -1570,6 +2054,10 @@
         {
           "run": "runs/m63_locomo_dedupe",
           "value": 62.5974025974026
+        },
+        {
+          "run": "runs/m21_mh_base",
+          "value": 58.156028368794324
         },
         {
           "run": "runs/m21_mh_sel",
@@ -1651,6 +2139,10 @@
           "value": 80.4
         },
         {
+          "run": "runs/r5_bundle_s2_m80",
+          "value": 82.0
+        },
+        {
           "run": "runs/r5_bundle_s2_typed",
           "value": 81.8
         },
@@ -1663,11 +2155,43 @@
           "value": 81.8
         },
         {
+          "run": "runs/r5_bundle_s2_m82",
+          "value": 81.6
+        },
+        {
           "run": "runs/r5_bundle_s3_typed",
           "value": 81.6
         },
         {
+          "run": "runs/r5_bundle_s1_m80",
+          "value": 81.39999999999999
+        },
+        {
+          "run": "runs/r5_bundle_s2_m81",
+          "value": 81.39999999999999
+        },
+        {
+          "run": "runs/r5_bundle_s2_m84",
+          "value": 81.39999999999999
+        },
+        {
+          "run": "runs/r5_bundle_s3_m80",
+          "value": 81.39999999999999
+        },
+        {
+          "run": "runs/r5_bundle_s3_m82",
+          "value": 81.2
+        },
+        {
+          "run": "runs/r5_bundle_s3_m84",
+          "value": 81.2
+        },
+        {
           "run": "runs/r5_bundle_s1_typed",
+          "value": 81.0
+        },
+        {
+          "run": "runs/r5_bundle_s3_m81",
           "value": 81.0
         },
         {
@@ -1675,11 +2199,23 @@
           "value": 81.0
         },
         {
+          "run": "runs/r5_bundle_s1_m82",
+          "value": 80.80000000000001
+        },
+        {
           "run": "runs/r4_bundle_s1_grounded",
           "value": 80.60000000000001
         },
         {
+          "run": "runs/r5_bundle_s1_m84",
+          "value": 80.60000000000001
+        },
+        {
           "run": "runs/m71_lme_grounded",
+          "value": 80.4
+        },
+        {
+          "run": "runs/r5_bundle_s1_m81",
           "value": 80.4
         },
         {
@@ -1692,6 +2228,10 @@
         },
         {
           "run": "runs/m55_bonsai_s1",
+          "value": 80.0
+        },
+        {
+          "run": "runs/m80_base_s1",
           "value": 80.0
         },
         {
@@ -1727,6 +2267,10 @@
           "value": 79.60000000000001
         },
         {
+          "run": "runs/m82_base_s1",
+          "value": 79.60000000000001
+        },
+        {
           "run": "runs/m77c_clause_s1",
           "value": 79.4
         },
@@ -1752,6 +2296,10 @@
         },
         {
           "run": "runs/m78c_answer_s1",
+          "value": 79.2
+        },
+        {
+          "run": "runs/m81_base_s1",
           "value": 79.2
         },
         {
@@ -1783,11 +2331,19 @@
           "value": 79.0
         },
         {
+          "run": "runs/m80_base_s2",
+          "value": 79.0
+        },
+        {
           "run": "runs/m78_answer_s2",
           "value": 78.8
         },
         {
           "run": "runs/m79_base_s2",
+          "value": 78.8
+        },
+        {
+          "run": "runs/m80_base_s3",
           "value": 78.8
         },
         {
@@ -1801,6 +2357,22 @@
         {
           "run": "runs/m79_base_s3",
           "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m82_base_s2",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m82_base_s3",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m81_base_s2",
+          "value": 78.2
+        },
+        {
+          "run": "runs/m81_base_s3",
+          "value": 78.0
         },
         {
           "run": "runs/r5_base_s2",
@@ -1985,9 +2557,9 @@
       "metric": "locomo.judge_score.n1540",
       "system": "Mem0 (paper)",
       "theirs": 66.88,
-      "ours": 70.51948051948051,
+      "ours": 70.84415584415584,
       "ours_n": 1540,
-      "gap": 3.6394805194805144,
+      "gap": 3.96415584415584,
       "verdict": {
         "verdict": "caveat_judge",
         "ours": "open_weights_local",
@@ -1996,30 +2568,50 @@
       "claim_allowed": false,
       "gate": false,
       "arm": false,
-      "run": "runs/m63_locomo_base",
+      "run": "runs/m84_locomo_base",
       "source_doi": "10.48550/arXiv.2504.19413",
       "caveat": "The paper's own number, 25.6 points below the 92.5% the vendor blog claims for the same system. Adversarial category excluded (\"this category was excluded from our evaluation because ground truth answers were unavailable\", L67); the paper says \"entire dataset\" without stating n, so 1,540 is inferred from that exclusion. Judge model never named; prompt adapted from MemGPT (L614). Table 2 labels both Mem0 rows MemO^g; prose (L523-532) identifies 1764/66.88 as base Mem0.",
-      "detail": "judge qwen3.5-9b : 1086 of 1540 correct (116 declines scored 0)",
+      "detail": "judge qwen3.5-9b : 1091 of 1540 correct (102 declines scored 0)",
       "candidates": [
         {
-          "run": "runs/m63_locomo_base",
-          "value": 70.51948051948051
-        },
-        {
-          "run": "runs/m19_locomo_full",
-          "value": 69.87012987012987
-        },
-        {
-          "run": "runs/m21_mh_base",
-          "value": 58.156028368794324
+          "run": "runs/m84_locomo_base",
+          "value": 70.84415584415584
         },
         {
           "run": "runs/m63_locomo_inline",
           "value": 70.71428571428572
         },
         {
+          "run": "runs/m82_locomo_base",
+          "value": 70.64935064935065
+        },
+        {
+          "run": "runs/m81_locomo_base",
+          "value": 70.58441558441558
+        },
+        {
+          "run": "runs/m83_locomo_base",
+          "value": 70.58441558441558
+        },
+        {
+          "run": "runs/m83b_locomo_base",
+          "value": 70.58441558441558
+        },
+        {
+          "run": "runs/m63_locomo_base",
+          "value": 70.51948051948051
+        },
+        {
           "run": "runs/m61_locomo_grounded",
           "value": 70.06493506493506
+        },
+        {
+          "run": "runs/m83_locomo_m50c",
+          "value": 70.06493506493506
+        },
+        {
+          "run": "runs/m19_locomo_full",
+          "value": 69.87012987012987
         },
         {
           "run": "runs/m50c_locomo_events",
@@ -2030,12 +2622,28 @@
           "value": 69.74025974025973
         },
         {
+          "run": "runs/m83b_locomo_m50b",
+          "value": 69.74025974025973
+        },
+        {
           "run": "runs/m59_locomo_bonsai_bestguess",
           "value": 67.92207792207792
         },
         {
+          "run": "runs/m83b_locomo_m55b",
+          "value": 67.27272727272727
+        },
+        {
           "run": "runs/m55b_locomo_bonsai",
           "value": 66.68831168831169
+        },
+        {
+          "run": "runs/m83_locomo_m51",
+          "value": 65.25974025974025
+        },
+        {
+          "run": "runs/m83b_locomo_m51",
+          "value": 65.25974025974025
         },
         {
           "run": "runs/m51_locomo_s1",
@@ -2044,6 +2652,10 @@
         {
           "run": "runs/m63_locomo_dedupe",
           "value": 62.5974025974026
+        },
+        {
+          "run": "runs/m21_mh_base",
+          "value": 58.156028368794324
         },
         {
           "run": "runs/m21_mh_sel",
@@ -2092,7 +2704,7 @@
       "metric": "locomo.judge_score.n1540",
       "system": "Mem0 (vendor)",
       "theirs": 92.5,
-      "ours": 70.51948051948051,
+      "ours": 70.84415584415584,
       "ours_n": 1540,
       "gap": null,
       "verdict": {
@@ -2102,30 +2714,50 @@
       "claim_allowed": false,
       "gate": false,
       "arm": false,
-      "run": "runs/m63_locomo_base",
+      "run": "runs/m84_locomo_base",
       "source_doi": "",
       "caveat": "mem0.ai blog, 2026. No protocol, no judge prompt, no question count, and no converted source in the local corpus - hence `vendor`, which `standing` treats as not comparable in either direction. Kept in the table because it is the number a reader will meet first.",
-      "detail": "judge qwen3.5-9b : 1086 of 1540 correct (116 declines scored 0)",
+      "detail": "judge qwen3.5-9b : 1091 of 1540 correct (102 declines scored 0)",
       "candidates": [
         {
-          "run": "runs/m63_locomo_base",
-          "value": 70.51948051948051
-        },
-        {
-          "run": "runs/m19_locomo_full",
-          "value": 69.87012987012987
-        },
-        {
-          "run": "runs/m21_mh_base",
-          "value": 58.156028368794324
+          "run": "runs/m84_locomo_base",
+          "value": 70.84415584415584
         },
         {
           "run": "runs/m63_locomo_inline",
           "value": 70.71428571428572
         },
         {
+          "run": "runs/m82_locomo_base",
+          "value": 70.64935064935065
+        },
+        {
+          "run": "runs/m81_locomo_base",
+          "value": 70.58441558441558
+        },
+        {
+          "run": "runs/m83_locomo_base",
+          "value": 70.58441558441558
+        },
+        {
+          "run": "runs/m83b_locomo_base",
+          "value": 70.58441558441558
+        },
+        {
+          "run": "runs/m63_locomo_base",
+          "value": 70.51948051948051
+        },
+        {
           "run": "runs/m61_locomo_grounded",
           "value": 70.06493506493506
+        },
+        {
+          "run": "runs/m83_locomo_m50c",
+          "value": 70.06493506493506
+        },
+        {
+          "run": "runs/m19_locomo_full",
+          "value": 69.87012987012987
         },
         {
           "run": "runs/m50c_locomo_events",
@@ -2136,12 +2768,28 @@
           "value": 69.74025974025973
         },
         {
+          "run": "runs/m83b_locomo_m50b",
+          "value": 69.74025974025973
+        },
+        {
           "run": "runs/m59_locomo_bonsai_bestguess",
           "value": 67.92207792207792
         },
         {
+          "run": "runs/m83b_locomo_m55b",
+          "value": 67.27272727272727
+        },
+        {
           "run": "runs/m55b_locomo_bonsai",
           "value": 66.68831168831169
+        },
+        {
+          "run": "runs/m83_locomo_m51",
+          "value": 65.25974025974025
+        },
+        {
+          "run": "runs/m83b_locomo_m51",
+          "value": 65.25974025974025
         },
         {
           "run": "runs/m51_locomo_s1",
@@ -2150,6 +2798,10 @@
         {
           "run": "runs/m63_locomo_dedupe",
           "value": 62.5974025974026
+        },
+        {
+          "run": "runs/m21_mh_base",
+          "value": 58.156028368794324
         },
         {
           "run": "runs/m21_mh_sel",
@@ -2230,6 +2882,10 @@
           "value": 80.4
         },
         {
+          "run": "runs/r5_bundle_s2_m80",
+          "value": 82.0
+        },
+        {
           "run": "runs/r5_bundle_s2_typed",
           "value": 81.8
         },
@@ -2242,11 +2898,43 @@
           "value": 81.8
         },
         {
+          "run": "runs/r5_bundle_s2_m82",
+          "value": 81.6
+        },
+        {
           "run": "runs/r5_bundle_s3_typed",
           "value": 81.6
         },
         {
+          "run": "runs/r5_bundle_s1_m80",
+          "value": 81.39999999999999
+        },
+        {
+          "run": "runs/r5_bundle_s2_m81",
+          "value": 81.39999999999999
+        },
+        {
+          "run": "runs/r5_bundle_s2_m84",
+          "value": 81.39999999999999
+        },
+        {
+          "run": "runs/r5_bundle_s3_m80",
+          "value": 81.39999999999999
+        },
+        {
+          "run": "runs/r5_bundle_s3_m82",
+          "value": 81.2
+        },
+        {
+          "run": "runs/r5_bundle_s3_m84",
+          "value": 81.2
+        },
+        {
           "run": "runs/r5_bundle_s1_typed",
+          "value": 81.0
+        },
+        {
+          "run": "runs/r5_bundle_s3_m81",
           "value": 81.0
         },
         {
@@ -2254,11 +2942,23 @@
           "value": 81.0
         },
         {
+          "run": "runs/r5_bundle_s1_m82",
+          "value": 80.80000000000001
+        },
+        {
           "run": "runs/r4_bundle_s1_grounded",
           "value": 80.60000000000001
         },
         {
+          "run": "runs/r5_bundle_s1_m84",
+          "value": 80.60000000000001
+        },
+        {
           "run": "runs/m71_lme_grounded",
+          "value": 80.4
+        },
+        {
+          "run": "runs/r5_bundle_s1_m81",
           "value": 80.4
         },
         {
@@ -2271,6 +2971,10 @@
         },
         {
           "run": "runs/m55_bonsai_s1",
+          "value": 80.0
+        },
+        {
+          "run": "runs/m80_base_s1",
           "value": 80.0
         },
         {
@@ -2306,6 +3010,10 @@
           "value": 79.60000000000001
         },
         {
+          "run": "runs/m82_base_s1",
+          "value": 79.60000000000001
+        },
+        {
           "run": "runs/m77c_clause_s1",
           "value": 79.4
         },
@@ -2331,6 +3039,10 @@
         },
         {
           "run": "runs/m78c_answer_s1",
+          "value": 79.2
+        },
+        {
+          "run": "runs/m81_base_s1",
           "value": 79.2
         },
         {
@@ -2362,11 +3074,19 @@
           "value": 79.0
         },
         {
+          "run": "runs/m80_base_s2",
+          "value": 79.0
+        },
+        {
           "run": "runs/m78_answer_s2",
           "value": 78.8
         },
         {
           "run": "runs/m79_base_s2",
+          "value": 78.8
+        },
+        {
+          "run": "runs/m80_base_s3",
           "value": 78.8
         },
         {
@@ -2380,6 +3100,22 @@
         {
           "run": "runs/m79_base_s3",
           "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m82_base_s2",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m82_base_s3",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m81_base_s2",
+          "value": 78.2
+        },
+        {
+          "run": "runs/m81_base_s3",
+          "value": 78.0
         },
         {
           "run": "runs/r5_base_s2",
@@ -2564,7 +3300,7 @@
       "metric": "locomo.token_f1.n1540",
       "system": "GAM",
       "theirs": 40.0,
-      "ours": 53.073492577274806,
+      "ours": 53.147867079245344,
       "ours_n": 1540,
       "gap": null,
       "verdict": {
@@ -2573,23 +3309,19 @@
       },
       "claim_allowed": false,
       "gate": false,
-      "arm": false,
-      "run": "runs/locomo_recall",
+      "arm": true,
+      "run": "runs/locomo_recall_graph",
       "source_doi": "10.48550/arxiv.2604.12285",
       "caveat": "PLAN.md 11.5 recorded this as \"GAM @ gpt-4o-mini\"; it is the Qwen2.5-7B-Instruct row. GAM's gpt-4o-mini Average F1 is 43.14 (L529). The figure is also a MACRO mean of the four category F1s, not a micro-average over questions, and the paper never states n - 1,540 is LoCoMo's four non-adversarial categories, which is the subset GAM says it uses (L174). GAM reports no LLM-judge number at all.",
       "detail": "aggregated_metrics.json f1_answerable over categories 1-4, mode=recall k=6",
       "candidates": [
         {
-          "run": "runs/locomo_recall",
-          "value": 53.073492577274806
-        },
-        {
-          "run": "runs/locomo_recall_probe",
-          "value": 44.51152884361769
-        },
-        {
           "run": "runs/locomo_recall_graph",
           "value": 53.147867079245344
+        },
+        {
+          "run": "runs/locomo_recall",
+          "value": 53.073492577274806
         },
         {
           "run": "runs/locomo_recall_qdate",
@@ -2606,6 +3338,10 @@
         {
           "run": "runs/locomo_recall_chrono",
           "value": 52.90065451072776
+        },
+        {
+          "run": "runs/locomo_recall_probe",
+          "value": 44.51152884361769
         }
       ]
     },
@@ -2614,9 +3350,9 @@
       "metric": "locomo.abstention_accuracy.n446",
       "system": "HiGMem",
       "theirs": 0.78,
-      "ours": 0.6995515695067265,
+      "ours": 0.6793721973094171,
       "ours_n": 446,
-      "gap": -0.08044843049327355,
+      "gap": -0.10062780269058291,
       "verdict": {
         "verdict": "caveat_backbone",
         "ours": "open_weights",
@@ -2625,11 +3361,83 @@
       "claim_allowed": false,
       "gate": false,
       "arm": false,
-      "run": "runs/m19_locomo_full",
+      "run": "runs/m84_locomo_base",
       "source_doi": "10.48550/arxiv.2604.18349",
       "caveat": "Not the same quantity as ours, and the gap must be read with that in mind: HiGMem reports SQuAD token F1 on LoCoMo10's Adversarial category using a category-specific QA prompt that is handed the distractor candidate (L753), while our column is the fraction of adversarial items the reader declined. The paper does not state n; 446 is LoCoMo10's adversarial count (PLAN.md 1.1).",
       "detail": "aggregated_metrics.json abstention_accuracy over category 5",
       "candidates": [
+        {
+          "run": "runs/m84_locomo_base",
+          "value": 67.9372197309417
+        },
+        {
+          "run": "runs/m84_locomo_base_judged",
+          "value": 67.9372197309417
+        },
+        {
+          "run": "runs/m59_locomo_bonsai_bestguess",
+          "value": 93.49775784753363
+        },
+        {
+          "run": "runs/m55b_locomo_bonsai",
+          "value": 92.82511210762333
+        },
+        {
+          "run": "runs/m55b_locomo_bonsai_judged",
+          "value": 92.82511210762333
+        },
+        {
+          "run": "runs/m61_locomo_grounded",
+          "value": 92.82511210762333
+        },
+        {
+          "run": "runs/m83b_locomo_m55b",
+          "value": 92.82511210762333
+        },
+        {
+          "run": "runs/m83b_locomo_m55b_judged",
+          "value": 92.82511210762333
+        },
+        {
+          "run": "runs/m51_locomo_s1",
+          "value": 84.08071748878923
+        },
+        {
+          "run": "runs/m51_locomo_s1_judged",
+          "value": 84.08071748878923
+        },
+        {
+          "run": "runs/m83_locomo_m51",
+          "value": 84.08071748878923
+        },
+        {
+          "run": "runs/m83b_locomo_m51",
+          "value": 84.08071748878923
+        },
+        {
+          "run": "runs/m83b_locomo_m51_judged",
+          "value": 84.08071748878923
+        },
+        {
+          "run": "runs/m83_locomo_m51_judged",
+          "value": 83.18385650224215
+        },
+        {
+          "run": "runs/m50b_locomo_events",
+          "value": 71.0762331838565
+        },
+        {
+          "run": "runs/m50b_locomo_events_judged",
+          "value": 71.0762331838565
+        },
+        {
+          "run": "runs/m83b_locomo_m50b",
+          "value": 71.0762331838565
+        },
+        {
+          "run": "runs/m83b_locomo_m50b_judged",
+          "value": 71.0762331838565
+        },
         {
           "run": "runs/m19_locomo_full",
           "value": 69.95515695067265
@@ -2647,36 +3455,44 @@
           "value": 67.9372197309417
         },
         {
-          "run": "runs/m63_locomo_base.part0",
-          "value": 68.0
+          "run": "runs/m63_locomo_base_judged",
+          "value": 67.9372197309417
         },
         {
-          "run": "runs/m63_locomo_base.part1",
-          "value": 67.87330316742081
+          "run": "runs/m81_locomo_base",
+          "value": 67.9372197309417
         },
         {
-          "run": "runs/m59_locomo_bonsai_bestguess",
-          "value": 93.49775784753363
+          "run": "runs/m82_locomo_base",
+          "value": 67.9372197309417
         },
         {
-          "run": "runs/m55b_locomo_bonsai",
-          "value": 92.82511210762333
+          "run": "runs/m83_locomo_base",
+          "value": 67.9372197309417
         },
         {
-          "run": "runs/m61_locomo_grounded",
-          "value": 92.82511210762333
+          "run": "runs/m83_locomo_base_judged",
+          "value": 67.9372197309417
         },
         {
-          "run": "runs/m51_locomo_s1",
-          "value": 84.08071748878923
+          "run": "runs/m83b_locomo_base",
+          "value": 67.9372197309417
         },
         {
-          "run": "runs/m50b_locomo_events",
-          "value": 71.0762331838565
+          "run": "runs/m83b_locomo_base_judged",
+          "value": 67.9372197309417
         },
         {
           "run": "runs/m63_locomo_inline",
           "value": 67.48878923766816
+        },
+        {
+          "run": "runs/m81_locomo_base_judged",
+          "value": 66.81614349775785
+        },
+        {
+          "run": "runs/m82_locomo_base_judged",
+          "value": 65.02242152466367
         },
         {
           "run": "runs/m63_locomo_dedupe",
@@ -2684,6 +3500,18 @@
         },
         {
           "run": "runs/m50c_locomo_events",
+          "value": 62.10762331838565
+        },
+        {
+          "run": "runs/m50c_locomo_events_judged",
+          "value": 62.10762331838565
+        },
+        {
+          "run": "runs/m83_locomo_m50c",
+          "value": 62.10762331838565
+        },
+        {
+          "run": "runs/m83_locomo_m50c_judged",
           "value": 62.10762331838565
         },
         {
@@ -2697,6 +3525,10 @@
         {
           "run": "runs/m63_locomo_inline.part0",
           "value": 68.44444444444444
+        },
+        {
+          "run": "runs/m63_locomo_base.part0",
+          "value": 68.0
         },
         {
           "run": "runs/m50c_locomo_events.part0",
@@ -2713,6 +3545,10 @@
         {
           "run": "runs/m55b_locomo_bonsai.part1",
           "value": 92.76018099547511
+        },
+        {
+          "run": "runs/m63_locomo_base.part1",
+          "value": 67.87330316742081
         },
         {
           "run": "runs/m63_locomo_inline.part1",
@@ -2759,22 +3595,6 @@
           "value": 80.43478260869566
         },
         {
-          "run": "runs/locomo_recall",
-          "value": 69.95515695067265
-        },
-        {
-          "run": "runs/rescored/locomo_recall_temporal",
-          "value": 69.95515695067265
-        },
-        {
-          "run": "runs/locomo_recall_probe",
-          "value": 65.95744680851064
-        },
-        {
-          "run": "runs/rescored/locomo_recall_probe_temporal",
-          "value": 65.95744680851064
-        },
-        {
           "run": "runs/locomo_recall_qdate",
           "value": 73.09417040358744
         },
@@ -2807,12 +3627,28 @@
           "value": 70.62780269058297
         },
         {
+          "run": "runs/locomo_recall",
+          "value": 69.95515695067265
+        },
+        {
+          "run": "runs/rescored/locomo_recall_temporal",
+          "value": 69.95515695067265
+        },
+        {
           "run": "runs/locomo_investigate",
           "value": 69.73094170403587
         },
         {
           "run": "runs/rescored/locomo_investigate_temporal",
           "value": 69.73094170403587
+        },
+        {
+          "run": "runs/locomo_recall_probe",
+          "value": 65.95744680851064
+        },
+        {
+          "run": "runs/rescored/locomo_recall_probe_temporal",
+          "value": 65.95744680851064
         }
       ]
     },
@@ -2854,6 +3690,10 @@
           "value": 80.4
         },
         {
+          "run": "runs/r5_bundle_s2_m80",
+          "value": 82.0
+        },
+        {
           "run": "runs/r5_bundle_s2_typed",
           "value": 81.8
         },
@@ -2866,11 +3706,43 @@
           "value": 81.8
         },
         {
+          "run": "runs/r5_bundle_s2_m82",
+          "value": 81.6
+        },
+        {
           "run": "runs/r5_bundle_s3_typed",
           "value": 81.6
         },
         {
+          "run": "runs/r5_bundle_s1_m80",
+          "value": 81.39999999999999
+        },
+        {
+          "run": "runs/r5_bundle_s2_m81",
+          "value": 81.39999999999999
+        },
+        {
+          "run": "runs/r5_bundle_s2_m84",
+          "value": 81.39999999999999
+        },
+        {
+          "run": "runs/r5_bundle_s3_m80",
+          "value": 81.39999999999999
+        },
+        {
+          "run": "runs/r5_bundle_s3_m82",
+          "value": 81.2
+        },
+        {
+          "run": "runs/r5_bundle_s3_m84",
+          "value": 81.2
+        },
+        {
           "run": "runs/r5_bundle_s1_typed",
+          "value": 81.0
+        },
+        {
+          "run": "runs/r5_bundle_s3_m81",
           "value": 81.0
         },
         {
@@ -2878,11 +3750,23 @@
           "value": 81.0
         },
         {
+          "run": "runs/r5_bundle_s1_m82",
+          "value": 80.80000000000001
+        },
+        {
           "run": "runs/r4_bundle_s1_grounded",
           "value": 80.60000000000001
         },
         {
+          "run": "runs/r5_bundle_s1_m84",
+          "value": 80.60000000000001
+        },
+        {
           "run": "runs/m71_lme_grounded",
+          "value": 80.4
+        },
+        {
+          "run": "runs/r5_bundle_s1_m81",
           "value": 80.4
         },
         {
@@ -2895,6 +3779,10 @@
         },
         {
           "run": "runs/m55_bonsai_s1",
+          "value": 80.0
+        },
+        {
+          "run": "runs/m80_base_s1",
           "value": 80.0
         },
         {
@@ -2930,6 +3818,10 @@
           "value": 79.60000000000001
         },
         {
+          "run": "runs/m82_base_s1",
+          "value": 79.60000000000001
+        },
+        {
           "run": "runs/m77c_clause_s1",
           "value": 79.4
         },
@@ -2955,6 +3847,10 @@
         },
         {
           "run": "runs/m78c_answer_s1",
+          "value": 79.2
+        },
+        {
+          "run": "runs/m81_base_s1",
           "value": 79.2
         },
         {
@@ -2986,11 +3882,19 @@
           "value": 79.0
         },
         {
+          "run": "runs/m80_base_s2",
+          "value": 79.0
+        },
+        {
           "run": "runs/m78_answer_s2",
           "value": 78.8
         },
         {
           "run": "runs/m79_base_s2",
+          "value": 78.8
+        },
+        {
+          "run": "runs/m80_base_s3",
           "value": 78.8
         },
         {
@@ -3004,6 +3908,22 @@
         {
           "run": "runs/m79_base_s3",
           "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m82_base_s2",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m82_base_s3",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m81_base_s2",
+          "value": 78.2
+        },
+        {
+          "run": "runs/m81_base_s3",
+          "value": 78.0
         },
         {
           "run": "runs/r5_base_s2",
@@ -3525,6 +4445,10 @@
           "value": 80.4
         },
         {
+          "run": "runs/r5_bundle_s2_m80",
+          "value": 82.0
+        },
+        {
           "run": "runs/r5_bundle_s2_typed",
           "value": 81.8
         },
@@ -3537,11 +4461,43 @@
           "value": 81.8
         },
         {
+          "run": "runs/r5_bundle_s2_m82",
+          "value": 81.6
+        },
+        {
           "run": "runs/r5_bundle_s3_typed",
           "value": 81.6
         },
         {
+          "run": "runs/r5_bundle_s1_m80",
+          "value": 81.39999999999999
+        },
+        {
+          "run": "runs/r5_bundle_s2_m81",
+          "value": 81.39999999999999
+        },
+        {
+          "run": "runs/r5_bundle_s2_m84",
+          "value": 81.39999999999999
+        },
+        {
+          "run": "runs/r5_bundle_s3_m80",
+          "value": 81.39999999999999
+        },
+        {
+          "run": "runs/r5_bundle_s3_m82",
+          "value": 81.2
+        },
+        {
+          "run": "runs/r5_bundle_s3_m84",
+          "value": 81.2
+        },
+        {
           "run": "runs/r5_bundle_s1_typed",
+          "value": 81.0
+        },
+        {
+          "run": "runs/r5_bundle_s3_m81",
           "value": 81.0
         },
         {
@@ -3549,11 +4505,23 @@
           "value": 81.0
         },
         {
+          "run": "runs/r5_bundle_s1_m82",
+          "value": 80.80000000000001
+        },
+        {
           "run": "runs/r4_bundle_s1_grounded",
           "value": 80.60000000000001
         },
         {
+          "run": "runs/r5_bundle_s1_m84",
+          "value": 80.60000000000001
+        },
+        {
           "run": "runs/m71_lme_grounded",
+          "value": 80.4
+        },
+        {
+          "run": "runs/r5_bundle_s1_m81",
           "value": 80.4
         },
         {
@@ -3566,6 +4534,10 @@
         },
         {
           "run": "runs/m55_bonsai_s1",
+          "value": 80.0
+        },
+        {
+          "run": "runs/m80_base_s1",
           "value": 80.0
         },
         {
@@ -3601,6 +4573,10 @@
           "value": 79.60000000000001
         },
         {
+          "run": "runs/m82_base_s1",
+          "value": 79.60000000000001
+        },
+        {
           "run": "runs/m77c_clause_s1",
           "value": 79.4
         },
@@ -3626,6 +4602,10 @@
         },
         {
           "run": "runs/m78c_answer_s1",
+          "value": 79.2
+        },
+        {
+          "run": "runs/m81_base_s1",
           "value": 79.2
         },
         {
@@ -3657,11 +4637,19 @@
           "value": 79.0
         },
         {
+          "run": "runs/m80_base_s2",
+          "value": 79.0
+        },
+        {
           "run": "runs/m78_answer_s2",
           "value": 78.8
         },
         {
           "run": "runs/m79_base_s2",
+          "value": 78.8
+        },
+        {
+          "run": "runs/m80_base_s3",
           "value": 78.8
         },
         {
@@ -3675,6 +4663,22 @@
         {
           "run": "runs/m79_base_s3",
           "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m82_base_s2",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m82_base_s3",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m81_base_s2",
+          "value": 78.2
+        },
+        {
+          "run": "runs/m81_base_s3",
+          "value": 78.0
         },
         {
           "run": "runs/r5_base_s2",
@@ -3859,9 +4863,9 @@
       "metric": "locomo.judge_score.n1540",
       "system": "NEMORI",
       "theirs": 80.8,
-      "ours": 70.51948051948051,
+      "ours": 70.84415584415584,
       "ours_n": 1540,
-      "gap": -10.280519480519487,
+      "gap": -9.955844155844161,
       "verdict": {
         "verdict": "caveat_judge",
         "ours": "open_weights_local",
@@ -3870,30 +4874,50 @@
       "claim_allowed": false,
       "gate": false,
       "arm": false,
-      "run": "runs/m63_locomo_base",
+      "run": "runs/m84_locomo_base",
       "source_doi": "10.48550/arxiv.2508.03341",
       "caveat": "NEMORI's LoCoMo LLM-judge average, not in PLAN.md 11.5's table. Judge is gpt-4o-mini (L480, printed \"gpt-4.0-mini\"). Population is stated: \"featuring 1,540 questions across four reasoning categories\" (L476).",
-      "detail": "judge qwen3.5-9b : 1086 of 1540 correct (116 declines scored 0)",
+      "detail": "judge qwen3.5-9b : 1091 of 1540 correct (102 declines scored 0)",
       "candidates": [
         {
-          "run": "runs/m63_locomo_base",
-          "value": 70.51948051948051
-        },
-        {
-          "run": "runs/m19_locomo_full",
-          "value": 69.87012987012987
-        },
-        {
-          "run": "runs/m21_mh_base",
-          "value": 58.156028368794324
+          "run": "runs/m84_locomo_base",
+          "value": 70.84415584415584
         },
         {
           "run": "runs/m63_locomo_inline",
           "value": 70.71428571428572
         },
         {
+          "run": "runs/m82_locomo_base",
+          "value": 70.64935064935065
+        },
+        {
+          "run": "runs/m81_locomo_base",
+          "value": 70.58441558441558
+        },
+        {
+          "run": "runs/m83_locomo_base",
+          "value": 70.58441558441558
+        },
+        {
+          "run": "runs/m83b_locomo_base",
+          "value": 70.58441558441558
+        },
+        {
+          "run": "runs/m63_locomo_base",
+          "value": 70.51948051948051
+        },
+        {
           "run": "runs/m61_locomo_grounded",
           "value": 70.06493506493506
+        },
+        {
+          "run": "runs/m83_locomo_m50c",
+          "value": 70.06493506493506
+        },
+        {
+          "run": "runs/m19_locomo_full",
+          "value": 69.87012987012987
         },
         {
           "run": "runs/m50c_locomo_events",
@@ -3904,12 +4928,28 @@
           "value": 69.74025974025973
         },
         {
+          "run": "runs/m83b_locomo_m50b",
+          "value": 69.74025974025973
+        },
+        {
           "run": "runs/m59_locomo_bonsai_bestguess",
           "value": 67.92207792207792
         },
         {
+          "run": "runs/m83b_locomo_m55b",
+          "value": 67.27272727272727
+        },
+        {
           "run": "runs/m55b_locomo_bonsai",
           "value": 66.68831168831169
+        },
+        {
+          "run": "runs/m83_locomo_m51",
+          "value": 65.25974025974025
+        },
+        {
+          "run": "runs/m83b_locomo_m51",
+          "value": 65.25974025974025
         },
         {
           "run": "runs/m51_locomo_s1",
@@ -3918,6 +4958,10 @@
         {
           "run": "runs/m63_locomo_dedupe",
           "value": 62.5974025974026
+        },
+        {
+          "run": "runs/m21_mh_base",
+          "value": 58.156028368794324
         },
         {
           "run": "runs/m21_mh_sel",
@@ -4121,6 +5165,10 @@
           "value": 80.4
         },
         {
+          "run": "runs/r5_bundle_s2_m80",
+          "value": 82.0
+        },
+        {
           "run": "runs/r5_bundle_s2_typed",
           "value": 81.8
         },
@@ -4133,11 +5181,43 @@
           "value": 81.8
         },
         {
+          "run": "runs/r5_bundle_s2_m82",
+          "value": 81.6
+        },
+        {
           "run": "runs/r5_bundle_s3_typed",
           "value": 81.6
         },
         {
+          "run": "runs/r5_bundle_s1_m80",
+          "value": 81.39999999999999
+        },
+        {
+          "run": "runs/r5_bundle_s2_m81",
+          "value": 81.39999999999999
+        },
+        {
+          "run": "runs/r5_bundle_s2_m84",
+          "value": 81.39999999999999
+        },
+        {
+          "run": "runs/r5_bundle_s3_m80",
+          "value": 81.39999999999999
+        },
+        {
+          "run": "runs/r5_bundle_s3_m82",
+          "value": 81.2
+        },
+        {
+          "run": "runs/r5_bundle_s3_m84",
+          "value": 81.2
+        },
+        {
           "run": "runs/r5_bundle_s1_typed",
+          "value": 81.0
+        },
+        {
+          "run": "runs/r5_bundle_s3_m81",
           "value": 81.0
         },
         {
@@ -4145,11 +5225,23 @@
           "value": 81.0
         },
         {
+          "run": "runs/r5_bundle_s1_m82",
+          "value": 80.80000000000001
+        },
+        {
           "run": "runs/r4_bundle_s1_grounded",
           "value": 80.60000000000001
         },
         {
+          "run": "runs/r5_bundle_s1_m84",
+          "value": 80.60000000000001
+        },
+        {
           "run": "runs/m71_lme_grounded",
+          "value": 80.4
+        },
+        {
+          "run": "runs/r5_bundle_s1_m81",
           "value": 80.4
         },
         {
@@ -4162,6 +5254,10 @@
         },
         {
           "run": "runs/m55_bonsai_s1",
+          "value": 80.0
+        },
+        {
+          "run": "runs/m80_base_s1",
           "value": 80.0
         },
         {
@@ -4197,6 +5293,10 @@
           "value": 79.60000000000001
         },
         {
+          "run": "runs/m82_base_s1",
+          "value": 79.60000000000001
+        },
+        {
           "run": "runs/m77c_clause_s1",
           "value": 79.4
         },
@@ -4222,6 +5322,10 @@
         },
         {
           "run": "runs/m78c_answer_s1",
+          "value": 79.2
+        },
+        {
+          "run": "runs/m81_base_s1",
           "value": 79.2
         },
         {
@@ -4253,11 +5357,19 @@
           "value": 79.0
         },
         {
+          "run": "runs/m80_base_s2",
+          "value": 79.0
+        },
+        {
           "run": "runs/m78_answer_s2",
           "value": 78.8
         },
         {
           "run": "runs/m79_base_s2",
+          "value": 78.8
+        },
+        {
+          "run": "runs/m80_base_s3",
           "value": 78.8
         },
         {
@@ -4271,6 +5383,22 @@
         {
           "run": "runs/m79_base_s3",
           "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m82_base_s2",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m82_base_s3",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m81_base_s2",
+          "value": 78.2
+        },
+        {
+          "run": "runs/m81_base_s3",
+          "value": 78.0
         },
         {
           "run": "runs/r5_base_s2",
@@ -4455,9 +5583,9 @@
       "metric": "locomo.judge_score.n1540",
       "system": "Memanto",
       "theirs": 87.1,
-      "ours": 70.51948051948051,
+      "ours": 70.84415584415584,
       "ours_n": 1540,
-      "gap": -16.580519480519484,
+      "gap": -16.25584415584416,
       "verdict": {
         "verdict": "caveat_judge",
         "ours": "open_weights_local",
@@ -4466,30 +5594,50 @@
       "claim_allowed": false,
       "gate": false,
       "arm": false,
-      "run": "runs/m63_locomo_base",
+      "run": "runs/m84_locomo_base",
       "source_doi": "10.48550/arXiv.2604.22085",
       "caveat": "Beats MemPro-15's 84.93 on LoCoMo. The judge is stated (Claude Sonnet 4); the LoCoMo population is *not* - \"LoCoMo is evaluated on its standard split\" - so n = 1540 remains this registry's assumption from the 282/96/841/321 category counts every LoCoMo paper reports, and whether the 446 adversarial items were dropped is unverified. The answer model is never named.",
-      "detail": "judge qwen3.5-9b : 1086 of 1540 correct (116 declines scored 0)",
+      "detail": "judge qwen3.5-9b : 1091 of 1540 correct (102 declines scored 0)",
       "candidates": [
         {
-          "run": "runs/m63_locomo_base",
-          "value": 70.51948051948051
-        },
-        {
-          "run": "runs/m19_locomo_full",
-          "value": 69.87012987012987
-        },
-        {
-          "run": "runs/m21_mh_base",
-          "value": 58.156028368794324
+          "run": "runs/m84_locomo_base",
+          "value": 70.84415584415584
         },
         {
           "run": "runs/m63_locomo_inline",
           "value": 70.71428571428572
         },
         {
+          "run": "runs/m82_locomo_base",
+          "value": 70.64935064935065
+        },
+        {
+          "run": "runs/m81_locomo_base",
+          "value": 70.58441558441558
+        },
+        {
+          "run": "runs/m83_locomo_base",
+          "value": 70.58441558441558
+        },
+        {
+          "run": "runs/m83b_locomo_base",
+          "value": 70.58441558441558
+        },
+        {
+          "run": "runs/m63_locomo_base",
+          "value": 70.51948051948051
+        },
+        {
           "run": "runs/m61_locomo_grounded",
           "value": 70.06493506493506
+        },
+        {
+          "run": "runs/m83_locomo_m50c",
+          "value": 70.06493506493506
+        },
+        {
+          "run": "runs/m19_locomo_full",
+          "value": 69.87012987012987
         },
         {
           "run": "runs/m50c_locomo_events",
@@ -4500,12 +5648,28 @@
           "value": 69.74025974025973
         },
         {
+          "run": "runs/m83b_locomo_m50b",
+          "value": 69.74025974025973
+        },
+        {
           "run": "runs/m59_locomo_bonsai_bestguess",
           "value": 67.92207792207792
         },
         {
+          "run": "runs/m83b_locomo_m55b",
+          "value": 67.27272727272727
+        },
+        {
           "run": "runs/m55b_locomo_bonsai",
           "value": 66.68831168831169
+        },
+        {
+          "run": "runs/m83_locomo_m51",
+          "value": 65.25974025974025
+        },
+        {
+          "run": "runs/m83b_locomo_m51",
+          "value": 65.25974025974025
         },
         {
           "run": "runs/m51_locomo_s1",
@@ -4514,6 +5678,10 @@
         {
           "run": "runs/m63_locomo_dedupe",
           "value": 62.5974025974026
+        },
+        {
+          "run": "runs/m21_mh_base",
+          "value": 58.156028368794324
         },
         {
           "run": "runs/m21_mh_sel",
@@ -4562,9 +5730,9 @@
       "metric": "locomo.judge_score.n1540",
       "system": "APEX-MEM",
       "theirs": 88.88,
-      "ours": 70.51948051948051,
+      "ours": 70.84415584415584,
       "ours_n": 1540,
-      "gap": -18.360519480519486,
+      "gap": -18.03584415584416,
       "verdict": {
         "verdict": "caveat_judge",
         "ours": "open_weights_local",
@@ -4573,30 +5741,50 @@
       "claim_allowed": false,
       "gate": false,
       "arm": false,
-      "run": "runs/m63_locomo_base",
+      "run": "runs/m84_locomo_base",
       "source_doi": "10.48550/arXiv.2604.14362",
       "caveat": "The highest LoCoMo number in this registry. Mechanism: a property graph that structures conversations as temporally grounded events, append-only temporal evolution, and a multi-tool retrieval agent that resolves conflicts at query time - i.e. the write-time half of what M19 does at read time, with GRAPHSQL doing \"duration calculations\" and \"temporal ordering via validity intervals\". The PDF is converted (20 pages) but the conversion's retrievable text covers the front matter only - abstract, introduction, related work and the architecture section - so the quote is the abstract's results sentence rather than a table row, and neither the per-category cells, the question counts, the answer model nor the judge could be read. n is this registry's assumption from the benchmarks' own populations. Re-read the results section before this row is used for anything but context.",
-      "detail": "judge qwen3.5-9b : 1086 of 1540 correct (116 declines scored 0)",
+      "detail": "judge qwen3.5-9b : 1091 of 1540 correct (102 declines scored 0)",
       "candidates": [
         {
-          "run": "runs/m63_locomo_base",
-          "value": 70.51948051948051
-        },
-        {
-          "run": "runs/m19_locomo_full",
-          "value": 69.87012987012987
-        },
-        {
-          "run": "runs/m21_mh_base",
-          "value": 58.156028368794324
+          "run": "runs/m84_locomo_base",
+          "value": 70.84415584415584
         },
         {
           "run": "runs/m63_locomo_inline",
           "value": 70.71428571428572
         },
         {
+          "run": "runs/m82_locomo_base",
+          "value": 70.64935064935065
+        },
+        {
+          "run": "runs/m81_locomo_base",
+          "value": 70.58441558441558
+        },
+        {
+          "run": "runs/m83_locomo_base",
+          "value": 70.58441558441558
+        },
+        {
+          "run": "runs/m83b_locomo_base",
+          "value": 70.58441558441558
+        },
+        {
+          "run": "runs/m63_locomo_base",
+          "value": 70.51948051948051
+        },
+        {
           "run": "runs/m61_locomo_grounded",
           "value": 70.06493506493506
+        },
+        {
+          "run": "runs/m83_locomo_m50c",
+          "value": 70.06493506493506
+        },
+        {
+          "run": "runs/m19_locomo_full",
+          "value": 69.87012987012987
         },
         {
           "run": "runs/m50c_locomo_events",
@@ -4607,12 +5795,28 @@
           "value": 69.74025974025973
         },
         {
+          "run": "runs/m83b_locomo_m50b",
+          "value": 69.74025974025973
+        },
+        {
           "run": "runs/m59_locomo_bonsai_bestguess",
           "value": 67.92207792207792
         },
         {
+          "run": "runs/m83b_locomo_m55b",
+          "value": 67.27272727272727
+        },
+        {
           "run": "runs/m55b_locomo_bonsai",
           "value": 66.68831168831169
+        },
+        {
+          "run": "runs/m83_locomo_m51",
+          "value": 65.25974025974025
+        },
+        {
+          "run": "runs/m83b_locomo_m51",
+          "value": 65.25974025974025
         },
         {
           "run": "runs/m51_locomo_s1",
@@ -4621,6 +5825,10 @@
         {
           "run": "runs/m63_locomo_dedupe",
           "value": 62.5974025974026
+        },
+        {
+          "run": "runs/m21_mh_base",
+          "value": 58.156028368794324
         },
         {
           "run": "runs/m21_mh_sel",
@@ -4702,6 +5910,10 @@
           "value": 80.4
         },
         {
+          "run": "runs/r5_bundle_s2_m80",
+          "value": 82.0
+        },
+        {
           "run": "runs/r5_bundle_s2_typed",
           "value": 81.8
         },
@@ -4714,11 +5926,43 @@
           "value": 81.8
         },
         {
+          "run": "runs/r5_bundle_s2_m82",
+          "value": 81.6
+        },
+        {
           "run": "runs/r5_bundle_s3_typed",
           "value": 81.6
         },
         {
+          "run": "runs/r5_bundle_s1_m80",
+          "value": 81.39999999999999
+        },
+        {
+          "run": "runs/r5_bundle_s2_m81",
+          "value": 81.39999999999999
+        },
+        {
+          "run": "runs/r5_bundle_s2_m84",
+          "value": 81.39999999999999
+        },
+        {
+          "run": "runs/r5_bundle_s3_m80",
+          "value": 81.39999999999999
+        },
+        {
+          "run": "runs/r5_bundle_s3_m82",
+          "value": 81.2
+        },
+        {
+          "run": "runs/r5_bundle_s3_m84",
+          "value": 81.2
+        },
+        {
           "run": "runs/r5_bundle_s1_typed",
+          "value": 81.0
+        },
+        {
+          "run": "runs/r5_bundle_s3_m81",
           "value": 81.0
         },
         {
@@ -4726,11 +5970,23 @@
           "value": 81.0
         },
         {
+          "run": "runs/r5_bundle_s1_m82",
+          "value": 80.80000000000001
+        },
+        {
           "run": "runs/r4_bundle_s1_grounded",
           "value": 80.60000000000001
         },
         {
+          "run": "runs/r5_bundle_s1_m84",
+          "value": 80.60000000000001
+        },
+        {
           "run": "runs/m71_lme_grounded",
+          "value": 80.4
+        },
+        {
+          "run": "runs/r5_bundle_s1_m81",
           "value": 80.4
         },
         {
@@ -4743,6 +5999,10 @@
         },
         {
           "run": "runs/m55_bonsai_s1",
+          "value": 80.0
+        },
+        {
+          "run": "runs/m80_base_s1",
           "value": 80.0
         },
         {
@@ -4778,6 +6038,10 @@
           "value": 79.60000000000001
         },
         {
+          "run": "runs/m82_base_s1",
+          "value": 79.60000000000001
+        },
+        {
           "run": "runs/m77c_clause_s1",
           "value": 79.4
         },
@@ -4803,6 +6067,10 @@
         },
         {
           "run": "runs/m78c_answer_s1",
+          "value": 79.2
+        },
+        {
+          "run": "runs/m81_base_s1",
           "value": 79.2
         },
         {
@@ -4834,11 +6102,19 @@
           "value": 79.0
         },
         {
+          "run": "runs/m80_base_s2",
+          "value": 79.0
+        },
+        {
           "run": "runs/m78_answer_s2",
           "value": 78.8
         },
         {
           "run": "runs/m79_base_s2",
+          "value": 78.8
+        },
+        {
+          "run": "runs/m80_base_s3",
           "value": 78.8
         },
         {
@@ -4852,6 +6128,22 @@
         {
           "run": "runs/m79_base_s3",
           "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m82_base_s2",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m82_base_s3",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m81_base_s2",
+          "value": 78.2
+        },
+        {
+          "run": "runs/m81_base_s3",
+          "value": 78.0
         },
         {
           "run": "runs/r5_base_s2",
@@ -5069,6 +6361,10 @@
           "value": 80.4
         },
         {
+          "run": "runs/r5_bundle_s2_m80",
+          "value": 82.0
+        },
+        {
           "run": "runs/r5_bundle_s2_typed",
           "value": 81.8
         },
@@ -5081,11 +6377,43 @@
           "value": 81.8
         },
         {
+          "run": "runs/r5_bundle_s2_m82",
+          "value": 81.6
+        },
+        {
           "run": "runs/r5_bundle_s3_typed",
           "value": 81.6
         },
         {
+          "run": "runs/r5_bundle_s1_m80",
+          "value": 81.39999999999999
+        },
+        {
+          "run": "runs/r5_bundle_s2_m81",
+          "value": 81.39999999999999
+        },
+        {
+          "run": "runs/r5_bundle_s2_m84",
+          "value": 81.39999999999999
+        },
+        {
+          "run": "runs/r5_bundle_s3_m80",
+          "value": 81.39999999999999
+        },
+        {
+          "run": "runs/r5_bundle_s3_m82",
+          "value": 81.2
+        },
+        {
+          "run": "runs/r5_bundle_s3_m84",
+          "value": 81.2
+        },
+        {
           "run": "runs/r5_bundle_s1_typed",
+          "value": 81.0
+        },
+        {
+          "run": "runs/r5_bundle_s3_m81",
           "value": 81.0
         },
         {
@@ -5093,11 +6421,23 @@
           "value": 81.0
         },
         {
+          "run": "runs/r5_bundle_s1_m82",
+          "value": 80.80000000000001
+        },
+        {
           "run": "runs/r4_bundle_s1_grounded",
           "value": 80.60000000000001
         },
         {
+          "run": "runs/r5_bundle_s1_m84",
+          "value": 80.60000000000001
+        },
+        {
           "run": "runs/m71_lme_grounded",
+          "value": 80.4
+        },
+        {
+          "run": "runs/r5_bundle_s1_m81",
           "value": 80.4
         },
         {
@@ -5110,6 +6450,10 @@
         },
         {
           "run": "runs/m55_bonsai_s1",
+          "value": 80.0
+        },
+        {
+          "run": "runs/m80_base_s1",
           "value": 80.0
         },
         {
@@ -5145,6 +6489,10 @@
           "value": 79.60000000000001
         },
         {
+          "run": "runs/m82_base_s1",
+          "value": 79.60000000000001
+        },
+        {
           "run": "runs/m77c_clause_s1",
           "value": 79.4
         },
@@ -5170,6 +6518,10 @@
         },
         {
           "run": "runs/m78c_answer_s1",
+          "value": 79.2
+        },
+        {
+          "run": "runs/m81_base_s1",
           "value": 79.2
         },
         {
@@ -5201,11 +6553,19 @@
           "value": 79.0
         },
         {
+          "run": "runs/m80_base_s2",
+          "value": 79.0
+        },
+        {
           "run": "runs/m78_answer_s2",
           "value": 78.8
         },
         {
           "run": "runs/m79_base_s2",
+          "value": 78.8
+        },
+        {
+          "run": "runs/m80_base_s3",
           "value": 78.8
         },
         {
@@ -5219,6 +6579,22 @@
         {
           "run": "runs/m79_base_s3",
           "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m82_base_s2",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m82_base_s3",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m81_base_s2",
+          "value": 78.2
+        },
+        {
+          "run": "runs/m81_base_s3",
+          "value": 78.0
         },
         {
           "run": "runs/r5_base_s2",
@@ -5825,18 +7201,90 @@
     },
     {
       "metric": "locomo.abstention_accuracy.n446",
-      "value": 69.95515695067265,
+      "value": 67.9372197309417,
       "unit": "pct_0_100",
       "n": 446,
       "judge_class": "deterministic",
       "backbone_class": "open_weights",
-      "run": "runs/m19_locomo_full",
+      "run": "runs/m84_locomo_base",
       "detail": "aggregated_metrics.json abstention_accuracy over category 5",
       "incomplete": null,
       "arm": false,
       "replicates": 1,
       "unrecorded": [],
       "candidates": [
+        {
+          "run": "runs/m84_locomo_base",
+          "value": 67.9372197309417
+        },
+        {
+          "run": "runs/m84_locomo_base_judged",
+          "value": 67.9372197309417
+        },
+        {
+          "run": "runs/m59_locomo_bonsai_bestguess",
+          "value": 93.49775784753363
+        },
+        {
+          "run": "runs/m55b_locomo_bonsai",
+          "value": 92.82511210762333
+        },
+        {
+          "run": "runs/m55b_locomo_bonsai_judged",
+          "value": 92.82511210762333
+        },
+        {
+          "run": "runs/m61_locomo_grounded",
+          "value": 92.82511210762333
+        },
+        {
+          "run": "runs/m83b_locomo_m55b",
+          "value": 92.82511210762333
+        },
+        {
+          "run": "runs/m83b_locomo_m55b_judged",
+          "value": 92.82511210762333
+        },
+        {
+          "run": "runs/m51_locomo_s1",
+          "value": 84.08071748878923
+        },
+        {
+          "run": "runs/m51_locomo_s1_judged",
+          "value": 84.08071748878923
+        },
+        {
+          "run": "runs/m83_locomo_m51",
+          "value": 84.08071748878923
+        },
+        {
+          "run": "runs/m83b_locomo_m51",
+          "value": 84.08071748878923
+        },
+        {
+          "run": "runs/m83b_locomo_m51_judged",
+          "value": 84.08071748878923
+        },
+        {
+          "run": "runs/m83_locomo_m51_judged",
+          "value": 83.18385650224215
+        },
+        {
+          "run": "runs/m50b_locomo_events",
+          "value": 71.0762331838565
+        },
+        {
+          "run": "runs/m50b_locomo_events_judged",
+          "value": 71.0762331838565
+        },
+        {
+          "run": "runs/m83b_locomo_m50b",
+          "value": 71.0762331838565
+        },
+        {
+          "run": "runs/m83b_locomo_m50b_judged",
+          "value": 71.0762331838565
+        },
         {
           "run": "runs/m19_locomo_full",
           "value": 69.95515695067265
@@ -5854,36 +7302,44 @@
           "value": 67.9372197309417
         },
         {
-          "run": "runs/m63_locomo_base.part0",
-          "value": 68.0
+          "run": "runs/m63_locomo_base_judged",
+          "value": 67.9372197309417
         },
         {
-          "run": "runs/m63_locomo_base.part1",
-          "value": 67.87330316742081
+          "run": "runs/m81_locomo_base",
+          "value": 67.9372197309417
         },
         {
-          "run": "runs/m59_locomo_bonsai_bestguess",
-          "value": 93.49775784753363
+          "run": "runs/m82_locomo_base",
+          "value": 67.9372197309417
         },
         {
-          "run": "runs/m55b_locomo_bonsai",
-          "value": 92.82511210762333
+          "run": "runs/m83_locomo_base",
+          "value": 67.9372197309417
         },
         {
-          "run": "runs/m61_locomo_grounded",
-          "value": 92.82511210762333
+          "run": "runs/m83_locomo_base_judged",
+          "value": 67.9372197309417
         },
         {
-          "run": "runs/m51_locomo_s1",
-          "value": 84.08071748878923
+          "run": "runs/m83b_locomo_base",
+          "value": 67.9372197309417
         },
         {
-          "run": "runs/m50b_locomo_events",
-          "value": 71.0762331838565
+          "run": "runs/m83b_locomo_base_judged",
+          "value": 67.9372197309417
         },
         {
           "run": "runs/m63_locomo_inline",
           "value": 67.48878923766816
+        },
+        {
+          "run": "runs/m81_locomo_base_judged",
+          "value": 66.81614349775785
+        },
+        {
+          "run": "runs/m82_locomo_base_judged",
+          "value": 65.02242152466367
         },
         {
           "run": "runs/m63_locomo_dedupe",
@@ -5891,6 +7347,18 @@
         },
         {
           "run": "runs/m50c_locomo_events",
+          "value": 62.10762331838565
+        },
+        {
+          "run": "runs/m50c_locomo_events_judged",
+          "value": 62.10762331838565
+        },
+        {
+          "run": "runs/m83_locomo_m50c",
+          "value": 62.10762331838565
+        },
+        {
+          "run": "runs/m83_locomo_m50c_judged",
           "value": 62.10762331838565
         },
         {
@@ -5904,6 +7372,10 @@
         {
           "run": "runs/m63_locomo_inline.part0",
           "value": 68.44444444444444
+        },
+        {
+          "run": "runs/m63_locomo_base.part0",
+          "value": 68.0
         },
         {
           "run": "runs/m50c_locomo_events.part0",
@@ -5920,6 +7392,10 @@
         {
           "run": "runs/m55b_locomo_bonsai.part1",
           "value": 92.76018099547511
+        },
+        {
+          "run": "runs/m63_locomo_base.part1",
+          "value": 67.87330316742081
         },
         {
           "run": "runs/m63_locomo_inline.part1",
@@ -5966,22 +7442,6 @@
           "value": 80.43478260869566
         },
         {
-          "run": "runs/locomo_recall",
-          "value": 69.95515695067265
-        },
-        {
-          "run": "runs/rescored/locomo_recall_temporal",
-          "value": 69.95515695067265
-        },
-        {
-          "run": "runs/locomo_recall_probe",
-          "value": 65.95744680851064
-        },
-        {
-          "run": "runs/rescored/locomo_recall_probe_temporal",
-          "value": 65.95744680851064
-        },
-        {
           "run": "runs/locomo_recall_qdate",
           "value": 73.09417040358744
         },
@@ -6014,48 +7474,84 @@
           "value": 70.62780269058297
         },
         {
+          "run": "runs/locomo_recall",
+          "value": 69.95515695067265
+        },
+        {
+          "run": "runs/rescored/locomo_recall_temporal",
+          "value": 69.95515695067265
+        },
+        {
           "run": "runs/locomo_investigate",
           "value": 69.73094170403587
         },
         {
           "run": "runs/rescored/locomo_investigate_temporal",
           "value": 69.73094170403587
+        },
+        {
+          "run": "runs/locomo_recall_probe",
+          "value": 65.95744680851064
+        },
+        {
+          "run": "runs/rescored/locomo_recall_probe_temporal",
+          "value": 65.95744680851064
         }
       ]
     },
     {
       "metric": "locomo.judge_score.n1540",
-      "value": 70.51948051948051,
+      "value": 70.84415584415584,
       "unit": "pct_0_100",
       "n": 1540,
       "judge_class": "open_weights_local",
       "backbone_class": "open_weights",
-      "run": "runs/m63_locomo_base",
-      "detail": "judge qwen3.5-9b : 1086 of 1540 correct (116 declines scored 0)",
+      "run": "runs/m84_locomo_base",
+      "detail": "judge qwen3.5-9b : 1091 of 1540 correct (102 declines scored 0)",
       "incomplete": null,
       "arm": false,
       "replicates": 1,
       "unrecorded": [],
       "candidates": [
         {
-          "run": "runs/m63_locomo_base",
-          "value": 70.51948051948051
-        },
-        {
-          "run": "runs/m19_locomo_full",
-          "value": 69.87012987012987
-        },
-        {
-          "run": "runs/m21_mh_base",
-          "value": 58.156028368794324
+          "run": "runs/m84_locomo_base",
+          "value": 70.84415584415584
         },
         {
           "run": "runs/m63_locomo_inline",
           "value": 70.71428571428572
         },
         {
+          "run": "runs/m82_locomo_base",
+          "value": 70.64935064935065
+        },
+        {
+          "run": "runs/m81_locomo_base",
+          "value": 70.58441558441558
+        },
+        {
+          "run": "runs/m83_locomo_base",
+          "value": 70.58441558441558
+        },
+        {
+          "run": "runs/m83b_locomo_base",
+          "value": 70.58441558441558
+        },
+        {
+          "run": "runs/m63_locomo_base",
+          "value": 70.51948051948051
+        },
+        {
           "run": "runs/m61_locomo_grounded",
           "value": 70.06493506493506
+        },
+        {
+          "run": "runs/m83_locomo_m50c",
+          "value": 70.06493506493506
+        },
+        {
+          "run": "runs/m19_locomo_full",
+          "value": 69.87012987012987
         },
         {
           "run": "runs/m50c_locomo_events",
@@ -6066,12 +7562,28 @@
           "value": 69.74025974025973
         },
         {
+          "run": "runs/m83b_locomo_m50b",
+          "value": 69.74025974025973
+        },
+        {
           "run": "runs/m59_locomo_bonsai_bestguess",
           "value": 67.92207792207792
         },
         {
+          "run": "runs/m83b_locomo_m55b",
+          "value": 67.27272727272727
+        },
+        {
           "run": "runs/m55b_locomo_bonsai",
           "value": 66.68831168831169
+        },
+        {
+          "run": "runs/m83_locomo_m51",
+          "value": 65.25974025974025
+        },
+        {
+          "run": "runs/m83b_locomo_m51",
+          "value": 65.25974025974025
         },
         {
           "run": "runs/m51_locomo_s1",
@@ -6080,6 +7592,10 @@
         {
           "run": "runs/m63_locomo_dedupe",
           "value": 62.5974025974026
+        },
+        {
+          "run": "runs/m21_mh_base",
+          "value": 58.156028368794324
         },
         {
           "run": "runs/m21_mh_sel",
@@ -6125,18 +7641,30 @@
     },
     {
       "metric": "locomo.judge_score_lightmem.n1540",
-      "value": 78.18181818181819,
+      "value": 78.63636363636364,
       "unit": "pct_0_100",
       "n": 1540,
       "judge_class": "frontier_api",
       "backbone_class": "open_weights",
-      "run": "runs/m63_locomo_base",
-      "detail": "protocol lightmem-locomo (openai/gpt-4o-mini): 1204 of 1540 correct",
+      "run": "runs/m84_locomo_base",
+      "detail": "protocol lightmem-locomo (openai/gpt-4o-mini): 1211 of 1540 correct",
       "incomplete": null,
       "arm": false,
       "replicates": 1,
       "unrecorded": [],
       "candidates": [
+        {
+          "run": "runs/m84_locomo_base",
+          "value": 78.63636363636364
+        },
+        {
+          "run": "runs/m83_locomo_base",
+          "value": 78.31168831168831
+        },
+        {
+          "run": "runs/m83b_locomo_base",
+          "value": 78.31168831168831
+        },
         {
           "run": "runs/m63_locomo_base",
           "value": 78.18181818181819
@@ -6149,18 +7677,22 @@
     },
     {
       "metric": "locomo.judge_score_matched.n1540",
-      "value": 78.18181818181819,
+      "value": 78.63636363636364,
       "unit": "pct_0_100",
       "n": 1540,
       "judge_class": "frontier_api",
       "backbone_class": "open_weights",
-      "run": "runs/m63_locomo_base",
-      "detail": "the lowest of every reading: locomo.judge_score_lightmem.n1540 78.18, locomo.judge_score_mempro.n1540 80.26",
+      "run": "runs/m84_locomo_base",
+      "detail": "the lowest of every reading: locomo.judge_score_lightmem.n1540 78.64, locomo.judge_score_mempro.n1540 80.78",
       "incomplete": null,
       "arm": false,
       "replicates": 1,
       "unrecorded": [],
       "candidates": [
+        {
+          "run": "runs/m84_locomo_base",
+          "value": 78.63636363636364
+        },
         {
           "run": "runs/m63_locomo_base",
           "value": 78.18181818181819
@@ -6173,18 +7705,22 @@
     },
     {
       "metric": "locomo.judge_score_mempro.n1540",
-      "value": 80.25974025974027,
+      "value": 80.77922077922078,
       "unit": "pct_0_100",
       "n": 1540,
       "judge_class": "frontier_api",
       "backbone_class": "open_weights",
-      "run": "runs/m63_locomo_base",
-      "detail": "protocol mempro-locomo (openai/gpt-4o-mini): 1236 of 1540 correct",
+      "run": "runs/m84_locomo_base",
+      "detail": "protocol mempro-locomo (openai/gpt-4o-mini): 1244 of 1540 correct",
       "incomplete": null,
       "arm": false,
       "replicates": 1,
       "unrecorded": [],
       "candidates": [
+        {
+          "run": "runs/m84_locomo_base",
+          "value": 80.77922077922078
+        },
         {
           "run": "runs/m63_locomo_base",
           "value": 80.25974025974027
@@ -6202,7 +7738,7 @@
       "n": 1540,
       "judge_class": "deterministic",
       "backbone_class": "open_weights",
-      "run": "runs/m63_locomo_base",
+      "run": "runs/m84_locomo_base",
       "detail": "date-aware scorer, f1_answerable over categories 1-4, rescored_from=live run",
       "incomplete": null,
       "arm": false,
@@ -6210,7 +7746,47 @@
       "unrecorded": [],
       "candidates": [
         {
+          "run": "runs/m84_locomo_base",
+          "value": 60.16407788234017
+        },
+        {
+          "run": "runs/m50b_locomo_events",
+          "value": 60.63265042246451
+        },
+        {
+          "run": "runs/m83b_locomo_m50b",
+          "value": 60.63265042246451
+        },
+        {
+          "run": "runs/m50c_locomo_events",
+          "value": 60.55121306962577
+        },
+        {
+          "run": "runs/m83_locomo_m50c",
+          "value": 60.55121306962577
+        },
+        {
+          "run": "runs/m63_locomo_inline",
+          "value": 60.37359309921069
+        },
+        {
           "run": "runs/m63_locomo_base",
+          "value": 60.16407788234017
+        },
+        {
+          "run": "runs/m81_locomo_base",
+          "value": 60.16407788234017
+        },
+        {
+          "run": "runs/m82_locomo_base",
+          "value": 60.16407788234017
+        },
+        {
+          "run": "runs/m83_locomo_base",
+          "value": 60.16407788234017
+        },
+        {
+          "run": "runs/m83b_locomo_base",
           "value": 60.16407788234017
         },
         {
@@ -6218,12 +7794,84 @@
           "value": 59.9825523240754
         },
         {
+          "run": "runs/m59_locomo_bonsai_bestguess",
+          "value": 57.63358528032414
+        },
+        {
+          "run": "runs/m55b_locomo_bonsai",
+          "value": 56.83084078905745
+        },
+        {
+          "run": "runs/m61_locomo_grounded",
+          "value": 56.83084078905745
+        },
+        {
+          "run": "runs/m83b_locomo_m55b",
+          "value": 56.83084078905745
+        },
+        {
+          "run": "runs/m63_locomo_dedupe",
+          "value": 53.93765575741427
+        },
+        {
+          "run": "runs/m51_locomo_s1",
+          "value": 51.388032840055985
+        },
+        {
+          "run": "runs/m83_locomo_m51",
+          "value": 51.388032840055985
+        },
+        {
+          "run": "runs/m83b_locomo_m51",
+          "value": 51.388032840055985
+        },
+        {
+          "run": "runs/m50c_locomo_events.part1",
+          "value": 60.70154774315355
+        },
+        {
+          "run": "runs/m63_locomo_inline.part1",
+          "value": 60.66942683227459
+        },
+        {
           "run": "runs/m63_locomo_base.part1",
           "value": 60.05203066396931
         },
         {
+          "run": "runs/m59_locomo_bonsai_bestguess.part1",
+          "value": 56.180222020672
+        },
+        {
+          "run": "runs/m55b_locomo_bonsai.part1",
+          "value": 55.383371048996544
+        },
+        {
+          "run": "runs/m63_locomo_dedupe.part1",
+          "value": 53.96029126639317
+        },
+        {
+          "run": "runs/m50c_locomo_events.part0",
+          "value": 60.40009540300703
+        },
+        {
           "run": "runs/m63_locomo_base.part0",
           "value": 60.27670867997366
+        },
+        {
+          "run": "runs/m63_locomo_inline.part0",
+          "value": 60.07621856545406
+        },
+        {
+          "run": "runs/m59_locomo_bonsai_bestguess.part0",
+          "value": 59.094518140287356
+        },
+        {
+          "run": "runs/m55b_locomo_bonsai.part0",
+          "value": 58.28584943401486
+        },
+        {
+          "run": "runs/m63_locomo_dedupe.part0",
+          "value": 53.91490235515965
         },
         {
           "run": "runs/m19_locomo_t_armAB",
@@ -6244,78 +7892,6 @@
         {
           "run": "runs/m21_mh_base",
           "value": 42.52377963713383
-        },
-        {
-          "run": "runs/m50b_locomo_events",
-          "value": 60.63265042246451
-        },
-        {
-          "run": "runs/m50c_locomo_events",
-          "value": 60.55121306962577
-        },
-        {
-          "run": "runs/m63_locomo_inline",
-          "value": 60.37359309921069
-        },
-        {
-          "run": "runs/m59_locomo_bonsai_bestguess",
-          "value": 57.63358528032414
-        },
-        {
-          "run": "runs/m55b_locomo_bonsai",
-          "value": 56.83084078905745
-        },
-        {
-          "run": "runs/m61_locomo_grounded",
-          "value": 56.83084078905745
-        },
-        {
-          "run": "runs/m63_locomo_dedupe",
-          "value": 53.93765575741427
-        },
-        {
-          "run": "runs/m51_locomo_s1",
-          "value": 51.388032840055985
-        },
-        {
-          "run": "runs/m50c_locomo_events.part1",
-          "value": 60.70154774315355
-        },
-        {
-          "run": "runs/m63_locomo_inline.part1",
-          "value": 60.66942683227459
-        },
-        {
-          "run": "runs/m59_locomo_bonsai_bestguess.part1",
-          "value": 56.180222020672
-        },
-        {
-          "run": "runs/m55b_locomo_bonsai.part1",
-          "value": 55.383371048996544
-        },
-        {
-          "run": "runs/m63_locomo_dedupe.part1",
-          "value": 53.96029126639317
-        },
-        {
-          "run": "runs/m50c_locomo_events.part0",
-          "value": 60.40009540300703
-        },
-        {
-          "run": "runs/m63_locomo_inline.part0",
-          "value": 60.07621856545406
-        },
-        {
-          "run": "runs/m59_locomo_bonsai_bestguess.part0",
-          "value": 59.094518140287356
-        },
-        {
-          "run": "runs/m55b_locomo_bonsai.part0",
-          "value": 58.28584943401486
-        },
-        {
-          "run": "runs/m63_locomo_dedupe.part0",
-          "value": 53.91490235515965
         },
         {
           "run": "runs/m21_mh_sel",
@@ -6354,20 +7930,16 @@
           "value": 55.191650554022885
         },
         {
-          "run": "runs/rescored/locomo_recall_temporal",
-          "value": 51.38330217604543
-        },
-        {
-          "run": "runs/rescored/locomo_recall_probe_temporal",
-          "value": 40.837298208602746
-        },
-        {
           "run": "runs/rescored/locomo_recall_graph_temporal",
           "value": 51.642076333194844
         },
         {
           "run": "runs/rescored/locomo_recall_chrono_qdate_temporal",
           "value": 51.432404822726156
+        },
+        {
+          "run": "runs/rescored/locomo_recall_temporal",
+          "value": 51.38330217604543
         },
         {
           "run": "runs/rescored/locomo_investigate_temporal",
@@ -6380,20 +7952,24 @@
         {
           "run": "runs/rescored/locomo_recall_chrono_temporal",
           "value": 51.16029638400593
+        },
+        {
+          "run": "runs/rescored/locomo_recall_probe_temporal",
+          "value": 40.837298208602746
         }
       ]
     },
     {
       "metric": "locomo.token_f1.n1540",
-      "value": 53.073492577274806,
+      "value": 53.147867079245344,
       "unit": "pct_0_100",
       "n": 1540,
       "judge_class": "deterministic",
       "backbone_class": "open_weights",
-      "run": "runs/locomo_recall",
+      "run": "runs/locomo_recall_graph",
       "detail": "aggregated_metrics.json f1_answerable over categories 1-4, mode=recall k=6",
       "incomplete": null,
-      "arm": false,
+      "arm": true,
       "replicates": 1,
       "unrecorded": [
         "resolve_dates",
@@ -6401,16 +7977,12 @@
       ],
       "candidates": [
         {
-          "run": "runs/locomo_recall",
-          "value": 53.073492577274806
-        },
-        {
-          "run": "runs/locomo_recall_probe",
-          "value": 44.51152884361769
-        },
-        {
           "run": "runs/locomo_recall_graph",
           "value": 53.147867079245344
+        },
+        {
+          "run": "runs/locomo_recall",
+          "value": 53.073492577274806
         },
         {
           "run": "runs/locomo_recall_qdate",
@@ -6427,6 +7999,10 @@
         {
           "run": "runs/locomo_recall_chrono",
           "value": 52.90065451072776
+        },
+        {
+          "run": "runs/locomo_recall_probe",
+          "value": 44.51152884361769
         }
       ]
     },
@@ -6461,6 +8037,10 @@
           "value": 80.4
         },
         {
+          "run": "runs/r5_bundle_s2_m80",
+          "value": 82.0
+        },
+        {
           "run": "runs/r5_bundle_s2_typed",
           "value": 81.8
         },
@@ -6473,11 +8053,43 @@
           "value": 81.8
         },
         {
+          "run": "runs/r5_bundle_s2_m82",
+          "value": 81.6
+        },
+        {
           "run": "runs/r5_bundle_s3_typed",
           "value": 81.6
         },
         {
+          "run": "runs/r5_bundle_s1_m80",
+          "value": 81.39999999999999
+        },
+        {
+          "run": "runs/r5_bundle_s2_m81",
+          "value": 81.39999999999999
+        },
+        {
+          "run": "runs/r5_bundle_s2_m84",
+          "value": 81.39999999999999
+        },
+        {
+          "run": "runs/r5_bundle_s3_m80",
+          "value": 81.39999999999999
+        },
+        {
+          "run": "runs/r5_bundle_s3_m82",
+          "value": 81.2
+        },
+        {
+          "run": "runs/r5_bundle_s3_m84",
+          "value": 81.2
+        },
+        {
           "run": "runs/r5_bundle_s1_typed",
+          "value": 81.0
+        },
+        {
+          "run": "runs/r5_bundle_s3_m81",
           "value": 81.0
         },
         {
@@ -6485,11 +8097,23 @@
           "value": 81.0
         },
         {
+          "run": "runs/r5_bundle_s1_m82",
+          "value": 80.80000000000001
+        },
+        {
           "run": "runs/r4_bundle_s1_grounded",
           "value": 80.60000000000001
         },
         {
+          "run": "runs/r5_bundle_s1_m84",
+          "value": 80.60000000000001
+        },
+        {
           "run": "runs/m71_lme_grounded",
+          "value": 80.4
+        },
+        {
+          "run": "runs/r5_bundle_s1_m81",
           "value": 80.4
         },
         {
@@ -6502,6 +8126,10 @@
         },
         {
           "run": "runs/m55_bonsai_s1",
+          "value": 80.0
+        },
+        {
+          "run": "runs/m80_base_s1",
           "value": 80.0
         },
         {
@@ -6537,6 +8165,10 @@
           "value": 79.60000000000001
         },
         {
+          "run": "runs/m82_base_s1",
+          "value": 79.60000000000001
+        },
+        {
           "run": "runs/m77c_clause_s1",
           "value": 79.4
         },
@@ -6562,6 +8194,10 @@
         },
         {
           "run": "runs/m78c_answer_s1",
+          "value": 79.2
+        },
+        {
+          "run": "runs/m81_base_s1",
           "value": 79.2
         },
         {
@@ -6593,11 +8229,19 @@
           "value": 79.0
         },
         {
+          "run": "runs/m80_base_s2",
+          "value": 79.0
+        },
+        {
           "run": "runs/m78_answer_s2",
           "value": 78.8
         },
         {
           "run": "runs/m79_base_s2",
+          "value": 78.8
+        },
+        {
+          "run": "runs/m80_base_s3",
           "value": 78.8
         },
         {
@@ -6611,6 +8255,22 @@
         {
           "run": "runs/m79_base_s3",
           "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m82_base_s2",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m82_base_s3",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m81_base_s2",
+          "value": 78.2
+        },
+        {
+          "run": "runs/m81_base_s3",
+          "value": 78.0
         },
         {
           "run": "runs/r5_base_s2",
@@ -6821,7 +8481,35 @@
           "value": 80.0
         },
         {
+          "run": "runs/r5_bundle_s3_m84",
+          "value": 82.19999999999999
+        },
+        {
+          "run": "runs/r5_bundle_s3_m82",
+          "value": 82.0
+        },
+        {
+          "run": "runs/r5_bundle_s2_m84",
+          "value": 81.8
+        },
+        {
+          "run": "runs/r5_bundle_s2_m82",
+          "value": 81.6
+        },
+        {
+          "run": "runs/r5_bundle_s2_m81",
+          "value": 81.39999999999999
+        },
+        {
+          "run": "runs/r5_bundle_s3_m81",
+          "value": 81.39999999999999
+        },
+        {
           "run": "runs/r5_bundle_s2",
+          "value": 81.0
+        },
+        {
+          "run": "runs/r5_bundle_s2_m80",
           "value": 81.0
         },
         {
@@ -6837,6 +8525,18 @@
           "value": 80.80000000000001
         },
         {
+          "run": "runs/r5_bundle_s3_m80",
+          "value": 80.80000000000001
+        },
+        {
+          "run": "runs/r5_bundle_s1_m82",
+          "value": 80.60000000000001
+        },
+        {
+          "run": "runs/r5_bundle_s1_m84",
+          "value": 80.60000000000001
+        },
+        {
           "run": "runs/r5_bundle_s3_typed",
           "value": 80.60000000000001
         },
@@ -6845,8 +8545,16 @@
           "value": 80.60000000000001
         },
         {
+          "run": "runs/r5_bundle_s1_m81",
+          "value": 80.2
+        },
+        {
           "run": "runs/r5b_bundle_s3_typed",
           "value": 80.2
+        },
+        {
+          "run": "runs/r5_bundle_s1_m80",
+          "value": 80.0
         },
         {
           "run": "runs/r5_bundle_s1",
@@ -6913,6 +8621,10 @@
           "value": 79.2
         },
         {
+          "run": "runs/m82_base_s1",
+          "value": 79.2
+        },
+        {
           "run": "runs/m72_lme_agg",
           "value": 79.0
         },
@@ -6926,6 +8638,10 @@
         },
         {
           "run": "runs/m78c_answer_s1",
+          "value": 78.8
+        },
+        {
+          "run": "runs/m81_base_s1",
           "value": 78.8
         },
         {
@@ -6953,11 +8669,23 @@
           "value": 78.60000000000001
         },
         {
+          "run": "runs/m80_base_s1",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m82_base_s2",
+          "value": 78.60000000000001
+        },
+        {
           "run": "runs/m20b_profile_s1",
           "value": 78.2
         },
         {
           "run": "runs/m78c_answer_s2",
+          "value": 78.2
+        },
+        {
+          "run": "runs/m81_base_s2",
           "value": 78.2
         },
         {
@@ -6981,11 +8709,27 @@
           "value": 77.8
         },
         {
+          "run": "runs/m80_base_s2",
+          "value": 77.8
+        },
+        {
+          "run": "runs/m82_base_s3",
+          "value": 77.8
+        },
+        {
           "run": "runs/m76b_words_nopremise_s1",
           "value": 77.60000000000001
         },
         {
+          "run": "runs/m81_base_s3",
+          "value": 77.2
+        },
+        {
           "run": "runs/m79_base_s3",
+          "value": 77.0
+        },
+        {
+          "run": "runs/m80_base_s3",
           "value": 77.0
         },
         {
@@ -7033,7 +8777,35 @@
           "value": 80.0
         },
         {
+          "run": "runs/r5_bundle_s3_m84",
+          "value": 82.19999999999999
+        },
+        {
+          "run": "runs/r5_bundle_s3_m82",
+          "value": 82.0
+        },
+        {
+          "run": "runs/r5_bundle_s2_m84",
+          "value": 81.8
+        },
+        {
+          "run": "runs/r5_bundle_s2_m82",
+          "value": 81.6
+        },
+        {
+          "run": "runs/r5_bundle_s2_m81",
+          "value": 81.39999999999999
+        },
+        {
+          "run": "runs/r5_bundle_s3_m81",
+          "value": 81.39999999999999
+        },
+        {
           "run": "runs/r5_bundle_s2",
+          "value": 81.0
+        },
+        {
+          "run": "runs/r5_bundle_s2_m80",
           "value": 81.0
         },
         {
@@ -7049,6 +8821,18 @@
           "value": 80.80000000000001
         },
         {
+          "run": "runs/r5_bundle_s3_m80",
+          "value": 80.80000000000001
+        },
+        {
+          "run": "runs/r5_bundle_s1_m82",
+          "value": 80.60000000000001
+        },
+        {
+          "run": "runs/r5_bundle_s1_m84",
+          "value": 80.60000000000001
+        },
+        {
           "run": "runs/r5_bundle_s3_typed",
           "value": 80.60000000000001
         },
@@ -7057,8 +8841,16 @@
           "value": 80.60000000000001
         },
         {
+          "run": "runs/r5_bundle_s1_m81",
+          "value": 80.2
+        },
+        {
           "run": "runs/r5b_bundle_s3_typed",
           "value": 80.2
+        },
+        {
+          "run": "runs/r5_bundle_s1_m80",
+          "value": 80.0
         },
         {
           "run": "runs/r5_bundle_s1",
@@ -7125,6 +8917,10 @@
           "value": 79.2
         },
         {
+          "run": "runs/m82_base_s1",
+          "value": 79.2
+        },
+        {
           "run": "runs/m72_lme_agg",
           "value": 79.0
         },
@@ -7138,6 +8934,10 @@
         },
         {
           "run": "runs/m78c_answer_s1",
+          "value": 78.8
+        },
+        {
+          "run": "runs/m81_base_s1",
           "value": 78.8
         },
         {
@@ -7165,11 +8965,23 @@
           "value": 78.60000000000001
         },
         {
+          "run": "runs/m80_base_s1",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m82_base_s2",
+          "value": 78.60000000000001
+        },
+        {
           "run": "runs/m20b_profile_s1",
           "value": 78.2
         },
         {
           "run": "runs/m78c_answer_s2",
+          "value": 78.2
+        },
+        {
+          "run": "runs/m81_base_s2",
           "value": 78.2
         },
         {
@@ -7193,11 +9005,27 @@
           "value": 77.8
         },
         {
+          "run": "runs/m80_base_s2",
+          "value": 77.8
+        },
+        {
+          "run": "runs/m82_base_s3",
+          "value": 77.8
+        },
+        {
           "run": "runs/m76b_words_nopremise_s1",
           "value": 77.60000000000001
         },
         {
+          "run": "runs/m81_base_s3",
+          "value": 77.2
+        },
+        {
           "run": "runs/m79_base_s3",
+          "value": 77.0
+        },
+        {
+          "run": "runs/m80_base_s3",
           "value": 77.0
         },
         {
@@ -7257,6 +9085,18 @@
           "value": 61.566141914715736
         },
         {
+          "run": "runs/m80_base_s2",
+          "value": 61.566141914715736
+        },
+        {
+          "run": "runs/m81_base_s2",
+          "value": 61.566141914715736
+        },
+        {
+          "run": "runs/m82_base_s2",
+          "value": 61.566141914715736
+        },
+        {
           "run": "runs/r5_base_s2",
           "value": 61.566141914715736
         },
@@ -7278,6 +9118,22 @@
         },
         {
           "run": "runs/r5_bundle_s2",
+          "value": 61.223703534330284
+        },
+        {
+          "run": "runs/r5_bundle_s2_m80",
+          "value": 61.223703534330284
+        },
+        {
+          "run": "runs/r5_bundle_s2_m81",
+          "value": 61.223703534330284
+        },
+        {
+          "run": "runs/r5_bundle_s2_m82",
+          "value": 61.223703534330284
+        },
+        {
+          "run": "runs/r5_bundle_s2_m84",
           "value": 61.223703534330284
         },
         {
@@ -7357,6 +9213,18 @@
           "value": 60.81649848682908
         },
         {
+          "run": "runs/m80_base_s1",
+          "value": 60.81649848682908
+        },
+        {
+          "run": "runs/m81_base_s1",
+          "value": 60.81649848682908
+        },
+        {
+          "run": "runs/m82_base_s1",
+          "value": 60.81649848682908
+        },
+        {
           "run": "runs/m57_pref_s3",
           "value": 60.79554814378587
         },
@@ -7397,11 +9265,43 @@
           "value": 60.16877316863473
         },
         {
+          "run": "runs/r5_bundle_s3_m80",
+          "value": 60.16877316863473
+        },
+        {
+          "run": "runs/r5_bundle_s3_m81",
+          "value": 60.16877316863473
+        },
+        {
+          "run": "runs/r5_bundle_s3_m82",
+          "value": 60.16877316863473
+        },
+        {
+          "run": "runs/r5_bundle_s3_m84",
+          "value": 60.16877316863473
+        },
+        {
           "run": "runs/r5_bundle_s3_typed",
           "value": 60.16877316863473
         },
         {
           "run": "runs/r5_bundle_s1",
+          "value": 60.06243778013079
+        },
+        {
+          "run": "runs/r5_bundle_s1_m80",
+          "value": 60.06243778013079
+        },
+        {
+          "run": "runs/r5_bundle_s1_m81",
+          "value": 60.06243778013079
+        },
+        {
+          "run": "runs/r5_bundle_s1_m82",
+          "value": 60.06243778013079
+        },
+        {
+          "run": "runs/r5_bundle_s1_m84",
           "value": 60.06243778013079
         },
         {
@@ -7414,6 +9314,18 @@
         },
         {
           "run": "runs/m79_base_s3",
+          "value": 59.90483242513305
+        },
+        {
+          "run": "runs/m80_base_s3",
+          "value": 59.90483242513305
+        },
+        {
+          "run": "runs/m81_base_s3",
+          "value": 59.90483242513305
+        },
+        {
+          "run": "runs/m82_base_s3",
           "value": 59.90483242513305
         },
         {

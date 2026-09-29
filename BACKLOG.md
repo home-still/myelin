@@ -31,13 +31,15 @@ its history. Short version:
     → 79.00 (preference rubric) → **80.80 strict / 81.13 official**.
   - The margin is small, and every number is a seed mean
     (`docs/measurements/r5-bundle-seeds.md`).
-- **LoCoMo: the gate closes under MemPro's own judge (M68, 2026-09-25).**
+- **LoCoMo: the gate closes under MemPro's own judge (M68, 2026-09-25),
+  widened by M84 (2026-09-29).**
   - Graded the way the 77.85 row was graded (gpt-4o-mini, LightMem's
-    prompt), we score **78.18**, a `comparable` row, +0.33.
+    prompt), we score **78.64**, a `comparable` row, +0.79. It was 78.18
+    before M84 re-asked declined "Would X likely…?" questions.
   - Under the strict 9B judge, which still decides every arm, we score
-    70.52.
-  - The lead is inside reader variance. Multi-hop (−4.6) and open-domain
-    (−34.4) still trail MemPro under its own judge.
+    70.84.
+  - Multi-hop (−4.6) and open-domain (−27.1, was −34.4) still trail MemPro
+    under its own judge. Temporal (+5.3) and single-hop (+4.0) lead.
 - **LME-V2 78.05, 3.15 past the 74.90 AgentRunbook-C row (M54, 2026-09-27).**
   AgentRunbook-C driven locally by Bonsai 27B, +39.25 [+34.15, +44.12] over
   myelin's own memory (38.80). The lead is `caveat-judge` (our 9B judge). It
@@ -200,35 +202,7 @@ lost under the strict judge):
 
 ---
 
-## M84 — declines on requests that are not recall *(user chose "post-pass on those declines" 2026-09-29; pre-registered, queued on big)*
-
-- **The finding:** the reader's recall rule ("If the memories do not
-  contain the answer, reply exactly: I don't know.") also fires on requests
-  that ask for advice or an inference.
-- **Two places it costs us, each the largest gap left:**
-  - **LongMemEval_S preference:** 52.2 against MemPro-15's 80.0, or −8.3
-    questions. There are 7–8 declines per seed on "Any tips?" requests,
-    several with the preference in hand. M76b showed the declines cite this
-    line.
-  - **LoCoMo open-domain:** 36.5% under LightMem. 33 of 61 losses are
-    declines on "Would X likely…?" questions whose gold is an inference
-    ("Likely no").
-- **A question-shape test separates them:** a modal word (likely, might,
-  would, could, probably) that is not addressed to "you".
-  - LoCoMo: 42 of 96 open-domain questions, 1 of 841 single-hop, and **0 of
-    446 adversarial**.
-  - LongMemEval_S: 5 preference questions, 1 multi-session, and **0 of 30
-    abstention traps**.
-  - Advice requests already have `advice_shape`.
-- **Grounds:** over-abstention (Wen et al. 2024, "Know Your Limits", TACL,
-  `10.1162/tacl_a_00754`); requests that call for a response rather than a
-  refusal (Brahman et al. 2024, `10.52202/079017-1573`).
-- **User (2026-09-29): a post-pass on those declines.**
-  `commit-arm --non-recall` asks a declined row of that shape again, without
-  the recall rule. It runs on the shipped bundle's replicates and on
-  `m63_locomo_base`. Doc: `m84-non-recall.md`.
-
-## M83b — the typed statement must assert the question, not dispute it *(user chose it 2026-09-29; pre-registered, queued on big)*
+## M83b — the typed statement must assert the question, not dispute it: **passes** (0 flips on both held-out runs) *(2026-09-29; ship decision with the user)*
 
 - **The rule:** reject a statement that adds a negation the question lacks,
   or that names a dialogue speaker the question does not name.
@@ -241,6 +215,11 @@ lost under the strict judge):
 - **User (2026-09-29):** "run M83b, then ask to ship". Held out:
   `m55b_locomo_bonsai` (≤ 4 of 414) and `m50b_locomo_events` (≤ 3 of 317).
   Doc: `m83b-assert-statement.md`.
+- **Result:** 0 flips on every run, `m51` included (M83: 4). Held out: +0.5
+  (9/0) and +0.0. It waits on the user's ship decision:
+  - the LongMemEval_S stack is 81.40 / 81.20;
+  - M82's stratum CI touched 0;
+  - the NLI service would join the shipped path.
 
 ## M75 — LME-V2 false-premise questions answered from the nearest real screen *(found 2026-09-27; not started)*
 
