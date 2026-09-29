@@ -155,3 +155,15 @@ Three designs, one trade-off, measured end to end on the same declines:
   queued.
 - Meanwhile the shipped configuration's own grounded pass (M71b) stays the
   safe floor.
+
+**An exploratory screen for the semantic check (2026-09-29, not
+pre-registered).** Laya, the local decision model on big_mac, was asked the
+declarative question "The memories talk about the same person, thing and
+event that the question asks about." It was given each question and M81's
+cited memories, over the 31 unique commit candidates (6 traps).
+- **AUROC 0.707.** The traps score from 0.14 to 0.92, so any threshold that
+  blocks all six blocks most real answers.
+- Zero-shot, as Laya's own documentation warns, it does not separate them.
+- A usable check would need a model trained for entailment or entity
+  linking, or labels to fine-tune one. There are 31 examples, which is not
+  enough.

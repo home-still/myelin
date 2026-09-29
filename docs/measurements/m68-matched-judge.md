@@ -175,3 +175,24 @@ Neither is a clear win, and the doc says so. The margin is:
 - `standing` publishes both readings (`locomo.judge_score_lightmem.n1540`,
   `locomo.judge_score_mempro.n1540`). The G2 LoCoMo gate is decided on
   `locomo.judge_score_matched.n1540`, the lowest of the two.
+
+## Is LoCoMo's lead the grader's noise? Re-graded twice *(2026-09-29)*
+
+The lead is +0.33 over 1,540 questions, about 5 questions. So
+`m63_locomo_base` was graded twice more by the matched LightMem protocol
+(gpt-4o-mini), from scratch, into scratch copies. The committed verdicts are
+untouched.
+
+| grading | score |
+|---|---|
+| committed | 78.18 |
+| repeat A | 78.05 |
+| repeat B | 78.12 |
+| majority of the three | **77.99** |
+
+- **Flips:** 3–5 verdicts of 1,540 between any two gradings (0.2–0.3%).
+- **Every reading stays above MemPro-15's 77.85**, but the majority reading
+  leads by only **+0.14**. The gate holds, and the margin is about two
+  questions.
+- LoCoMo's reader is greedy, so seeds do not vary it the way they vary
+  LongMemEval_S's thinking reader. The grader is its main source of noise.
