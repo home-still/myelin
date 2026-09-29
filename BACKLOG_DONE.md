@@ -104,6 +104,28 @@ first arm to question the measurement apparatus rather than the mechanism.
 
 ---
 
+## M85 — gpt-oss-20b as the LongMemEval_S reader: **smoke-tested, then dropped** (user decision) *(2026-09-29)*
+
+- **Why it was proposed:** Hindsight's single-session lead over us looked
+  like reading precision, and its reader is gpt-oss-20b. The same day,
+  Hindsight's number turned out to carry an evidence-label leak
+  (`docs/research/sota-catalog-2026-09-29.md`), which would explain a
+  single-session lead. The user dropped the arm and stays on Bonsai.
+- **What the smoke test measured** (big, PrismML's llama.cpp fork, MXFP4
+  weights copied from bmb, sha256 `be37a636…` on both hosts):
+  - it serves and splits its reasoning from its content;
+  - a schema-constrained call finishes in 121 tokens, well inside the typed
+    pass's 280;
+  - `enable_thinking` changes nothing;
+  - **`bench --reader-thinking` refuses it.** The probe that checks the
+    1,024-token thinking budget is enforced spent its whole completion
+    reasoning. llama.cpp's reasoning budget does not cut gpt-oss's harmony
+    reasoning, which is bounded by `reasoning_effort` instead (model card,
+    `10.48550/arXiv.2508.10925`).
+  - Running it would need an effort-bounded reader mode. None was built.
+- **Left on big:** `/home/ladvien/models/gpt-oss-20b/gpt-oss-20b-mxfp4.gguf`
+  (12 GB), unused.
+
 ## M83b and the NLI premise pass: **M83b passes (0 flips on both held-out LoCoMo runs); shipped for LongMemEval_S by the user's decision — 81.53 official / 81.20 strict** *(2026-09-29)*
 
 - **M83b:** before the NLI model, the typed statement must assert the
