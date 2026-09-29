@@ -581,6 +581,10 @@ enum Command {
         /// about something never mentioned; commits only on the first two.
         #[arg(long, conflicts_with_all = ["samples", "grounded"])]
         typed: bool,
+        /// M80: the typed pass, shown a premise finding computed in code (the
+        /// question's words that no memory contains).
+        #[arg(long, conflicts_with_all = ["samples", "grounded", "typed"])]
+        typed_premise: bool,
     },
     /// Score LoCoMo end-to-end: retrieve, read, and grade the answer with
     /// a deterministic scorer (no LLM judge). See `bench.rs`.
@@ -1185,17 +1189,19 @@ async fn main() -> anyhow::Result<()> {
             agree,
             grounded,
             typed,
+            typed_premise,
         } => {
             let cfg = MyelinConfig::load().context("load myelin config")?;
-            let pass = match (samples, agree, grounded, typed) {
-                (Some(n), Some(a), false, false) => myelin_eval::commit_arm::Pass::Consensus(
+            let pass = match (samples, agree, grounded, typed, typed_premise) {
+                (Some(n), Some(a), false, false, false) => myelin_eval::commit_arm::Pass::Consensus(
                     myelin_eval::bench::Consensus::new(n, seed, a)?,
                 ),
-                (None, None, true, false) => myelin_eval::commit_arm::Pass::Grounded,
-                (None, None, false, true) => myelin_eval::commit_arm::Pass::Typed,
-                (None, None, false, false) => myelin_eval::commit_arm::Pass::Greedy,
+                (None, None, true, false, false) => myelin_eval::commit_arm::Pass::Grounded,
+                (None, None, false, true, false) => myelin_eval::commit_arm::Pass::Typed,
+                (None, None, false, false, true) => myelin_eval::commit_arm::Pass::TypedPremise,
+                (None, None, false, false, false) => myelin_eval::commit_arm::Pass::Greedy,
                 _ => anyhow::bail!(
-                    "--samples/--agree, --grounded and --typed are different second passes; pass one"
+                    "--samples/--agree, --grounded, --typed and --typed-premise are different second passes; pass one"
                 ),
             };
             let report = myelin_eval::commit_arm::run(
@@ -1408,6 +1414,7 @@ async fn main() -> anyhow::Result<()> {
                     aggregation_budget_tokens,
                     commit_grounded: false,
                     commit_typed: false,
+                    commit_premise_finding: false,
                     untrusted_max,
                     decompose,
                     categories: categories.clone().unwrap_or_default(),
