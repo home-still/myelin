@@ -94,3 +94,64 @@ LongMemEval's official grader for the LongMemEval_S runs.
   real questions; paraphrase defeats word matching even with stems.
 - **LoCoMo adversarial flips > 3:** LoCoMo's person-swap traps pass a word
   check, because both names appear in the cited turns.
+
+## Result — safe on LongMemEval_S but inert, and it fails the LoCoMo transfer; the gate fails *(measured 2026-09-29, 07:20–08:29)*
+
+**LongMemEval_S** (typed-cited pass over the base replicates, `m81_base_s*`):
+
+| per replicate | M79 | M80 | **M81** |
+|---|---|---|---|
+| answerable commits | 19–21 | 21–24 | **1–2** |
+| false fits (abstention commits) | 6 | 5 | **0** |
+
+| stratum | strict Δ [95% CI] | official Δ |
+|---|---|---|
+| 49 answerable declines | +2.0 [+0.0, +6.1] (1/0) | +2.0 |
+| abstention | +0.0 | +0.0 |
+
+**Stack on the shipped bundle:** 0, 1 and 1 commits per replicate, so
+nothing moves.
+
+**LoCoMo transfer** (`m81_locomo_base`, on the 9B): **5 of 303 adversarial
+declines flipped to answers**, over the pre-registered limit of 3. Two of
+116 answerable declines were committed, and 1 judged right. The flips are
+LoCoMo's person swaps ("How did **Andrew** hear about the workshop…" →
+"local pet store"; "What did **Calvin** recently start a blog about?" →
+"car mods"). The cited turns contain both speakers' names, so a word check
+passes them.
+
+**Verdict:** criterion 1 fails, since the strict CI touches zero, and the
+LoCoMo transfer fails. M81 does not ship.
+
+| prediction | result | |
+|---|---|---|
+| false fits ≤ 1 per replicate | 0 | held |
+| answerable commits 6–14 per replicate | 1–2 | wrong |
+| strict +6 to +14 on the 49 | +2.0, CI touches 0 | wrong |
+| LoCoMo ≤ 3 adversarial flips | 5 | wrong |
+
+**Falsifiers fired:**
+- "answerable commits < 5": the check is too strict for real questions;
+  paraphrase defeats word matching even with stems.
+- "LoCoMo flips > 3": person-swap traps pass a word check.
+
+## What M79, M80 and M81 establish together
+
+Three designs, one trade-off, measured end to end on the same declines:
+
+| design | who decides the premise | answerable recovered | traps answered |
+|---|---|---|---|
+| M79 | the reader's label | 10/0 (+19.7) | 6 per replicate |
+| M80 | the reader, shown a code finding | 10/0 (+19.7) | 5 |
+| M81 | code, on the cited memories | 1/0 (+2.0) | 0 (LongMemEval_S), 5/303 (LoCoMo) |
+
+- Wherever the reader has a say, it answers the traps.
+- Where code has the only say, lexical matching is too blunt. It cannot
+  tell a paraphrase from a swapped entity, in either direction.
+- **The separating signal is semantic:** is the thing the question asks
+  about the same entity the memory talks about? That points to an
+  entailment or entity-linking check between the question and the cited
+  memory, not word overlap. It is recorded as the open problem, not
+  queued.
+- Meanwhile the shipped configuration's own grounded pass (M71b) stays the
+  safe floor.
