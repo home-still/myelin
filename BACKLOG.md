@@ -269,6 +269,28 @@ often enough, and only on false premises, for code to decline on them.
   an offline screen of NLI on the notes, and there are ~380 answerable rows
   to protect.
 
+**Screened 2026-09-29: NLI on the controller's notes fails too.** The setup:
+- LME-V2's own reader (the 9B) restated each question and its given answer
+  as one sentence. That worked for 450 of 451; one question is 20k tokens
+  long.
+- The M82 NLI model scored each sentence against the controller's notes,
+  split into 350-word chunks, keeping the best chunk.
+
+| signal | right answers above wrong false-premise answers |
+|---|---|
+| max P(entailment) | AUROC **0.59** |
+| max P(contradiction), reversed | AUROC **0.51** |
+
+- The best threshold, "decline if no chunk entails above 0.3", catches 2 of
+  40 false-premise answers.
+- **Why:** the controller's own support analysis already adopts the false
+  premise. It describes the nearest real state as the one asked about. So an
+  answer that follows the notes is entailed by them.
+- **A fix has to act where the notes are written:** a premise check against
+  the raw trajectory states, which is the backlog's candidates (1) and (2).
+  Candidate (1) is a change to the controller's prompt, so it is the user's
+  call. Candidate (2) is M62's native tools.
+
 ---
 
 ## M56 — an external checker on when to answer *(0b, used per the manual: safe; LoCoMo 70.65, short of the gate)*
