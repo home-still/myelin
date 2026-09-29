@@ -2623,6 +2623,21 @@ pub fn shipped_commit_non_recall(corpus: &str) -> bool {
     corpus == "locomo"
 }
 
+/// The premise decided by an NLI model on the cited memories ships for
+/// LongMemEval_S (user decision 2026-09-29): M82's typed-NLI pass with M83's
+/// speaker contrast and M83b's assert rule, run after M71b's grounded pass.
+/// - LongMemEval_S stack: official 81.40 and strict 81.20 against the round-5
+///   bundle's 81.13 and 80.80, with 0 false fits and abstention unchanged.
+///   M82's pre-registered stratum CI touched 0 (+6.1 [+0.0, +14.3]).
+/// - LoCoMo transfer: 0 adversarial flips on two held-out runs (M83b).
+///
+/// See `docs/measurements/m82-nli-premise.md`, `m83-speaker-contrast.md` and
+/// `m83b-assert-statement.md`. It needs the NLI server
+/// (`ops/big/serve-nli.sh`) beside the reader.
+pub fn shipped_commit_nli(corpus: &str) -> bool {
+    corpus == "longmemeval_s"
+}
+
 /// Whether a second pass over declines ships for the corpus at all.
 /// `commit-arm` records `commit_answer` on every artifact it writes, whichever
 /// pass it ran; the pass itself is named by its own key.
