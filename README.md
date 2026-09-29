@@ -139,9 +139,9 @@ standing`; the full table with comparability verdicts is
 | gate | ours | best comparable | gap | since |
 |---|---|---|---|---|
 | `minja.asr.k6_prepopulated_defended` | **7.50%** | ≤10% | **CLOSED** | M15 |
-| `locomo.judge_score_matched.n1540` | **78.18** | 77.85 MemPro-15 (Qwen), same judge | **+0.33** § | M68/M68b |
+| `locomo.judge_score_matched.n1540` | **78.64** | 77.85 MemPro-15 (Qwen), same judge | **+0.79** § | M84 |
 | `longmemeval_s.judge_score_matched.n500` | **81.13** ◊ | 80.80 MemPro-15 (Qwen), LongMemEval's own judge | **+0.33, CLOSED** | round 5 |
-| `locomo.judge_score.n1540` (strict 9B judge) | 70.52 | 77.85 MemPro-15 (Qwen) | −7.33 ‡ | M63 base |
+| `locomo.judge_score.n1540` (strict 9B judge) | 70.84 | 77.85 MemPro-15 (Qwen) | −7.01 ‡ | M84 |
 | `longmemeval_s.judge_score.n500` (strict 9B judge) | 80.80 ◊ | 80.80 MemPro-15 (Qwen) | +0.00 ‡ | round 5 |
 | `lme_v2_small.overall_full_set.combined` | **78.05** | 74.90 AgentRunbook-C (frontier controller) | **+3.15** ¶ | M54 |
 
@@ -150,12 +150,18 @@ local Qwen3.5-9B (`caveat-judge`).
 § **LoCoMo, graded the way the row we chase was graded
 ([M68](docs/measurements/m68-matched-judge.md)):** MemPro's 77.85 came from
 gpt-4o-mini with LightMem's lenient prompt. The same grader, byte for byte,
-gives our answers **78.18**. MemPro's own repo judge gives 80.26. The gate
+gave our answers **78.18**. MemPro's own repo judge gave 80.26. The gate
 takes the lower reading (the every-reading rule), so it is a `comparable` row
-and a closed gate. The lead is
-only a hair: re-judging moves it by 2 rows, and a reader change moves 88. The
-strict 9B judge (70.52) stays the headline and still decides every arm, and
-under both graders we trail MemPro on multi-hop and open-domain. The LME-V2 row is measured at today's
+and a closed gate. **[M84](docs/measurements/m84-non-recall.md) (2026-09-29)
+widened the lead to 78.64 (+0.79).** The reader had been answering "I don't
+know." to open-domain questions like "Would Melanie go on another roadtrip
+soon?", because its recall rule says to decline when the memories hold no
+answer. A declined question of that shape is now asked again without the
+rule. On those 43 questions it scores +16.3 [+7.0, +27.9] under LightMem's
+grader and +11.6 strict, with no adversarial question touched. MemPro's own
+judge now reads 80.78. The strict 9B judge (70.84) stays the headline and
+still decides every arm. Under both graders we still trail MemPro on
+multi-hop and open-domain. The LME-V2 row is measured at today's
 shipped point (undated, digest on, rebuilt store); [M52](docs/measurements/m52-lme-v2-reader-thinks.md)
 showed thinking does not close that gap and [M53](docs/measurements/m53-state-completion.md)
 located it in retrieval. LoCoMo has resisted two arms: the LongMemEval_S
@@ -210,7 +216,7 @@ AgentRunbook-C row. That lead is `caveat-judge`: our reader and judge are the lo
 is time: building each question's memory takes 5.6 minutes on web and 9.2 on enterprise, against
 1–2 before. A native version over myelin's own ledger (M62) remains open.
 Two gates close on `comparable` rows: MINJA's attack rate, and LoCoMo under
-MemPro's own judge (M68, by +0.33).
+MemPro's own judge (M68; +0.79 since M84).
 
 ![myelin-eval standing output showing 30 comparison rows](docs/images/standing.png)
 

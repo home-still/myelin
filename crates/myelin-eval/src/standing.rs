@@ -1090,10 +1090,13 @@ fn bench_metrics(dir: &Path, agg_text: &str) -> Result<Vec<Ours>> {
         // The grounded second pass over declines (M42's machinery, M71b's
         // check) ships for LongMemEval_S since round 5; any other pass, or the
         // grounded one elsewhere, is an arm.
-        || run.commit_answer != crate::bench::shipped_commit_grounded(&run.corpus)
+        || run.commit_answer != crate::bench::shipped_commit_answer(&run.corpus)
         || run.commit_grounded != crate::bench::shipped_commit_grounded(&run.corpus)
         // M79's typed pass ships off.
         || run.commit_typed
+        // M84's second look at declined non-recall requests ships for LoCoMo
+        // only.
+        || run.commit_non_recall != crate::bench::shipped_commit_non_recall(&run.corpus)
         // M43's digest relevance filter, and M48's three-way label.
         || run.digest_relevance
         || run.digest_role
@@ -3121,6 +3124,9 @@ mod tests {
                 "mode": "recall",
                 "k": 6,
                 "max_steps": 2,
+                // M84 ships for LoCoMo: a run without it is an arm.
+                "commit_answer": crate::bench::shipped_commit_answer("locomo"),
+                "commit_non_recall": crate::bench::shipped_commit_non_recall("locomo"),
                 "questions": 1540,
                 "f1_answerable": 0.53,
                 "em_answerable": 0.28,
@@ -3201,6 +3207,31 @@ mod tests {
         let ours = collect(&runs, "/nonexistent/python").unwrap();
         let judged = &ours["locomo.judge_score.n1540"];
         assert!(judged.run.ends_with("shipped_store"), "{judged:?}");
+        assert!(!judged.arm, "{judged:?}");
+    }
+
+    /// M84: the second look at declined non-recall requests ships for LoCoMo
+    /// only. A LoCoMo run without it is an arm and never displaces the
+    /// shipped run, however it scores.
+    #[test]
+    fn the_non_recall_pass_ships_for_locomo_only() {
+        assert!(crate::bench::shipped_commit_non_recall("locomo"));
+        assert!(!crate::bench::shipped_commit_non_recall("longmemeval_s"));
+        let tmp = tempfile::tempdir().unwrap();
+        let runs = tmp.path().join("runs");
+        let shipped = runs.join("with_m84");
+        locomo_fixture(&shipped, false, true); // 1539 of 1540 correct
+        let without = runs.join("without_m84");
+        locomo_fixture(&without, true, false); // 1540 of 1540: scores higher
+        let path = without.join("aggregated_metrics.json");
+        let mut agg: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+        agg["commit_non_recall"] = serde_json::json!(false);
+        std::fs::write(&path, agg.to_string()).unwrap();
+
+        let ours = collect(&runs, "/nonexistent/python").unwrap();
+        let judged = &ours["locomo.judge_score.n1540"];
+        assert!(judged.run.ends_with("with_m84"), "{judged:?}");
         assert!(!judged.arm, "{judged:?}");
     }
 
@@ -4136,16 +4167,22 @@ mod tests {
         // The shipped `investigate` configuration as of M43 carries the
         // dated digest, so a base without it would be an arm already and
         // every assertion below would pass for the wrong reason.
+        // M84 ships a second pass for LoCoMo, so the base carries it too.
         let base = serde_json::json!({
             "corpus": "locomo", "collection": crate::bench::LOCOMO_COLLECTION, "mode": "investigate", "k": 6,
             "max_steps": 2, "scorer": "temporal",
             "resolve_dates": true, "timeline": true,
             "select_sufficient": true, "item_digest": true, "digest_dates": true,
+            "commit_answer": crate::bench::shipped_commit_answer("locomo"),
+            "commit_non_recall": crate::bench::shipped_commit_non_recall("locomo"),
             "questions": 1, "f1_answerable": 0.5, "em_answerable": 0.1,
             "abstention_accuracy": 0.0, "by_category": [],
             "query_p50_seconds": 0.2, "query_avg_seconds": 0.2
         });
         for switch in [
+            // The shipped base itself, which must not be an arm: otherwise
+            // every assertion below passes for the wrong reason.
+            serde_json::json!({}),
             serde_json::json!({"rerank_pool": true}),
             serde_json::json!({"premise": true}),
             serde_json::json!({"typed_probes": true}),
@@ -4157,7 +4194,10 @@ mod tests {
             // M43 shipped both ON, so turning either OFF is the arm.
             serde_json::json!({"item_digest": false}),
             serde_json::json!({"digest_dates": false}),
-            serde_json::json!({"commit_answer": true}),
+            // M84 ships for LoCoMo, so turning its pass off is the arm.
+            serde_json::json!({"commit_answer": false}),
+            serde_json::json!({"commit_non_recall": false}),
+            serde_json::json!({"commit_typed": true}),
             serde_json::json!({"digest_relevance": true}),
             serde_json::json!({"digest_role": true}),
             serde_json::json!({"reader_reasoning": true}),
@@ -4182,8 +4222,11 @@ mod tests {
             let dir = tmp.path().join("runs/arm");
             std::fs::create_dir_all(&dir).unwrap();
             let mut agg = base.clone();
-            let (key, value) = switch.as_object().unwrap().iter().next().unwrap();
-            agg[key] = value.clone();
+            let shipped = switch.as_object().unwrap().is_empty();
+            let key = switch.as_object().unwrap().keys().next().cloned().unwrap_or_else(|| "(shipped base)".into());
+            if let Some((k, value)) = switch.as_object().unwrap().iter().next() {
+                agg[k] = value.clone();
+            }
             std::fs::write(
                 dir.join("per_question.jsonl"),
                 serde_json::json!({
@@ -4199,9 +4242,10 @@ mod tests {
             std::fs::write(dir.join("aggregated_metrics.json"), agg.to_string()).unwrap();
 
             let ours = collect(&tmp.path().join("runs"), "/nonexistent/python").unwrap();
-            assert!(
+            assert_eq!(
                 ours["locomo.temporal.n1540"].arm,
-                "{key} ships off, so a run carrying it is an arm"
+                !shipped,
+                "{key}: the shipped base is not an arm; a run carrying a switch the base lacks is"
             );
             assert!(
                 ours["locomo.temporal.n1540"].unrecorded.is_empty(),
@@ -4250,6 +4294,8 @@ mod tests {
                 "resolve_dates": true, "timeline": true,
                 "select_sufficient": select,
                 "item_digest": digest, "digest_dates": digest,
+                "commit_answer": crate::bench::shipped_commit_answer("locomo"),
+                "commit_non_recall": crate::bench::shipped_commit_non_recall("locomo"),
                 "questions": 1, "f1_answerable": 0.5, "em_answerable": 0.1,
                 "abstention_accuracy": 0.0, "by_category": [],
                 "query_p50_seconds": 0.2, "query_avg_seconds": 0.2
@@ -4390,8 +4436,9 @@ mod tests {
                 "aggregation_k": crate::bench::shipped_aggregation(corpus).map(|(k, _)| k),
                 "aggregation_budget_tokens": crate::bench::shipped_aggregation(corpus).map(|(_, b)| b),
                 "advice_profile_clause": crate::bench::shipped_advice_profile_clause(corpus),
-                "commit_answer": crate::bench::shipped_commit_grounded(corpus),
+                "commit_answer": crate::bench::shipped_commit_answer(corpus),
                 "commit_grounded": crate::bench::shipped_commit_grounded(corpus),
+                "commit_non_recall": crate::bench::shipped_commit_non_recall(corpus),
                 "questions": 1, "f1_answerable": 0.5, "em_answerable": 0.1,
                 "abstention_accuracy": 0.0, "by_category": [],
                 "query_p50_seconds": 0.2, "query_avg_seconds": 0.2
@@ -4438,6 +4485,8 @@ mod tests {
                 "resolve_dates": true, "timeline": true,
                 "select_sufficient": mode == "investigate",
                 "item_digest": digest, "digest_dates": dates,
+                "commit_answer": crate::bench::shipped_commit_answer("locomo"),
+                "commit_non_recall": crate::bench::shipped_commit_non_recall("locomo"),
                 "questions": 1, "f1_answerable": 0.5, "em_answerable": 0.1,
                 "abstention_accuracy": 0.0, "by_category": [],
                 "query_p50_seconds": 0.2, "query_avg_seconds": 0.2

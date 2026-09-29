@@ -32,34 +32,34 @@
       "recorded": "2026-09-27"
     },
     "locomo.abstention_accuracy.n446": {
-      "value": 69.95515695067265,
+      "value": 67.9372197309417,
       "n": 446,
-      "run": "runs/m19_locomo_full",
-      "recorded": "2026-09-20"
+      "run": "runs/m84_locomo_base",
+      "recorded": "2026-09-29"
     },
     "locomo.judge_score.n1540": {
-      "value": 70.51948051948051,
+      "value": 70.84415584415584,
       "n": 1540,
-      "run": "runs/m63_locomo_base",
-      "recorded": "2026-09-25"
+      "run": "runs/m84_locomo_base",
+      "recorded": "2026-09-29"
     },
     "locomo.judge_score_lightmem.n1540": {
-      "value": 78.18181818181819,
+      "value": 78.63636363636364,
       "n": 1540,
-      "run": "runs/m63_locomo_base",
-      "recorded": "2026-09-25"
+      "run": "runs/m84_locomo_base",
+      "recorded": "2026-09-29"
     },
     "locomo.judge_score_matched.n1540": {
-      "value": 78.18181818181819,
+      "value": 78.63636363636364,
       "n": 1540,
-      "run": "runs/m63_locomo_base",
-      "recorded": "2026-09-25"
+      "run": "runs/m84_locomo_base",
+      "recorded": "2026-09-29"
     },
     "locomo.judge_score_mempro.n1540": {
-      "value": 80.25974025974027,
+      "value": 80.77922077922078,
       "n": 1540,
-      "run": "runs/m63_locomo_base",
-      "recorded": "2026-09-25"
+      "run": "runs/m84_locomo_base",
+      "recorded": "2026-09-29"
     },
     "locomo.temporal.n1540": {
       "value": 60.16407788234017,
@@ -86,7 +86,7 @@
       "recorded": "2026-09-29"
     },
     "longmemeval_s.token_f1.n500": {
-      "value": 60.48,
+      "value": 60.484971494365276,
       "n": 470,
       "run": "runs/r5_bundle_seeds",
       "recorded": "2026-09-29"

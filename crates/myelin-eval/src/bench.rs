@@ -2613,6 +2613,23 @@ pub fn shipped_commit_grounded(corpus: &str) -> bool {
     corpus == "longmemeval_s"
 }
 
+/// M84's second look at declined requests for advice or an inference ships
+/// for LoCoMo (2026-09-29, `docs/measurements/m84-non-recall.md`). On the 43
+/// questions of that shape it gained +16.3 [+7.0, +27.9] under LightMem's
+/// grader and +11.6 [+2.3, +20.9] under the strict judge (7 and 5 wins, no
+/// losses), with no adversarial flip. On LongMemEval_S its stratum CIs
+/// touched 0 under both graders, so it ships off there.
+pub fn shipped_commit_non_recall(corpus: &str) -> bool {
+    corpus == "locomo"
+}
+
+/// Whether a second pass over declines ships for the corpus at all.
+/// `commit-arm` records `commit_answer` on every artifact it writes, whichever
+/// pass it ran; the pass itself is named by its own key.
+pub fn shipped_commit_answer(corpus: &str) -> bool {
+    shipped_commit_grounded(corpus) || shipped_commit_non_recall(corpus)
+}
+
 /// Qwen3.5-9B, as `GET /v1/models` names the file `ops/big/serve-models.sh`
 /// serves by default. The only model any run was served before M55.
 pub const QWEN35_9B_GGUF: &str = "Qwen3.5-9B-UD-Q4_K_XL.gguf";

@@ -399,6 +399,20 @@ pub fn run(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A pin must read back exactly as `save` wrote it. serde_json's default
+    /// float parser is not correctly rounded: on 2026-09-29 the pin
+    /// 60.484971494365276 read back one ULP lower, and the ratchet reported
+    /// `longmemeval_s.token_f1.n500` as "REGRESSED by 0.00" against a value
+    /// it had itself just written.
+    #[test]
+    fn a_pin_reads_back_exactly_as_written() {
+        for v in [60.484971494365276_f64, 78.63636363636364, 67.9372197309417, 0.1 + 0.2] {
+            let text = serde_json::to_string(&serde_json::json!({ "value": v })).unwrap();
+            let back: serde_json::Value = serde_json::from_str(&text).unwrap();
+            assert_eq!(back["value"].as_f64(), Some(v), "{text}");
+        }
+    }
     use crate::standing::{Class, JudgeClass, Unit};
     use std::path::PathBuf;
 
