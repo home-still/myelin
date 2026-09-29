@@ -219,23 +219,6 @@ lost under the strict judge):
   because M82's stratum CI touched 0.
 - Doc: `docs/measurements/m83-speaker-contrast.md`.
 
-## Readout rigour — discordant counts, the exact sign test, and a repeated official grader *(round-5 catalog, 2026-09-28; not started)*
-
-Small strata need the right test, and our grader is noisy (catalog §c, §e):
-- ~~`paired_ci.py` should print the wins/losses beside every paired Δ, and
-  the exact sign test on strata of 30 rows or fewer.~~ **Done 2026-09-28:**
-  every stratum line now carries `W/L` and `sign p`. **Derived:** on the 30
-  preference rows, significance needs at least 6–0, 8–1 or 10–2. M77c's
-  official gain is 11/1, sign p 0.0063.
-- ~~Repeat the official grader.~~ **Done 2026-09-29, on the shipped
-  bundle:** two fresh gradings flip 0.2–1.0% of verdicts, and every seed
-  mean (81.13 / 81.40 / 81.07, majority 81.13) stays above 80.80
-  (`r5-bundle-seeds.md`).
-- Agreement between the strict and official judges should be reported as κ,
-  not percent (Norman et al. 2026, arXiv 2606.19544).
-
----
-
 ## M75 — LME-V2 false-premise questions answered from the nearest real screen *(found 2026-09-27; not started)*
 
 M54's AgentRunbook-C point is weakest on abstention: 53.57 on enterprise's 56
