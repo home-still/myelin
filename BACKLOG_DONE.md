@@ -104,6 +104,21 @@ first arm to question the measurement apparatus rather than the mechanism.
 
 ---
 
+## Readout rigour — discordant counts, the exact sign test, a repeated official grader, and κ *(done 2026-09-29)*
+
+- **W/L and the exact sign test:** every `paired_ci.py` stratum line
+  carries them (2026-09-28).
+- **The official grader, repeated:** two fresh gradings flip 0.2–1.0% of
+  verdicts, and the shipped seed means stay above 80.80 (2026-09-29,
+  `r5-bundle-seeds.md`).
+- **Strict-versus-official agreement as Cohen's κ**
+  (`adapters/judge_agreement.py`; Norman et al. 2026, arXiv 2606.19544):
+  - shipped bundle 0.816 and base 0.872 on LongMemEval_S, with symmetric
+    disagreement (40 vs 45);
+  - the bundle's preference rows alone: 0.474;
+  - LoCoMo strict vs LightMem: 0.774, one-sided (126 vs 8).
+- Doc: `judge-agreement-kappa.md`.
+
 ## M82 — the premise decided by an NLI model: **safe and positive on LongMemEval_S** (stack official 81.40, strict 81.20), **fails the LoCoMo transfer** (13/303) *(2026-09-29)*
 
 - **Mechanism:** the typed pass writes a statement that keeps every
