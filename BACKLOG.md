@@ -226,21 +226,6 @@ M78's quotes failed because the reader quoted the assistant.
 
 ---
 
-## Round-5 bundle — seed-replicated, only the changed rows rerun *(pre-registered 2026-09-28)*
-
-This is round 4's three mechanisms (M71b, M72b, M73b) plus the preference
-clause (M77c, or M78 if it wins its head-to-head), measured the way the user
-chose:
-- The 183 rows the switches' question-text gates fire on are rerun at seeds
-  1–3.
-- Every other row is M57's in both arms.
-- The bar is read on the seed means.
-- The +3.0 strict bar is expected to fail. The replicates are reusable for
-  later post-pass mechanisms.
-- Doc: `docs/measurements/r5-bundle-seeds.md`.
-
----
-
 ## Readout rigour — discordant counts, the exact sign test, and a repeated official grader *(round-5 catalog, 2026-09-28; not started)*
 
 Small strata need the right test, and our grader is noisy (catalog §c, §e):
