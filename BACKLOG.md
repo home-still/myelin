@@ -199,33 +199,6 @@ lost under the strict judge):
 
 ---
 
-## M79 — the typed premise pass: answer, then say how the question fits *(user decision 2026-09-28; pre-registered)*
-
-A greedy post-pass over declines, `commit-arm --typed`. It asks for
-`{answer, mismatch: none | detail unstated | contradicted | never mentioned}`
-and commits only on the first two.
-- Target: 13 answerable declines of the "don't specify" kind.
-- Risk: 7 abstention declines phrased the same way, so the veto is in its
-  strict form.
-- It is measured on the round-5 base replicates and stacks on the bundle if
-  it passes.
-- Doc: `docs/measurements/m79-typed-premise.md`.
-
----
-
-## M78b — the advice answer selects the user's own turns *(pre-registered 2026-09-28)*
-
-M78's quotes failed because the reader quoted the assistant.
-- `--advice-picks` makes the answer *select* user-only memories by index.
-  The schema's `enum` admits no other.
-- An excerpt of each pick is followed by the recommendation, with no
-  decline field.
-- It runs with the round-5 bundle's switches, so its rows drop into the
-  bundle if it beats M77c head-to-head.
-- Doc: `docs/measurements/m78b-advice-picks.md`.
-
----
-
 ## Readout rigour — discordant counts, the exact sign test, and a repeated official grader *(round-5 catalog, 2026-09-28; not started)*
 
 Small strata need the right test, and our grader is noisy (catalog §c, §e):
@@ -239,27 +212,6 @@ Small strata need the right test, and our grader is noisy (catalog §c, §e):
   judged 3 times, taking the majority, and its own flip rate reported.
 - Agreement between the strict and official judges should be reported as κ,
   not percent (Norman et al. 2026, arXiv 2606.19544).
-
----
-
-## Schema field order — send the order each schema was written in *(defect found 2026-09-28; not started)*
-
-No schema's intended field order ever reached the model: serde_json sorts
-object keys without `preserve_order`, and llama.cpp builds its grammar in
-the order it receives (measured on the wire). Thirteen schemas are affected,
-among them the shipped `reflect` call, the grounded pass (M71b) and M44 R1
-(`docs/measurements/defect-2026-09-28-schema-field-order.md`).
-- **Fix:** first choose each schema's order deliberately, reasoning before
-  the decision. The shipped `reflect` and `support` already have that order
-  *by accident*, while their source orders put the decision first (Tam et
-  al. 2024; CRANE; round-5 catalog §d). Then enable
-  `serde_json/preserve_order` for the workspace, and add a wire-order test
-  for every schema.
-- **Measure:** the fix changes the shipped investigate path. Run an
-  `--evidence-only` control over all 500 rows to count evidence changes, then
-  a seed-replicated arm on the rows that changed, under the bundle method.
-- **Opportunity:** M71b's grounded pass and M44 R1's reasoning-first answer
-  were never tested as designed.
 
 ---
 
