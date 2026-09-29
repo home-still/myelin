@@ -52,6 +52,11 @@ its history. Short version:
   - It also reports 83.18 on LoCoMo, under an unstated LoCoMo prompt.
   - It is in the registry but is not a gate.
     `docs/research/sota-catalog-2026-09-29.md`.
+  - **Checked the same day: that number carries an evidence-label leak.**
+    LongMemEval_S names its evidence sessions `answer_*`, and Hindsight's
+    runner shows those ids to the answer model; every question in its
+    released run has them. `standing` marks the row `not-comparable`, so the
+    clean bar stays MemPro-15 (80.80).
 - **LME-V2 78.05, 3.15 past the 74.90 AgentRunbook-C row (M54, 2026-09-27).**
   AgentRunbook-C driven locally by Bonsai 27B, +39.25 [+34.15, +44.12] over
   myelin's own memory (38.80). The lead is `caveat-judge` (our 9B judge). It

@@ -120,6 +120,14 @@ pub struct RegistryRow {
     /// `caveat`.
     #[serde(default = "yes")]
     pub population_comparable: bool,
+    /// A verified defect in how the row's number was produced that makes it
+    /// no measure of the same task: a short phrase naming it, with the
+    /// evidence in `caveat`. Such a row is never comparable, whatever its
+    /// judge and backbone classes. Found 2026-09-29: Hindsight's LongMemEval
+    /// harness shows the answer model each memory's session id, and
+    /// LongMemEval_S names exactly the evidence sessions `answer_*`.
+    #[serde(default)]
+    pub protocol_defect: Option<String>,
     pub source: Source,
 }
 
@@ -320,6 +328,11 @@ pub enum Verdict {
     NotComparableSource {
         provenance: Provenance,
     },
+    /// The row's number was produced under a verified protocol defect
+    /// ([`RegistryRow::protocol_defect`]).
+    NotComparableProtocol {
+        detail: String,
+    },
     IncompleteArtifact {
         detail: String,
     },
@@ -378,6 +391,7 @@ impl Verdict {
             Verdict::NotComparableSource { provenance } => {
                 format!("not-comparable({})", prov_slug(*provenance))
             }
+            Verdict::NotComparableProtocol { detail } => format!("not-comparable({detail})"),
             Verdict::IncompleteArtifact { detail } => format!("incomplete({detail})"),
             Verdict::StaleConfig { detail } => format!("stale-config({detail})"),
             Verdict::UnitMismatch { detail } => format!("unit-mismatch({detail})"),
@@ -2396,6 +2410,9 @@ fn classify(row: &RegistryRow, mine: Option<&Ours>) -> Verdict {
             provenance: row.provenance,
         };
     }
+    if let Some(detail) = &row.protocol_defect {
+        return Verdict::NotComparableProtocol { detail: detail.clone() };
+    }
     let Some(mine) = mine else {
         return Verdict::MissingArtifact {
             command: metric_def(&row.metric)
@@ -2496,6 +2513,9 @@ fn gate_failure(
         Verdict::NotComparableSource { provenance } => format!(
             "unverifiable source ({}) — a gate cannot be satisfied by a number with no protocol",
             prov_slug(*provenance)
+        ),
+        Verdict::NotComparableProtocol { detail } => format!(
+            "protocol defect ({detail}) — a gate cannot be decided by a number produced under it"
         ),
         Verdict::MissingArtifact { command } => format!("no artifact; run `{command}`"),
         Verdict::IncompleteArtifact { detail } => format!("artifact incomplete ({detail})"),
@@ -2814,6 +2834,7 @@ mod tests {
             bar: Bar::AtLeast,
             caveat: None,
             population_comparable: true,
+            protocol_defect: None,
             source: source(),
         }
     }
@@ -4168,6 +4189,20 @@ mod tests {
         post["resolve_dates"] = Value::Bool(true);
         post["timeline"] = Value::Bool(true);
         assert!(unrecorded_bench_keys(&post.to_string()).unwrap().is_empty());
+    }
+
+    /// A row with a verified protocol defect is never comparable, even when
+    /// its judge and backbone classes match ours (Hindsight, 2026-09-29).
+    #[test]
+    fn a_protocol_defect_makes_a_row_not_comparable() {
+        let mut r = row("longmemeval_s.judge_score.n500", 83.6, 500);
+        let ours = mine("longmemeval_s.judge_score.n500", 81.2, 500);
+        assert!(classify(&r, Some(&ours)).quantified(), "the plain row is quantified");
+        r.protocol_defect = Some("evidence sessions labelled for the reader".into());
+        let v = classify(&r, Some(&ours));
+        assert!(matches!(v, Verdict::NotComparableProtocol { .. }), "{v:?}");
+        assert!(!v.quantified());
+        assert_eq!(v.slug(), "not-comparable(evidence sessions labelled for the reader)");
     }
 
     /// A stale row is not comparable to anybody: the verdict fires before
