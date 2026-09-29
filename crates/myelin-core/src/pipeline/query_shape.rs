@@ -94,6 +94,67 @@ pub fn is_advice_request(text: &str) -> bool {
     ADVICE_CUES.iter().any(|c| lower.contains(c)) && !RECALL_CUES.iter().any(|c| lower.contains(c))
 }
 
+/// Modal words that ask what is likely rather than what was recorded.
+const INFERENCE_MODALS: [&str; 5] = ["likely", "might", "would", "could", "probably"];
+
+/// Words by which the user addresses the assistant or speaks of themself.
+const USER_PERSON_WORDS: [&str; 8] = ["i", "i'm", "i've", "i'd", "me", "my", "you", "your"];
+
+/// Lowercased words of `text`, apostrophes kept inside a word ("i'm").
+fn person_words(text: &str) -> Vec<String> {
+    text.to_lowercase()
+        .replace('\u{2019}', "'")
+        .split(|c: char| !(c.is_alphanumeric() || c == '\''))
+        .filter(|w| !w.is_empty())
+        .map(str::to_string)
+        .collect()
+}
+
+/// Does the question ask what is *likely*: a modal (likely, might, would,
+/// could, probably) that is not addressed to the assistant ("could you",
+/// "you would")?
+///
+/// LoCoMo's open-domain category asks for an inference from what the
+/// conversation shows ("Would Caroline still want to pursue counseling…?",
+/// gold "Likely no"; Maharana et al. 2024, `10.18653/v1/2024.acl-long.747`).
+/// Measured on every question before any row (2026-09-29): it fires on 42 of
+/// LoCoMo's 96 open-domain questions, 1 of 841 single-hop, and none of the 446
+/// adversarial, multi-hop or temporal. On LongMemEval_S it fires on 5
+/// preference questions, 1 multi-session, and none of the 30 abstention
+/// traps.
+pub fn is_inference_question(text: &str) -> bool {
+    let words = person_words(text);
+    words.iter().enumerate().any(|(i, w)| {
+        INFERENCE_MODALS.contains(&w.as_str())
+            && !(i > 0 && words[i - 1] == "you")
+            && words.get(i + 1).is_none_or(|next| next != "you")
+    })
+}
+
+/// M84: does the question ask for advice or an inference rather than for a
+/// recorded fact (`docs/measurements/m84-non-recall.md`)?
+///
+/// Two shapes:
+/// - an advice request ([`is_advice_request`]) that the user makes of the
+///   assistant, in the first or second person. LoCoMo asks recall questions
+///   *about* advice in the third person ("What advice did Calvin receive…?"),
+///   and 12 of its adversarial questions carry an advice cue; none is in the
+///   first or second person;
+/// - an inference question ([`is_inference_question`]).
+///
+/// A decline is the wrong response to either: abstention is for questions
+/// the memories cannot answer, and refusing a request that calls for a
+/// response is over-abstention (Wen et al. 2024, "Know Your Limits", TACL,
+/// `10.1162/tacl_a_00754`; Brahman et al. 2024, "The Art of Saying No",
+/// `10.52202/079017-1573`). Measured before any row: 30 of LongMemEval_S's 30
+/// preference questions and 1 multi-session question; 42 LoCoMo open-domain
+/// and 1 single-hop. It matches no LongMemEval_S abstention trap and no
+/// LoCoMo adversarial question.
+pub fn is_non_recall_request(text: &str) -> bool {
+    let addressed = person_words(text).iter().any(|w| USER_PERSON_WORDS.contains(&w.as_str()));
+    (is_advice_request(text) && addressed) || is_inference_question(text)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -132,6 +193,32 @@ mod tests {
             "I've been feeling nostalgic lately. Do you think it would be a good idea to attend my high school reunion?",
         ] {
             assert!(is_advice_request(q), "{q}");
+        }
+    }
+
+    #[test]
+    fn inference_and_advice_requests_are_not_recall() {
+        for q in [
+            "Would Caroline still want to pursue counseling as a career if she hadn't received support growing up?",
+            "What would Caroline's political leaning likely be?",
+            "What might John's degree be in?",
+            "I'm planning my meal prep next week, any suggestions for new recipes?",
+            "I've been sneezing quite a bit lately. Do you think it might be my living room?",
+        ] {
+            assert!(is_non_recall_request(q), "{q}");
+        }
+    }
+
+    #[test]
+    fn recall_questions_and_advice_about_others_are_recall() {
+        for q in [
+            "What advice did Calvin receive from the chef at the music festival?",
+            "I was wondering if you could remind me of the name of that restaurant you recommended.",
+            "Could you tell me what I bought 10 days ago?",
+            "What did Caroline realize after her charity race?",
+            "How many plants did I initially plant for tomatoes and chili peppers?",
+        ] {
+            assert!(!is_non_recall_request(q), "{q}");
         }
     }
 

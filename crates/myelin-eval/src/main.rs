@@ -606,6 +606,10 @@ enum Command {
         /// keeps the decline without reaching the NLI model.
         #[arg(long, requires = "typed_nli")]
         assert_statement: bool,
+        /// M84: a declined request for advice or an inference is asked again
+        /// without the recall rule; recall questions keep their declines.
+        #[arg(long, conflicts_with_all = ["samples", "grounded", "typed", "typed_premise", "typed_cited", "typed_nli"])]
+        non_recall: bool,
     },
     /// Score LoCoMo end-to-end: retrieve, read, and grade the answer with
     /// a deterministic scorer (no LLM judge). See `bench.rs`.
@@ -1216,22 +1220,24 @@ async fn main() -> anyhow::Result<()> {
             ref nli_url,
             speaker_contrast,
             assert_statement,
+            non_recall,
         } => {
             let cfg = MyelinConfig::load().context("load myelin config")?;
-            let pass = match (samples, agree, grounded, typed, typed_premise, typed_cited, typed_nli) {
-                (Some(n), Some(a), false, false, false, false, false) => myelin_eval::commit_arm::Pass::Consensus(
+            let pass = match (samples, agree, grounded, typed, typed_premise, typed_cited, typed_nli, non_recall) {
+                (Some(n), Some(a), false, false, false, false, false, false) => myelin_eval::commit_arm::Pass::Consensus(
                     myelin_eval::bench::Consensus::new(n, seed, a)?,
                 ),
-                (None, None, true, false, false, false, false) => myelin_eval::commit_arm::Pass::Grounded,
-                (None, None, false, true, false, false, false) => myelin_eval::commit_arm::Pass::Typed,
-                (None, None, false, false, true, false, false) => myelin_eval::commit_arm::Pass::TypedPremise,
-                (None, None, false, false, false, true, false) => myelin_eval::commit_arm::Pass::TypedCited,
-                (None, None, false, false, false, false, true) => {
+                (None, None, true, false, false, false, false, false) => myelin_eval::commit_arm::Pass::Grounded,
+                (None, None, false, true, false, false, false, false) => myelin_eval::commit_arm::Pass::Typed,
+                (None, None, false, false, true, false, false, false) => myelin_eval::commit_arm::Pass::TypedPremise,
+                (None, None, false, false, false, true, false, false) => myelin_eval::commit_arm::Pass::TypedCited,
+                (None, None, false, false, false, false, true, false) => {
                     myelin_eval::commit_arm::Pass::TypedNli { speaker_contrast, assert_statement }
                 }
-                (None, None, false, false, false, false, false) => myelin_eval::commit_arm::Pass::Greedy,
+                (None, None, false, false, false, false, false, true) => myelin_eval::commit_arm::Pass::NonRecall,
+                (None, None, false, false, false, false, false, false) => myelin_eval::commit_arm::Pass::Greedy,
                 _ => anyhow::bail!(
-                    "--samples/--agree, --grounded, --typed, --typed-premise, --typed-cited and --typed-nli are different second passes; pass one"
+                    "--samples/--agree, --grounded, --typed, --typed-premise, --typed-cited, --typed-nli and --non-recall are different second passes; pass one"
                 ),
             };
             let http_nli = nli_url.as_deref().map(myelin_eval::bench::HttpNli::new);
@@ -1451,6 +1457,7 @@ async fn main() -> anyhow::Result<()> {
                     commit_typed_nli: false,
                     commit_speaker_contrast: false,
                     commit_assert_statement: false,
+                    commit_non_recall: false,
                     untrusted_max,
                     decompose,
                     categories: categories.clone().unwrap_or_default(),
