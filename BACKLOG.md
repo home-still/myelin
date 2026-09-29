@@ -200,24 +200,41 @@ lost under the strict judge):
 
 ---
 
-## M83 — the speaker contrast for M82's NLI premise *(pre-registered 2026-09-29; running on big)*
+## Declines on requests that are not recall *(found 2026-09-29; awaits the user: a reader-prompt change)*
 
-- **The problem:** M82 flipped 13 of LoCoMo's 303 adversarial declines,
-  and every one was a person swap.
-- **The fix:** an entailed statement that names one of the dialogue's two
-  speakers commits only if the same statement about the other speaker is
-  *not* entailed. This is FactCC's entity swap used as a contrast.
-- **The screen, on M82's own rows:** 13 → 0 flips, with every LongMemEval_S
-  commit kept. Two alternatives were rejected:
-  - the recorded fix, a speaker-resolved premise, still left 10 of 13
-    entailed;
-  - a head-word exemption let "What *cult* did Tim join?" through.
-- **The gate runs on two held-out LoCoMo runs:** ≤ 2 of 277 and ≤ 3 of 375
-  flips, with no LoCoMo loss.
-- **LongMemEval_S is M82's by construction,** because the contrast cannot
-  fire there. If the gate passes, whether it ships is the user's call,
-  because M82's stratum CI touched 0.
-- Doc: `docs/measurements/m83-speaker-contrast.md`.
+- **The finding:** the reader's recall rule ("If the memories do not
+  contain the answer, reply exactly: I don't know.") also fires on requests
+  that ask for advice or an inference.
+- **Two places it costs us, each the largest gap left:**
+  - **LongMemEval_S preference:** 52.2 against MemPro-15's 80.0, or −8.3
+    questions. There are 7–8 declines per seed on "Any tips?" requests,
+    several with the preference in hand. M76b showed the declines cite this
+    line.
+  - **LoCoMo open-domain:** 36.5% under LightMem. 33 of 61 losses are
+    declines on "Would X likely…?" questions whose gold is an inference
+    ("Likely no").
+- **A question-shape test separates them:** a modal word (likely, might,
+  would, could, probably) that is not addressed to "you".
+  - LoCoMo: 42 of 96 open-domain questions, 1 of 841 single-hop, and **0 of
+    446 adversarial**.
+  - LongMemEval_S: 5 preference questions, 1 multi-session, and **0 of 30
+    abstention traps**.
+  - Advice requests already have `advice_shape`.
+- **Grounds:** over-abstention (Wen et al. 2024, "Know Your Limits", TACL,
+  `10.1162/tacl_a_00754`); requests that call for a response rather than a
+  refusal (Brahman et al. 2024, `10.52202/079017-1573`).
+- Needs the user: it changes what the reader is told.
+
+## M83b — the typed statement must assert the question, not dispute it *(recorded 2026-09-29; not queued)*
+
+- **The rule:** reject a statement that adds a negation the question lacks,
+  or that names a dialogue speaker the question does not name.
+- **Post hoc** on M83's runs: it blocks all 4 held-out flips and none of the
+  7 right answers.
+- It needs fresh held-out LoCoMo runs (`m55b_locomo_bonsai`,
+  `m50b_locomo_events`).
+- **Low value on LongMemEval_S:** M82's stack is +0.27 official, and its
+  stratum CI touched 0.
 
 ## M75 — LME-V2 false-premise questions answered from the nearest real screen *(found 2026-09-27; not started)*
 

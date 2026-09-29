@@ -157,3 +157,66 @@ M83's LongMemEval_S rows are M82's, and M82's stratum CI was
   the swaps it misses.
 - **Answerable commits collapse to 0 on the held-out runs:** the model
   entails both speakers almost always, and the rule blocks everything.
+
+## Result — the contrast removes 30 of 34 swaps, but one held-out run fails narrowly; does not ship *(measured 2026-09-29, 11:13–11:56, main 4a48fb8)*
+
+| run | adversarial declines | **flips** (limit) | M82 alone would have flipped | answerable commits (right) | strict Δ, all 1,986 rows |
+|---|---|---|---|---|---|
+| `m83_locomo_base` (design) | 303 | **0** (reported only) | 13 | 3 (1) | +0.1 [+0.0, +0.2] (1/0) |
+| `m83_locomo_m50c` (held out) | 277 | **0** (≤ 2) ✅ | 4 | 4 (3) | +0.2 [+0.0, +0.4] (3/0) ✅ |
+| `m83_locomo_m51` (held out) | 370 | **4** (≤ 3) ❌ | 17 | 8 (3) | −0.1 [−0.3, +0.2] (3/4) ❌ |
+
+- On the design run, LoCoMo's LightMem grader gives +0.1 [+0.0, +0.3] (2/0).
+- **"M82 alone"** is read from each row's trace: the NLI decision before the
+  contrast.
+- **The adversarial count on `m51`:** the pre-registration's 375 came from a
+  looser decline match. The readout's `I don…` prefix gives 370. The limit
+  is 3 either way.
+
+**Verdict:**
+- **Gate criterion 1 fails on `m51`** (4 flips, limit 3). **Criterion 2
+  also fails there** (3 wins, 4 losses).
+- `m50c` passes both criteria.
+- **M83 does not ship,** so the ship question for M82 plus M83 does not
+  arise.
+
+**What the contrast did:**
+- It is the mechanism it was built to be. Across the three runs it took
+  M82's person-swap flips from **34 to 4** (13 → 0, 4 → 0, 17 → 4).
+- It kept 15 answerable commits, 7 of them right.
+
+**Why the four got through: the statement disputed the premise instead of
+asserting it.** In each, the reader's `statement` is a correction, which the
+NLI model rightly entails:
+
+| question | the reader's statement |
+|---|---|
+| What did Nate take a picture of near Fort Wayne? | "Nate did **not** take a picture of a sunflower…; **Joanna** did." |
+| What inspired James to create his painting? | "Witcher 3 inspired James to create his game, **not** a painting." |
+| What did Sam share a photo of…? | "Sam did **not** share a photo of a kayak…; **Evan** took that photo." |
+| What game has Joanna been playing…? | "Joanna mentioned that **Nate** has been playing… Cyberpunk 2077." |
+
+- Three name both speakers, so there is no swap to test.
+- The pass commits `answer` anyway, because M79's label said `none`.
+- This is the reader's premise vote failing once more (M79 measured it at
+  ~57% false challenges). NLI read these statements correctly.
+- The pre-registered falsifier fired, but not for the predicted cause (a
+  statement naming neither speaker).
+
+**Predictions:**
+- design run 0–1 flips: **0, held**;
+- design run 2–4 answerable commits: **3, held**;
+- held out 0–2 flips per run: **0, held**, and **4, wrong**;
+- held out 2–8 answerable commits: 4 and 8, held;
+- M82 alone 5–15 flips per run: 4 and 17, wrong at both ends.
+
+**Recorded, not queued: M83b, the statement must assert the question.**
+- The rule, in code: reject a statement that
+  - adds a negation the question lacks ("not", "never", "n't"), or
+  - names a dialogue speaker the question does not name.
+- *Post hoc* on these three runs, it blocks all 4 flips and none of the 7
+  right answers (exploratory; found on `m51`).
+- A real test needs LoCoMo runs M83 never saw, such as
+  `m55b_locomo_bonsai` or `m50b_locomo_events`.
+- The LongMemEval_S side stays M82's: stack official 81.40 against the
+  shipped 81.13, with a stratum CI that touched 0.

@@ -104,6 +104,23 @@ first arm to question the measurement apparatus rather than the mechanism.
 
 ---
 
+## M83 — the speaker contrast for M82's NLI premise: **34 swaps → 4, but a held-out run fails narrowly** (4/370, limit 3); does not ship *(2026-09-29)*
+
+- **Mechanism:** an entailed statement that names one of a dialogue's two
+  speakers commits only if the same statement about the other speaker is
+  not entailed (FactCC's entity swap as a contrast set).
+- **Result:**
+  - design run: 0 flips, where M82 alone made 13;
+  - held-out `m50c`: 0 flips (M82 alone 4), +0.2 (3/0);
+  - held-out `m51`: **4 flips (M82 alone 17), −0.1 (3/4)**.
+- **Why:** the four statements dispute the premise ("Nate did not…; Joanna
+  did"), and NLI rightly entails them.
+- **Recorded:** M83b, the statement must assert the question (backlog).
+- **Also screened and rejected:**
+  - a speaker-resolved premise (10 of 13 swaps still entailed);
+  - a head-word guard exemption ("What *cult* did Tim join?").
+- Doc: `m83-speaker-contrast.md`.
+
 ## Readout rigour — discordant counts, the exact sign test, a repeated official grader, and κ *(done 2026-09-29)*
 
 - **W/L and the exact sign test:** every `paired_ci.py` stratum line
