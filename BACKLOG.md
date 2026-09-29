@@ -225,7 +225,7 @@ lost under the strict judge):
   refusal (Brahman et al. 2024, `10.52202/079017-1573`).
 - Needs the user: it changes what the reader is told.
 
-## M83b — the typed statement must assert the question, not dispute it *(recorded 2026-09-29; not queued)*
+## M83b — the typed statement must assert the question, not dispute it *(user chose it 2026-09-29; pre-registered, queued on big)*
 
 - **The rule:** reject a statement that adds a negation the question lacks,
   or that names a dialogue speaker the question does not name.
@@ -235,6 +235,9 @@ lost under the strict judge):
   `m50b_locomo_events`).
 - **Low value on LongMemEval_S:** M82's stack is +0.27 official, and its
   stratum CI touched 0.
+- **User (2026-09-29):** "run M83b, then ask to ship". Held out:
+  `m55b_locomo_bonsai` (≤ 4 of 414) and `m50b_locomo_events` (≤ 3 of 317).
+  Doc: `m83b-assert-statement.md`.
 
 ## M75 — LME-V2 false-premise questions answered from the nearest real screen *(found 2026-09-27; not started)*
 

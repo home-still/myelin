@@ -582,6 +582,11 @@ pub struct BenchRun {
     /// entailed. Absent on every run before M83.
     #[serde(default)]
     pub commit_speaker_contrast: bool,
+    /// M83b: the typed statement had to assert the question (no negation the
+    /// question lacks, no dialogue speaker it does not name). Absent on every
+    /// run before M83b.
+    #[serde(default)]
+    pub commit_assert_statement: bool,
     /// Rows inherited from an earlier attempt by `bench --resume`. Non-zero
     /// means the run's two halves may have been served by differently
     /// configured readers (slots, context): a greedy answer does not depend
@@ -889,6 +894,8 @@ pub struct BenchSwitches {
     pub commit_typed_nli: bool,
     /// M83: the NLI decision was contrasted with the other dialogue speaker.
     pub commit_speaker_contrast: bool,
+    /// M83b: the typed statement had to assert the question.
+    pub commit_assert_statement: bool,
     /// Cap untrusted occupancy in the composed set — M23 B1,
     /// `ComposeConfig::untrusted_max`.
     ///
@@ -1695,6 +1702,39 @@ fn name_occurrences(text: &str, name: &str) -> Vec<usize> {
         .collect()
 }
 
+/// Negating words: "not", "never", "no", and any "n't" contraction.
+const NEGATIONS: [&str; 3] = ["not", "never", "no"];
+
+/// How many negating words `text` holds. Apostrophes (straight or curly) stay
+/// inside a word, so "didn't" is one word ending in "n't".
+fn negation_count(text: &str) -> usize {
+    text.to_lowercase()
+        .split(|c: char| !(c.is_alphanumeric() || c == '\'' || c == '\u{2019}'))
+        .filter(|w| NEGATIONS.contains(w) || w.ends_with("n't") || w.ends_with("n\u{2019}t"))
+        .count()
+}
+
+/// M83b: why a typed statement does not assert what the question asks, or
+/// `None` when it does (`docs/measurements/m83b-assert-statement.md`).
+///
+/// M83's four held-out misses were statements that *dispute* the premise:
+/// "Nate did not take a picture of a sunflower…; Joanna did." The NLI model
+/// rightly entails a correction, and the pass then committed the answer.
+/// A statement must be the question's own claim with the answer filled in,
+/// which is the declarative form presupposition verification checks (Kim et
+/// al. 2021, arXiv 2101.00391). So in code, before the NLI model:
+/// - it may not hold more negating words than the question;
+/// - it may not name a dialogue speaker the question does not name.
+fn statement_disputes(statement: &str, question: &str, speakers: &[String]) -> Option<String> {
+    if negation_count(statement) > negation_count(question) {
+        return Some("negates the question".to_string());
+    }
+    speakers
+        .iter()
+        .find(|s| !name_occurrences(statement, s).is_empty() && name_occurrences(question, s).is_empty())
+        .map(|s| format!("names {s}, whom the question does not"))
+}
+
 /// M83: the statement about the dialogue's other speaker. It is `Some` only
 /// when the memories hold exactly two speakers and the statement names exactly
 /// one of them; every mention of that one becomes the other.
@@ -1748,6 +1788,9 @@ fn speaker_swap(statement: &str, speakers: &[String]) -> Option<String> {
 /// is about. Both decisions are the model's argmax, so there is no threshold.
 /// On M82's rows it separated all 13 swaps and kept every LongMemEval_S
 /// commit (the screen in the measurement doc).
+///
+/// **M83b, `assert_statement`:** a statement that disputes the question
+/// never reaches the NLI model ([`statement_disputes`]).
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn commit_typed_nli(
     llm: &dyn Llm,
@@ -1758,6 +1801,7 @@ pub(crate) async fn commit_typed_nli(
     question: &str,
     memories: &[String],
     speaker_contrast: bool,
+    assert_statement: bool,
 ) -> Result<(String, CommitOutcome, Option<String>)> {
     if !is_abstention(&response) {
         return Ok((response, CommitOutcome::default(), None));
@@ -1779,6 +1823,12 @@ pub(crate) async fn commit_typed_nli(
     let Some((answer, statement, cited)) = prepare_typed_nli(&second.text, question, memories) else {
         return Ok((response, fired, Some(second.text)));
     };
+    let speakers = dialogue_speakers(memories);
+    if assert_statement {
+        if let Some(why) = statement_disputes(&statement, question, &speakers) {
+            return Ok((response, fired, Some(format!("{} assert=rejected: {why}", second.text))));
+        }
+    }
     let premise = cited.join("\n");
     let probs = nli.classify(&premise, &statement).await?;
     let mut raw = format!(
@@ -1787,7 +1837,7 @@ pub(crate) async fn commit_typed_nli(
     );
     let mut entailed = probs.entails();
     if entailed && speaker_contrast {
-        if let Some(swapped) = speaker_swap(&statement, &dialogue_speakers(memories)) {
+        if let Some(swapped) = speaker_swap(&statement, &speakers) {
             let other = nli.classify(&premise, &swapped).await?;
             raw.push_str(&format!(
                 " swap=entailment {:.3} neutral {:.3} contradiction {:.3}",
@@ -3776,6 +3826,7 @@ fn finish_run(
         commit_typed_cited: spec.switches.commit_typed_cited,
         commit_typed_nli: spec.switches.commit_typed_nli,
         commit_speaker_contrast: spec.switches.commit_speaker_contrast,
+        commit_assert_statement: spec.switches.commit_assert_statement,
         resumed_rows: resumed,
         commit_samples: None,
         commit_agree: None,
@@ -3994,6 +4045,7 @@ pub fn rescore_run(source: &Path, out_dir: &Path, scorer: Scorer) -> Result<Benc
             commit_typed_cited: flag("commit_typed_cited"),
             commit_typed_nli: flag("commit_typed_nli"),
             commit_speaker_contrast: flag("commit_speaker_contrast"),
+            commit_assert_statement: flag("commit_assert_statement"),
             commit_answer: flag("commit_answer"),
             untrusted_max: metrics
                 .get("untrusted_max")
@@ -5250,18 +5302,18 @@ mod reader_tests {
         let q = "How many shirts did I pack for my trip to Costa Rica?";
         let reply = r#"{"answer":"7","mismatch":"none","statement":"I packed 7 shirts for my trip to Costa Rica.","supporting":[0]}"#;
         let (answer, outcome, raw) =
-            commit_typed_nli(&Says(reply), &FixedNli(ENTAILS), "sys", "user", "I don't know.".into(), q, &memories, false)
+            commit_typed_nli(&Says(reply), &FixedNli(ENTAILS), "sys", "user", "I don't know.".into(), q, &memories, false, false)
                 .await
                 .expect("nli answered");
         assert_eq!((answer.as_str(), outcome.committed), ("7", true));
         assert!(raw.is_some_and(|r| r.contains("nli=entailment 0.550")));
         let (answer, outcome, _) =
-            commit_typed_nli(&Says(reply), &FixedNli(CONTRADICTS), "sys", "user", "I don't know.".into(), q, &memories, false)
+            commit_typed_nli(&Says(reply), &FixedNli(CONTRADICTS), "sys", "user", "I don't know.".into(), q, &memories, false, false)
                 .await
                 .expect("nli answered");
         assert_eq!((answer.as_str(), outcome.committed), ("I don't know.", false));
         assert!(
-            commit_typed_nli(&Says(reply), &DeadNli, "sys", "user", "I don't know.".into(), q, &memories, false).await.is_err(),
+            commit_typed_nli(&Says(reply), &DeadNli, "sys", "user", "I don't know.".into(), q, &memories, false, false).await.is_err(),
             "a dead NLI server must not read as no commits"
         );
     }
@@ -5321,7 +5373,7 @@ mod reader_tests {
         let run = |nli: &'static dyn Nli, contrast: bool| {
             let memories = memories.clone();
             async move {
-                commit_typed_nli(&Says(reply), nli, "sys", "user", "I don't know.".into(), q, &memories, contrast)
+                commit_typed_nli(&Says(reply), nli, "sys", "user", "I don't know.".into(), q, &memories, contrast, false)
                     .await
                     .expect("nli answered")
             }
@@ -5335,6 +5387,46 @@ mod reader_tests {
         static CAROLINE: EntailsAbout = EntailsAbout("Caroline");
         let (answer, outcome, _) = run(&CAROLINE, true).await;
         assert_eq!((answer.as_str(), outcome.committed), ("self-care matters", true), "only Caroline's claim is entailed");
+    }
+
+    /// M83b: M83's four held-out misses dispute the question; a statement
+    /// that fills in the question's own claim passes.
+    #[test]
+    fn a_statement_that_disputes_the_question_is_caught() {
+        let two = vec!["Nate".to_string(), "Joanna".to_string()];
+        let q = "What did Nate take a picture of near Fort Wayne last summer?";
+        assert_eq!(
+            statement_disputes("Nate did not take a picture of a sunflower near Fort Wayne; Joanna did.", q, &two).as_deref(),
+            Some("negates the question")
+        );
+        assert_eq!(
+            statement_disputes("Joanna mentioned that Nate took a picture of a sunflower near Fort Wayne.", q, &two).as_deref(),
+            Some("names Joanna, whom the question does not")
+        );
+        assert_eq!(statement_disputes("Nate took a picture of a sunflower near Fort Wayne last summer.", q, &two), None);
+        assert_eq!(
+            statement_disputes("Witcher 3 inspired James to create his game, not a painting.", "What inspired James to create his painting?", &[]).as_deref(),
+            Some("negates the question")
+        );
+        let why = "Why didn't Caroline go to the parade?";
+        assert_eq!(statement_disputes("Caroline didn't go to the parade because she was sick.", why, &[]), None, "the question's own negation");
+        assert_eq!(negation_count("I didn\u{2019}t know, and no, I never did."), 3);
+    }
+
+    /// M83b keeps the decline before the NLI model is asked.
+    #[tokio::test]
+    async fn a_disputing_statement_never_reaches_the_nli_model() {
+        let memories = vec![
+            "[2022-06-01] Joanna: I took a picture of a sunflower near Fort Wayne!\nNate: Beautiful!".to_string(),
+        ];
+        let q = "What did Nate take a picture of near Fort Wayne?";
+        let reply = r#"{"answer":"a sunflower","mismatch":"none","statement":"Nate did not take a picture of a sunflower near Fort Wayne; Joanna did.","supporting":[0]}"#;
+        let (answer, outcome, raw) =
+            commit_typed_nli(&Says(reply), &DeadNli, "sys", "user", "I don't know.".into(), q, &memories, true, true)
+                .await
+                .expect("rejected in code, so the dead NLI server is never called");
+        assert_eq!((answer.as_str(), outcome.committed), ("I don't know.", false));
+        assert!(raw.is_some_and(|r| r.contains("assert=rejected: negates the question")));
     }
 
     #[test]
