@@ -95,6 +95,29 @@
       }
     },
     {
+      "id": "locomo.judge.hindsight.gptoss20b",
+      "metric": "locomo.judge_score.n1540",
+      "benchmark": "locomo",
+      "system": "Hindsight (gpt-oss-20b)",
+      "value": 83.18,
+      "unit": "pct_0_100",
+      "direction": "higher_is_better",
+      "n": 1540,
+      "backbone": "gpt-oss-20b",
+      "backbone_class": "open_weights",
+      "judge_class": "open_weights_local",
+      "provenance": "paper",
+      "gate": false,
+      "caveat": "Found 2026-09-29. Judge: GPT-OSS-120B for every system; the paper gives LongMemEval's judge templates but no LoCoMo prompt, so this row is not matched to LightMem's prompt (our 78.64) nor to our strict 9B judge (70.84). Four categories (single-hop, open-domain, multi-hop, temporal): the 1,540 non-adversarial questions.",
+      "source": {
+        "doi": "10.48550/arXiv.2512.12818",
+        "stem": "10.48550_arxiv.2512.12818",
+        "locator": "Table 4, row Hindsight (OSS-20B), column Overall; text after the table",
+        "lines": "L1362-L1364",
+        "quote": "\"raising overall accuracy from 75.78% (Memobase) to 83.18% with OSS-20B and 85.67% with OSS-120B\""
+      }
+    },
+    {
       "id": "locomo.judge_lightmem.mempro15.qwen3_30b",
       "metric": "locomo.judge_score_lightmem.n1540",
       "benchmark": "locomo",
@@ -210,6 +233,29 @@
         "locator": "Table 1, row MemPro-15 under the Qwen3-30B-A3B-Instruct-2507 backbone header, column LongMemEval Avg.",
         "lines": "L235",
         "quote": "<td>MemPro-15</td><td>71.43</td><td>75.94</td><td>82.05</td><td>92.86</td><td>98.21</td><td>80.00</td><td>80.80</td><td>75.17</td><td>70.83</td><td>83.47</td><td>67.60</td><td>77.85</td>"
+      }
+    },
+    {
+      "id": "longmemeval_s.judge.hindsight.gptoss20b",
+      "metric": "longmemeval_s.judge_score.n500",
+      "benchmark": "longmemeval_s",
+      "system": "Hindsight (gpt-oss-20b)",
+      "value": 83.6,
+      "unit": "pct_0_100",
+      "direction": "higher_is_better",
+      "n": 500,
+      "backbone": "gpt-oss-20b",
+      "backbone_class": "open_weights",
+      "judge_class": "open_weights_local",
+      "provenance": "paper",
+      "gate": false,
+      "caveat": "Found 2026-09-29 by the landscape check; v1 is dated 2025-12-14 and was missed by every earlier catalog. The strongest same-class LongMemEval_S row we know: gpt-oss-20b does fact extraction, reflection and answering. Judge: GPT-OSS-120B for every system in the table, with LongMemEval's own per-question-type judge templates (App. A.4) - the official grader's prompts on a different model, so it sits between our strict 9B judge and LongMemEval's gpt-4o-mini grader. Micro-average check: (95.7*70 + 94.6*56 + 66.7*30 + 84.6*78 + 79.7*133 + 79.7*133)/500 = 83.6 (418/500). Single run, no CI. Its lead over our shipped point sits in the single-session strata (user 95.7, assistant 94.6, preference 66.7).",
+      "source": {
+        "doi": "10.48550/arXiv.2512.12818",
+        "stem": "10.48550_arxiv.2512.12818",
+        "locator": "Table 3, column Hindsight (OSS-20B), row Overall; judge stated in the paragraph after the table",
+        "lines": "L1346-L1352",
+        "quote": "Overall ... 83.6 [Hindsight (OSS-20B)]; \"Our Hindsight results on both benchmarks are evaluated with a GPT-OSS-120B LLM-as-a-judge for all methods to ensure consistent scoring\""
       }
     },
     {
