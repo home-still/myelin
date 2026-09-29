@@ -13,8 +13,9 @@ newer, or anything we missed, that beats those numbers in the same class.
   lines 1346–1352.
 - Both Hindsight rows are now in `docs/sota/registry.json`.
 
-**Verdict:**
-- **LongMemEval_S: one same-class row beats us.** Hindsight on gpt-oss-20b
+**Verdict (amended the same day, see "The evidence-label leak" below):**
+- **LongMemEval_S: one same-class row scored higher, and it is not a clean
+  measurement.** Hindsight on gpt-oss-20b
   scores 83.6, against our 81.53 official / 81.20 strict.
   - Its judge is GPT-OSS-120B with LongMemEval's own per-type templates:
     the official prompts, on a different grader model.
@@ -84,3 +85,48 @@ newer, or anything we missed, that beats those numbers in the same class.
 - **Judge:** GPT-OSS-120B is allowed to reason before a boxed verdict. That is not byte-identical to LongMemEval's gpt-4o grader, so the +2.07 margin sits within plausible judge-swap variance.
 - **Next step:** re-grade their released per-question outputs with our official gpt-4o-mini grader. That would settle it.
 - **An error this check caught:** a WebFetch summary gave TiMem's gpt-4o LongMemEval_S score as 87.69. The paper text says 78.96. The table uses the text value.
+
+
+---
+
+## The evidence-label leak (verified 2026-09-29, after the sweep)
+
+The user chose to verify Hindsight's 83.6 on matched grading before adopting
+it. Scoping the re-run found a leak, and this session verified it
+independently.
+
+1. **The dataset names its evidence.**
+   - LongMemEval_S haystack session ids start with `answer_` for exactly the
+     evidence sessions: 948 of 25,112 ids.
+   - Every evidence session has the prefix, and no other session does
+     (checked on `data/longmemeval_s.json`).
+2. **Hindsight's paper-era runner passes those ids to the reader.** At tag
+   v0.1.4, `hindsight-dev/benchmarks/longmemeval/longmemeval_benchmark.py`:
+   - L77: `document_id = f"{question_id}_{session_id}"`;
+   - L80: `"context": f"Session {document_id} - you are the assistant in this
+     conversation - happened on …"`;
+   - the default context format is `json`, and L149–L151 `json.dumps` the
+     whole recall result into the answer prompt.
+3. **The released runs show it.** Every memory keeps its `context` and
+   `document_id`.
+   - The paper's Gemini-3 run, `hindsight-benchmarks@40a8fc7`,
+     `results/longmemeval.json`: in all 500 questions the answer model sees
+     about 69 memories, 32% of them (10,953 of 34,569) labelled `answer_`,
+     among unlabelled distractors.
+   - The early gpt-oss-20b run (`@54d3ef2`) also has labels in all 500
+     questions. It scores 96.4.
+4. **myelin is clean.** The shipped replicates show no `answer_` in any
+   row's evidence or reader trace (0 of 500). Session ids live only in
+   provenance (`SourceRef`), which the reader never sees.
+
+**Consequences:**
+- `docs/sota/registry.json` now records `protocol_defect` on the Hindsight
+  LongMemEval_S row. `standing` renders it `not-comparable(…)` and quotes no
+  gap.
+- The Hindsight LoCoMo row (83.18) keeps its judge caveat. LoCoMo's session
+  ids name no evidence, and its LoCoMo prompt is unknown.
+- The strongest clean same-class LongMemEval_S row remains MemPro-15 on
+  Qwen3-30B-A3B (80.80). We lead it by 0.73 official.
+- **Re-running Hindsight cleanly** (anonymised ids) is possible on big
+  without sudo. It is about 118k LLM calls, an estimated 15–40 GPU hours
+  (`scratchpad` runbook). It is not scheduled.

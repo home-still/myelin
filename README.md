@@ -160,8 +160,20 @@ graded by a different model.
 - We lead on temporal (+2.0) and knowledge-update (+0.3).
 - It also reports 83.18 on LoCoMo, under a judge whose LoCoMo prompt it does
   not give.
-- Both rows are in the registry, so `standing` tracks them. The MemPro-15
-  bar we closed is no longer the strongest same-class number.
+- Both rows are in the registry, so `standing` tracks them.
+
+**Then we checked how that 83.6 was produced, and it is not the same task.**
+- LongMemEval_S names exactly its evidence sessions `answer_*`.
+- Hindsight's paper-era runner stores each session under that id, and hands
+  the whole recall result, ids included, to the answer model.
+- In the paper's own released run, every question shows the answer model
+  about 69 memories. About a third of them carry the `answer_` label, among
+  unlabelled distractors.
+- myelin's reader never sees a session id.
+- So `standing` marks that row `not-comparable`, and MemPro-15 on
+  Qwen3-30B (80.80) stays the strongest clean same-class row we know
+  (`docs/research/sota-catalog-2026-09-29.md`, "The evidence-label
+  leak").
 § **LoCoMo, graded the way the row we chase was graded
 ([M68](docs/measurements/m68-matched-judge.md)):** MemPro's 77.85 came from
 gpt-4o-mini with LightMem's lenient prompt. The same grader, byte for byte,
