@@ -94,6 +94,24 @@ first arm to question the measurement apparatus rather than the mechanism.
 
 ---
 
+## Round-5 bundle, seed-replicated: **official 81.13, past 80.80; strict +2.5 [+1.0, +4.2]**, short of the +3.0 bar *(2026-09-28)*
+
+- **What ran:** M71b, M72b, M73b and the preference clause M77c, measured as
+  the user chose. The 183 gated rows were rerun at seeds 1–3; every other
+  row is M57's in both arms.
+- **Seed means:**
+  - strict 80.80 vs 78.27, **+2.5 [+1.0, +4.2]** (26/12);
+  - official **81.13** vs 77.87, **+3.3 [+1.7, +5.0]** (31/11);
+  - abstention holds.
+- **Where the gain is:** preference official +16.7 (12/2), multi-session
+  strict +5.0, temporal +2.3 / +3.3.
+- **Verdict:** the strict +3.0 bar fails on size, so under the rule it does
+  not ship. It is the first matched-grader reading past MemPro-15's 80.80,
+  and the ship decision goes to the user.
+- **Incidents:** two Qdrant restarts and a hung shell `wait`; every row
+  resumed. Reads now retry through restarts (#168).
+- Doc: `r5-bundle-seeds.md`.
+
 ## M78 — the advice answer as structure: **strict +12.2 [−1.1, +25.6], official +16.7**; the gate fails and M77c stays *(2026-09-28)*
 
 - **Mechanism:** `--advice-answer`. For advice requests, the thinking

@@ -89,3 +89,74 @@ Since then, preference has its first working mechanism. The clause alone
   method does not hold. Stop.
 - **Strict below +0.5:** the mechanisms do not add once noise is averaged,
   and round 4's result was mostly noise.
+
+## Result — official seed mean 81.13, past 80.80; strict +2.5, short of the +3.0 bar *(measured 2026-09-28, 21:38)*
+
+**The runs:**
+- Bundle `r5_bundle_s{1,2,3}_grounded`: 183 rerun rows per seed, then the
+  grounded pass, which committed 8, 8 and 6 of 73, 72 and 76 declines.
+- Base `m57_bonsai_premise_s1`, `r5_base_s2`, `r5_base_s3`.
+
+Readings: the strict 9B with the preference rubric, and LongMemEval's
+official grader (gpt-4o-mini). `paired_ci` over three replicates a side.
+
+| reading | bundle (seed mean) | base (seed mean) | Δ [95% CI] | p | W/L (sign p) |
+|---|---|---|---|---|---|
+| **strict 9B** | **80.80** (80.4, 81.2, 80.8) | 78.27 (79.0, 78.0, 77.8) | **+2.5 [+1.0, +4.2]** | 0.0010 | 26/12 (0.034) |
+| **official** | **81.13** (80.2, 81.6, 81.6) | 77.87 (78.6, 78.0, 77.0) | **+3.3 [+1.7, +5.0]** | < 0.0001 | 31/11 (0.003) |
+| abstention, strict | 29.33 / 30 | 29.00 / 30 | +1.1 | | 1/0 |
+| abstention, official | 28.00 / 30 | 28.00 / 30 | +0.0 | | 1/1 |
+
+**By category** (strict / official Δ):
+
+| category | strict Δ | official Δ |
+|---|---|---|
+| 3, preference | +5.6 | **+16.7** (12/2) |
+| 4, multi-session | **+5.0** | +3.8 |
+| 5, temporal | **+2.3** | **+3.3** |
+| 1, 2, 6 | within ±2.4 | within ±3.3 |
+
+Single-session-assistant loses one row strict. Knowledge-update is flat.
+
+**The bar:**
+
+| criterion | result | |
+|---|---|---|
+| strict Δ ≥ +3.0 with CI > 0 | +2.5, CI [+1.0, +4.2] | **fails on size** (the CI clears zero) |
+| abstention seed mean ≥ 29/30 and ≥ base | 29.33 ≥ 29.00 | holds |
+| official seed mean > 80.80 | **81.13** | **holds** |
+
+**As pre-registered, the bundle does not ship under the user's rule.** It is
+the first measurement in this project to put LongMemEval_S past MemPro-15's
+80.80 under the matched grader. The CI of +3.3 official excludes zero, it
+wins 31 questions and loses 11, and abstention holds. Whether that ships is
+the user's call (plan step 2.4).
+
+**Predictions against the result:**
+
+| prediction | result | |
+|---|---|---|
+| round 4's three mechanisms about +0.5 to +1.2 strict, the clause about +0.6: together +1.0 to +2.2 strict | +2.5 | above the range |
+| official +1.5 to +3.0 | +3.3 | above the range |
+| official seed mean 79.6–81.1 | 81.13 | at the top |
+| abstention unchanged | strict +0.33, official ±0 | held |
+| the +3.0 strict bar fails | +2.5 | held |
+
+- The falsifier "strict below +0.5" did not fire.
+- The control held: the 5 rows outside U reproduced M57's evidence byte for
+  byte.
+
+**Incidents, and why the numbers still stand:**
+- **12:11:** home-still's shared Qdrant container restarted and killed seed
+  1 at row 57. It was resumed with `bench --resume`.
+- **15:00:** the driver hung in a bare `wait`, which also waits on its own
+  lease-renewal loop. A continuation unit ran the remaining steps under the
+  held lease.
+- **16:07:** a second Qdrant restart, from home-still's rc.358 deploy,
+  killed seed 3 at row 33. Recovering it also stopped base seed 2's lane.
+  Both were resumed from their saved rows.
+- A resumed row is read exactly as an uninterrupted one would be: same
+  flags, same seed, same serving. Every rerun row exists exactly once, and
+  `merge_close` asserts the 183/154 rerun rows and 500 total per run.
+- Since then, reads retry through a transport failure (#168), and the
+  drivers wait on named PIDs or units.
