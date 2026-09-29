@@ -33,7 +33,10 @@ serde = { version = "1", features = ["derive"] }
 # llama.cpp generates fields in that order. Without it serde_json sorted every
 # object's keys, so no schema's intended order ever reached the model
 # (docs/measurements/defect-2026-09-28-schema-field-order.md).
-serde_json = { version = "1", features = ["preserve_order"] }
+# `float_roundtrip`: a float reads back exactly as it was written. Without it
+# the ratchet's own pin 60.484971494365276 read back one ULP high and failed
+# `ratchet --strict` against the value it had just written (2026-09-29).
+serde_json = { version = "1", features = ["preserve_order", "float_roundtrip"] }
 sqlx = { version = "0.9", features = ["runtime-tokio", "sqlite", "chrono", "uuid", "macros"], default-features = false }
 thiserror = "2"
 tokio = { version = "1", features = ["full"] }
