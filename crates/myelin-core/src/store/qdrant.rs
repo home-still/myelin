@@ -106,6 +106,11 @@ pub const LEX: &str = "lex";
 /// which is why it works without an inference service.
 pub const BM25_MODEL: &str = "qdrant/bm25";
 
+/// The order every ranked list is cut in: score, then point id ([`order_hits`]).
+/// `bench` records it on every artifact, and `standing` quotes no run that
+/// does not (2026-09-30).
+pub const TIE_ORDER: &str = "score_then_id";
+
 /// Hits past a list's cutoff that every channel query asks for, so a tie that
 /// straddles the cutoff is usually visible without a second round trip.
 const TIE_PROBE_EXTRA: u64 = 32;
