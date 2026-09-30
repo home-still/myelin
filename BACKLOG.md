@@ -34,8 +34,17 @@ its history. Short version:
     → **81.20 strict / 81.53 official** (NLI premise).
   - The margin is small, and every number is a seed mean
     (`docs/measurements/r5-bundle-seeds.md`).
-- **LoCoMo: the gate closes under MemPro's own judge (M68, 2026-09-25),
-  widened by M84 (2026-09-29).**
+- **LoCoMo: the bar moved on 2026-09-30, and the gate is open at −5.77.**
+  - LeanMem (Qwen3-8B, arXiv 2608.03463) reports **84.41** under SimpleMem's
+    judge (GPT-4.1-mini).
+  - Our shipped answers, re-graded with that judge verbatim
+    (`judge_matched.py --protocol simplemem-locomo`), score **78.64**.
+  - The user adopted LeanMem as the bar. Its prompt appendix and code are
+    unpublished, and its number is a 5-run mean.
+  - `docs/research/sota-catalog-2026-09-30.md`.
+- **LoCoMo against MemPro-15: closed under MemPro's own judge (M68,
+  2026-09-25), widened by M84 (2026-09-29). Now a comparison, not the
+  gate.**
   - Graded the way the 77.85 row was graded (gpt-4o-mini, LightMem's
     prompt), we score **78.64**, a `comparable` row, +0.79. It was 78.18
     before M84 re-asked declined "Would X likely…?" questions.
