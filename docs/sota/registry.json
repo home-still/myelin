@@ -96,7 +96,7 @@
     },
     {
       "id": "locomo.judge.hindsight.gptoss20b",
-      "metric": "locomo.judge_score.n1540",
+      "metric": "locomo.judge_score_gptoss120b.n1540",
       "benchmark": "locomo",
       "system": "Hindsight (gpt-oss-20b)",
       "value": 83.18,
@@ -260,7 +260,7 @@
     },
     {
       "id": "locomo.judge.memchain.qwen3_14b",
-      "metric": "locomo.judge_score.n1540",
+      "metric": "locomo.judge_score_locomo_refined.n1540",
       "benchmark": "locomo",
       "system": "MemChain SFT+TMPO (Qwen3-4B policy, Qwen3-14B answers)",
       "value": 80.26,

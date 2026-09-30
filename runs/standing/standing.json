@@ -1,27 +1,36 @@
 {
-  "commit": "bddaef0450e5dcdafc19e335defb92c8f69013e0-dirty",
-  "generated_at": "2026-09-30T21:09:11.108344Z",
+  "commit": "e290b622b26fb0dc609d6e9b9af2495b530d08a9-dirty",
+  "generated_at": "2026-09-30T23:09:45.339457Z",
   "rows": [
     {
       "registry_id": "locomo.judge.mempro15.gpt4omini",
       "metric": "locomo.judge_score.n1540",
       "system": "MemPro-15",
       "theirs": 84.93,
-      "ours": 70.84415584415584,
+      "ours": 70.9090909090909,
       "ours_n": 1540,
-      "gap": null,
+      "gap": -14.0209090909091,
       "verdict": {
-        "verdict": "stale_config",
-        "detail": "artifact does not record tie_order; re-measure on this code before quoting it"
+        "verdict": "caveat_judge",
+        "ours": "open_weights_local",
+        "theirs": "frontier_api"
       },
       "claim_allowed": false,
       "gate": false,
       "arm": false,
-      "run": "runs/m84_locomo_base",
+      "run": "runs/det_locomo_m84",
       "source_doi": "10.48550/arXiv.2606.00619",
       "caveat": "Judge is GPT-4o-mini with LightMem's LoCoMo prompt (L122). 10% of each dataset was sampled for MemPro's evolution training and the numbers are on the remainder (L120) - but the Avg. column reproduces exactly as the micro-average over the FULL official category counts (82.26*282 + 62.50*96 + 90.01*841 + 80.68*321)/1540 = 84.93, so the population is LoCoMo's 1,540 non-adversarial questions in their official proportions.",
-      "detail": "judge qwen3.5-9b : 1091 of 1540 correct (102 declines scored 0)",
+      "detail": "judge qwen3.5-9b : 1092 of 1540 correct (103 declines scored 0)",
       "candidates": [
+        {
+          "run": "runs/det_locomo_m84",
+          "value": 70.9090909090909
+        },
+        {
+          "run": "runs/det_locomo_base",
+          "value": 70.45454545454545
+        },
         {
           "run": "runs/m84_locomo_base",
           "value": 70.84415584415584
@@ -153,21 +162,26 @@
       "metric": "locomo.judge_score_lightmem.n1540",
       "system": "MemPro-15",
       "theirs": 84.93,
-      "ours": 78.63636363636364,
+      "ours": 78.37662337662337,
       "ours_n": 1540,
-      "gap": null,
+      "gap": -6.553376623376636,
       "verdict": {
-        "verdict": "stale_config",
-        "detail": "artifact does not record tie_order; re-measure on this code before quoting it"
+        "verdict": "caveat_backbone",
+        "ours": "open_weights",
+        "theirs": "frontier_api"
       },
       "claim_allowed": false,
       "gate": false,
       "arm": false,
-      "run": "runs/m84_locomo_base",
+      "run": "runs/det_locomo_m84",
       "source_doi": "10.48550/arXiv.2606.00619",
       "caveat": "MemPro-15 on gpt-4o-mini, graded with LightMem's LoCoMo prompt on GPT-4o-mini (L122) - the protocol M68 reproduces. The Avg. column reproduces exactly as the micro-average over the FULL official category counts (82.26*282 + 62.50*96 + 90.01*841 + 80.68*321)/1540 = 84.93, so the population is LoCoMo's 1,540 non-adversarial questions in their official proportions.",
-      "detail": "protocol lightmem-locomo (openai/gpt-4o-mini): 1211 of 1540 correct",
+      "detail": "protocol lightmem-locomo (openai/gpt-4o-mini): 1207 of 1540 correct",
       "candidates": [
+        {
+          "run": "runs/det_locomo_m84",
+          "value": 78.37662337662337
+        },
         {
           "run": "runs/m84_locomo_base",
           "value": 78.63636363636364
@@ -195,21 +209,26 @@
       "metric": "locomo.judge_score_matched.n1540",
       "system": "MemPro-15",
       "theirs": 84.93,
-      "ours": 78.63636363636364,
+      "ours": 78.37662337662337,
       "ours_n": 1540,
-      "gap": null,
+      "gap": -6.553376623376636,
       "verdict": {
-        "verdict": "stale_config",
-        "detail": "artifact does not record tie_order; re-measure on this code before quoting it"
+        "verdict": "caveat_backbone",
+        "ours": "open_weights",
+        "theirs": "frontier_api"
       },
       "claim_allowed": false,
       "gate": false,
       "arm": false,
-      "run": "runs/m84_locomo_base",
+      "run": "runs/det_locomo_m84",
       "source_doi": "10.48550/arXiv.2606.00619",
       "caveat": "MemPro-15 on gpt-4o-mini under the every-reading matched metric (LightMem's prompt and MemPro's repo judge, lowest of the two). The Avg. column reproduces exactly as the micro-average over the FULL official category counts (82.26*282 + 62.50*96 + 90.01*841 + 80.68*321)/1540 = 84.93, so the population is LoCoMo's 1,540 non-adversarial questions in their official proportions.",
-      "detail": "the lowest of every reading: locomo.judge_score_lightmem.n1540 78.64, locomo.judge_score_mempro.n1540 80.78",
+      "detail": "the lowest of every reading: locomo.judge_score_lightmem.n1540 78.38, locomo.judge_score_mempro.n1540 80.78",
       "candidates": [
+        {
+          "run": "runs/det_locomo_m84",
+          "value": 78.37662337662337
+        },
         {
           "run": "runs/m84_locomo_base",
           "value": 78.63636363636364
@@ -229,21 +248,30 @@
       "metric": "locomo.judge_score.n1540",
       "system": "MemPro-15 (Qwen3-30B)",
       "theirs": 77.85,
-      "ours": 70.84415584415584,
+      "ours": 70.9090909090909,
       "ours_n": 1540,
-      "gap": null,
+      "gap": -6.940909090909088,
       "verdict": {
-        "verdict": "stale_config",
-        "detail": "artifact does not record tie_order; re-measure on this code before quoting it"
+        "verdict": "caveat_judge",
+        "ours": "open_weights_local",
+        "theirs": "frontier_api"
       },
       "claim_allowed": false,
       "gate": false,
       "arm": false,
-      "run": "runs/m84_locomo_base",
+      "run": "runs/det_locomo_m84",
       "source_doi": "10.48550/arXiv.2606.00619",
       "caveat": "G2's LoCoMo bar (PLAN.md 11.5): MemPro's own open-weights backbone, so the answer-model class matches ours. The judge is still GPT-4o-mini (L122), which is the one asymmetry left in this comparison. Avg. reproduces as the micro-average over the full 1,540: (75.17*282 + 70.83*96 + 83.47*841 + 67.60*321)/1540 = 77.85. The gate moved to locomo.judge_lightmem.mempro15.qwen3_30b (M68, user 2026-09-25): the same row graded by the same judge. This strict-judge comparison stays published and caveat-judge.",
-      "detail": "judge qwen3.5-9b : 1091 of 1540 correct (102 declines scored 0)",
+      "detail": "judge qwen3.5-9b : 1092 of 1540 correct (103 declines scored 0)",
       "candidates": [
+        {
+          "run": "runs/det_locomo_m84",
+          "value": 70.9090909090909
+        },
+        {
+          "run": "runs/det_locomo_base",
+          "value": 70.45454545454545
+        },
         {
           "run": "runs/m84_locomo_base",
           "value": 70.84415584415584
@@ -372,170 +400,48 @@
     },
     {
       "registry_id": "locomo.judge.hindsight.gptoss20b",
-      "metric": "locomo.judge_score.n1540",
+      "metric": "locomo.judge_score_gptoss120b.n1540",
       "system": "Hindsight (gpt-oss-20b)",
       "theirs": 83.18,
-      "ours": 70.84415584415584,
-      "ours_n": 1540,
+      "ours": null,
+      "ours_n": null,
       "gap": null,
       "verdict": {
-        "verdict": "stale_config",
-        "detail": "artifact does not record tie_order; re-measure on this code before quoting it"
+        "verdict": "missing_artifact",
+        "command": "not reproduced: GPT-OSS-120B judge with Hindsight's unstated LoCoMo prompt"
       },
       "claim_allowed": false,
       "gate": false,
       "arm": false,
-      "run": "runs/m84_locomo_base",
+      "run": null,
       "source_doi": "10.48550/arXiv.2512.12818",
       "caveat": "Found 2026-09-29. Judge: GPT-OSS-120B for every system; the paper gives LongMemEval's judge templates but no LoCoMo prompt, so this row is not matched to LightMem's prompt (our 78.64) nor to our strict 9B judge (70.84). Four categories (single-hop, open-domain, multi-hop, temporal): the 1,540 non-adversarial questions.",
-      "detail": "judge qwen3.5-9b : 1091 of 1540 correct (102 declines scored 0)",
-      "candidates": [
-        {
-          "run": "runs/m84_locomo_base",
-          "value": 70.84415584415584
-        },
-        {
-          "run": "runs/m63_locomo_inline",
-          "value": 70.71428571428572
-        },
-        {
-          "run": "runs/m82_locomo_base",
-          "value": 70.64935064935065
-        },
-        {
-          "run": "runs/m81_locomo_base",
-          "value": 70.58441558441558
-        },
-        {
-          "run": "runs/m83_locomo_base",
-          "value": 70.58441558441558
-        },
-        {
-          "run": "runs/m83b_locomo_base",
-          "value": 70.58441558441558
-        },
-        {
-          "run": "runs/m63_locomo_base",
-          "value": 70.51948051948051
-        },
-        {
-          "run": "runs/m61_locomo_grounded",
-          "value": 70.06493506493506
-        },
-        {
-          "run": "runs/m83_locomo_m50c",
-          "value": 70.06493506493506
-        },
-        {
-          "run": "runs/m19_locomo_full",
-          "value": 69.87012987012987
-        },
-        {
-          "run": "runs/m50c_locomo_events",
-          "value": 69.87012987012987
-        },
-        {
-          "run": "runs/m50b_locomo_events",
-          "value": 69.74025974025973
-        },
-        {
-          "run": "runs/m83b_locomo_m50b",
-          "value": 69.74025974025973
-        },
-        {
-          "run": "runs/m59_locomo_bonsai_bestguess",
-          "value": 67.92207792207792
-        },
-        {
-          "run": "runs/m83b_locomo_m55b",
-          "value": 67.27272727272727
-        },
-        {
-          "run": "runs/m55b_locomo_bonsai",
-          "value": 66.68831168831169
-        },
-        {
-          "run": "runs/m83_locomo_m51",
-          "value": 65.25974025974025
-        },
-        {
-          "run": "runs/m83b_locomo_m51",
-          "value": 65.25974025974025
-        },
-        {
-          "run": "runs/m51_locomo_s1",
-          "value": 65.06493506493507
-        },
-        {
-          "run": "runs/m63_locomo_dedupe",
-          "value": 62.5974025974026
-        },
-        {
-          "run": "runs/m21_mh_base",
-          "value": 58.156028368794324
-        },
-        {
-          "run": "runs/m21_mh_sel",
-          "value": 54.96453900709219
-        },
-        {
-          "run": "runs/m51_locomo_s1.part10",
-          "value": 68.55345911949685
-        },
-        {
-          "run": "runs/m51_locomo_s1.part11",
-          "value": 66.66666666666666
-        },
-        {
-          "run": "runs/m51_locomo_s1.part5",
-          "value": 65.40880503144653
-        },
-        {
-          "run": "runs/m51_locomo_s1.part9",
-          "value": 63.52201257861635
-        },
-        {
-          "run": "runs/m51_locomo_s1.part6",
-          "value": 69.62025316455697
-        },
-        {
-          "run": "runs/m51_locomo_s1.part7",
-          "value": 66.45569620253164
-        },
-        {
-          "run": "runs/m51_locomo_s1.part4",
-          "value": 60.75949367088608
-        },
-        {
-          "run": "runs/m51_locomo_s1.part8",
-          "value": 63.69426751592356
-        },
-        {
-          "run": "runs/locomo_recall",
-          "value": 62.66233766233766
-        }
-      ]
+      "detail": null,
+      "candidates": []
     },
     {
       "registry_id": "locomo.judge_lightmem.mempro15.qwen3_30b",
       "metric": "locomo.judge_score_lightmem.n1540",
       "system": "MemPro-15 (Qwen3-30B)",
       "theirs": 77.85,
-      "ours": 78.63636363636364,
+      "ours": 78.37662337662337,
       "ours_n": 1540,
-      "gap": null,
+      "gap": 0.5266233766233768,
       "verdict": {
-        "verdict": "stale_config",
-        "detail": "artifact does not record tie_order; re-measure on this code before quoting it"
+        "verdict": "comparable"
       },
-      "claim_allowed": false,
+      "claim_allowed": true,
       "gate": false,
       "arm": false,
-      "run": "runs/m84_locomo_base",
+      "run": "runs/det_locomo_m84",
       "source_doi": "10.48550/arXiv.2606.00619",
       "caveat": "G2's LoCoMo bar, graded the way it was graded (M68): GPT-4o-mini with LightMem's LoCoMo prompt (L122, Fig. 10), the protocol adapters/judge_lightmem.py reproduces byte for byte. One reading of MemPro's protocol; the gate is decided on locomo.judge_score_matched.n1540, the lowest of every runnable reading (M68b).",
-      "detail": "protocol lightmem-locomo (openai/gpt-4o-mini): 1211 of 1540 correct",
+      "detail": "protocol lightmem-locomo (openai/gpt-4o-mini): 1207 of 1540 correct",
       "candidates": [
+        {
+          "run": "runs/det_locomo_m84",
+          "value": 78.37662337662337
+        },
         {
           "run": "runs/m84_locomo_base",
           "value": 78.63636363636364
@@ -563,21 +469,24 @@
       "metric": "locomo.judge_score_matched.n1540",
       "system": "MemPro-15 (Qwen3-30B)",
       "theirs": 77.85,
-      "ours": 78.63636363636364,
+      "ours": 78.37662337662337,
       "ours_n": 1540,
-      "gap": null,
+      "gap": 0.5266233766233768,
       "verdict": {
-        "verdict": "stale_config",
-        "detail": "artifact does not record tie_order; re-measure on this code before quoting it"
+        "verdict": "comparable"
       },
-      "claim_allowed": false,
+      "claim_allowed": true,
       "gate": false,
       "arm": false,
-      "run": "runs/m84_locomo_base",
+      "run": "runs/det_locomo_m84",
       "source_doi": "10.48550/arXiv.2606.00619",
       "caveat": "Was G2's LoCoMo bar until 2026-09-30, when the user adopted LeanMem (Qwen3-8B) 84.41 under SimpleMem's judge (locomo.judge_simplemem.leanmem.qwen3_8b); kept as a comparison. G2's LoCoMo bar under the every-reading rule (user, 2026-09-25): our number is the lowest of LightMem's prompt (what the paper cites, L122/Fig. 10) and MemPro's own repo judge (eval/locomo_test.py@834b1ce), both gpt-4o-mini. Their number is a mean of 3 runs at temperature 0.7; ours is one run. Avg. reproduces as (75.17*282 + 70.83*96 + 83.47*841 + 67.60*321)/1540 = 77.85.",
-      "detail": "the lowest of every reading: locomo.judge_score_lightmem.n1540 78.64, locomo.judge_score_mempro.n1540 80.78",
+      "detail": "the lowest of every reading: locomo.judge_score_lightmem.n1540 78.38, locomo.judge_score_mempro.n1540 80.78",
       "candidates": [
+        {
+          "run": "runs/det_locomo_m84",
+          "value": 78.37662337662337
+        },
         {
           "run": "runs/m84_locomo_base",
           "value": 78.63636363636364
@@ -597,21 +506,24 @@
       "metric": "locomo.judge_score_simplemem.n1540",
       "system": "LeanMem (Qwen3-8B)",
       "theirs": 84.41,
-      "ours": 78.63636363636364,
+      "ours": 79.02597402597402,
       "ours_n": 1540,
-      "gap": null,
+      "gap": -5.384025974025974,
       "verdict": {
-        "verdict": "stale_config",
-        "detail": "artifact does not record tie_order; re-measure on this code before quoting it"
+        "verdict": "comparable"
       },
       "claim_allowed": false,
       "gate": true,
       "arm": false,
-      "run": "runs/m84_locomo_base",
+      "run": "runs/det_locomo_m84",
       "source_doi": "10.48550/arXiv.2608.03463",
       "caveat": "LoCoMo's bar since 2026-09-30 (user: 'Adopt 84.41 as the bar'), superseding MemPro-15 (Qwen3-30B) 77.85. Qwen3-8B is the scheduler, planner and answer model. Categories 1-4 (1,540). Judge: GPT-4.1-mini under 'the evaluation protocol of SimpleMem'; LeanMem's App. D (the printed prompt) and its code are in unpublished supplementary material, so our reading uses SimpleMem's own judge verbatim from aiming-lab/SimpleMem@9b12e8d MCP/reference/test_locomo10.py with its config (gpt-4.1-mini, temperature 0.3, no response_format). Their number is a mean of 5 runs with paired significance; ours is one run under one sampled grading. Same table: LightMem on Qwen3-8B 78.57 under the same judge.",
-      "detail": "protocol simplemem-locomo (openai/gpt-4.1-mini): 1211 of 1540 correct",
+      "detail": "protocol simplemem-locomo (openai/gpt-4.1-mini): 1217 of 1540 correct",
       "candidates": [
+        {
+          "run": "runs/det_locomo_m84",
+          "value": 79.02597402597402
+        },
         {
           "run": "runs/m84_locomo_base",
           "value": 78.63636363636364
@@ -623,21 +535,24 @@
       "metric": "locomo.judge_score_simplemem.n1540",
       "system": "LightMem (Qwen3-8B, as run by LeanMem)",
       "theirs": 78.57,
-      "ours": 78.63636363636364,
+      "ours": 79.02597402597402,
       "ours_n": 1540,
-      "gap": null,
+      "gap": 0.4559740259740295,
       "verdict": {
-        "verdict": "stale_config",
-        "detail": "artifact does not record tie_order; re-measure on this code before quoting it"
+        "verdict": "comparable"
       },
-      "claim_allowed": false,
+      "claim_allowed": true,
       "gate": false,
       "arm": false,
-      "run": "runs/m84_locomo_base",
+      "run": "runs/det_locomo_m84",
       "source_doi": "10.48550/arXiv.2608.03463",
       "caveat": "The protocol's anchor: LeanMem's own run of LightMem under the same SimpleMem judge (GPT-4.1-mini), 5-run mean. Not a gate.",
-      "detail": "protocol simplemem-locomo (openai/gpt-4.1-mini): 1211 of 1540 correct",
+      "detail": "protocol simplemem-locomo (openai/gpt-4.1-mini): 1217 of 1540 correct",
       "candidates": [
+        {
+          "run": "runs/det_locomo_m84",
+          "value": 79.02597402597402
+        },
         {
           "run": "runs/m84_locomo_base",
           "value": 78.63636363636364
@@ -649,21 +564,26 @@
       "metric": "locomo.judge_score_simplemem.n1540",
       "system": "LeanMem (GPT-4.1-mini)",
       "theirs": 84.87,
-      "ours": 78.63636363636364,
+      "ours": 79.02597402597402,
       "ours_n": 1540,
-      "gap": null,
+      "gap": -5.844025974025982,
       "verdict": {
-        "verdict": "stale_config",
-        "detail": "artifact does not record tie_order; re-measure on this code before quoting it"
+        "verdict": "caveat_backbone",
+        "ours": "open_weights",
+        "theirs": "frontier_api"
       },
       "claim_allowed": false,
       "gate": false,
       "arm": false,
-      "run": "runs/m84_locomo_base",
+      "run": "runs/det_locomo_m84",
       "source_doi": "10.48550/arXiv.2608.03463",
       "caveat": "Frontier backbone; same SimpleMem judge and 5-run mean as the Qwen3-8B row. Not a gate.",
-      "detail": "protocol simplemem-locomo (openai/gpt-4.1-mini): 1211 of 1540 correct",
+      "detail": "protocol simplemem-locomo (openai/gpt-4.1-mini): 1217 of 1540 correct",
       "candidates": [
+        {
+          "run": "runs/det_locomo_m84",
+          "value": 79.02597402597402
+        },
         {
           "run": "runs/m84_locomo_base",
           "value": 78.63636363636364
@@ -1126,149 +1046,24 @@
     },
     {
       "registry_id": "locomo.judge.memchain.qwen3_14b",
-      "metric": "locomo.judge_score.n1540",
+      "metric": "locomo.judge_score_locomo_refined.n1540",
       "system": "MemChain SFT+TMPO (Qwen3-4B policy, Qwen3-14B answers)",
       "theirs": 80.26,
-      "ours": 70.84415584415584,
-      "ours_n": 1540,
+      "ours": null,
+      "ours_n": null,
       "gap": null,
       "verdict": {
-        "verdict": "stale_config",
-        "detail": "artifact does not record tie_order; re-measure on this code before quoting it"
+        "verdict": "missing_artifact",
+        "command": "not reproduced: LoCoMo-Refined's Qwen3-14B judge (mem-eval-suite/LoCoMo_refined@8870911)"
       },
       "claim_allowed": false,
       "gate": false,
       "arm": false,
-      "run": "runs/m84_locomo_base",
+      "run": null,
       "source_doi": "10.48550/arXiv.2607.24097",
       "caveat": "Not matched: graded by the LoCoMo-Refined judge (mem-eval-suite/LoCoMo_refined@8870911, Qwen3-14B, stricter: list completeness, no unsupported additions, strict temporal granularity), a suite that also revises 337 gold answers (1,382 questions). The paper states 1,540 questions; which QA set was graded is not stated. Running that judge needs Qwen3-14B served locally. Found 2026-09-30.",
-      "detail": "judge qwen3.5-9b : 1091 of 1540 correct (102 declines scored 0)",
-      "candidates": [
-        {
-          "run": "runs/m84_locomo_base",
-          "value": 70.84415584415584
-        },
-        {
-          "run": "runs/m63_locomo_inline",
-          "value": 70.71428571428572
-        },
-        {
-          "run": "runs/m82_locomo_base",
-          "value": 70.64935064935065
-        },
-        {
-          "run": "runs/m81_locomo_base",
-          "value": 70.58441558441558
-        },
-        {
-          "run": "runs/m83_locomo_base",
-          "value": 70.58441558441558
-        },
-        {
-          "run": "runs/m83b_locomo_base",
-          "value": 70.58441558441558
-        },
-        {
-          "run": "runs/m63_locomo_base",
-          "value": 70.51948051948051
-        },
-        {
-          "run": "runs/m61_locomo_grounded",
-          "value": 70.06493506493506
-        },
-        {
-          "run": "runs/m83_locomo_m50c",
-          "value": 70.06493506493506
-        },
-        {
-          "run": "runs/m19_locomo_full",
-          "value": 69.87012987012987
-        },
-        {
-          "run": "runs/m50c_locomo_events",
-          "value": 69.87012987012987
-        },
-        {
-          "run": "runs/m50b_locomo_events",
-          "value": 69.74025974025973
-        },
-        {
-          "run": "runs/m83b_locomo_m50b",
-          "value": 69.74025974025973
-        },
-        {
-          "run": "runs/m59_locomo_bonsai_bestguess",
-          "value": 67.92207792207792
-        },
-        {
-          "run": "runs/m83b_locomo_m55b",
-          "value": 67.27272727272727
-        },
-        {
-          "run": "runs/m55b_locomo_bonsai",
-          "value": 66.68831168831169
-        },
-        {
-          "run": "runs/m83_locomo_m51",
-          "value": 65.25974025974025
-        },
-        {
-          "run": "runs/m83b_locomo_m51",
-          "value": 65.25974025974025
-        },
-        {
-          "run": "runs/m51_locomo_s1",
-          "value": 65.06493506493507
-        },
-        {
-          "run": "runs/m63_locomo_dedupe",
-          "value": 62.5974025974026
-        },
-        {
-          "run": "runs/m21_mh_base",
-          "value": 58.156028368794324
-        },
-        {
-          "run": "runs/m21_mh_sel",
-          "value": 54.96453900709219
-        },
-        {
-          "run": "runs/m51_locomo_s1.part10",
-          "value": 68.55345911949685
-        },
-        {
-          "run": "runs/m51_locomo_s1.part11",
-          "value": 66.66666666666666
-        },
-        {
-          "run": "runs/m51_locomo_s1.part5",
-          "value": 65.40880503144653
-        },
-        {
-          "run": "runs/m51_locomo_s1.part9",
-          "value": 63.52201257861635
-        },
-        {
-          "run": "runs/m51_locomo_s1.part6",
-          "value": 69.62025316455697
-        },
-        {
-          "run": "runs/m51_locomo_s1.part7",
-          "value": 66.45569620253164
-        },
-        {
-          "run": "runs/m51_locomo_s1.part4",
-          "value": 60.75949367088608
-        },
-        {
-          "run": "runs/m51_locomo_s1.part8",
-          "value": 63.69426751592356
-        },
-        {
-          "run": "runs/locomo_recall",
-          "value": 62.66233766233766
-        }
-      ]
+      "detail": null,
+      "candidates": []
     },
     {
       "registry_id": "longmemeval_s.judge.mempro15.gpt4omini",
@@ -3249,21 +3044,30 @@
       "metric": "locomo.judge_score.n1540",
       "system": "EverMemOS",
       "theirs": 93.05,
-      "ours": 70.84415584415584,
+      "ours": 70.9090909090909,
       "ours_n": 1540,
-      "gap": null,
+      "gap": -22.14090909090909,
       "verdict": {
-        "verdict": "stale_config",
-        "detail": "artifact does not record tie_order; re-measure on this code before quoting it"
+        "verdict": "caveat_judge",
+        "ours": "open_weights_local",
+        "theirs": "frontier_api"
       },
       "claim_allowed": false,
       "gate": false,
       "arm": false,
-      "run": "runs/m84_locomo_base",
+      "run": "runs/det_locomo_m84",
       "source_doi": "10.48550/arXiv.2601.02163",
       "caveat": "Highest LoCoMo number in this registry. Population stated directly: \"LoCoMo contains 1,540 questions over 10 ultra-long dialogues\" (L110), repeated as #Questions 1,540 (L612). Judge is GPT-4o-mini plus two auxiliary judges that the paper never names, averaged blind (L114).",
-      "detail": "judge qwen3.5-9b : 1091 of 1540 correct (102 declines scored 0)",
+      "detail": "judge qwen3.5-9b : 1092 of 1540 correct (103 declines scored 0)",
       "candidates": [
+        {
+          "run": "runs/det_locomo_m84",
+          "value": 70.9090909090909
+        },
+        {
+          "run": "runs/det_locomo_base",
+          "value": 70.45454545454545
+        },
         {
           "run": "runs/m84_locomo_base",
           "value": 70.84415584415584
@@ -3849,21 +3653,30 @@
       "metric": "locomo.judge_score.n1540",
       "system": "Mem0 (paper)",
       "theirs": 66.88,
-      "ours": 70.84415584415584,
+      "ours": 70.9090909090909,
       "ours_n": 1540,
-      "gap": null,
+      "gap": 4.029090909090911,
       "verdict": {
-        "verdict": "stale_config",
-        "detail": "artifact does not record tie_order; re-measure on this code before quoting it"
+        "verdict": "caveat_judge",
+        "ours": "open_weights_local",
+        "theirs": "frontier_api"
       },
       "claim_allowed": false,
       "gate": false,
       "arm": false,
-      "run": "runs/m84_locomo_base",
+      "run": "runs/det_locomo_m84",
       "source_doi": "10.48550/arXiv.2504.19413",
       "caveat": "The paper's own number, 25.6 points below the 92.5% the vendor blog claims for the same system. Adversarial category excluded (\"this category was excluded from our evaluation because ground truth answers were unavailable\", L67); the paper says \"entire dataset\" without stating n, so 1,540 is inferred from that exclusion. Judge model never named; prompt adapted from MemGPT (L614). Table 2 labels both Mem0 rows MemO^g; prose (L523-532) identifies 1764/66.88 as base Mem0.",
-      "detail": "judge qwen3.5-9b : 1091 of 1540 correct (102 declines scored 0)",
+      "detail": "judge qwen3.5-9b : 1092 of 1540 correct (103 declines scored 0)",
       "candidates": [
+        {
+          "run": "runs/det_locomo_m84",
+          "value": 70.9090909090909
+        },
+        {
+          "run": "runs/det_locomo_base",
+          "value": 70.45454545454545
+        },
         {
           "run": "runs/m84_locomo_base",
           "value": 70.84415584415584
@@ -3995,7 +3808,7 @@
       "metric": "locomo.judge_score.n1540",
       "system": "Mem0 (vendor)",
       "theirs": 92.5,
-      "ours": 70.84415584415584,
+      "ours": 70.9090909090909,
       "ours_n": 1540,
       "gap": null,
       "verdict": {
@@ -4005,11 +3818,19 @@
       "claim_allowed": false,
       "gate": false,
       "arm": false,
-      "run": "runs/m84_locomo_base",
+      "run": "runs/det_locomo_m84",
       "source_doi": "",
       "caveat": "mem0.ai blog, 2026. No protocol, no judge prompt, no question count, and no converted source in the local corpus - hence `vendor`, which `standing` treats as not comparable in either direction. Kept in the table because it is the number a reader will meet first.",
-      "detail": "judge qwen3.5-9b : 1091 of 1540 correct (102 declines scored 0)",
+      "detail": "judge qwen3.5-9b : 1092 of 1540 correct (103 declines scored 0)",
       "candidates": [
+        {
+          "run": "runs/det_locomo_m84",
+          "value": 70.9090909090909
+        },
+        {
+          "run": "runs/det_locomo_base",
+          "value": 70.45454545454545
+        },
         {
           "run": "runs/m84_locomo_base",
           "value": 70.84415584415584
@@ -4645,21 +4466,38 @@
       "metric": "locomo.abstention_accuracy.n446",
       "system": "HiGMem",
       "theirs": 0.78,
-      "ours": 0.6793721973094171,
+      "ours": 0.6950672645739912,
       "ours_n": 446,
-      "gap": null,
+      "gap": -0.08493273542600888,
       "verdict": {
-        "verdict": "stale_config",
-        "detail": "artifact does not record tie_order; re-measure on this code before quoting it"
+        "verdict": "caveat_backbone",
+        "ours": "open_weights",
+        "theirs": "frontier_api"
       },
       "claim_allowed": false,
       "gate": false,
       "arm": false,
-      "run": "runs/m84_locomo_base",
+      "run": "runs/det_locomo_m84",
       "source_doi": "10.48550/arxiv.2604.18349",
       "caveat": "Not the same quantity as ours, and the gap must be read with that in mind: HiGMem reports SQuAD token F1 on LoCoMo10's Adversarial category using a category-specific QA prompt that is handed the distractor candidate (L753), while our column is the fraction of adversarial items the reader declined. The paper does not state n; 446 is LoCoMo10's adversarial count (PLAN.md 1.1).",
       "detail": "aggregated_metrics.json abstention_accuracy over category 5",
       "candidates": [
+        {
+          "run": "runs/det_locomo_m84",
+          "value": 69.50672645739911
+        },
+        {
+          "run": "runs/det_locomo_m84_judged",
+          "value": 69.50672645739911
+        },
+        {
+          "run": "runs/det_locomo_base",
+          "value": 69.50672645739911
+        },
+        {
+          "run": "runs/det_locomo_base_judged",
+          "value": 69.50672645739911
+        },
         {
           "run": "runs/m84_locomo_base",
           "value": 67.9372197309417
@@ -6163,21 +6001,30 @@
       "metric": "locomo.judge_score.n1540",
       "system": "NEMORI",
       "theirs": 80.8,
-      "ours": 70.84415584415584,
+      "ours": 70.9090909090909,
       "ours_n": 1540,
-      "gap": null,
+      "gap": -9.89090909090909,
       "verdict": {
-        "verdict": "stale_config",
-        "detail": "artifact does not record tie_order; re-measure on this code before quoting it"
+        "verdict": "caveat_judge",
+        "ours": "open_weights_local",
+        "theirs": "frontier_api"
       },
       "claim_allowed": false,
       "gate": false,
       "arm": false,
-      "run": "runs/m84_locomo_base",
+      "run": "runs/det_locomo_m84",
       "source_doi": "10.48550/arxiv.2508.03341",
       "caveat": "NEMORI's LoCoMo LLM-judge average, not in PLAN.md 11.5's table. Judge is gpt-4o-mini (L480, printed \"gpt-4.0-mini\"). Population is stated: \"featuring 1,540 questions across four reasoning categories\" (L476).",
-      "detail": "judge qwen3.5-9b : 1091 of 1540 correct (102 declines scored 0)",
+      "detail": "judge qwen3.5-9b : 1092 of 1540 correct (103 declines scored 0)",
       "candidates": [
+        {
+          "run": "runs/det_locomo_m84",
+          "value": 70.9090909090909
+        },
+        {
+          "run": "runs/det_locomo_base",
+          "value": 70.45454545454545
+        },
         {
           "run": "runs/m84_locomo_base",
           "value": 70.84415584415584
@@ -6885,21 +6732,30 @@
       "metric": "locomo.judge_score.n1540",
       "system": "Memanto",
       "theirs": 87.1,
-      "ours": 70.84415584415584,
+      "ours": 70.9090909090909,
       "ours_n": 1540,
-      "gap": null,
+      "gap": -16.190909090909088,
       "verdict": {
-        "verdict": "stale_config",
-        "detail": "artifact does not record tie_order; re-measure on this code before quoting it"
+        "verdict": "caveat_judge",
+        "ours": "open_weights_local",
+        "theirs": "frontier_api"
       },
       "claim_allowed": false,
       "gate": false,
       "arm": false,
-      "run": "runs/m84_locomo_base",
+      "run": "runs/det_locomo_m84",
       "source_doi": "10.48550/arXiv.2604.22085",
       "caveat": "Beats MemPro-15's 84.93 on LoCoMo. The judge is stated (Claude Sonnet 4); the LoCoMo population is *not* - \"LoCoMo is evaluated on its standard split\" - so n = 1540 remains this registry's assumption from the 282/96/841/321 category counts every LoCoMo paper reports, and whether the 446 adversarial items were dropped is unverified. The answer model is never named.",
-      "detail": "judge qwen3.5-9b : 1091 of 1540 correct (102 declines scored 0)",
+      "detail": "judge qwen3.5-9b : 1092 of 1540 correct (103 declines scored 0)",
       "candidates": [
+        {
+          "run": "runs/det_locomo_m84",
+          "value": 70.9090909090909
+        },
+        {
+          "run": "runs/det_locomo_base",
+          "value": 70.45454545454545
+        },
         {
           "run": "runs/m84_locomo_base",
           "value": 70.84415584415584
@@ -7031,21 +6887,30 @@
       "metric": "locomo.judge_score.n1540",
       "system": "APEX-MEM",
       "theirs": 88.88,
-      "ours": 70.84415584415584,
+      "ours": 70.9090909090909,
       "ours_n": 1540,
-      "gap": null,
+      "gap": -17.97090909090909,
       "verdict": {
-        "verdict": "stale_config",
-        "detail": "artifact does not record tie_order; re-measure on this code before quoting it"
+        "verdict": "caveat_judge",
+        "ours": "open_weights_local",
+        "theirs": "frontier_api"
       },
       "claim_allowed": false,
       "gate": false,
       "arm": false,
-      "run": "runs/m84_locomo_base",
+      "run": "runs/det_locomo_m84",
       "source_doi": "10.48550/arXiv.2604.14362",
       "caveat": "The highest LoCoMo number in this registry. Mechanism: a property graph that structures conversations as temporally grounded events, append-only temporal evolution, and a multi-tool retrieval agent that resolves conflicts at query time - i.e. the write-time half of what M19 does at read time, with GRAPHSQL doing \"duration calculations\" and \"temporal ordering via validity intervals\". The PDF is converted (20 pages) but the conversion's retrievable text covers the front matter only - abstract, introduction, related work and the architecture section - so the quote is the abstract's results sentence rather than a table row, and neither the per-category cells, the question counts, the answer model nor the judge could be read. n is this registry's assumption from the benchmarks' own populations. Re-read the results section before this row is used for anything but context.",
-      "detail": "judge qwen3.5-9b : 1091 of 1540 correct (102 declines scored 0)",
+      "detail": "judge qwen3.5-9b : 1092 of 1540 correct (103 declines scored 0)",
       "candidates": [
+        {
+          "run": "runs/det_locomo_m84",
+          "value": 70.9090909090909
+        },
+        {
+          "run": "runs/det_locomo_base",
+          "value": 70.45454545454545
+        },
         {
           "run": "runs/m84_locomo_base",
           "value": 70.84415584415584
@@ -8082,7 +7947,7 @@
     }
   ],
   "gated_failures": [
-    "locomo.judge_simplemem.leanmem.qwen3_8b [locomo.judge_score_simplemem.n1540] artifact predates today's operating point (artifact does not record tie_order; re-measure on this code before quoting it)",
+    "locomo.judge_simplemem.leanmem.qwen3_8b [locomo.judge_score_simplemem.n1540] behind by 5.38 (ours 79.03, gate needs >= 84.41)",
     "longmemeval_s.judge_matched.mempro15.qwen3_30b [longmemeval_s.judge_score_matched.n500] artifact predates today's operating point (artifact does not record tie_order; re-measure on this code before quoting it)",
     "lme_v2_small.agentrunbook_c [lme_v2_small.overall_full_set.combined] ahead by 3.15 (ours 78.05, theirs 74.90), but caveat-judge(open_weights_local vs frontier_api); a gate closes only on a comparable row",
     "lme_v2_small.lafs_gain.frontier [lme_v2_small.lafs_gain.small] artifact predates today's operating point (artifact does not record mode, max_steps, prefetch_limit, rerank_depth, select, dated, pool_rerank, premise, typed_probes, decompose; re-measure on this code before quoting it)"
@@ -8509,20 +8374,34 @@
     },
     {
       "metric": "locomo.abstention_accuracy.n446",
-      "value": 67.9372197309417,
+      "value": 69.50672645739911,
       "unit": "pct_0_100",
       "n": 446,
       "judge_class": "deterministic",
       "backbone_class": "open_weights",
-      "run": "runs/m84_locomo_base",
+      "run": "runs/det_locomo_m84",
       "detail": "aggregated_metrics.json abstention_accuracy over category 5",
       "incomplete": null,
       "arm": false,
       "replicates": 1,
-      "unrecorded": [
-        "tie_order"
-      ],
+      "unrecorded": [],
       "candidates": [
+        {
+          "run": "runs/det_locomo_m84",
+          "value": 69.50672645739911
+        },
+        {
+          "run": "runs/det_locomo_m84_judged",
+          "value": 69.50672645739911
+        },
+        {
+          "run": "runs/det_locomo_base",
+          "value": 69.50672645739911
+        },
+        {
+          "run": "runs/det_locomo_base_judged",
+          "value": 69.50672645739911
+        },
         {
           "run": "runs/m84_locomo_base",
           "value": 67.9372197309417
@@ -8811,20 +8690,26 @@
     },
     {
       "metric": "locomo.judge_score.n1540",
-      "value": 70.84415584415584,
+      "value": 70.9090909090909,
       "unit": "pct_0_100",
       "n": 1540,
       "judge_class": "open_weights_local",
       "backbone_class": "open_weights",
-      "run": "runs/m84_locomo_base",
-      "detail": "judge qwen3.5-9b : 1091 of 1540 correct (102 declines scored 0)",
+      "run": "runs/det_locomo_m84",
+      "detail": "judge qwen3.5-9b : 1092 of 1540 correct (103 declines scored 0)",
       "incomplete": null,
       "arm": false,
       "replicates": 1,
-      "unrecorded": [
-        "tie_order"
-      ],
+      "unrecorded": [],
       "candidates": [
+        {
+          "run": "runs/det_locomo_m84",
+          "value": 70.9090909090909
+        },
+        {
+          "run": "runs/det_locomo_base",
+          "value": 70.45454545454545
+        },
         {
           "run": "runs/m84_locomo_base",
           "value": 70.84415584415584
@@ -8953,20 +8838,22 @@
     },
     {
       "metric": "locomo.judge_score_lightmem.n1540",
-      "value": 78.63636363636364,
+      "value": 78.37662337662337,
       "unit": "pct_0_100",
       "n": 1540,
       "judge_class": "frontier_api",
       "backbone_class": "open_weights",
-      "run": "runs/m84_locomo_base",
-      "detail": "protocol lightmem-locomo (openai/gpt-4o-mini): 1211 of 1540 correct",
+      "run": "runs/det_locomo_m84",
+      "detail": "protocol lightmem-locomo (openai/gpt-4o-mini): 1207 of 1540 correct",
       "incomplete": null,
       "arm": false,
       "replicates": 1,
-      "unrecorded": [
-        "tie_order"
-      ],
+      "unrecorded": [],
       "candidates": [
+        {
+          "run": "runs/det_locomo_m84",
+          "value": 78.37662337662337
+        },
         {
           "run": "runs/m84_locomo_base",
           "value": 78.63636363636364
@@ -8991,20 +8878,22 @@
     },
     {
       "metric": "locomo.judge_score_matched.n1540",
-      "value": 78.63636363636364,
+      "value": 78.37662337662337,
       "unit": "pct_0_100",
       "n": 1540,
       "judge_class": "frontier_api",
       "backbone_class": "open_weights",
-      "run": "runs/m84_locomo_base",
-      "detail": "the lowest of every reading: locomo.judge_score_lightmem.n1540 78.64, locomo.judge_score_mempro.n1540 80.78",
+      "run": "runs/det_locomo_m84",
+      "detail": "the lowest of every reading: locomo.judge_score_lightmem.n1540 78.38, locomo.judge_score_mempro.n1540 80.78",
       "incomplete": null,
       "arm": false,
       "replicates": 1,
-      "unrecorded": [
-        "tie_order"
-      ],
+      "unrecorded": [],
       "candidates": [
+        {
+          "run": "runs/det_locomo_m84",
+          "value": 78.37662337662337
+        },
         {
           "run": "runs/m84_locomo_base",
           "value": 78.63636363636364
@@ -9026,15 +8915,17 @@
       "n": 1540,
       "judge_class": "frontier_api",
       "backbone_class": "open_weights",
-      "run": "runs/m84_locomo_base",
+      "run": "runs/det_locomo_m84",
       "detail": "protocol mempro-locomo (openai/gpt-4o-mini): 1244 of 1540 correct",
       "incomplete": null,
       "arm": false,
       "replicates": 1,
-      "unrecorded": [
-        "tie_order"
-      ],
+      "unrecorded": [],
       "candidates": [
+        {
+          "run": "runs/det_locomo_m84",
+          "value": 80.77922077922078
+        },
         {
           "run": "runs/m84_locomo_base",
           "value": 80.77922077922078
@@ -9051,20 +8942,22 @@
     },
     {
       "metric": "locomo.judge_score_simplemem.n1540",
-      "value": 78.63636363636364,
+      "value": 79.02597402597402,
       "unit": "pct_0_100",
       "n": 1540,
       "judge_class": "frontier_api",
       "backbone_class": "open_weights",
-      "run": "runs/m84_locomo_base",
-      "detail": "protocol simplemem-locomo (openai/gpt-4.1-mini): 1211 of 1540 correct",
+      "run": "runs/det_locomo_m84",
+      "detail": "protocol simplemem-locomo (openai/gpt-4.1-mini): 1217 of 1540 correct",
       "incomplete": null,
       "arm": false,
       "replicates": 1,
-      "unrecorded": [
-        "tie_order"
-      ],
+      "unrecorded": [],
       "candidates": [
+        {
+          "run": "runs/det_locomo_m84",
+          "value": 79.02597402597402
+        },
         {
           "run": "runs/m84_locomo_base",
           "value": 78.63636363636364
@@ -9073,20 +8966,26 @@
     },
     {
       "metric": "locomo.temporal.n1540",
-      "value": 60.16407788234017,
+      "value": 60.20353504056879,
       "unit": "pct_0_100",
       "n": 1540,
       "judge_class": "deterministic",
       "backbone_class": "open_weights",
-      "run": "runs/m84_locomo_base",
+      "run": "runs/det_locomo_m84",
       "detail": "date-aware scorer, f1_answerable over categories 1-4, rescored_from=live run",
       "incomplete": null,
       "arm": false,
       "replicates": 1,
-      "unrecorded": [
-        "tie_order"
-      ],
+      "unrecorded": [],
       "candidates": [
+        {
+          "run": "runs/det_locomo_m84",
+          "value": 60.20353504056879
+        },
+        {
+          "run": "runs/det_locomo_base",
+          "value": 60.20353504056879
+        },
         {
           "run": "runs/m84_locomo_base",
           "value": 60.16407788234017
@@ -10423,6 +10322,14 @@
         },
         {
           "run": "runs/det_ev_s1_p1",
+          "value": 0.0
+        },
+        {
+          "run": "runs/det_ev_s2",
+          "value": 0.0
+        },
+        {
+          "run": "runs/det_ev_s3",
           "value": 0.0
         },
         {

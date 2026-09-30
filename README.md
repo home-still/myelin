@@ -139,28 +139,34 @@ standing`; the full table with comparability verdicts is
 | gate | ours | best comparable | gap | since |
 |---|---|---|---|---|
 | `minja.asr.k6_prepopulated_defended` | **7.50%** | ≤10% | **CLOSED** | M15 |
-| `locomo.judge_score_simplemem.n1540` | **78.64** | **84.41 LeanMem (Qwen3-8B)**, same judge | **−5.77, OPEN** † | bar moved 2026-09-30 |
-| `locomo.judge_score_matched.n1540` (former gate) | 78.64 | 77.85 MemPro-15 (Qwen), same judge | +0.79 § | M84 |
+| `locomo.judge_score_simplemem.n1540` | **79.03** | **84.41 LeanMem (Qwen3-8B)**, same judge | **−5.38, OPEN** † | bar moved 2026-09-30 |
+| `locomo.judge_score_matched.n1540` (former gate) | 78.38 | 77.85 MemPro-15 (Qwen), same judge | +0.53 § | M84, deterministic |
 | `longmemeval_s.judge_score_matched.n500` | **81.53** ◊ | 80.80 MemPro-15 (Qwen), LongMemEval's own judge | **+0.73, CLOSED** | round 5 + NLI premise |
-| `locomo.judge_score.n1540` (strict 9B judge) | 70.84 | 77.85 MemPro-15 (Qwen) | −7.01 ‡ | M84 |
+| `locomo.judge_score.n1540` (strict 9B judge) | 70.91 | 77.85 MemPro-15 (Qwen) | −6.94 ‡ | M84, deterministic |
 | `longmemeval_s.judge_score.n500` (strict 9B judge) | 81.20 ◊ | 80.80 MemPro-15 (Qwen) | +0.40 ‡ | round 5 + NLI premise |
 | `lme_v2_small.overall_full_set.combined` | **78.05** | 74.90 AgentRunbook-C (frontier controller) | **+3.15** ¶ | M54 |
 
 Every literature row is judged by a frontier API where we are judged by a
 local Qwen3.5-9B (`caveat-judge`).
 
-**Every number above is provisional (2026-09-30).** Moving myelin to its own
-Qdrant showed that retrieval depended on Qdrant's arbitrary order among tied
-scores. Ties are now broken by id, and both benchmarks are being re-measured
-on that code. `standing` marks the old runs `stale-config` until then.
+**Re-measured under deterministic retrieval (2026-09-30).** Moving myelin to
+its own Qdrant showed that retrieval depended on Qdrant's arbitrary order among
+tied scores. Ties are now broken by id.
+- LoCoMo is re-measured on that code: 203 of 1,540 answers changed, and every
+  reading moved by at most 0.4.
+- LongMemEval_S is in progress. Its rows stay `stale-config` in `standing`
+  until it lands.
+- Details: [`det-remeasure-2026-09-30.md`](docs/measurements/det-remeasure-2026-09-30.md).
 
 † **The LoCoMo bar moved (2026-09-30).**
 [LeanMem](docs/research/sota-catalog-2026-09-30.md) (arXiv 2608.03463)
 runs Qwen3-8B, an open model a third our reader's size, and reports **84.41**
 on the 1,540 standard questions under SimpleMem's judge (GPT-4.1-mini).
 - We re-graded our shipped answers with that judge: SimpleMem's own prompt
-  verbatim, the same model and the same settings. We score **78.64**, 5.77
-  behind.
+  verbatim, the same model and the same settings. We score **79.03** on the
+  deterministic re-measurement (78.64 before it), 5.38 behind.
+  [The loss anatomy](docs/measurements/locomo-gap-leanmem.md) finds reading,
+  not retrieval, to be the largest block.
 - LeanMem's printed prompt and code are unpublished supplementary material,
   and its number is a 5-run mean. The user adopted it as the bar anyway, so
   LoCoMo is open again.
@@ -281,7 +287,7 @@ is time: building each question's memory takes 5.6 minutes on web and 9.2 on ent
 1–2 before. A native version over myelin's own ledger (M62) remains open.
 Two gates close on `comparable` rows: MINJA's attack rate and LongMemEval_S
 (+0.73). LoCoMo closed against MemPro-15 (M68; +0.79 since M84) and reopened
-on 2026-09-30, when LeanMem's 84.41 became its bar (−5.77).
+on 2026-09-30, when LeanMem's 84.41 became its bar (−5.38).
 
 ![myelin-eval standing output showing 30 comparison rows](docs/images/standing.png)
 
