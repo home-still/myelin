@@ -29,7 +29,7 @@ use async_trait::async_trait;
 use myelin_core::config::MyelinConfig;
 use myelin_core::embed::{remote::RemoteEmbedder, Embedder};
 use myelin_core::model::query::{Budget, Mode, Recall, ScopeFilter};
-use myelin_core::model::record::RecordKind;
+use myelin_core::model::record::{MemoryRecord, RecordKind};
 use myelin_core::pipeline::investigate::{InvestigateConfig, Investigator};
 use myelin_core::pipeline::retrieve::{Channels, RetrieveConfig, Retriever};
 use myelin_core::rerank::{cross::CrossEncoder, Reranker};
@@ -51,34 +51,73 @@ struct Question {
 
 /// `record id → the turns it can testify to`.
 ///
-/// Episodic records cover their own turn range. Derived records inherit the
-/// union of their ancestors' coverage — which is precisely what I4's
-/// `derived_from` lineage exists for, so no extra provenance field is needed
-/// to make grounding checkable.
+/// Episodic records cover their own turn range. A derived record with a span
+/// of one episode's turns (M89b's typed records) covers exactly that span. Any
+/// other derived record inherits the union of its ancestors' coverage, which
+/// is precisely what I4's `derived_from` lineage exists for.
 struct Coverage(HashMap<Uuid, HashSet<String>>);
 
+/// Each conversation's turns, in order, as `(dia_id, "Speaker: text")`, keyed
+/// by the tenant a LoCoMo store files them under.
+pub(crate) fn conversation_lines(conversations: &[LocomoConversation]) -> HashMap<String, Vec<(String, String)>> {
+    conversations
+        .iter()
+        .map(|conv| {
+            (
+                format!("locomo/{}", conv.sample_id),
+                turns_for(conv)
+                    .into_iter()
+                    .map(|t| (t.source.doc.clone(), format!("{}: {}", t.speaker, t.text)))
+                    .collect(),
+            )
+        })
+        .collect()
+}
+
+/// An episode's turns, in order, as dataset `dia_id`s, read from the store
+/// rather than re-derived by replaying a segmenter. An episode's source is its
+/// first turn's `dia_id` and its text is its turns rendered in order, so the
+/// walk from that turn that reproduces the text *is* its turn list, whichever
+/// segmenter built the store (M89a's topic episodes, or the 512-token
+/// default).
+///
+/// `None` for a record that does not start at a turn of `turns` at all (the
+/// 2026-09-21 usability probe's `remember`). An episode that starts at a turn
+/// but does not render as consecutive turns means the store and the dataset
+/// disagree, and is refused.
+pub(crate) fn episode_turn_ids(turns: &[(String, String)], record: &MemoryRecord) -> Result<Option<Vec<String>>> {
+    let first = &record.provenance.source.doc;
+    let Some(start) = turns.iter().position(|(doc, _)| doc == first) else {
+        return Ok(None);
+    };
+    let mut rendered = String::new();
+    let mut docs = Vec::new();
+    for (doc, line) in &turns[start..] {
+        if !rendered.is_empty() {
+            rendered.push('\n');
+        }
+        rendered.push_str(line);
+        docs.push(doc.clone());
+        if rendered == record.text {
+            return Ok(Some(docs));
+        }
+        if rendered.len() >= record.text.len() {
+            break;
+        }
+    }
+    anyhow::bail!(
+        "episode {} does not render as consecutive turns of {} from {first}; \
+         the store and the dataset disagree",
+        record.id,
+        record.scope.tenant
+    )
+}
+
 impl Coverage {
-    /// Each episode's turns, read from the store rather than re-derived by
-    /// replaying a segmenter: an episode's source is its first turn's
-    /// `dia_id`, and its text is its turns rendered in order. So the walk
-    /// from that turn that reproduces the text *is* its coverage, whichever
-    /// segmenter built the store (M89a's topic episodes, or the 512-token
-    /// default). An episode that does not render as consecutive turns means
-    /// the store and the dataset disagree, and the instrument refuses.
     async fn build(conversations: &[LocomoConversation], ledger: &Ledger) -> Result<Self> {
         let mut covers: HashMap<Uuid, HashSet<String>> = HashMap::new();
-        let lines: HashMap<String, Vec<(String, String)>> = conversations
-            .iter()
-            .map(|conv| {
-                (
-                    format!("locomo/{}", conv.sample_id),
-                    turns_for(conv)
-                        .into_iter()
-                        .map(|t| (t.source.doc.clone(), format!("{}: {}", t.speaker, t.text)))
-                        .collect(),
-                )
-            })
-            .collect();
+        let mut ordered: HashMap<Uuid, Vec<String>> = HashMap::new();
+        let lines = conversation_lines(conversations);
         let records = ledger
             .records_in_namespace("locomo")
             .await
@@ -89,45 +128,39 @@ impl Coverage {
             let Some(turns) = lines.get(&record.scope.tenant) else {
                 continue;
             };
-            let first = &record.provenance.source.doc;
-            // A record written through the API rather than from the dataset
-            // (the 2026-09-21 usability probe's `remember` in conv-26) covers
-            // no gold turn. It is counted and said, never guessed at.
-            let Some(start) = turns.iter().position(|(doc, _)| doc == first) else {
-                not_from_dataset += 1;
-                continue;
-            };
-            let mut rendered = String::new();
-            let mut docs = HashSet::new();
-            let mut matched = false;
-            for (doc, line) in &turns[start..] {
-                if !rendered.is_empty() {
-                    rendered.push('\n');
+            match episode_turn_ids(turns, record)? {
+                Some(ids) => {
+                    covers.insert(record.id, ids.iter().cloned().collect());
+                    ordered.insert(record.id, ids);
                 }
-                rendered.push_str(line);
-                docs.insert(doc.clone());
-                if rendered == record.text {
-                    matched = true;
-                    break;
-                }
-                if rendered.len() >= record.text.len() {
-                    break;
-                }
+                None => not_from_dataset += 1,
             }
-            anyhow::ensure!(
-                matched,
-                "episode {} does not render as consecutive turns of {} from {first}; \
-                 the store and the dataset disagree",
-                record.id,
-                record.scope.tenant
-            );
-            covers.insert(record.id, docs);
         }
         if not_from_dataset > 0 {
             eprintln!(
                 "  coverage: {not_from_dataset} episodic record(s) do not start at a dataset turn \
                  (written through the API, not the build); they cover no gold turn"
             );
+        }
+
+        // M89b: a typed record cites a span of one episode's turns, and covers
+        // those turns only. Crediting it with its whole episode through
+        // lineage would count gold it never points at.
+        for record in &records {
+            let (Some(span), [ancestor]) = (record.provenance.source.span, record.provenance.derived_from.as_slice()) else {
+                continue;
+            };
+            let Some(ids) = ordered.get(ancestor) else {
+                continue;
+            };
+            let (lo, hi) = (span.start as usize, span.end as usize);
+            anyhow::ensure!(
+                lo <= hi && hi < ids.len(),
+                "record {} cites turns {lo}..={hi} of an episode with {} turns",
+                record.id,
+                ids.len()
+            );
+            covers.insert(record.id, ids[lo..=hi].iter().cloned().collect());
         }
 
         // Derived records: resolve lineage once, breadth-first, rather than
@@ -747,7 +780,7 @@ pub async fn width_sweep(
     holdout: bool,
     dedupe_lineage: bool,
     turn_windows: Option<usize>,
-    episodes_only: bool,
+    kinds: Option<&[RecordKind]>,
 ) -> Result<Vec<WidthPoint>> {
     let cfg = MyelinConfig::load().context("load myelin config")?;
     let ledger = Ledger::open(ledger_path).await.context("open ledger")?;
@@ -861,9 +894,9 @@ pub async fn width_sweep(
                 text: q.text.clone(),
                 budget: Budget { k, tokens: budget_tokens, ..Default::default() },
                 mode: Mode::Recall,
-                // M89a: the episodes-only control, so a store of topic
-                // episodes is compared with the shipped store's episodes.
-                kinds: episodes_only.then(|| vec![RecordKind::Episodic]),
+                // M89: retrieve only these kinds (the episodes-only control
+                // for topic episodes, the gist lane for typed records).
+                kinds: kinds.map(<[RecordKind]>::to_vec),
                 as_of: None,
             };
             let (evidence, trace) = retriever

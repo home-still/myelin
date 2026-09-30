@@ -985,10 +985,11 @@ enum Command {
         /// M66's turn windows, of this radius, for the width sweep.
         #[arg(long, requires = "width")]
         turn_windows: Option<usize>,
-        /// M89a: retrieve episodes only, the control a store of topic
-        /// episodes is compared with.
-        #[arg(long, requires = "width")]
-        episodes_only: bool,
+        /// M89: retrieve only these record kinds, comma-separated
+        /// (`episodic` is the control for topic episodes, `gist` the typed
+        /// store's records lane).
+        #[arg(long, requires = "width", value_delimiter = ',')]
+        kinds: Option<Vec<String>>,
     },
     /// Re-score a finished bench run under a different scorer. Pure CPU:
     /// `response_raw` and `answer_gold` are on disk, so no reader call and no
@@ -1048,6 +1049,40 @@ enum Command {
         /// according to the run's own `corpus` field.
         #[arg(long)]
         dataset: Option<String>,
+    },
+    /// M89b: ask the reader for every LoCoMo episode's typed units (profile,
+    /// event, record) into a JSONL cache. Touches no store; resumable and
+    /// shardable, like `events-extract`
+    TypedExtract {
+        #[arg(long, default_value = "data/locomo10.json")]
+        dataset: String,
+        /// The store whose episodes are typed.
+        #[arg(long)]
+        ledger: String,
+        /// The cache file, appended to.
+        #[arg(long)]
+        out: String,
+        #[arg(long, default_value = "0/1")]
+        shard: String,
+        /// Calls in flight; at most the reader's slot count.
+        #[arg(long, default_value_t = 2)]
+        concurrency: usize,
+    },
+    /// M89b: write every episode's cached typed records beside it, and report
+    /// the stage's reader-free gate (`reach_all`, ignore rate, gist grounding)
+    TypedBuild {
+        #[arg(long, default_value = "data/locomo10.json")]
+        dataset: String,
+        #[arg(long)]
+        ledger: String,
+        #[arg(long)]
+        collection: String,
+        /// Cache files from `typed-extract`, comma-separated.
+        #[arg(long, value_delimiter = ',', required = true)]
+        cache: Vec<String>,
+        /// Where the report is written as JSON.
+        #[arg(long)]
+        report: String,
     },
     /// Where a query-shape gate fires, per category, through the functions
     /// `bench` calls: the hit table an arm pre-registers and the question
@@ -1130,6 +1165,8 @@ impl Command {
             Command::EvidenceAudit { .. } => "evidence-audit",
             Command::Coverage { .. } => "coverage",
             Command::Shapes { .. } => "shapes",
+            Command::TypedExtract { .. } => "typed-extract",
+            Command::TypedBuild { .. } => "typed-build",
             Command::Standing { .. } => "standing",
             Command::Ratchet { .. } => "ratchet",
             Command::Package => "package",
@@ -1362,7 +1399,7 @@ async fn main() -> anyhow::Result<()> {
             holdout,
             dedupe_lineage,
             turn_windows,
-            episodes_only,
+            ref kinds,
         } => {
             ablate_cmd(
                 dataset,
@@ -1378,7 +1415,7 @@ async fn main() -> anyhow::Result<()> {
                 holdout,
                 dedupe_lineage,
                 turn_windows,
-                episodes_only,
+                kinds.as_deref(),
             )
             .await
         }
@@ -1530,6 +1567,39 @@ async fn main() -> anyhow::Result<()> {
             limit,
         } => judge_cmd(run, category, limit, seed.as_deref()).await,
         Command::EvidenceAudit { ref run, limit } => evidence_audit_cmd(run, limit).await,
+        Command::TypedExtract {
+            ref dataset,
+            ref ledger,
+            ref out,
+            ref shard,
+            concurrency,
+        } => {
+            let r = myelin_eval::typed::extract(Path::new(dataset), Path::new(ledger), Path::new(out), shard, concurrency).await?;
+            eprintln!(
+                "typed-extract: {} episodes, {} in shard, {} cached, {} extracted, {} failed, {:.0}s",
+                r.episodes, r.in_shard, r.cached, r.extracted, r.failed, r.wall_secs
+            );
+            anyhow::ensure!(r.failed == 0, "{} episodes failed; run again to retry them", r.failed);
+            Ok(())
+        }
+        Command::TypedBuild {
+            ref dataset,
+            ref ledger,
+            ref collection,
+            ref cache,
+            ref report,
+        } => {
+            anyhow::ensure!(
+                collection.starts_with("myelin_") && collection != myelin_eval::bench::LOCOMO_COLLECTION,
+                "typed-build writes beside a copy of a store; {collection:?} must be myelin_*-prefixed and not the shipped one"
+            );
+            let map = myelin_eval::typed::load_cache(cache)?;
+            let r = myelin_eval::typed::build(Path::new(dataset), Path::new(ledger), collection, &map).await?;
+            std::fs::write(report, serde_json::to_string_pretty(&r.reach)?).with_context(|| format!("write {report}"))?;
+            println!("{}", serde_json::to_string_pretty(&r.reach)?);
+            eprintln!("typed-build: written {:?}, {} already present, {:.0}s", r.written, r.existing, r.wall_secs);
+            Ok(())
+        }
         Command::Shapes {
             corpus,
             ref dataset,
@@ -1942,12 +2012,15 @@ async fn ablate_cmd(
     holdout: bool,
     dedupe_lineage: bool,
     turn_windows: Option<usize>,
-    episodes_only: bool,
+    kinds: Option<&[String]>,
 ) -> anyhow::Result<()> {
     // clap's value is the user's spelling; the rest of the crate keys on
     // the underscored slug `Corpus::slug` produces, so normalise once here
     // rather than matching two spellings in three places.
     let corpus: &str = &corpus.replace('-', "_");
+    let kinds: Option<Vec<myelin_core::model::record::RecordKind>> = kinds
+        .map(|ks| ks.iter().map(|k| myelin_core::model::record::RecordKind::parse(k)).collect())
+        .transpose()?;
     if let Some(steps) = steps {
         let points = myelin_eval::ablate::investigate_curve(
             Path::new(dataset),
@@ -1989,7 +2062,7 @@ async fn ablate_cmd(
             holdout,
             dedupe_lineage,
             turn_windows,
-            episodes_only,
+            kinds.as_deref(),
         )
         .await?;
         myelin_eval::ablate::print_width(&points, k, corpus);
@@ -2002,7 +2075,10 @@ async fn ablate_cmd(
                 collection.trim_start_matches("myelin_"),
                 if dedupe_lineage { "_dedupe" } else { "" },
                 turn_windows.map(|r| format!("_tw{r}")).unwrap_or_default(),
-                if episodes_only { "_episodes" } else { "" }
+                kinds
+                    .as_ref()
+                    .map(|ks| format!("_{}", ks.iter().map(|k| k.as_str()).collect::<Vec<_>>().join("-")))
+                    .unwrap_or_default()
             ),
             _ => format!("runs/{slug}_{corpus}"),
         };
