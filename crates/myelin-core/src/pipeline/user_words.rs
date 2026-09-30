@@ -67,12 +67,12 @@ pub const USER_WORDS_HEADER: &str =
 pub const USER_WORDS_MECHANISM: &str = "m76:user-words";
 /// The speakers of a LongMemEval_S episode (`ingest` writes each turn as
 /// `<role>: <text>`).
-const SPEAKERS: [&str; 2] = ["user", "assistant"];
+pub(crate) const SPEAKERS: [&str; 2] = ["user", "assistant"];
 /// The turn prefix kept.
 const USER_TURN_PREFIX: &str = "user: ";
 /// Separates a session from its segment in an episode's source doc
 /// (`<session>#<segment>`).
-const SEGMENT_SEPARATOR: char = '#';
+pub(crate) const SEGMENT_SEPARATOR: char = '#';
 
 /// The user's turns, ranked, from the ledger's episodes of the evidence's
 /// sessions.

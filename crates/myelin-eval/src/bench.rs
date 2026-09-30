@@ -64,6 +64,7 @@ use myelin_core::llm::openai::OpenAiLlm;
 use myelin_core::llm::{CompletionRequest, Llm, Message};
 use myelin_core::model::query::{Budget, Mode, Recall, ScopeFilter};
 use myelin_core::pipeline::side_block::{SideBlock, SideKind};
+use myelin_core::pipeline::round_view::{RoundView, RoundViewStats, ROUND_VIEW_MECHANISM};
 use myelin_core::pipeline::user_words::{UserWords, USER_WORDS_MECHANISM};
 use myelin_core::pipeline::investigate::Investigator;
 use myelin_core::pipeline::retrieve::{RetrieveConfig, Retriever};
@@ -322,6 +323,10 @@ pub struct ScoredQuestion {
     pub selected: usize,
     #[serde(default)]
     pub select_degraded: Degradation,
+    /// M86: what the round view did on this row, when it was on. Absent on
+    /// every run before M86 and on every row of a run with it off.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub round_view: Option<RoundViewStats>,
 }
 
 /// Queries the guard must see before a failed call can abort a run.
@@ -713,6 +718,14 @@ pub struct BenchRun {
     pub aggregation_k: Option<usize>,
     #[serde(default)]
     pub aggregation_budget_tokens: Option<usize>,
+    /// M86: a reply-only episode was shown with the user turn it answers
+    /// (`myelin_core::pipeline::round_view`). Absent on every run before M86.
+    #[serde(default)]
+    pub round_view: bool,
+    /// M86: the view's counts summed over the run's rows (resumed rows
+    /// included), when it was on.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub round_view_stats: Option<RoundViewStats>,
     /// M24's sub-query decomposition cap, mirroring
     /// `RetrieveConfig::decompose`. Ships off; absent on every run before
     /// M24.
@@ -892,6 +905,8 @@ pub struct BenchSwitches {
     /// token budget instead of the run's (both or neither).
     pub aggregation_k: Option<usize>,
     pub aggregation_budget_tokens: Option<usize>,
+    /// M86: the round view (`myelin_core::pipeline::round_view`).
+    pub round_view: bool,
     /// M61: the second pass was the grounded one. Only `commit-arm --grounded`
     /// produces it; carried here so a rescore of that arm keeps the record.
     pub commit_grounded: bool,
@@ -2612,6 +2627,12 @@ pub fn shipped_aggregation(corpus: &str) -> Option<(usize, usize)> {
     (corpus == "longmemeval_s").then_some((LME_S_AGGREGATION_K, LME_S_AGGREGATION_BUDGET_TOKENS))
 }
 
+/// M86's round view ships nowhere until its arm is read
+/// (`docs/measurements/m86-round-view.md`).
+pub fn shipped_round_view(_corpus: &str) -> bool {
+    false
+}
+
 pub fn shipped_advice_profile_clause(corpus: &str) -> bool {
     corpus == "longmemeval_s"
 }
@@ -3212,6 +3233,17 @@ pub async fn bench_locomo(
     //
     // `Investigator` wraps `&Retriever`, so `--mode investigate --graph`
     // composes with no extra wiring.
+    // One compose configuration for the read path and the round view (M86),
+    // so an added turn is dated and annotated as its neighbours are.
+    let compose_cfg = myelin_core::pipeline::compose::ComposeConfig {
+        chronological: switches.chronological,
+        timeline_ago: switches.timeline_ago,
+        mmr_lambda: switches.mmr,
+        untrusted_max: switches.untrusted_max,
+        dedupe_lineage: switches.dedupe_lineage,
+        inline_dates: switches.inline_dates,
+        ..Default::default()
+    };
     let mut retriever = Retriever::new(&embedder, &store, &ledger).with_config(RetrieveConfig {
         graph: switches.graph,
         select_sufficient: switches.select_sufficient,
@@ -3225,15 +3257,7 @@ pub async fn bench_locomo(
         // that silently disabled the shipped mechanism because a flag
         // defaulted false would measure a configuration nobody runs. Same
         // treatment `stamp_valid_time` has had since M13.
-        compose: myelin_core::pipeline::compose::ComposeConfig {
-            chronological: switches.chronological,
-            timeline_ago: switches.timeline_ago,
-            mmr_lambda: switches.mmr,
-            untrusted_max: switches.untrusted_max,
-            dedupe_lineage: switches.dedupe_lineage,
-            inline_dates: switches.inline_dates,
-            ..Default::default()
-        },
+        compose: compose_cfg.clone(),
         turn_windows: switches.turn_windows,
         select_focus: switches.select_focus,
         ..Default::default()
@@ -3265,6 +3289,13 @@ pub async fn bench_locomo(
         (true, Some(r)) => Some(UserWords::new(&ledger, r)),
         (true, None) => anyhow::bail!("--user-words needs the cross-encoder at {}", cfg.rerank.url),
     };
+    // M86: a window shows only part of an episode, so its first turn is not
+    // the record's, and the view reads the record's.
+    anyhow::ensure!(
+        !(switches.round_view && switches.turn_windows.is_some()),
+        "--round-view refuses --turn-windows: a windowed item does not open with its record's first turn"
+    );
+    let round_view: Option<RoundView> = switches.round_view.then(|| RoundView::new(&ledger, compose_cfg.clone()));
     if switches.graph {
         retriever = retriever.with_graph(&graph_index);
     }
@@ -3383,6 +3414,14 @@ pub async fn bench_locomo(
             if switches.select_sufficient {
                 degradation.observe(selection.1)?;
             }
+            let round = match &round_view {
+                Some(view) => Some(
+                    view.attach(&query, &mut evidence)
+                        .await
+                        .with_context(|| format!("{ROUND_VIEW_MECHANISM} {tenant}#{i}"))?,
+                ),
+                None => None,
+            };
             if let Some(words) = &user_words {
                 words
                     .append(&query, &mut evidence)
@@ -3449,6 +3488,7 @@ pub async fn bench_locomo(
                 memory_query_duration_seconds: elapsed,
                 selected: selection.0,
                 select_degraded: selection.1,
+                round_view: round,
             })?;
         }
     }
@@ -3557,21 +3597,24 @@ pub async fn bench_longmemeval_s(
     // See `bench_locomo`: one config, always passed, so the all-off arm is
     // `RetrieveConfig::default()` field for field. The width pair follows
     // `None`-means-default, the contract every other override here uses.
+    // One compose configuration for the read path and the round view (M86),
+    // so an added turn is dated and annotated as its neighbours are.
+    let compose_cfg = myelin_core::pipeline::compose::ComposeConfig {
+        chronological: switches.chronological,
+        timeline_ago: switches.timeline_ago,
+        mmr_lambda: switches.mmr,
+        untrusted_max: switches.untrusted_max,
+        dedupe_lineage: switches.dedupe_lineage,
+        inline_dates: switches.inline_dates,
+        ..Default::default()
+    };
     let mut retriever = Retriever::new(&embedder, &store, &ledger).with_config(RetrieveConfig {
         graph: switches.graph,
         select_sufficient: switches.select_sufficient,
         decompose: switches.decompose,
         prefetch_limit: prefetch_limit.unwrap_or(RetrieveConfig::default().prefetch_limit),
         rerank_depth: rerank_depth.unwrap_or(RetrieveConfig::default().rerank_depth),
-        compose: myelin_core::pipeline::compose::ComposeConfig {
-            chronological: switches.chronological,
-            timeline_ago: switches.timeline_ago,
-            mmr_lambda: switches.mmr,
-            untrusted_max: switches.untrusted_max,
-            dedupe_lineage: switches.dedupe_lineage,
-            inline_dates: switches.inline_dates,
-            ..Default::default()
-        },
+        compose: compose_cfg.clone(),
         turn_windows: switches.turn_windows,
         select_focus: switches.select_focus,
         ..Default::default()
@@ -3603,6 +3646,13 @@ pub async fn bench_longmemeval_s(
         (true, Some(r)) => Some(UserWords::new(&ledger, r)),
         (true, None) => anyhow::bail!("--user-words needs the cross-encoder at {}", cfg.rerank.url),
     };
+    // M86: a window shows only part of an episode, so its first turn is not
+    // the record's, and the view reads the record's.
+    anyhow::ensure!(
+        !(switches.round_view && switches.turn_windows.is_some()),
+        "--round-view refuses --turn-windows: a windowed item does not open with its record's first turn"
+    );
+    let round_view: Option<RoundView> = switches.round_view.then(|| RoundView::new(&ledger, compose_cfg.clone()));
     if switches.graph {
         retriever = retriever.with_graph(&graph_index);
     }
@@ -3673,6 +3723,14 @@ pub async fn bench_longmemeval_s(
         if switches.select_sufficient {
             degradation.observe(selection.1)?;
         }
+        let round = match &round_view {
+            Some(view) => Some(
+                view.attach(&query, &mut evidence)
+                    .await
+                    .with_context(|| format!("{ROUND_VIEW_MECHANISM} {}", item.question_id))?,
+            ),
+            None => None,
+        };
         if let Some(words) = &user_words {
             words
                 .append(&query, &mut evidence)
@@ -3764,6 +3822,7 @@ pub async fn bench_longmemeval_s(
             memory_query_duration_seconds: elapsed,
             selected: selection.0,
             select_degraded: selection.1,
+            round_view: round,
         })?;
     }
 
@@ -3965,6 +4024,16 @@ fn finish_run(
         commit_speaker_contrast: spec.switches.commit_speaker_contrast,
         commit_assert_statement: spec.switches.commit_assert_statement,
         commit_non_recall: spec.switches.commit_non_recall,
+        round_view: spec.switches.round_view,
+        round_view_stats: spec.switches.round_view.then(|| {
+            let mut total = RoundViewStats::default();
+            for row in &scored {
+                if let Some(r) = &row.round_view {
+                    total.add(r);
+                }
+            }
+            total
+        }),
         resumed_rows: resumed,
         commit_samples: None,
         commit_agree: None,
@@ -4185,6 +4254,7 @@ pub fn rescore_run(source: &Path, out_dir: &Path, scorer: Scorer) -> Result<Benc
             commit_speaker_contrast: flag("commit_speaker_contrast"),
             commit_assert_statement: flag("commit_assert_statement"),
             commit_non_recall: flag("commit_non_recall"),
+            round_view: flag("round_view"),
             commit_answer: flag("commit_answer"),
             untrusted_max: metrics
                 .get("untrusted_max")
@@ -4552,6 +4622,7 @@ mod tests {
             memory_query_duration_seconds: 1.0,
             selected: 4,
             select_degraded: Degradation::ModelDeclined,
+            round_view: None,
         };
         sink.push(row.clone()).unwrap();
 
@@ -4601,6 +4672,7 @@ mod tests {
             memory_query_duration_seconds: 0.5,
             selected: 0,
             select_degraded: Degradation::ModelDeclined,
+            round_view: None,
         };
         let mut first = RowSink::create(&out).unwrap();
         first.push(row("a")).unwrap();

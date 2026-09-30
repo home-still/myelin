@@ -22,6 +22,7 @@ pub mod investigate;
 pub mod phrases;
 pub mod query_shape;
 pub mod retrieve;
+pub mod round_view;
 pub mod select;
 pub mod side_block;
 pub mod trajectory_agent;
