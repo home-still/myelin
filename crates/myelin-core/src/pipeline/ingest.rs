@@ -17,6 +17,8 @@
 //! them (Zep's bidirectional episode↔semantic index,
 //! `06-consolidation-forgetting.md` §1). Nothing in this module summarises.
 
+use std::collections::BTreeSet;
+
 use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 
@@ -74,6 +76,9 @@ impl Default for SegmentConfig {
 pub enum BoundaryReason {
     UnitChange,
     TimeGap,
+    /// M89a: the conversation changed topic here
+    /// ([`crate::pipeline::topic`]).
+    TopicShift,
     TokenCap,
     EndOfStream,
 }
@@ -209,6 +214,13 @@ pub fn approx_tokens(s: &str) -> usize {
 /// a segmenter that silently drops material would show up only as an
 /// unexplained recall ceiling much later.
 pub fn segment(turns: &[Turn], cfg: &SegmentConfig) -> Vec<EpisodeDraft> {
+    segment_at(turns, cfg, &BTreeSet::new())
+}
+
+/// [`segment`], with an episode also starting at every index in
+/// `topic_starts` (M89a's topic boundaries, [`crate::pipeline::topic`]). The
+/// unit, gap and token rules are unchanged, so an empty set is [`segment`].
+pub fn segment_at(turns: &[Turn], cfg: &SegmentConfig, topic_starts: &BTreeSet<usize>) -> Vec<EpisodeDraft> {
     let mut episodes = Vec::new();
     let mut current: Vec<Turn> = Vec::new();
     let mut tokens = 0usize;
@@ -227,7 +239,7 @@ pub fn segment(turns: &[Turn], cfg: &SegmentConfig) -> Vec<EpisodeDraft> {
             *tokens = 0;
         };
 
-    for turn in turns {
+    for (i, turn) in turns.iter().enumerate() {
         let turn_tokens = approx_tokens(&turn.text);
 
         if let Some(previous) = current.last() {
@@ -245,6 +257,8 @@ pub fn segment(turns: &[Turn], cfg: &SegmentConfig) -> Vec<EpisodeDraft> {
                 Some(BoundaryReason::UnitChange)
             } else if gapped {
                 Some(BoundaryReason::TimeGap)
+            } else if topic_starts.contains(&i) {
+                Some(BoundaryReason::TopicShift)
             } else if over_cap {
                 Some(BoundaryReason::TokenCap)
             } else {

@@ -444,6 +444,11 @@ enum Command {
         /// so the next one cannot be discovered by reading a report.
         #[arg(long)]
         allow_undated: bool,
+        /// M89a, LoCoMo only: episodes also end where the conversation changes
+        /// topic (`myelin_core::pipeline::topic`), and no facts are extracted.
+        /// Builds a new store: refuses the shipped collection and ledger.
+        #[arg(long)]
+        topics: bool,
     },
     /// M50: extract Chronos-style event tuples (`10.48550/arXiv.2603.16862`
     /// §3.1) from every distinct session of a conversational corpus into a
@@ -980,6 +985,10 @@ enum Command {
         /// M66's turn windows, of this radius, for the width sweep.
         #[arg(long, requires = "width")]
         turn_windows: Option<usize>,
+        /// M89a: retrieve episodes only, the control a store of topic
+        /// episodes is compared with.
+        #[arg(long, requires = "width")]
+        episodes_only: bool,
     },
     /// Re-score a finished bench run under a different scorer. Pure CPU:
     /// `response_raw` and `answer_gold` are on disk, so no reader call and no
@@ -1145,6 +1154,7 @@ async fn main() -> anyhow::Result<()> {
             trajectories,
             repair,
             allow_undated,
+            topics,
         } => {
             build_cmd(
                 corpus,
@@ -1158,6 +1168,7 @@ async fn main() -> anyhow::Result<()> {
                 trajectories,
                 repair,
                 allow_undated,
+                topics,
             )
             .await
         }
@@ -1351,6 +1362,7 @@ async fn main() -> anyhow::Result<()> {
             holdout,
             dedupe_lineage,
             turn_windows,
+            episodes_only,
         } => {
             ablate_cmd(
                 dataset,
@@ -1366,6 +1378,7 @@ async fn main() -> anyhow::Result<()> {
                 holdout,
                 dedupe_lineage,
                 turn_windows,
+                episodes_only,
             )
             .await
         }
@@ -1763,7 +1776,13 @@ async fn build_cmd(
     trajectories_only: bool,
     repair: bool,
     allow_undated: bool,
+    topics: bool,
 ) -> anyhow::Result<()> {
+    anyhow::ensure!(
+        !topics || corpus == Corpus::Locomo,
+        "--topics is measured on LoCoMo only (M89a); {} has no pre-registered arm",
+        corpus.slug()
+    );
     anyhow::ensure!(
         !trajectories_only || matches!(corpus, Corpus::LmeV2Small | Corpus::LmeV2Medium),
         "--trajectories stores agent trajectories; {} has none",
@@ -1775,6 +1794,13 @@ async fn build_cmd(
         collection.starts_with("myelin_"),
         "refusing to build into {collection:?}: collections must be myelin_*-prefixed \
          so a typo cannot touch the production collections on big"
+    );
+    anyhow::ensure!(
+        !topics || (collection != corpus.collection() && ledger != corpus.ledger()),
+        "--topics builds a new store; name its own --collection and --ledger instead of \
+         the shipped {} / {}",
+        corpus.collection(),
+        corpus.ledger()
     );
     anyhow::ensure!(
         question_types.is_none() || corpus == Corpus::LongmemevalS,
@@ -1790,7 +1816,7 @@ async fn build_cmd(
                 data.display()
             );
             eprintln!("ingesting LoCoMo -> collection {collection}, ledger {ledger}");
-            build_locomo(data, &collection, Path::new(&ledger), limit, repair).await?
+            build_locomo(data, &collection, Path::new(&ledger), limit, repair, topics).await?
         }
         Corpus::LongmemevalS => {
             let data = Path::new("data/longmemeval_s.json");
@@ -1916,6 +1942,7 @@ async fn ablate_cmd(
     holdout: bool,
     dedupe_lineage: bool,
     turn_windows: Option<usize>,
+    episodes_only: bool,
 ) -> anyhow::Result<()> {
     // clap's value is the user's spelling; the rest of the crate keys on
     // the underscored slug `Corpus::slug` produces, so normalise once here
@@ -1962,6 +1989,7 @@ async fn ablate_cmd(
             holdout,
             dedupe_lineage,
             turn_windows,
+            episodes_only,
         )
         .await?;
         myelin_eval::ablate::print_width(&points, k, corpus);
@@ -1970,9 +1998,11 @@ async fn ablate_cmd(
         // of its runs gets its own artifact.
         let dir = match grid {
             GridName::Shipped => format!(
-                "runs/{slug}_{corpus}_k{k}{}{}",
+                "runs/{slug}_{corpus}_{}_k{k}{}{}{}",
+                collection.trim_start_matches("myelin_"),
                 if dedupe_lineage { "_dedupe" } else { "" },
-                turn_windows.map(|r| format!("_tw{r}")).unwrap_or_default()
+                turn_windows.map(|r| format!("_tw{r}")).unwrap_or_default(),
+                if episodes_only { "_episodes" } else { "" }
             ),
             _ => format!("runs/{slug}_{corpus}"),
         };

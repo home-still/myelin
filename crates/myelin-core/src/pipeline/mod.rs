@@ -25,6 +25,7 @@ pub mod retrieve;
 pub mod round_view;
 pub mod select;
 pub mod side_block;
+pub mod topic;
 pub mod trajectory_agent;
 pub mod trajectory_export;
 pub mod trajectory_tools;

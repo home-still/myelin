@@ -203,6 +203,7 @@ pub async fn build_locomo(
     ledger_path: &Path,
     limit: Option<usize>,
     repair: bool,
+    topics: bool,
 ) -> Result<BuildReport> {
     let cfg = MyelinConfig::load().context("load myelin config")?;
 
@@ -272,16 +273,25 @@ pub async fn build_locomo(
 
         let mut write = WritePath::new(&llm, &embedder, &store, &ledger);
         write.progress = true;
+        // M89a: topic episodes only. The facts extracted from today's
+        // episodes would testify to turn ranges the new episodes cut
+        // differently, and the reader-free go rule compares episodes with
+        // episodes (`docs/measurements/m89-typed-memory.md`).
+        if topics {
+            write.topics = Some(myelin_core::pipeline::topic::TopicConfig::default());
+            write.extract_facts = false;
+        }
         let stats = write
             .insert(&scope, &turns)
             .await
             .with_context(|| format!("ingest {}", conv.sample_id))?;
 
         eprintln!(
-            "  {:<8} turns={:<5} episodes={:<4} adj={:<3} candidates={:<5} add={:<5} upd={:<4} dup={:<5} quar={:<4} rej={:<4} {:.1}s",
+            "  {:<8} turns={:<5} episodes={:<4} topic_shifts={:<4} adj={:<3} candidates={:<5} add={:<5} upd={:<4} dup={:<5} quar={:<4} rej={:<4} {:.1}s",
             conv.sample_id,
             stats.turns,
             stats.episodes,
+            stats.topic_shifts,
             stats.adjudicated_out,
             stats.candidates,
             stats.added,
