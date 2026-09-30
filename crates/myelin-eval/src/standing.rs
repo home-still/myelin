@@ -1115,6 +1115,10 @@ fn bench_metrics(dir: &Path, agg_text: &str) -> Result<Vec<Ours>> {
         || run.commit_assert_statement != crate::bench::shipped_commit_nli(&run.corpus)
         || run.commit_premise_finding
         || run.commit_typed_cited
+        // Retrieval ties ordered by score then id (2026-09-30). A recorded
+        // policy other than today's is an arm; an artifact recording none is
+        // stale (`BENCH_OPERATING_POINT`).
+        || run.tie_order.as_deref().is_some_and(|t| t != myelin_core::store::qdrant::TIE_ORDER)
         // M84's second look at declined non-recall requests ships for LoCoMo
         // only.
         || run.commit_non_recall != crate::bench::shipped_commit_non_recall(&run.corpus)
@@ -1365,7 +1369,12 @@ fn served_another_model(recorded: Option<&str>, shipped: &str) -> bool {
 /// `ComposeConfig::default()` on every run since, and every artifact older
 /// than M19 omits them — which is exactly the population whose numbers
 /// `standing` was still quoting six milestones later.
-const BENCH_OPERATING_POINT: [&str; 2] = ["resolve_dates", "timeline"];
+///
+/// `tie_order` joined them on 2026-09-30: before it, tied retrieval scores fell
+/// in Qdrant's internal segment order, which a snapshot or reindex changes
+/// (LoCoMo's BM25 top-50 moved on 85 of 100 questions between two
+/// byte-identical stores). A run without it measured that arbitrary order.
+const BENCH_OPERATING_POINT: [&str; 3] = ["resolve_dates", "timeline", "tie_order"];
 
 /// Which of [`BENCH_OPERATING_POINT`] this artifact does not record.
 ///
@@ -4182,13 +4191,40 @@ mod tests {
         .to_string();
         assert_eq!(
             unrecorded_bench_keys(&pre_m19).unwrap(),
-            vec!["resolve_dates", "timeline"]
+            vec!["resolve_dates", "timeline", "tie_order"]
         );
 
         let mut post = serde_json::from_str::<Value>(&pre_m19).unwrap();
         post["resolve_dates"] = Value::Bool(true);
         post["timeline"] = Value::Bool(true);
+        assert_eq!(
+            unrecorded_bench_keys(&post.to_string()).unwrap(),
+            vec!["tie_order"],
+            "a run from before 2026-09-30 measured Qdrant's arbitrary tie order"
+        );
+        post["tie_order"] = Value::String(myelin_core::store::qdrant::TIE_ORDER.into());
         assert!(unrecorded_bench_keys(&post.to_string()).unwrap().is_empty());
+    }
+
+    /// A run that records a tie order other than today's is an arm, however
+    /// it scores.
+    #[test]
+    fn a_run_with_another_tie_order_is_an_arm() {
+        let tmp = tempfile::tempdir().unwrap();
+        let runs = tmp.path().join("runs");
+        let shipped = runs.join("by_id");
+        shipped_lme_s_run(&shipped, 0.5);
+        let other = runs.join("by_segment");
+        shipped_lme_s_run(&other, 0.9);
+        let path = other.join("aggregated_metrics.json");
+        let mut agg: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+        agg["tie_order"] = serde_json::json!("qdrant_segment_order");
+        std::fs::write(&path, agg.to_string()).unwrap();
+        let ours = collect(&runs, "/nonexistent/python").unwrap();
+        let f1 = &ours["longmemeval_s.token_f1.n500"];
+        assert!(f1.run.ends_with("by_id"), "{f1:?}");
+        assert!(!f1.arm, "{f1:?}");
     }
 
     /// A row with a verified protocol defect is never comparable, even when
@@ -4238,7 +4274,7 @@ mod tests {
         let base = serde_json::json!({
             "corpus": "locomo", "collection": crate::bench::LOCOMO_COLLECTION, "mode": "investigate", "k": 6,
             "max_steps": 2, "scorer": "temporal",
-            "resolve_dates": true, "timeline": true,
+            "resolve_dates": true, "timeline": true, "tie_order": myelin_core::store::qdrant::TIE_ORDER,
             "select_sufficient": true, "item_digest": true, "digest_dates": true,
             "commit_answer": crate::bench::shipped_commit_answer("locomo"),
             "commit_non_recall": crate::bench::shipped_commit_non_recall("locomo"),
@@ -4358,7 +4394,7 @@ mod tests {
             let agg = serde_json::json!({
                 "corpus": "locomo", "collection": crate::bench::LOCOMO_COLLECTION, "mode": mode, "k": 6,
                 "max_steps": 2, "scorer": "temporal",
-                "resolve_dates": true, "timeline": true,
+                "resolve_dates": true, "timeline": true, "tie_order": myelin_core::store::qdrant::TIE_ORDER,
                 "select_sufficient": select,
                 "item_digest": digest, "digest_dates": digest,
                 "commit_answer": crate::bench::shipped_commit_answer("locomo"),
@@ -4389,7 +4425,7 @@ mod tests {
         let agg = serde_json::json!({
             "corpus": corpus, "collection": crate::bench::shipped_collection(corpus).unwrap(),
             "mode": "investigate", "k": 6, "max_steps": 2, "scorer": "token_f1",
-            "resolve_dates": true, "timeline": true,
+            "resolve_dates": true, "timeline": true, "tie_order": myelin_core::store::qdrant::TIE_ORDER,
             "select_sufficient": true, "item_digest": true, "digest_dates": true,
             "reader_thinking": true,
             "llm_served_model": crate::bench::shipped_llm_model(corpus),
@@ -4492,7 +4528,7 @@ mod tests {
             let agg = serde_json::json!({
                 "corpus": corpus, "collection": crate::bench::shipped_collection(corpus).unwrap(), "mode": "investigate", "k": 6,
                 "max_steps": 2, "scorer": if corpus == "locomo" { "temporal" } else { "token_f1" },
-                "resolve_dates": true, "timeline": true,
+                "resolve_dates": true, "timeline": true, "tie_order": myelin_core::store::qdrant::TIE_ORDER,
                 "select_sufficient": true, "item_digest": true, "digest_dates": true,
                 "reader_thinking": thinking,
                 // Served the corpus's shipped model, so thinking is the only
@@ -4555,7 +4591,7 @@ mod tests {
             let agg = serde_json::json!({
                 "corpus": "locomo", "collection": crate::bench::LOCOMO_COLLECTION, "mode": mode, "k": 6,
                 "max_steps": 2, "scorer": "temporal",
-                "resolve_dates": true, "timeline": true,
+                "resolve_dates": true, "timeline": true, "tie_order": myelin_core::store::qdrant::TIE_ORDER,
                 "select_sufficient": mode == "investigate",
                 "item_digest": digest, "digest_dates": dates,
                 "commit_answer": crate::bench::shipped_commit_answer("locomo"),

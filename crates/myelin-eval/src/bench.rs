@@ -597,6 +597,13 @@ pub struct BenchRun {
     /// on either, but the fact is recorded rather than hidden.
     #[serde(default)]
     pub resumed_rows: usize,
+    /// How tied retrieval scores were ordered
+    /// ([`myelin_core::store::qdrant::TIE_ORDER`]). Absent on every run
+    /// before 2026-09-30, when ties fell in Qdrant's internal segment order,
+    /// and it stays absent through a rescore, so an old run can never claim
+    /// it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tie_order: Option<String>,
     /// M45: how many samples the second pass drew and the agreement it
     /// required, when it was the consensus variant. Absent on M42's arm.
     #[serde(default)]
@@ -3899,6 +3906,7 @@ fn finish_run(
         timeline_ago: spec.switches.timeline_ago,
         // Read off the shipped defaults rather than switches: `bench` no
         // longer overrides either, so this is what the run actually used.
+        tie_order: Some(myelin_core::store::qdrant::TIE_ORDER.to_string()),
         resolve_dates: myelin_core::pipeline::compose::ComposeConfig::default().resolve_relative,
         timeline: myelin_core::pipeline::compose::ComposeConfig::default().timeline,
         // Read off the switches, not the defaults: neither M20 arm has
