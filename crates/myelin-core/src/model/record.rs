@@ -1,4 +1,4 @@
-//! `MemoryRecord` and its parts (`PLAN.md` §4). One record type, five kinds,
+//! `MemoryRecord` and its parts (`PLAN.md` §4). One record type, seven kinds,
 //! explicit time and explicit trust.
 
 use chrono::{DateTime, Utc};
@@ -19,15 +19,24 @@ pub enum RecordKind {
     Procedural,
     Profile,
     Working,
+    /// M89b: an evolving state with a temporal anchor (topic, state, when),
+    /// LeanMem's event memory (arXiv 2608.03463 §3.2).
+    Event,
+    /// M89b: a retrieval gist of detail-dense turns that points back at them,
+    /// LeanMem's record memory. The gist is what is searched; the cited turns
+    /// are what is read.
+    Gist,
 }
 
 impl RecordKind {
-    pub const ALL: [RecordKind; 5] = [
+    pub const ALL: [RecordKind; 7] = [
         RecordKind::Episodic,
         RecordKind::Semantic,
         RecordKind::Procedural,
         RecordKind::Profile,
         RecordKind::Working,
+        RecordKind::Event,
+        RecordKind::Gist,
     ];
 
     pub fn as_str(self) -> &'static str {
@@ -37,6 +46,8 @@ impl RecordKind {
             RecordKind::Procedural => "procedural",
             RecordKind::Profile => "profile",
             RecordKind::Working => "working",
+            RecordKind::Event => "event",
+            RecordKind::Gist => "gist",
         }
     }
 
@@ -47,6 +58,8 @@ impl RecordKind {
             "procedural" => Ok(RecordKind::Procedural),
             "profile" => Ok(RecordKind::Profile),
             "working" => Ok(RecordKind::Working),
+            "event" => Ok(RecordKind::Event),
+            "gist" => Ok(RecordKind::Gist),
             other => Err(MyelinError::Store(format!("unknown record kind {other:?}"))),
         }
     }
@@ -338,6 +351,9 @@ impl MemoryRecord {
     /// disposition must say what it was abstracted from. That lineage is what
     /// makes "why do you think I prefer that?" answerable through `explain`.
     pub fn requires_lineage(&self) -> bool {
-        matches!(self.kind, RecordKind::Semantic | RecordKind::Profile)
+        matches!(
+            self.kind,
+            RecordKind::Semantic | RecordKind::Profile | RecordKind::Event | RecordKind::Gist
+        )
     }
 }
