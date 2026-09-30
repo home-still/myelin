@@ -219,6 +219,28 @@ lost under the strict judge):
 
 ---
 
+## Round 7 *(plan approved 2026-09-30)*
+
+The deterministic re-measurement sets the base every arm below is paired
+against. Loss anatomy (2026-09-30, the shipped replicates):
+- **LongMemEval_S's largest recoverable block is a segmentation split.**
+  A long assistant reply opens its own record, and the user turn it answers
+  ends the previous one: 20 of 43 wrong preference rows.
+- **LoCoMo's largest retrieval loss is multi-hop list and count coverage.**
+  80 of 83 multi-hop losses miss at least one gold turn.
+
+Research: `docs/research/sota-catalog-2026-09-30.md`.
+
+- **M86, the round view** *(built; arm queued behind the re-measurement)*:
+  - A reply-only episode is shown with the user turn it answers, beside the
+    budget (`--round-view`, `pipeline::round_view`).
+  - The offline replay restores a missing gold user turn in 39 of 90
+    preference row-seeds and 50 temporal ones.
+  - Pre-registration: `docs/measurements/m86-round-view.md`. Seed 1 runs
+    first, against `det_lme_s1`.
+
+---
+
 ## M75 — LME-V2 false-premise questions answered from the nearest real screen *(found 2026-09-27; not started)*
 
 M54's AgentRunbook-C point is weakest on abstention: 53.57 on enterprise's 56

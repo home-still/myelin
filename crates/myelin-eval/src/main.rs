@@ -854,6 +854,12 @@ enum Command {
         aggregation_k: Option<usize>,
         #[arg(long, requires = "aggregation_k")]
         aggregation_budget_tokens: Option<usize>,
+        /// M86: an evidence episode that opens with an assistant reply is
+        /// shown with the user turn it answers, from the preceding episode of
+        /// the same session (`myelin_core::pipeline::round_view`). A no-op on
+        /// corpora without user/assistant turns. Refuses `--turn-windows`.
+        #[arg(long)]
+        round_view: bool,
         /// M73b: a ledger of events (`events-build`). When the question names
         /// a past day, the events dated inside it are ranked by the
         /// cross-encoder and the top 3 appended as an `[events]` block.
@@ -1388,6 +1394,7 @@ async fn main() -> anyhow::Result<()> {
             evidence_only,
             aggregation_k,
             aggregation_budget_tokens,
+            round_view,
             untrusted_max,
             decompose,
             ref categories,
@@ -1450,6 +1457,7 @@ async fn main() -> anyhow::Result<()> {
                     evidence_only,
                     aggregation_k,
                     aggregation_budget_tokens,
+                    round_view,
                     commit_grounded: false,
                     commit_typed: false,
                     commit_premise_finding: false,
