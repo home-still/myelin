@@ -416,11 +416,11 @@ confidence problem.
 
 ## Operational debt
 
-- **Qdrant is shared and unprotected.** All five `myelin_*` collections were
-  deleted through the dashboard mid-run on 2026-09-22. M41's `reindex` is the
-  recovery; the prevention is `QDRANT__SERVICE__API_KEY` +
-  `QDRANT__SERVICE__READ_ONLY_API_KEY`, or our own instance on a separate
-  port. Snapshot after every `build` either way.
+- ~~**Qdrant is shared and unprotected.**~~ **Done 2026-09-30:** myelin
+  has its own Qdrant on `big`, on loopback :6433/:6434 (`ops/big/README.md`,
+  "myelin's own Qdrant"). Snapshots via `ops/big/qdrant-copy.sh`. The
+  migration also found that retrieval depended on Qdrant's tie order; it is
+  deterministic now (`BACKLOG_DONE.md`).
 - **The LME-V2 index was 95% missing until 2026-09-22.** M41's `reindex`
   recovered `myelin_longmemeval_s` (162,181 of 162,181) and nothing else:
   `myelin_lme_v2_small` held **4,608 points against 85,979 live records** —

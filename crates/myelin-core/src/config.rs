@@ -137,7 +137,10 @@ impl Default for EmbedConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct QdrantConfig {
-    /// gRPC endpoint. Port 6334, never 6333 — see [`crate::store::qdrant`].
+    /// gRPC endpoint, never REST — see [`crate::store::qdrant`]. The default is
+    /// myelin's own Qdrant on big (`ops/big/myelin-qdrant.container`, gRPC
+    /// :6434), which listens on 127.0.0.1 only: runs on big reach it directly,
+    /// and any other host through `ssh -L 6434:127.0.0.1:6434 big`.
     pub url: String,
     pub collection: String,
 }
@@ -145,7 +148,7 @@ pub struct QdrantConfig {
 impl Default for QdrantConfig {
     fn default() -> Self {
         Self {
-            url: "http://192.168.1.110:6334".into(),
+            url: "http://127.0.0.1:6434".into(),
             collection: "myelin_memory".into(),
         }
     }

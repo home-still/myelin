@@ -106,6 +106,50 @@ pub const LEX: &str = "lex";
 /// which is why it works without an inference service.
 pub const BM25_MODEL: &str = "qdrant/bm25";
 
+/// Hits past a list's cutoff that every channel query asks for, so a tie that
+/// straddles the cutoff is usually visible without a second round trip.
+const TIE_PROBE_EXTRA: u64 = 32;
+/// The largest group of hits tied at a cutoff that a list will resolve. A
+/// larger one is refused: cutting it would be arbitrary again.
+const TIE_GROUP_MAX: u64 = 4096;
+
+/// Highest score first, exact ties broken by point id.
+///
+/// Qdrant returns tied scores in its internal segment order, which a snapshot,
+/// a reindex or an optimizer run changes. Measured 2026-09-30 by copying
+/// `myelin_locomo` into a second instance, with every point byte-identical:
+/// - LoCoMo's BM25 top-50 changed order on 85 of 100 questions, and changed
+///   membership on 20;
+/// - LongMemEval_S's changed order on 5 of 100.
+///
+/// Ordering by `(score, id)` makes a ranked list a function of the stored
+/// points alone.
+fn order_hits(hits: &mut [ScoredHit]) {
+    hits.sort_by(|a, b| b.score.total_cmp(&a.score).then_with(|| a.id.cmp(&b.id)));
+}
+
+/// One scored point as a [`ScoredHit`], or `None` for a numeric id (every
+/// myelin point id is a UUID).
+fn hit_of(p: &qdrant_client::qdrant::ScoredPoint) -> Option<ScoredHit> {
+    let id = p.id.as_ref()?.point_id_options.as_ref()?;
+    let text = p
+        .payload
+        .get("text")
+        .and_then(|v| v.as_str().map(|s| s.to_string()))
+        .unwrap_or_default();
+    match id {
+        qdrant_client::qdrant::point_id::PointIdOptions::Uuid(u) => {
+            Uuid::parse_str(u.as_str()).ok().map(|id| ScoredHit {
+                id,
+                score: p.score,
+                text,
+                vector: dense_vector_of(p),
+            })
+        }
+        qdrant_client::qdrant::point_id::PointIdOptions::Num(_) => None,
+    }
+}
+
 /// Build a gRPC client for the configured endpoint.
 ///
 /// The explicit timeout is not decoration. `qdrant-client` defaults to 5 s,
@@ -477,26 +521,64 @@ impl QdrantStore {
             .query(Query::new_nearest(vector))
             .using(DENSE)
             .filter(filter)
-            .limit(limit)
+            .limit(limit + TIE_PROBE_EXTRA)
             .into();
         let response = read_retrying("query", QDRANT_RETRY_FIRST_BACKOFF, || {
             self.client.query(request.clone())
         })
         .await?;
-
-        Ok(response
-            .result
-            .iter()
-            .filter_map(|p| {
-                let id = p.id.as_ref()?.point_id_options.as_ref()?;
-                match id {
-                    qdrant_client::qdrant::point_id::PointIdOptions::Uuid(u) => {
-                        Uuid::parse_str(u.as_str()).ok().map(|id| (id, p.score))
-                    }
-                    qdrant_client::qdrant::point_id::PointIdOptions::Num(_) => None,
-                }
-            })
+        let hits: Vec<ScoredHit> = response.result.iter().filter_map(hit_of).collect();
+        Ok(self
+            .cut_deterministically(hits, &request, limit)
+            .await?
+            .into_iter()
+            .map(|h| (h.id, h.score))
             .collect())
+    }
+
+    /// The top `limit` of one channel's hits, fetched as `limit +
+    /// TIE_PROBE_EXTRA`, ordered by [`order_hits`].
+    ///
+    /// When a tie at the cutoff runs to the end of what was fetched, the
+    /// query is repeated for every point scoring at least the cutoff. Qdrant's
+    /// `score_threshold` is strict, so the threshold is the next `f32` below
+    /// the cutoff (measured 2026-09-30: at the cutoff itself the tied points
+    /// were dropped). The whole tie group is then in hand before it is cut.
+    async fn cut_deterministically(
+        &self,
+        mut hits: Vec<ScoredHit>,
+        template: &qdrant_client::qdrant::QueryPoints,
+        limit: u64,
+    ) -> Result<Vec<ScoredHit>> {
+        order_hits(&mut hits);
+        let keep = usize::try_from(limit)
+            .map_err(|e| MyelinError::Store(format!("limit {limit} does not fit in usize: {e}")))?;
+        if keep == 0 {
+            return Ok(Vec::new());
+        }
+        let fetched_full = hits.len() as u64 >= limit + TIE_PROBE_EXTRA;
+        let cutoff = hits.get(keep - 1).map(|h| h.score);
+        if let (true, Some(cutoff)) = (fetched_full, cutoff) {
+            if hits.last().map(|h| h.score) == Some(cutoff) {
+                let mut query = template.clone();
+                query.limit = Some(TIE_GROUP_MAX);
+                query.score_threshold = Some(cutoff.next_down());
+                let response = read_retrying("query", QDRANT_RETRY_FIRST_BACKOFF, || {
+                    self.client.query(query.clone())
+                })
+                .await?;
+                if response.result.len() as u64 >= TIE_GROUP_MAX {
+                    return Err(MyelinError::Store(format!(
+                        "{} points tie at a cutoff score of {cutoff}; refusing to cut a tie group this large",
+                        response.result.len()
+                    )));
+                }
+                hits = response.result.iter().filter_map(hit_of).collect();
+                order_hits(&mut hits);
+            }
+        }
+        hits.truncate(keep);
+        Ok(hits)
     }
 
     /// Both retrieval channels, ranked separately, in **one** round trip.
@@ -566,7 +648,7 @@ impl QdrantStore {
                 .query(Query::new_nearest(dense))
                 .using(DENSE)
                 .filter(filter.clone())
-                .limit(limit)
+                .limit(limit + TIE_PROBE_EXTRA)
                 .with_payload(true);
             if with_vectors {
                 // Name the dense vector explicitly: `with_vectors(true)`
@@ -590,7 +672,7 @@ impl QdrantStore {
                 ))))
                 .using(LEX)
                 .filter(filter)
-                .limit(limit)
+                .limit(limit + TIE_PROBE_EXTRA)
                 .with_payload(true)
                 .into(),
         );
@@ -601,36 +683,18 @@ impl QdrantStore {
         })
         .await?;
 
-        let mut lists = response
-            .result
-            .iter()
-            .map(|batch| {
-                batch
-                    .result
-                    .iter()
-                    .filter_map(|p| {
-                        let id = p.id.as_ref()?.point_id_options.as_ref()?;
-                        let text = p
-                            .payload
-                            .get("text")
-                            .and_then(|v| v.as_str().map(|s| s.to_string()))
-                            .unwrap_or_default();
-                        let vector = dense_vector_of(p);
-                        match id {
-                            qdrant_client::qdrant::point_id::PointIdOptions::Uuid(u) => {
-                                Uuid::parse_str(u.as_str()).ok().map(|id| ScoredHit {
-                                    id,
-                                    score: p.score,
-                                    text,
-                                    vector,
-                                })
-                            }
-                            qdrant_client::qdrant::point_id::PointIdOptions::Num(_) => None,
-                        }
-                    })
-                    .collect::<Vec<_>>()
-            })
-            .collect::<Vec<_>>();
+        if response.result.len() != queries.len() {
+            return Err(MyelinError::Store(format!(
+                "query_batch answered {} lists for {} queries",
+                response.result.len(),
+                queries.len()
+            )));
+        }
+        let mut lists = Vec::with_capacity(queries.len());
+        for (batch, query) in response.result.iter().zip(&queries) {
+            let hits: Vec<ScoredHit> = batch.result.iter().filter_map(hit_of).collect();
+            lists.push(self.cut_deterministically(hits, query, limit).await?);
+        }
 
         // Order is the order the queries were submitted in.
         let lex = lists.pop().unwrap_or_default();
@@ -805,5 +869,42 @@ mod retry_tests {
         .await;
         assert!(dead.is_err(), "fails loudly once the attempts are spent");
         assert_eq!(calls.load(std::sync::atomic::Ordering::SeqCst), QDRANT_READ_ATTEMPTS);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn hit(id: u128, score: f32) -> ScoredHit {
+        ScoredHit {
+            id: Uuid::from_u128(id),
+            score,
+            text: String::new(),
+            vector: None,
+        }
+    }
+
+    /// Ties are ordered by point id, whatever order Qdrant returned them in.
+    #[test]
+    fn tied_hits_are_ordered_by_id_not_by_arrival() {
+        let mut a = vec![hit(3, 1.0), hit(1, 2.0), hit(2, 1.0), hit(4, 0.5)];
+        let mut b = vec![hit(4, 0.5), hit(2, 1.0), hit(3, 1.0), hit(1, 2.0)];
+        order_hits(&mut a);
+        order_hits(&mut b);
+        assert_eq!(a, b);
+        assert_eq!(a.iter().map(|h| h.id.as_u128()).collect::<Vec<_>>(), vec![1, 2, 3, 4]);
+    }
+
+    /// The follow-up threshold is the next `f32` below the cutoff: Qdrant's
+    /// `score_threshold` is strict, so it admits the cutoff score and nothing
+    /// that scores lower.
+    #[test]
+    fn the_threshold_below_a_cutoff_admits_exactly_the_cutoff() {
+        for cutoff in [10.376_532_f32, 0.25, -0.5, 1e-6] {
+            let threshold = cutoff.next_down();
+            assert!(cutoff > threshold, "{cutoff}");
+            assert_eq!(threshold.next_up(), cutoff, "no f32 lies between the threshold and {cutoff}");
+        }
     }
 }

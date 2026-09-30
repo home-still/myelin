@@ -70,8 +70,38 @@ servers bind `127.0.0.1` and the driver reaches them over SSH forwarding. That
 is also the better posture: an unauthenticated LLM endpoint does not belong on
 the LAN just because the firewall would have to be asked nicely.
 
-Qdrant (6334) and ollama (11434) need no tunnel, which is a second reason the
-default dense embedder is bge-m3 through ollama.
+ollama (11434) needs no tunnel, which is a second reason the default dense
+embedder is bge-m3 through ollama. myelin's own Qdrant (below) is loopback-only
+like the model servers, so forward `6434` too.
+
+## myelin's own Qdrant (since 2026-09-30)
+
+myelin's collections live in their own Qdrant on `big`, not in home-still's
+shared instance (`home-still_qdrant_1`, :6333/:6334). Two restarts of the shared
+instance during home-still deploys killed round-5 bench seeds on 2026-09-28,
+and on 2026-09-22 every myelin collection was deleted through its dashboard.
+
+- **Unit:** `ops/big/myelin-qdrant.container`, a rootless podman quadlet
+  pinned to Qdrant 1.19.1. systemd `--user` restarts it on failure and starts
+  it at boot (linger is on).
+- **Ports:** REST `127.0.0.1:6433`, gRPC `127.0.0.1:6434`, loopback only. The
+  default `MYELIN_QDRANT__URL` is `http://127.0.0.1:6434`.
+- **Storage:** `~/myelin-qdrant/storage`, snapshots in
+  `~/myelin-qdrant/snapshots`.
+- **Deploy or redeploy:** `bash ops/big/deploy-qdrant.sh` from the
+  repository root on `big`. It is idempotent and keeps the storage.
+- **Copy a collection between instances:** `bash ops/big/qdrant-copy.sh
+  <collection> [source_rest] [dest_rest]` (snapshot → download → recover →
+  point-count check).
+- **Migrated 2026-09-30:** all seven `myelin_*` collections, 443,637 points.
+  Every LoCoMo point, and 200 sampled points of each other collection, is
+  byte-identical between the two instances.
+- **Retrieval is deterministic across stores.** Qdrant orders tied scores by
+  its internal segment order, which a snapshot changes: between the two
+  byte-identical stores, LoCoMo's BM25 top-50 changed order on 85 of 100
+  questions. `store::qdrant` now completes the tie group at each cutoff and
+  orders by `(score, id)`. With that, a 100-question LoCoMo ablation returns
+  identical lists from both instances.
 
 ## A `gpu-tenant` lease does not free the card
 
