@@ -46,7 +46,8 @@ use super::adjudicate::{Adjudicator, InjectionVerdict};
 use super::consolidate::{Consolidator, Outcome, SourceTier};
 use super::extract::{Candidate, CandidateKind, ExtractOutcome, Extractor};
 use super::index::Indexer;
-use super::ingest::{segment, EpisodeDraft, SegmentConfig, Turn};
+use super::ingest::{segment, BoundaryReason, EpisodeDraft, SegmentConfig, Turn};
+use super::topic::{segment_topics, TopicConfig};
 
 /// Below this many characters of speaker text, the profile pass skips the
 /// model call outright.
@@ -84,6 +85,9 @@ pub struct WriteStats {
     /// reported separately because it is the only number that says whether
     /// the pass did anything at all.
     pub profiles: usize,
+    /// M89a: episodes that ended at a topic shift, when topic boundaries were
+    /// on ([`WritePath::topics`]).
+    pub topic_shifts: usize,
     pub approx_tokens: usize,
     pub wall_ms: u128,
     /// Wall time in the injection adjudicator. Reported so the defence's
@@ -121,6 +125,7 @@ impl WriteStats {
         self.rejected += other.rejected;
         self.adjudicated_out += other.adjudicated_out;
         self.profiles += other.profiles;
+        self.topic_shifts += other.topic_shifts;
         self.approx_tokens += other.approx_tokens;
         self.wall_ms += other.wall_ms;
         self.adjudicate_ms += other.adjudicate_ms;
@@ -231,6 +236,9 @@ pub struct WritePath<'a> {
     /// label, which is `user`/`assistant` on LongMemEval_S but a person's
     /// name on LoCoMo.
     pub profile_speaker: Option<String>,
+    /// M89a: also end an episode where the conversation changes topic
+    /// ([`crate::pipeline::topic`]). `None` is today's segmentation.
+    pub topics: Option<TopicConfig>,
 }
 
 impl<'a> WritePath<'a> {
@@ -256,6 +264,7 @@ impl<'a> WritePath<'a> {
             adjudicate: false,
             extract_profiles: false,
             profile_speaker: None,
+            topics: None,
         }
     }
 
@@ -269,7 +278,14 @@ impl<'a> WritePath<'a> {
             ..Default::default()
         };
 
-        let drafts = segment(turns, &self.segment);
+        let drafts = match &self.topics {
+            Some(topics) => segment_topics(turns, self.embedder, topics, &self.segment).await?,
+            None => segment(turns, &self.segment),
+        };
+        stats.topic_shifts = drafts
+            .iter()
+            .filter(|d| d.ended_by == BoundaryReason::TopicShift)
+            .count();
         stats.episodes = drafts.len();
         stats.approx_tokens = drafts.iter().map(|d| d.approx_tokens).sum();
         let drafts = self.adjudicate_drafts(scope, drafts, &mut stats).await?;

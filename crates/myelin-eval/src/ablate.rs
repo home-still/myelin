@@ -7,12 +7,14 @@
 //! confound, and would measure the reader's tolerance for bad evidence rather
 //! than the retriever's accuracy.
 //!
-//! The coverage map is reconstructed by **re-running the production
-//! segmenter**, not by matching text. [`crate::build::turns_for`] plus
-//! [`segment`] plus [`record_id`] reproduce the exact episode ids and the
-//! exact turn list behind each one, because the id is a v5 hash of the
-//! episode's natural key. Substring matching would have been ambiguous
-//! ("Speaker: Yes" recurs) and this is not.
+//! The coverage map is **read from the store**, not by matching text: an
+//! episode's source is its first turn's `dia_id`, and its text is its turns
+//! rendered in order, so the walk from that turn that reproduces the text *is*
+//! the exact turn list behind it, whichever segmenter built the store (the
+//! 512-token default, or M89a's topic episodes). Substring matching would have
+//! been ambiguous ("Speaker: Yes" recurs) and this is not. Until M89a the map
+//! was rebuilt by re-running the default segmenter, which only a store built
+//! by that segmenter satisfies.
 //!
 //! Every arm is the same [`Retriever`] with different [`RetrieveConfig`]
 //! fields. That is the point of `Channels` existing at all: a baseline
@@ -27,12 +29,11 @@ use async_trait::async_trait;
 use myelin_core::config::MyelinConfig;
 use myelin_core::embed::{remote::RemoteEmbedder, Embedder};
 use myelin_core::model::query::{Budget, Mode, Recall, ScopeFilter};
-use myelin_core::pipeline::ingest::{segment, SegmentConfig};
+use myelin_core::model::record::RecordKind;
 use myelin_core::pipeline::investigate::{InvestigateConfig, Investigator};
 use myelin_core::pipeline::retrieve::{Channels, RetrieveConfig, Retriever};
 use myelin_core::rerank::{cross::CrossEncoder, Reranker};
 use myelin_core::store::graph::GraphIndex;
-use myelin_core::store::ids::record_id;
 use myelin_core::store::ledger::Ledger;
 use myelin_core::store::qdrant::QdrantStore;
 use uuid::Uuid;
@@ -57,33 +58,82 @@ struct Question {
 struct Coverage(HashMap<Uuid, HashSet<String>>);
 
 impl Coverage {
+    /// Each episode's turns, read from the store rather than re-derived by
+    /// replaying a segmenter: an episode's source is its first turn's
+    /// `dia_id`, and its text is its turns rendered in order. So the walk
+    /// from that turn that reproduces the text *is* its coverage, whichever
+    /// segmenter built the store (M89a's topic episodes, or the 512-token
+    /// default). An episode that does not render as consecutive turns means
+    /// the store and the dataset disagree, and the instrument refuses.
     async fn build(conversations: &[LocomoConversation], ledger: &Ledger) -> Result<Self> {
         let mut covers: HashMap<Uuid, HashSet<String>> = HashMap::new();
-        let cfg = SegmentConfig::default();
-
-        for conv in conversations {
-            let scope = myelin_core::model::record::Scope::new(
-                format!("locomo/{}", conv.sample_id),
-                "myelin",
-                "locomo",
-            );
-            for draft in segment(&turns_for(conv), &cfg) {
-                let id = record_id(&scope, &draft.natural_key());
-                covers.insert(
-                    id,
-                    draft.turns.iter().map(|t| t.source.doc.clone()).collect(),
-                );
+        let lines: HashMap<String, Vec<(String, String)>> = conversations
+            .iter()
+            .map(|conv| {
+                (
+                    format!("locomo/{}", conv.sample_id),
+                    turns_for(conv)
+                        .into_iter()
+                        .map(|t| (t.source.doc.clone(), format!("{}: {}", t.speaker, t.text)))
+                        .collect(),
+                )
+            })
+            .collect();
+        let records = ledger
+            .records_in_namespace("locomo")
+            .await
+            .context("load records for coverage")?;
+        let mut not_from_dataset = 0usize;
+        for record in records.iter().filter(|r| r.kind == RecordKind::Episodic) {
+            // A conversation outside the split contributes nothing, as before.
+            let Some(turns) = lines.get(&record.scope.tenant) else {
+                continue;
+            };
+            let first = &record.provenance.source.doc;
+            // A record written through the API rather than from the dataset
+            // (the 2026-09-21 usability probe's `remember` in conv-26) covers
+            // no gold turn. It is counted and said, never guessed at.
+            let Some(start) = turns.iter().position(|(doc, _)| doc == first) else {
+                not_from_dataset += 1;
+                continue;
+            };
+            let mut rendered = String::new();
+            let mut docs = HashSet::new();
+            let mut matched = false;
+            for (doc, line) in &turns[start..] {
+                if !rendered.is_empty() {
+                    rendered.push('\n');
+                }
+                rendered.push_str(line);
+                docs.insert(doc.clone());
+                if rendered == record.text {
+                    matched = true;
+                    break;
+                }
+                if rendered.len() >= record.text.len() {
+                    break;
+                }
             }
+            anyhow::ensure!(
+                matched,
+                "episode {} does not render as consecutive turns of {} from {first}; \
+                 the store and the dataset disagree",
+                record.id,
+                record.scope.tenant
+            );
+            covers.insert(record.id, docs);
+        }
+        if not_from_dataset > 0 {
+            eprintln!(
+                "  coverage: {not_from_dataset} episodic record(s) do not start at a dataset turn \
+                 (written through the API, not the build); they cover no gold turn"
+            );
         }
 
         // Derived records: resolve lineage once, breadth-first, rather than
         // per-query. A semantic record's ancestors are always episodes here,
         // but the walk is general so a future consolidation-of-consolidations
         // does not silently lose coverage.
-        let records = ledger
-            .records_in_namespace("locomo")
-            .await
-            .context("load records for coverage")?;
         let parents: HashMap<Uuid, Vec<Uuid>> = records
             .iter()
             .map(|r| (r.id, r.provenance.derived_from.clone()))
@@ -697,6 +747,7 @@ pub async fn width_sweep(
     holdout: bool,
     dedupe_lineage: bool,
     turn_windows: Option<usize>,
+    episodes_only: bool,
 ) -> Result<Vec<WidthPoint>> {
     let cfg = MyelinConfig::load().context("load myelin config")?;
     let ledger = Ledger::open(ledger_path).await.context("open ledger")?;
@@ -810,7 +861,9 @@ pub async fn width_sweep(
                 text: q.text.clone(),
                 budget: Budget { k, tokens: budget_tokens, ..Default::default() },
                 mode: Mode::Recall,
-                kinds: None,
+                // M89a: the episodes-only control, so a store of topic
+                // episodes is compared with the shipped store's episodes.
+                kinds: episodes_only.then(|| vec![RecordKind::Episodic]),
                 as_of: None,
             };
             let (evidence, trace) = retriever
@@ -1576,6 +1629,37 @@ pub fn print_step_curve(points: &[StepPoint], k: usize) {
 
 #[cfg(test)]
 mod tests {
+
+    /// M89a: the coverage read from the store is exactly the map the old
+    /// segmenter replay produced, on the shipped LoCoMo store. Needs
+    /// `data/locomo10.json` and `data/locomo.ledger`, so it is ignored by
+    /// default; run with `--ignored` where the store is.
+    #[tokio::test]
+    #[ignore]
+    async fn store_coverage_reproduces_the_segmenter_replay_on_the_shipped_store() {
+        use myelin_core::pipeline::ingest::{segment, SegmentConfig};
+        use myelin_core::store::ids::record_id;
+        let conversations = locomo::load(Path::new("../../data/locomo10.json")).unwrap();
+        let ledger = Ledger::open("../../data/locomo.ledger").await.unwrap();
+        let from_store = Coverage::build(&conversations, &ledger).await.unwrap();
+        let mut replayed = 0usize;
+        for conv in &conversations {
+            let scope = myelin_core::model::record::Scope::new(
+                format!("locomo/{}", conv.sample_id),
+                "myelin",
+                "locomo",
+            );
+            for draft in segment(&turns_for(conv), &SegmentConfig::default()) {
+                let id = record_id(&scope, &draft.natural_key());
+                let docs: HashSet<String> = draft.turns.iter().map(|t| t.source.doc.clone()).collect();
+                assert_eq!(from_store.of(&id), Some(&docs), "episode {id}");
+                replayed += 1;
+            }
+        }
+        // 552 episodic records: these 550, plus the two the 2026-09-21
+        // usability probe wrote through `remember` (one of them in conv-26).
+        assert_eq!(replayed, 550);
+    }
     use super::*;
 
     fn cell(prefetch: u64, depth: usize, recall: f64, pool: f64, p50: u128) -> WidthPoint {

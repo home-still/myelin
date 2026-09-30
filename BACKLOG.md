@@ -270,7 +270,21 @@ Research: `docs/research/sota-catalog-2026-09-30.md`.
     dates.
   - LeanMem's largest ablation effect is its typed storage schedule
     (−12.1).
-  - The round-8 direction goes to the user after round 7 reports.
+  - The round-8 direction was decided by the user on 2026-09-30: typed
+    memory as the main build, with reading fixes alongside.
+- **M89, typed memory for LoCoMo** *(round 8; stage A built)*
+  (`docs/measurements/m89-typed-memory.md`), LeanMem's storage schedule in
+  four stages, each gated reader-free:
+  - **A.** Topic episodes (`build --topics`, `pipeline::topic`).
+    TextTiling-style depth over adjacent-utterance similarity, measured with
+    `ablate --width` against the shipped store's episodes.
+  - **B.** Profile, event and record routing.
+  - **C.** A typed read path, with the first reader arm.
+  - **D.** A planner, only if regret ≥ 0.03.
+- **Reading fixes** (the user's "reading fixes too"):
+  - **Relative dates:** dropped before build. Only 3 temporal losses are
+    answers left as relative dates.
+  - **Answer granularity and held-gold declines:** still open, as small arms.
 
 ---
 
