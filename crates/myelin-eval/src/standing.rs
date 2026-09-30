@@ -522,6 +522,21 @@ const METRICS: &[MetricDef] = &[
         command: "adapters/judge_matched.py --protocol simplemem-locomo --run runs/locomo_recall",
         nominal_n: Some(1540),
     },
+    // Judges we have not reproduced. A row graded by one of them is on its
+    // own metric, so standing reports it unmeasured instead of calling it
+    // comparable to our strict 9B judge because both are open-weights models.
+    MetricDef {
+        id: "locomo.judge_score_gptoss120b.n1540",
+        direction: Direction::HigherIsBetter,
+        command: "not reproduced: GPT-OSS-120B judge with Hindsight's unstated LoCoMo prompt",
+        nominal_n: Some(1540),
+    },
+    MetricDef {
+        id: "locomo.judge_score_locomo_refined.n1540",
+        direction: Direction::HigherIsBetter,
+        command: "not reproduced: LoCoMo-Refined's Qwen3-14B judge (mem-eval-suite/LoCoMo_refined@8870911)",
+        nominal_n: Some(1540),
+    },
     MetricDef {
         id: "locomo.judge_score_matched.n1540",
         direction: Direction::HigherIsBetter,

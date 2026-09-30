@@ -34,7 +34,9 @@ its history. Short version:
     → **81.20 strict / 81.53 official** (NLI premise).
   - The margin is small, and every number is a seed mean
     (`docs/measurements/r5-bundle-seeds.md`).
-- **LoCoMo: the bar moved on 2026-09-30, and the gate is open at −5.77.**
+- **LoCoMo: the bar moved on 2026-09-30, and the gate is open at −5.38**
+  (deterministic re-measurement: 79.03 against 84.41;
+  `docs/measurements/det-remeasure-2026-09-30.md`).
   - LeanMem (Qwen3-8B, arXiv 2608.03463) reports **84.41** under SimpleMem's
     judge (GPT-4.1-mini).
   - Our shipped answers, re-graded with that judge verbatim
