@@ -1,0 +1,33 @@
+# myelin's own Qdrant on big, isolated from home-still's shared instance
+# (home-still_qdrant_1, :6333/:6334). Deployed by ops/big/deploy-qdrant.sh as a
+# rootless podman quadlet: systemd --user restarts it on failure and starts it
+# at boot (linger is on for this user).
+#
+# Why (BACKLOG "Operational debt"): the shared instance is restarted by
+# home-still's own deploys. On 2026-09-28 two such restarts killed two
+# round-5 bench seeds mid-run, and on 2026-09-22 every myelin collection was
+# deleted through its dashboard.
+#
+# The version is pinned to what the collections were built on, not `latest`.
+# It publishes on 127.0.0.1 only: Qdrant has no authentication here, and big's
+# allowlist firewall already keeps such services off the LAN. Other hosts reach
+# it over SSH forwarding (`ssh -L 6434:127.0.0.1:6434 big`), as they do the
+# reader (ops/big/README.md, "The firewall makes a tunnel mandatory").
+[Unit]
+Description=myelin's own Qdrant (REST :6433, gRPC :6434)
+
+[Container]
+ContainerName=myelin-qdrant
+Image=docker.io/qdrant/qdrant:v1.19.1
+PublishPort=127.0.0.1:6433:6333
+PublishPort=127.0.0.1:6434:6334
+Volume=%h/myelin-qdrant/storage:/qdrant/storage:Z
+Volume=%h/myelin-qdrant/snapshots:/qdrant/snapshots:Z
+Environment=QDRANT__TELEMETRY_DISABLED=true
+
+[Service]
+Restart=always
+TimeoutStartSec=600
+
+[Install]
+WantedBy=default.target
