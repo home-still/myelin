@@ -104,6 +104,35 @@ first arm to question the measurement apparatus rather than the mechanism.
 
 ---
 
+## myelin's own Qdrant, and retrieval that no longer depends on Qdrant's tie order *(2026-09-30, user: "isolate myelin's Qdrant")*
+
+**The instance:**
+- A rootless podman quadlet on `big` (`ops/big/myelin-qdrant.container`),
+  Qdrant 1.19.1, loopback-only on :6433 (REST) and :6434 (gRPC).
+- `MYELIN_QDRANT__URL` now defaults to `http://127.0.0.1:6434`. Other hosts
+  tunnel to it.
+- All seven `myelin_*` collections were copied by snapshot (443,637 points).
+  Point counts match, all 4,875 LoCoMo points are byte-identical, and so are
+  200 sampled points of every other collection.
+
+**A defect found by the copy, and fixed:**
+- Two byte-identical stores returned different BM25 lists, because Qdrant
+  breaks exact score ties by internal segment order.
+  - LoCoMo's BM25 top-50 changed order on 85 of 100 questions, and
+    membership on 20.
+  - LongMemEval_S's changed order on 5 of 100, and membership on 0.
+- Every earlier number was measured under that arbitrary order. A rebuild of
+  the same store would have moved it as well.
+- `store::qdrant` now fetches a probe margin past each cutoff. When the tie
+  runs past it, it re-queries at the next `f32` below the cutoff, because
+  Qdrant's `score_threshold` is strict (measured). It then orders by `(score,
+  id)`.
+- A 100-question LoCoMo ablation now returns identical lists from both
+  instances.
+- **The shipped LoCoMo and LongMemEval_S points were measured before this
+  fix.** Re-measuring them under deterministic retrieval is a separate
+  decision.
+
 ## M85 — gpt-oss-20b as the LongMemEval_S reader: **smoke-tested, then dropped** (user decision) *(2026-09-29)*
 
 - **Why it was proposed:** Hindsight's single-session lead over us looked

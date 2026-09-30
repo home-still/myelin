@@ -58,8 +58,9 @@ Overrides are set on the remote side, as on big: `ssh` does not forward the
 environment. `MYELIN_READER_THINK_BUDGET=1024` for M44 R2, as on big. There
 is no vision projector on bmb; it was never on the text path.
 
-Qdrant stays on `big` (`192.168.1.110:6334`); bmb only replaces the three
-model servers. If `big` is down entirely, so is the store, and no arm can run
+Qdrant stays on `big`: myelin's own instance at `127.0.0.1:6434` there, so a
+bmb job that touches the store forwards it (`ssh -L 6434:127.0.0.1:6434 big`).
+bmb only replaces the three model servers. If `big` is down entirely, so is the store, and no arm can run
 anywhere.
 
 ## Measured, 2026-09-22

@@ -510,7 +510,7 @@ pattern — post-filtering wastes budget on inadmissible memories.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `MYELIN_QDRANT__URL` | `http://192.168.1.110:6334` | Qdrant gRPC endpoint (port 6334, never 6333) |
+| `MYELIN_QDRANT__URL` | `http://127.0.0.1:6434` | Qdrant gRPC endpoint, never REST: myelin's own instance on big (loopback only; tunnel from other hosts) |
 | `MYELIN_QDRANT__COLLECTION` | `myelin_memory` | Qdrant collection name |
 | `MYELIN_LLM__URL` | `http://127.0.0.1:5810/v1` | Reader LLM endpoint (OpenAI-compatible `/v1`) |
 | `MYELIN_LLM__MODEL` | `qwen3.5-9b` | Reader LLM model name |

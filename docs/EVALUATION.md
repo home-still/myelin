@@ -233,7 +233,7 @@ directly. A tunnel for a full eval run forwards:
 |---|---|---|
 | 5810 | reader (OpenAI-compatible `/v1`) | llama.cpp `llama-server` |
 | 5813 | reranker / cross-encoder | llama.cpp `llama-server` `--reranking` |
-| 6334 | Qdrant gRPC | qdrant server |
+| 6434 | myelin's own Qdrant, gRPC (`ops/big/myelin-qdrant.container`) | qdrant server |
 | 11434 | ollama (default embedder `bge-m3`) | ollama |
 
 `5811` (the Qwen3-Embedding-8B embedder) starts only when `MYELIN_EMBEDDER=qwen`; forward it too for that

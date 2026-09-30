@@ -7,8 +7,9 @@ and its output captured** — no command is hypothetical.
 ## Prerequisites
 
 - **Rust** (stable, with cargo). The workspace builds three crates.
-- **Qdrant** 1.19+ running and reachable. myelin uses the gRPC endpoint (port
-  6334, never 6333).
+- **Qdrant** 1.19+ running and reachable. myelin uses the gRPC endpoint, never
+  REST (a stock Qdrant serves gRPC on 6334; myelin's own instance on the
+  author's workstation serves it on 6434).
 - **An embedder** exposing an OpenAI-compatible `/v1/embeddings` endpoint. The
   default model is `bge-m3` (1024-d).
 - **A cross-encoder reranker** exposing a `/v1/rerank` endpoint. The default
@@ -106,11 +107,13 @@ export MYELIN_LLM__URL=http://localhost:5810/v1
 export MYELIN_LLM__MODEL=qwen3.5-9b
 ```
 
-> On the author's workstation, the Qdrant and embedder endpoints are reachable
-> directly at `192.168.1.110:6334` and `192.168.1.110:11434`, but the reranker
-> (`:5813`) and reader (`:5810`) ports are firewalled and require an SSH tunnel:
+> On the author's workstation, the embedder is reachable directly at
+> `<big>:11434`. myelin's own Qdrant (`127.0.0.1:6434`, the default URL), the
+> reranker (`:5813`) and the reader (`:5810`) listen on `big`'s loopback only,
+> so another host needs an SSH tunnel for each (add `-L 6434:127.0.0.1:6434`
+> for Qdrant):
 > ```sh
-> ssh -N -L 5810:127.0.0.1:5810 -L 5813:127.0.0.1:5813 big
+> ssh -N -L 5810:127.0.0.1:5810 -L 5813:127.0.0.1:5813 -L 6434:127.0.0.1:6434 big
 > ```
 
 ## Step 4: Start the MCP server
