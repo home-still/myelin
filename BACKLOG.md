@@ -255,6 +255,20 @@ Research: `docs/research/sota-catalog-2026-09-30.md`.
   - Only the 276 gated rows rerun (`myelin-eval shapes … --ids-out`).
   - Pre-registration: `docs/measurements/m87-enumeration-depth.md`.
   - It folds in M65's reader arm, which never ran.
+- **M88, open-domain naming declines** *(deferred 2026-09-30)*:
+  - The idea was to re-ask "which state/country/game" declines as M84 does.
+  - About 10 declines are in reach (+0.3–0.6), against a 5.77 gap. That is
+    not where the gap is.
+- **The LoCoMo gap to LeanMem**
+  (`docs/measurements/locomo-gap-leanmem.md`):
+  - 156 of the 329 losses under the bar's judge held every gold turn, and
+    115 held none.
+  - Reading is the largest block. The failures are nearby wrong details,
+    the wrong granularity (a city for a country) and unresolved relative
+    dates.
+  - LeanMem's largest ablation effect is its typed storage schedule
+    (−12.1).
+  - The round-8 direction goes to the user after round 7 reports.
 
 ---
 
