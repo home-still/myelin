@@ -84,6 +84,14 @@ READER_CTX="${MYELIN_READER_CTX:-32768}"
 # `myelin-eval bench --reader-thinking` probes it before the first row and
 # refuses to run against an unenforced budget.
 READER_THINK_BUDGET="${MYELIN_READER_THINK_BUDGET:-1024}"
+# Host-RAM prompt cache per llama-server, in MiB (`--cache-ram`). Both builds
+# on big default to 8192. On 2026-09-30 two re-measurement attempts were ended
+# by global OOMs: with /tmp (a tmpfs) holding 12 GB of another project's build
+# artifacts and 23 GiB of swap in use, the servers' growing prompt caches were
+# the last straw (the kernel killed the reader). The cache only saves recompute
+# on repeated prefixes; it does not change what the model computes, so it is
+# off by default and a run may opt back in.
+CACHE_RAM_MIB="${MYELIN_CACHE_RAM_MIB:-0}"
 # M44 R2b: when set, llama.cpp injects this before the forced
 # end-of-thinking tag at budget exhaustion, so the model wraps up instead
 # of continuing its trace in the answer (56 of 500 R2 answers did). Qwen's
@@ -201,6 +209,7 @@ LD_LIBRARY_PATH="$READER_LC" nohup "$READER_LC/llama-server" \
   ${KVU_ARGS[@]+"${KVU_ARGS[@]}"} \
   --jinja --chat-template-kwargs "$TEMPLATE_KWARGS" \
   --reasoning-budget "$READER_THINK_BUDGET" \
+  --cache-ram "$CACHE_RAM_MIB" \
   ${THINK_MESSAGE_ARGS[@]+"${THINK_MESSAGE_ARGS[@]}"} \
   > /tmp/myelin-reader.log 2>&1 &
 echo $! > /tmp/myelin-reader.pid
@@ -218,6 +227,7 @@ nohup "$LC/llama-server" \
   --host "$BIND_HOST" --port "$EMBED_PORT" \
   -c "$EMBED_CTX" -ngl 999 \
   --embedding --pooling last \
+  --cache-ram "$CACHE_RAM_MIB" \
   > /tmp/myelin-embed.log 2>&1 &
 echo $! > /tmp/myelin-embed.pid
 fi
@@ -246,6 +256,7 @@ nohup "$LC/llama-server" \
   --host "$BIND_HOST" --port "$RERANK_PORT" \
   -c 8192 -b 8192 -ub 8192 -ngl 999 \
   --reranking --pooling rank \
+  --cache-ram "$CACHE_RAM_MIB" \
   > /tmp/myelin-rerank.log 2>&1 &
 echo $! > /tmp/myelin-rerank.pid
 fi
