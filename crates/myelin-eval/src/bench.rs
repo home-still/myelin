@@ -216,15 +216,28 @@ fn reader_system(switches: &BenchSwitches, question: &str) -> String {
 /// or sums across occurrences. MemPro's adaptive retrieval depth (Liu et al.
 /// 2026, arXiv 2606.00619, App. A.1) and JustMem's aggregate operation (Chen
 /// et al. 2026, arXiv 2609.19877) are the grounds.
+///
+/// M87 adds a second gate, list questions
+/// (`query_shape::is_enumeration_question`), with its own switch. A question
+/// both gates open gets the deeper of the two, element by element; a
+/// question no open gate matches gets the run's own.
 fn depth_for(question: &str, k: usize, budget_tokens: usize, switches: &BenchSwitches) -> (usize, usize) {
-    match (switches.aggregation_k, switches.aggregation_budget_tokens) {
-        (Some(ak), Some(ab))
-            if myelin_core::pipeline::query_shape::is_aggregation_question(question) =>
-        {
-            (ak, ab)
-        }
-        _ => (k, budget_tokens),
-    }
+    use myelin_core::pipeline::query_shape::{is_aggregation_question, is_enumeration_question};
+    let gates = [
+        switches
+            .aggregation_k
+            .zip(switches.aggregation_budget_tokens)
+            .filter(|_| is_aggregation_question(question)),
+        switches
+            .enumeration_k
+            .zip(switches.enumeration_budget_tokens)
+            .filter(|_| is_enumeration_question(question)),
+    ];
+    gates
+        .into_iter()
+        .flatten()
+        .reduce(|a, b| (a.0.max(b.0), a.1.max(b.1)))
+        .unwrap_or((k, budget_tokens))
 }
 
 /// The system prompt a finished run's reader was shown, rebuilt from the
@@ -718,6 +731,13 @@ pub struct BenchRun {
     pub aggregation_k: Option<usize>,
     #[serde(default)]
     pub aggregation_budget_tokens: Option<usize>,
+    /// M87: the depth and token budget a list question
+    /// (`query_shape::is_enumeration_question`) was retrieved with. Absent on
+    /// every run before M87.
+    #[serde(default)]
+    pub enumeration_k: Option<usize>,
+    #[serde(default)]
+    pub enumeration_budget_tokens: Option<usize>,
     /// M86: a reply-only episode was shown with the user turn it answers
     /// (`myelin_core::pipeline::round_view`). Absent on every run before M86.
     #[serde(default)]
@@ -905,6 +925,10 @@ pub struct BenchSwitches {
     /// token budget instead of the run's (both or neither).
     pub aggregation_k: Option<usize>,
     pub aggregation_budget_tokens: Option<usize>,
+    /// M87: a list question is retrieved with this `k` and token budget
+    /// instead of the run's (both or neither).
+    pub enumeration_k: Option<usize>,
+    pub enumeration_budget_tokens: Option<usize>,
     /// M86: the round view (`myelin_core::pipeline::round_view`).
     pub round_view: bool,
     /// M61: the second pass was the grounded one. Only `commit-arm --grounded`
@@ -2627,6 +2651,12 @@ pub fn shipped_aggregation(corpus: &str) -> Option<(usize, usize)> {
     (corpus == "longmemeval_s").then_some((LME_S_AGGREGATION_K, LME_S_AGGREGATION_BUDGET_TOKENS))
 }
 
+/// M87's list depth ships nowhere until its arm is read
+/// (`docs/measurements/m87-enumeration-depth.md`).
+pub fn shipped_enumeration(_corpus: &str) -> Option<(usize, usize)> {
+    None
+}
+
 /// M86's round view ships nowhere until its arm is read
 /// (`docs/measurements/m86-round-view.md`).
 pub fn shipped_round_view(_corpus: &str) -> bool {
@@ -4015,6 +4045,8 @@ fn finish_run(
         evidence_only: spec.switches.evidence_only,
         aggregation_k: spec.switches.aggregation_k,
         aggregation_budget_tokens: spec.switches.aggregation_budget_tokens,
+        enumeration_k: spec.switches.enumeration_k,
+        enumeration_budget_tokens: spec.switches.enumeration_budget_tokens,
         commit_answer: spec.switches.commit_answer,
         commit_grounded: spec.switches.commit_grounded,
         commit_typed: spec.switches.commit_typed,
@@ -4244,6 +4276,14 @@ pub fn rescore_run(source: &Path, out_dir: &Path, scorer: Scorer) -> Result<Benc
                 .and_then(|n| usize::try_from(n).ok()),
             aggregation_budget_tokens: metrics
                 .get("aggregation_budget_tokens")
+                .and_then(serde_json::Value::as_u64)
+                .and_then(|n| usize::try_from(n).ok()),
+            enumeration_k: metrics
+                .get("enumeration_k")
+                .and_then(serde_json::Value::as_u64)
+                .and_then(|n| usize::try_from(n).ok()),
+            enumeration_budget_tokens: metrics
+                .get("enumeration_budget_tokens")
                 .and_then(serde_json::Value::as_u64)
                 .and_then(|n| usize::try_from(n).ok()),
             commit_grounded: flag("commit_grounded"),
@@ -5025,6 +5065,31 @@ mod config_tests {
         assert_eq!(depth_for("How many days ago did I move?", 6, 4096, &on), (6, 4096));
         let off = BenchSwitches::default();
         assert_eq!(depth_for("How many doctors did I visit?", 6, 4096, &off), (6, 4096));
+    }
+
+    /// M87: a list question gets the enumeration depth, only when its switch
+    /// is set; a question both gates open gets the deeper of each value.
+    #[test]
+    fn enumeration_depth_applies_to_list_questions_and_the_deeper_gate_wins() {
+        let list = "What European countries has Maria been to?";
+        let enumeration = BenchSwitches {
+            enumeration_k: Some(10),
+            enumeration_budget_tokens: Some(4096),
+            ..Default::default()
+        };
+        assert_eq!(depth_for(list, 6, 4096, &enumeration), (10, 4096));
+        assert_eq!(depth_for("What book did Melanie read?", 6, 4096, &enumeration), (6, 4096));
+        assert_eq!(depth_for(list, 6, 4096, &BenchSwitches::default()), (6, 4096));
+        let both = BenchSwitches {
+            aggregation_k: Some(8),
+            aggregation_budget_tokens: Some(8192),
+            enumeration_k: Some(10),
+            enumeration_budget_tokens: Some(4096),
+            ..Default::default()
+        };
+        // "How many … trips" is a count; "What trips" is a list; this is both.
+        let both_q = "What are the countries, and how many trips in total?";
+        assert_eq!(depth_for(both_q, 6, 2048, &both), (10, 8192));
     }
 
     /// A question that recalls a fact, and one that asks for advice

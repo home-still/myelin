@@ -854,6 +854,13 @@ enum Command {
         aggregation_k: Option<usize>,
         #[arg(long, requires = "aggregation_k")]
         aggregation_budget_tokens: Option<usize>,
+        /// M87: a list question ("What countries has Maria visited?") is
+        /// retrieved with this `k` (and `--enumeration-budget-tokens`)
+        /// instead of the run's (`query_shape::is_enumeration_question`).
+        #[arg(long, requires = "enumeration_budget_tokens")]
+        enumeration_k: Option<usize>,
+        #[arg(long, requires = "enumeration_k")]
+        enumeration_budget_tokens: Option<usize>,
         /// M86: an evidence episode that opens with an assistant reply is
         /// shown with the user turn it answers, from the preceding episode of
         /// the same session (`myelin_core::pipeline::round_view`). A no-op on
@@ -1033,6 +1040,24 @@ enum Command {
         #[arg(long)]
         dataset: Option<String>,
     },
+    /// Where a query-shape gate fires, per category, through the functions
+    /// `bench` calls: the hit table an arm pre-registers and the question
+    /// list it reruns (M87)
+    Shapes {
+        #[arg(long, value_enum)]
+        corpus: BenchCorpus,
+        /// Defaults to the corpus's own dataset.
+        #[arg(long)]
+        dataset: Option<String>,
+        /// aggregation | enumeration | non-recall; repeat or comma-separate
+        /// for their union.
+        #[arg(long, value_delimiter = ',', required = true)]
+        shape: Vec<String>,
+        /// Also write the ids of every question hit, one per line, in the
+        /// form `bench --questions` reads.
+        #[arg(long)]
+        ids_out: Option<String>,
+    },
     /// Join docs/sota/registry.json against the run artifacts and report where
     /// we stand, with a comparability verdict per row
     Standing {
@@ -1095,6 +1120,7 @@ impl Command {
             Command::Judge { .. } => "judge",
             Command::EvidenceAudit { .. } => "evidence-audit",
             Command::Coverage { .. } => "coverage",
+            Command::Shapes { .. } => "shapes",
             Command::Standing { .. } => "standing",
             Command::Ratchet { .. } => "ratchet",
             Command::Package => "package",
@@ -1394,6 +1420,8 @@ async fn main() -> anyhow::Result<()> {
             evidence_only,
             aggregation_k,
             aggregation_budget_tokens,
+            enumeration_k,
+            enumeration_budget_tokens,
             round_view,
             untrusted_max,
             decompose,
@@ -1457,6 +1485,8 @@ async fn main() -> anyhow::Result<()> {
                     evidence_only,
                     aggregation_k,
                     aggregation_budget_tokens,
+                    enumeration_k,
+                    enumeration_budget_tokens,
                     round_view,
                     commit_grounded: false,
                     commit_typed: false,
@@ -1487,6 +1517,31 @@ async fn main() -> anyhow::Result<()> {
             limit,
         } => judge_cmd(run, category, limit, seed.as_deref()).await,
         Command::EvidenceAudit { ref run, limit } => evidence_audit_cmd(run, limit).await,
+        Command::Shapes {
+            corpus,
+            ref dataset,
+            ref shape,
+            ref ids_out,
+        } => {
+            let shapes = shape
+                .iter()
+                .map(|s| s.parse::<myelin_eval::shapes::Shape>())
+                .collect::<anyhow::Result<Vec<_>>>()?;
+            let path = dataset.clone().unwrap_or_else(|| corpus.defaults().dataset.to_string());
+            let table = match corpus {
+                BenchCorpus::Locomo => myelin_eval::shapes::locomo_table(Path::new(&path), &shapes)?,
+                BenchCorpus::LongmemevalS => {
+                    myelin_eval::shapes::longmemeval_table(Path::new(&path), &shapes)?
+                }
+            };
+            print!("{}", table.render());
+            if let Some(out) = ids_out {
+                std::fs::write(out, table.ids.iter().map(|id| format!("{id}\n")).collect::<String>())
+                    .with_context(|| format!("write {out}"))?;
+                eprintln!("{} ids written to {out}", table.ids.len());
+            }
+            Ok(())
+        }
         Command::Coverage {
             ref run,
             ref dataset,

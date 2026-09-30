@@ -26,5 +26,6 @@ pub mod manifest;
 pub mod phrases;
 pub mod ratchet;
 pub mod reindex;
+pub mod shapes;
 pub mod standing;
 pub mod temporal;

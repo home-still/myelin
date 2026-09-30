@@ -1173,6 +1173,10 @@ fn bench_metrics(dir: &Path, agg_text: &str) -> Result<Vec<Ours>> {
         || (run.aggregation_k, run.aggregation_budget_tokens)
             != crate::bench::shipped_aggregation(&run.corpus)
                 .map_or((None, None), |(k, budget)| (Some(k), Some(budget)))
+        // M87's list depth, shipping off pending its arm.
+        || (run.enumeration_k, run.enumeration_budget_tokens)
+            != crate::bench::shipped_enumeration(&run.corpus)
+                .map_or((None, None), |(k, budget)| (Some(k), Some(budget)))
         // M86's round view, shipping off pending its arm.
         || run.round_view != crate::bench::shipped_round_view(&run.corpus)
         // M47's presupposition check.
@@ -4367,6 +4371,7 @@ mod tests {
             serde_json::json!({"commit_non_recall": false}),
             serde_json::json!({"commit_typed": true}),
             serde_json::json!({"round_view": true}),
+            serde_json::json!({"enumeration_k": 10, "enumeration_budget_tokens": 4096}),
             serde_json::json!({"digest_relevance": true}),
             serde_json::json!({"digest_role": true}),
             serde_json::json!({"reader_reasoning": true}),

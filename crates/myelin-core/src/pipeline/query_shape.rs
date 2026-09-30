@@ -155,6 +155,96 @@ pub fn is_non_recall_request(text: &str) -> bool {
     (is_advice_request(text) && addressed) || is_inference_question(text)
 }
 
+/// M87: cues that a question asks for a list outright.
+const ENUMERATION_CUES: [&str; 4] = ["what are some", "what kinds of", "what types of", "what sorts of"];
+/// How far after "what"/"which" the head noun may sit before the verb.
+const ENUMERATION_SPAN_MAX_WORDS: usize = 6;
+/// The verb that ends a wh-phrase ("What countries **has** …").
+const AUXILIARIES: [&str; 10] = ["has", "have", "had", "did", "does", "do", "are", "were", "is", "was"];
+/// Plural agreement after an empty wh-phrase ("What **are** Nate's hobbies?").
+const PLURAL_AUXILIARIES: [&str; 2] = ["are", "were"];
+/// Subjects that make "what are" a question about a person, not a list.
+const PERSONAL_SUBJECTS: [&str; 4] = ["i", "you", "we", "they"];
+/// "kind of", "type of": the noun after `of` is the head, not these.
+const KIND_WORDS: [&str; 6] = ["kind", "kinds", "type", "types", "sort", "sorts"];
+/// Plurals that do not end in `s`.
+const IRREGULAR_PLURALS: [&str; 4] = ["children", "people", "men", "women"];
+/// Words ending in `s` that are not plurals.
+const NON_PLURAL_S: [&str; 14] = [
+    "news", "series", "species", "lens", "always", "perhaps", "sometimes", "towards", "afterwards",
+    "besides", "whereas", "across", "plus", "yes",
+];
+/// The shortest regular plural the test accepts ("pets", "toys").
+const PLURAL_MIN_CHARS: usize = 4;
+
+fn is_plural_noun(word: &str) -> bool {
+    if !word.chars().all(|c| c.is_ascii_alphabetic()) {
+        return false;
+    }
+    IRREGULAR_PLURALS.contains(&word)
+        || (word.len() >= PLURAL_MIN_CHARS
+            && word.ends_with('s')
+            && !word.ends_with("ss")
+            && !word.ends_with("us")
+            && !word.ends_with("is")
+            && !NON_PLURAL_S.contains(&word))
+}
+
+/// M87: does the question ask for a list of things
+/// (`docs/measurements/m87-enumeration-depth.md`)?
+///
+/// "What European countries has Maria been to?" and "What activities has
+/// Melanie done with her family?" need every mention across sessions, as a
+/// count does ([`is_aggregation_question`]). On the shipped LoCoMo run, 80
+/// of 83 multi-hop losses missed at least one gold turn, and 58 of the 83
+/// asked for a list or a count.
+///
+/// Deterministic and auditable, like the aggregation cues. The question is
+/// a list when:
+/// - it carries a list cue ("what are some", "what kinds of", …), or
+/// - the words between its first "what"/"which" and the first auxiliary
+///   (within [`ENUMERATION_SPAN_MAX_WORDS`]) end on a plural head noun. The
+///   head is the word before `of`, unless that is a kind word ("kind of
+///   place"), in which case it is the span's last word. Or
+/// - the auxiliary follows the wh-word directly, is plural ("are", "were"),
+///   and is not followed by a personal subject ("What are Nate's hobbies?").
+///
+/// Grounds: JustMem types list operations and composes for them (Chen et al.
+/// 2026, arXiv 2609.19877); MemPro's adaptive retrieval depth (arXiv
+/// 2606.00619, +1.34). Depth stays question-gated because length alone costs
+/// accuracy even with perfect retrieval (Du et al. 2025,
+/// `10.18653/v1/2025.findings-emnlp.1264`).
+pub fn is_enumeration_question(text: &str) -> bool {
+    let lower = text.to_lowercase();
+    if ENUMERATION_CUES.iter().any(|c| lower.contains(c)) {
+        return true;
+    }
+    let words = person_words(text);
+    let Some(wh) = words.iter().position(|w| w == "what" || w == "which") else {
+        return false;
+    };
+    let after = &words[wh + 1..];
+    let Some(aux) = after
+        .iter()
+        .take(ENUMERATION_SPAN_MAX_WORDS + 1)
+        .position(|w| AUXILIARIES.contains(&w.as_str()))
+    else {
+        return false;
+    };
+    let span = &after[..aux];
+    if span.is_empty() {
+        return PLURAL_AUXILIARIES.contains(&after[aux].as_str())
+            && after
+                .get(aux + 1)
+                .is_some_and(|next| !PERSONAL_SUBJECTS.contains(&next.as_str()));
+    }
+    let head = match span.iter().position(|w| w == "of") {
+        Some(of) if of > 0 && !KIND_WORDS.contains(&span[of - 1].as_str()) => &span[of - 1],
+        _ => &span[span.len() - 1],
+    };
+    is_plural_noun(head)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -231,6 +321,41 @@ mod tests {
             "What kitchen appliance did I buy 10 days ago?",
         ] {
             assert!(!is_advice_request(q), "{q}");
+        }
+    }
+
+    #[test]
+    fn list_questions_are_enumerations() {
+        for q in [
+            "What European countries has Maria been to?",
+            "What activities has Melanie done with her family?",
+            "Which of James's family members has he visited?",
+            "What are Nate's favorite desserts?",
+            "What are some changes Caroline has faced?",
+            "What kinds of books does Joanna read?",
+            "What instruments does Melanie play?",
+            "Which pets do Andrew and Audrey have?",
+            "What sports did the children try?",
+        ] {
+            assert!(is_enumeration_question(q), "{q}");
+        }
+    }
+
+    #[test]
+    fn single_things_and_personal_questions_are_not() {
+        for q in [
+            "What book did Melanie read from Caroline's suggestion?",
+            "What kind of place does Caroline want to create for people?",
+            "What percentage of packed shoes did I wear?",
+            "Which pair of shoes did I buy?",
+            "What is Caroline's identity?",
+            "What did Caroline research?",
+            "What are you planning for the weekend?",
+            "What lens does John use?",
+            "Where did Jon go?",
+            "What does Caroline's necklace symbolize?",
+        ] {
+            assert!(!is_enumeration_question(q), "{q}");
         }
     }
 }

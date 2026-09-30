@@ -247,6 +247,14 @@ Research: `docs/research/sota-catalog-2026-09-30.md`.
     preference row-seeds and 50 temporal ones.
   - Pre-registration: `docs/measurements/m86-round-view.md`. Seed 1 runs
     first, against `det_lme_s1`.
+- **M87, list and count depth on LoCoMo** *(built; arm queued behind the
+  re-measurement)*:
+  - `query_shape::is_enumeration_question` plus M72's count cue give 158 of
+    282 multi-hop questions k = 10, M65's width. That covers 54 of the 83
+    multi-hop losses.
+  - Only the 276 gated rows rerun (`myelin-eval shapes … --ids-out`).
+  - Pre-registration: `docs/measurements/m87-enumeration-depth.md`.
+  - It folds in M65's reader arm, which never ran.
 
 ---
 

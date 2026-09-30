@@ -569,6 +569,7 @@ myelin against the LoCoMo and LongMemEval-S benchmarks.
 | `judge` | Grade answers with the local reader |
 | `evidence-audit` | Audit whether wrong answers had the evidence |
 | `coverage` | Gold-unit recall per category (fully offline) |
+| `shapes` | Where a query-shape gate (count, list, non-recall) fires per category, and the gated question ids an arm reruns (fully offline) |
 | `standing` | Compare against published systems |
 | `ratchet` | Regression check against our own pinned floor |
 | `package` | Package a leaderboard submission |
@@ -581,4 +582,4 @@ myelin against the LoCoMo and LongMemEval-S benchmarks.
 | LongMemEval-S | `myelin_longmemeval_s` | `data/longmemeval_s.ledger` | token-f1 |
 
 > `bench`, `attack --live`, `judge`, and `ablate` require GPU services. `rescore`,
-> `coverage`, `standing`, `ratchet`, and `phrases` are CPU-only.
+> `coverage`, `shapes`, `standing`, `ratchet`, and `phrases` are CPU-only.
