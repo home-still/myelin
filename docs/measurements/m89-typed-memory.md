@@ -82,7 +82,8 @@ questions, M65's and M66's).
   no gold turn and is reported by the instrument.
 
 **Cells:**
-- **Control:** the shipped store, episodes only (`--episodes-only`), at
+- **Control:** the shipped store, episodes only (`--episodes-only`; later
+  builds spell it `--kinds episodic`), at
   k ∈ {6, 10}.
 - **Topic store** (`myelin_locomo_topics`, `data/locomo_topics.ledger`) at
   k ∈ {6, 8, 10, 12, 14}.
@@ -106,6 +107,43 @@ questions, M65's and M66's).
 **Cost:** the build embeds about 5,900 turns plus about 1,000 episodes, with
 no LLM calls. The sweep is 7 cells × 997 questions, reranker only. Together
 well under an hour on big.
+
+## Stage B — typed routing *(pre-registered 2026-09-30, before any row)*
+
+**Code:**
+- `pipeline::typed`: scheduler, code-side `route`, event and gist calls, and
+  `typed_records` (#201).
+- `typed-extract` and `typed-build` (`crates/myelin-eval/src/typed.rs`).
+- Prompt version `m89b-1`. The cache is keyed by version, speakers and text.
+
+**Store:** a copy of the stage A store, or of the shipped store's episodes if
+A is a no-go, with the typed records written beside the episodes. The copy is
+made by `ops/big/qdrant-copy.sh` and a ledger file copy.
+
+**Stage B's gate:**
+- **`reach_all` ≥ 0.97.** That is the share of answerable questions whose
+  every gold turn lies in some stored (non-ignored) unit's span, from the
+  `typed-build` report.
+- **Gist lane holds its own.** On the dev split, `ablate --width --grid
+  shipped --kinds gist` must reach `all`@6 at least stage A's episodes-only
+  `all`@6.
+  - Coverage for a typed record is **only the turns it cites**: a derived
+    record with a span of one episode covers that span, never its whole
+    episode.
+  - No existing record carries a span (0 of 4,488 derived records in the
+    shipped store), so nothing measured before moves.
+
+**Reported beside the gate:**
+- the ignore rate;
+- units by route;
+- gist grounding: the share of a gist's names and numbers found in its cited
+  turns;
+- the share of event `when`s copied verbatim;
+- the share of dataset turns inside a stored span.
+
+**Cost:** about 1,000–1,100 episodes, each one scheduler call plus at most
+one event call and one gist call, on the 9B at 2 slots. That is about
+2–3.5 h on big.
 
 ## Result
 
