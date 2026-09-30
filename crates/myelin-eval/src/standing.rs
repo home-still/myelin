@@ -517,6 +517,12 @@ const METRICS: &[MetricDef] = &[
         nominal_n: Some(1540),
     },
     MetricDef {
+        id: "locomo.judge_score_simplemem.n1540",
+        direction: Direction::HigherIsBetter,
+        command: "adapters/judge_matched.py --protocol simplemem-locomo --run runs/locomo_recall",
+        nominal_n: Some(1540),
+    },
+    MetricDef {
         id: "locomo.judge_score_matched.n1540",
         direction: Direction::HigherIsBetter,
         command: "adapters/judge_matched.py, every LoCoMo protocol, on one run",
@@ -1533,6 +1539,11 @@ struct Protocol {
     prompt_sha256: &'static str,
     model: &'static str,
     metric: &'static str,
+    /// One of the readings the corpus's `MATCHED` metric takes the lowest
+    /// of. `false` for a protocol that reads a *different* compared row
+    /// (SimpleMem's judge is LeanMem's, not MemPro's), so it publishes its
+    /// own metric and never lowers another row's reading.
+    in_matched: bool,
 }
 
 const PROTOCOLS: &[Protocol] = &[
@@ -1545,6 +1556,7 @@ const PROTOCOLS: &[Protocol] = &[
         prompt_sha256: "62395dd312a631dfd9355026a0b69cc936018274c3198b6365b5c2a5c9bca9e0",
         model: "openai/gpt-4o-mini",
         metric: "locomo.judge_score_lightmem.n1540",
+        in_matched: true,
     },
     // MemPro's own repo judge, `wanghai673/MemPro@834b1ce:eval/locomo_test.py`.
     Protocol {
@@ -1554,6 +1566,7 @@ const PROTOCOLS: &[Protocol] = &[
         prompt_sha256: "caf0faa9f657d004d55181f41074eff6a5b7260fa792d8f1da37d0ecf553d10e",
         model: "openai/gpt-4o-mini",
         metric: "locomo.judge_score_mempro.n1540",
+        in_matched: true,
     },
     // LongMemEval's own grader, `xiaowu0162/LongMemEval@9e0b455`
     // (`get_anscheck_prompt`), the one runnable reading of MemPro's
@@ -1565,6 +1578,20 @@ const PROTOCOLS: &[Protocol] = &[
         prompt_sha256: "140234c31249c1c446f9bdd57492d71ee8a906d9cae8db1a7551ee7c4917aaff",
         model: "openai/gpt-4o-mini-2024-07-18",
         metric: "longmemeval_s.judge_score_official.n500",
+        in_matched: true,
+    },
+    // SimpleMem's LoCoMo judge at `aiming-lab/SimpleMem@9b12e8d`
+    // (`MCP/reference/test_locomo10.py`), the protocol LeanMem (arXiv
+    // 2608.03463, §4.1) grades with: gpt-4.1-mini at SimpleMem's 0.3.
+    // LoCoMo's bar since 2026-09-30 (user).
+    Protocol {
+        name: "simplemem-locomo",
+        corpus: "locomo",
+        file: "judge_verdicts_simplemem.json",
+        prompt_sha256: "947d5690430aaacb74d7e33eb432be4924e1c1a055b7f09340a6bced3744b644",
+        model: "openai/gpt-4.1-mini",
+        metric: "locomo.judge_score_simplemem.n1540",
+        in_matched: false,
     },
 ];
 
@@ -1669,25 +1696,34 @@ fn matched_metrics(
     backbone: Class,
 ) -> Result<Vec<Ours>> {
     let mut out = Vec::new();
+    let mut readings_of_matched: Vec<Ours> = Vec::new();
     let mut missing = false;
     for p in PROTOCOLS.iter().filter(|p| p.corpus == corpus) {
         match read_protocol_verdicts(dir, p)? {
-            Some(judge) => out.push(protocol_judged(p, dir, population, &judge, backbone)),
-            None => missing = true,
+            Some(judge) => {
+                let reading = protocol_judged(p, dir, population, &judge, backbone);
+                if p.in_matched {
+                    readings_of_matched.push(reading.clone());
+                }
+                out.push(reading);
+            }
+            None => missing |= p.in_matched,
         }
     }
     let matched = MATCHED.iter().find(|(c, _)| *c == corpus).map(|(_, m)| *m);
     if let (false, Some(metric), Some(lowest)) = (
         missing,
         matched,
-        out.iter()
+        readings_of_matched
+            .iter()
             .min_by(|a, b| a.value.partial_cmp(&b.value).unwrap_or(std::cmp::Ordering::Equal)),
     ) {
-        let readings: Vec<String> = out
+        let readings: Vec<String> = readings_of_matched
             .iter()
             .map(|o| format!("{} {:.2}", o.metric, o.value))
             .collect();
-        let incomplete: Vec<String> = out.iter().filter_map(|o| o.incomplete.clone()).collect();
+        let incomplete: Vec<String> =
+            readings_of_matched.iter().filter_map(|o| o.incomplete.clone()).collect();
         out.push(Ours {
             replicates: 1,
             metric: metric.into(),
@@ -3447,6 +3483,33 @@ mod tests {
             "the lower of 50 and 25: {matched:?}"
         );
         assert!(matched.detail.contains("locomo.judge_score_lightmem.n1540 50.00"), "{}", matched.detail);
+    }
+
+    /// SimpleMem's judge reads LeanMem's row, not MemPro's: it publishes its
+    /// own metric, is never one of the matched metric's readings, and its
+    /// absence does not withhold the matched number.
+    #[test]
+    fn a_reading_of_another_row_stays_out_of_the_matched_metric() {
+        let tmp = tempfile::tempdir().unwrap();
+        let runs = tmp.path().join("runs");
+        let dir = runs.join("locomo_matched");
+        locomo_fixture(&dir, true, false);
+        let (lightmem, mempro) = (&PROTOCOLS[0], &PROTOCOLS[1]);
+        let simplemem = PROTOCOLS.iter().find(|p| p.name == "simplemem-locomo").unwrap();
+        assert!(!simplemem.in_matched);
+        write_protocol(&dir, lightmem, lightmem.prompt_sha256, 2);
+        write_protocol(&dir, mempro, mempro.prompt_sha256, 4);
+        let without = collect(&runs, "/nonexistent/python").unwrap();
+        assert!((without["locomo.judge_score_matched.n1540"].value - 25.0).abs() < 1e-9);
+        assert!(!without.contains_key(simplemem.metric));
+        // A far lower SimpleMem reading neither lowers nor names itself in
+        // the matched number.
+        write_protocol(&dir, simplemem, simplemem.prompt_sha256, 10);
+        let with = collect(&runs, "/nonexistent/python").unwrap();
+        assert!((with[simplemem.metric].value - 10.0).abs() < 1e-9, "{:?}", with[simplemem.metric]);
+        let matched = &with["locomo.judge_score_matched.n1540"];
+        assert!((matched.value - 25.0).abs() < 1e-9, "{matched:?}");
+        assert!(!matched.detail.contains("simplemem"), "{}", matched.detail);
     }
 
     /// A protocol grades every row its source grades, declines included: a

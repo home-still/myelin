@@ -16,6 +16,18 @@ reproduces the other side's grader, protocol by protocol, and nothing else:
   (`JUDGE_PROMPT_TEMPLATE`, `JUDGE_SCHEMA`, `call_llm_judge`), with strict
   json_schema output. Correct iff the label, stripped and upper-cased, is
   "CORRECT" (its `llm_judge_score`).
+* `simplemem-locomo` (step 1, 2026-09-30). The LoCoMo protocol LeanMem
+  (arXiv:2608.03463, §4.1: "we follow the evaluation protocol of SimpleMem")
+  grades with. Its App. D, which prints the prompt, is not in the arXiv PDF,
+  so the prompt is SimpleMem's own, verbatim from
+  `aiming-lab/SimpleMem@9b12e8d52fff3c2adc40b0e2f90af0c1c7f7807a:MCP/reference/test_locomo10.py`
+  (`llm_judge_answers`, the live `prompt`, not the commented-out one), with its
+  system message, `JUDGE_MODEL = "gpt-4.1-mini"` and `JUDGE_TEMPERATURE = 0.3`
+  from `config.py.example`, no response_format (`USE_JSON_FORMAT = False`), and
+  the score parsed with the first three cases of its `extract_json`. An empty
+  prediction scores 0 without a call, as its code does. It is far more lenient
+  than LightMem's: a subset of a list, a date within 1-2 days and a coarser
+  granularity all pass.
 * `longmemeval-official` (M70). LongMemEval's own grader, byte for byte from
   `xiaowu0162/LongMemEval@9e0b455f4ef0e2ab8f2e582289761153549043fc:src/evaluation/evaluate_qa.py`
   (`get_anscheck_prompt`, Wu et al. 2024, arXiv:2410.10813): five templates, one
@@ -27,7 +39,8 @@ reproduces the other side's grader, protocol by protocol, and nothing else:
   research summaries rather than answers. Neither is a runnable reading of how
   answers were graded, so the benchmark's own code is the one used.
 
-Every protocol uses `temperature=0.0` and is pinned to OpenAI's own provider on
+Every protocol but `simplemem-locomo` (0.3, its source's) uses
+`temperature=0.0`, and every one is pinned to OpenAI's own provider on
 OpenRouter (no fallback host). LoCoMo protocols judge every category 1-4 row,
 declines included, and skip category 5, as both sources do. The LongMemEval
 protocol judges all 500 rows, declines included.
@@ -70,6 +83,8 @@ CHAT_URL = "https://openrouter.ai/api/v1/chat/completions"
 # on OpenRouter rather than let it route the judge to another host.
 PROVIDER = {"order": ["OpenAI"], "allow_fallbacks": False}
 TEMPERATURE = 0.0
+# SimpleMem's `JUDGE_TEMPERATURE` (config.py.example); the one protocol that samples.
+SIMPLEMEM_TEMPERATURE = 0.3
 KEY_PATH = Path("~/.config/myelin/openrouter.key").expanduser()
 # The one accepted key-file format (decided 2026-09-24): a single line.
 KEY_LINE = re.compile(r"^OPENROUTER_API_KEY=(\S+)$")
@@ -124,6 +139,47 @@ MEMPRO_SCHEMA = {
     "additionalProperties": False
 }
 
+# --- SimpleMem's LoCoMo judge (verbatim; see the module doc). Do not edit.
+SIMPLEMEM_SYSTEM = "You are an expert evaluator. Always output valid JSON format."
+SIMPLEMEM_PROMPT = """You are an expert Relevance & Accuracy Evaluator. Your task is to determine if the Predicted Answer successfully retrieves the necessary information to answer the Question, based on the Reference Answer.
+
+Question: {question}
+Reference Answer: {reference}
+Predicted Answer: {prediction}
+
+Evaluation Criteria:
+
+1. **Responsiveness to Query**: 
+   The predicted answer must directly address the specific question asked. It must contain highly relevant information that is topically aligned with the user's intent.
+
+2. **Core Fact Preservation**: 
+   The prediction must capture the "Key Signal" or "Core Entity" from the reference. The primary subject (Who), event (What), or outcome must be factually grounded in the reference text.
+
+3. **Informational Utility**: 
+   The answer must provide actionable or meaningful value. Even if brief, it must convey the essential message required by the question context.
+
+4. **Acceptable Representational Variances (Robustness Protocol)**:
+   To ensure fair evaluation of semantic meaning over syntactic rigidity, you must accept the following variations as **Valid Matches**:
+   - **Temporal & Numerical Margins**: Accept timestamps within a reasonable proximity (e.g., +/- 1-2 days due to timezone/reporting differences) and rounded numerical approximations.
+   - **Granularity Independence**: Accept answers at different levels of abstraction (e.g., "Afternoon" vs. "14:05", "Late October" vs. "Oct 25th") provided they encompass the truth.
+   - **Information Subsetting**: A valid subset of the reference (e.g., mentioning 1 out of 3 reasons) is acceptable if it answers the core of the question.
+   - **Synonymy**: Recognize domain-specific synonyms and different formats as equivalent.
+
+Grading Logic:
+- Score 1.0 (Pass): The prediction contains relevant core information, answers the question with sufficient utility, OR falls within the acceptable representational variances defined in criterion #4.
+- Score 0.0 (Fail): The prediction contains NO relevant information, fails to identify the core subject/event, or provides no key info that matches the question's intent.
+
+Output your evaluation in JSON format:
+{{
+  "score": 1.0, 
+  "reasoning": "Brief assessment focusing on information relevance and core match."
+}}
+
+Return ONLY the JSON, no other text.
+"""
+# The prefixes SimpleMem's `extract_json` strips before parsing.
+SIMPLEMEM_JSON_PREFIXES = ("Here's the JSON:", "Here is the JSON:", "The JSON is:", "JSON:", "Result:", "Output:", "Answer:")
+
 # --- LongMemEval's get_anscheck_prompt templates (verbatim; see the module doc).
 LME_GENERAL = "I will give you a question, a correct answer, and a response from a model. Please answer yes if the response contains the correct answer. Otherwise, answer no. If the response is equivalent to the correct answer or contains all the intermediate steps to get the correct answer, you should also answer yes. If the response only contains a subset of the information required by the answer, answer no. \n\nQuestion: {}\n\nCorrect Answer: {}\n\nModel Response: {}\n\nIs the model response correct? Answer yes or no only."
 LME_TEMPORAL = "I will give you a question, a correct answer, and a response from a model. Please answer yes if the response contains the correct answer. Otherwise, answer no. If the response is equivalent to the correct answer or contains all the intermediate steps to get the correct answer, you should also answer yes. If the response only contains a subset of the information required by the answer, answer no. In addition, do not penalize off-by-one errors for the number of days. If the question asks for the number of days/weeks/months, etc., and the model makes off-by-one errors (e.g., predicting 19 days when the answer is 18), the model's response is still correct. \n\nQuestion: {}\n\nCorrect Answer: {}\n\nModel Response: {}\n\nIs the model response correct? Answer yes or no only."
@@ -156,6 +212,35 @@ def parse_mempro(content: str) -> int:
     return 1 if str(json.loads(content).get("label", "WRONG")).strip().upper() == "CORRECT" else 0
 
 
+def simplemem_extract_json(text: str) -> dict:
+    """SimpleMem's `extract_json`, its first three cases: prefixes stripped, then
+    the text itself, a ```json fence or a bare ``` fence. A reply that needs its
+    later fallbacks is refused here (and retried), not guessed at."""
+    text = text.strip()
+    if not text:
+        raise json.JSONDecodeError("empty reply", text, 0)
+    for prefix in SIMPLEMEM_JSON_PREFIXES:
+        if text.lower().startswith(prefix.lower()):
+            text = text[len(prefix):].strip()
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+    match = re.search(r"```(?:json)?\s*(.*?)\s*```", text, re.DOTALL | re.IGNORECASE)
+    if match is None:
+        raise json.JSONDecodeError("no JSON object or fence", text, 0)
+    return json.loads(match.group(1))
+
+
+def parse_simplemem(content: str) -> int:
+    # `float(result.get("score", 0.0))`; the prompt allows 1.0 or 0.0 only, so
+    # any other score is refused rather than rounded into a verdict.
+    score = float(simplemem_extract_json(content).get("score", 0.0))
+    if score not in (0.0, 1.0):
+        raise json.JSONDecodeError(f"score {score} is neither 0.0 nor 1.0", content, 0)
+    return int(score)
+
+
 def parse_lme(content: str) -> int:
     # `evaluate_qa.py`: `label = 'yes' in eval_response.lower()`.
     return 1 if "yes" in content.lower() else 0
@@ -171,6 +256,8 @@ PROTOCOLS = {
         "response_format": {"type": "json_object"},
         "max_tokens": None,
         "parse": parse_lightmem,
+        "system": None,
+        "temperature": TEMPERATURE,
     },
     "mempro-locomo": {
         "slug": "mempro",
@@ -184,6 +271,8 @@ PROTOCOLS = {
         },
         "max_tokens": None,
         "parse": parse_mempro,
+        "system": None,
+        "temperature": TEMPERATURE,
     },
     "longmemeval-official": {
         "slug": "lme_official",
@@ -194,6 +283,20 @@ PROTOCOLS = {
         "response_format": None,
         "max_tokens": LME_MAX_TOKENS,
         "parse": parse_lme,
+        "system": None,
+        "temperature": TEMPERATURE,
+    },
+    "simplemem-locomo": {
+        "slug": "simplemem",
+        "corpus": "locomo",
+        "source": "aiming-lab/SimpleMem@9b12e8d52fff3c2adc40b0e2f90af0c1c7f7807a:MCP/reference/test_locomo10.py",
+        "model": "openai/gpt-4.1-mini",
+        "prompts": (SIMPLEMEM_PROMPT, SIMPLEMEM_SYSTEM),
+        "response_format": None,
+        "max_tokens": None,
+        "parse": parse_simplemem,
+        "system": SIMPLEMEM_SYSTEM,
+        "temperature": SIMPLEMEM_TEMPERATURE,
     },
 }
 
@@ -207,7 +310,7 @@ def protocol_record(name: str) -> dict:
         "prompt_sha256": hashlib.sha256("\x00".join(p["prompts"]).encode("utf-8")).hexdigest(),
         "model": p["model"],
         "provider": PROVIDER,
-        "temperature": TEMPERATURE,
+        "temperature": p["temperature"],
         "response_format": p["response_format"],
     }
     if p["corpus"] == "locomo":
@@ -254,6 +357,12 @@ def locomo_items(run: Path) -> list[dict]:
             "group": f"cat {r['category']}",
             "answer": r["response_raw"],
             "fill": {"question": r["question_text"], "gold_answer": str(r["answer_gold"]), "generated_answer": r["response_raw"]},
+            # SimpleMem's names, stripped as `llm_judge_answers` strips them.
+            "fill_simplemem": {
+                "question": r["question_text"],
+                "reference": str(r["answer_gold"]).strip(),
+                "prediction": str(r["response_raw"]).strip(),
+            },
         }
         for r in rows
     ]
@@ -297,10 +406,13 @@ class Judge:
         self.cost = 0.0
 
     def grade(self, prompt: str) -> int:
+        messages = [{"role": "user", "content": prompt}]
+        if self.p["system"] is not None:
+            messages.insert(0, {"role": "system", "content": self.p["system"]})
         body = {
             "model": self.p["model"],
-            "messages": [{"role": "user", "content": prompt}],
-            "temperature": TEMPERATURE,
+            "messages": messages,
+            "temperature": self.p["temperature"],
             "provider": PROVIDER,
             "usage": {"include": True},
         }
@@ -356,6 +468,12 @@ def verify_upstream(name: str, upstream: Path) -> None:
             continue
     if name == "lightmem-locomo":
         ok = assigned.get("ACCURACY_PROMPT") == [LIGHTMEM_PROMPT]
+    elif name == "simplemem-locomo":
+        # The live prompt is an f-string inside `llm_judge_answers`, so it is
+        # compared as source text: this copy, with the f-string's names, must
+        # appear verbatim in the pinned file.
+        text = upstream.read_text(encoding="utf-8")
+        ok = SIMPLEMEM_PROMPT in text and f'"content": "{SIMPLEMEM_SYSTEM}"' in text
     elif name == "mempro-locomo":
         ok = assigned.get("JUDGE_PROMPT_TEMPLATE") == [MEMPRO_PROMPT] and assigned.get("JUDGE_SCHEMA") == [MEMPRO_SCHEMA]
     else:
@@ -387,7 +505,8 @@ def main() -> None:
         raise SystemExit(f"{args.run} is corpus {agg.get('corpus')!r}; {args.protocol} grades {p['corpus']}")
     if p["corpus"] == "locomo":
         items = locomo_items(args.run)
-        prompt_of = lambda it: p["prompts"][0].format(**it["fill"])  # noqa: E731
+        fill = "fill_simplemem" if args.protocol == "simplemem-locomo" else "fill"
+        prompt_of = lambda it: p["prompts"][0].format(**it[fill])  # noqa: E731
     else:
         if args.dataset is None:
             ap.error("--dataset is required for longmemeval-official")
@@ -427,6 +546,9 @@ def main() -> None:
     done = 0
 
     def one(it: dict) -> tuple[str, str, int]:
+        # SimpleMem scores an empty prediction 0.0 before calling its judge.
+        if args.protocol == "simplemem-locomo" and not it["fill_simplemem"]["prediction"]:
+            return it["id"], it["answer"], 0
         return it["id"], it["answer"], judge.grade(prompt_of(it))
 
     with cf.ThreadPoolExecutor(max_workers=IN_FLIGHT) as pool:

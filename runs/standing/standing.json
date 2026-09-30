@@ -1,6 +1,6 @@
 {
-  "commit": "7665a8ba14f087830f315a86c8bbec390c396438-dirty",
-  "generated_at": "2026-09-29T20:32:19.884609Z",
+  "commit": "bddaef0450e5dcdafc19e335defb92c8f69013e0-dirty",
+  "generated_at": "2026-09-30T21:09:11.108344Z",
   "rows": [
     {
       "registry_id": "locomo.judge.mempro15.gpt4omini",
@@ -9,11 +9,10 @@
       "theirs": 84.93,
       "ours": 70.84415584415584,
       "ours_n": 1540,
-      "gap": -14.085844155844171,
+      "gap": null,
       "verdict": {
-        "verdict": "caveat_judge",
-        "ours": "open_weights_local",
-        "theirs": "frontier_api"
+        "verdict": "stale_config",
+        "detail": "artifact does not record tie_order; re-measure on this code before quoting it"
       },
       "claim_allowed": false,
       "gate": false,
@@ -156,11 +155,10 @@
       "theirs": 84.93,
       "ours": 78.63636363636364,
       "ours_n": 1540,
-      "gap": -6.293636363636367,
+      "gap": null,
       "verdict": {
-        "verdict": "caveat_backbone",
-        "ours": "open_weights",
-        "theirs": "frontier_api"
+        "verdict": "stale_config",
+        "detail": "artifact does not record tie_order; re-measure on this code before quoting it"
       },
       "claim_allowed": false,
       "gate": false,
@@ -199,11 +197,10 @@
       "theirs": 84.93,
       "ours": 78.63636363636364,
       "ours_n": 1540,
-      "gap": -6.293636363636367,
+      "gap": null,
       "verdict": {
-        "verdict": "caveat_backbone",
-        "ours": "open_weights",
-        "theirs": "frontier_api"
+        "verdict": "stale_config",
+        "detail": "artifact does not record tie_order; re-measure on this code before quoting it"
       },
       "claim_allowed": false,
       "gate": false,
@@ -234,11 +231,10 @@
       "theirs": 77.85,
       "ours": 70.84415584415584,
       "ours_n": 1540,
-      "gap": -7.005844155844159,
+      "gap": null,
       "verdict": {
-        "verdict": "caveat_judge",
-        "ours": "open_weights_local",
-        "theirs": "frontier_api"
+        "verdict": "stale_config",
+        "detail": "artifact does not record tie_order; re-measure on this code before quoting it"
       },
       "claim_allowed": false,
       "gate": false,
@@ -381,9 +377,10 @@
       "theirs": 83.18,
       "ours": 70.84415584415584,
       "ours_n": 1540,
-      "gap": -12.335844155844171,
+      "gap": null,
       "verdict": {
-        "verdict": "comparable"
+        "verdict": "stale_config",
+        "detail": "artifact does not record tie_order; re-measure on this code before quoting it"
       },
       "claim_allowed": false,
       "gate": false,
@@ -526,11 +523,12 @@
       "theirs": 77.85,
       "ours": 78.63636363636364,
       "ours_n": 1540,
-      "gap": 0.7863636363636459,
+      "gap": null,
       "verdict": {
-        "verdict": "comparable"
+        "verdict": "stale_config",
+        "detail": "artifact does not record tie_order; re-measure on this code before quoting it"
       },
-      "claim_allowed": true,
+      "claim_allowed": false,
       "gate": false,
       "arm": false,
       "run": "runs/m84_locomo_base",
@@ -567,16 +565,17 @@
       "theirs": 77.85,
       "ours": 78.63636363636364,
       "ours_n": 1540,
-      "gap": 0.7863636363636459,
+      "gap": null,
       "verdict": {
-        "verdict": "comparable"
+        "verdict": "stale_config",
+        "detail": "artifact does not record tie_order; re-measure on this code before quoting it"
       },
-      "claim_allowed": true,
-      "gate": true,
+      "claim_allowed": false,
+      "gate": false,
       "arm": false,
       "run": "runs/m84_locomo_base",
       "source_doi": "10.48550/arXiv.2606.00619",
-      "caveat": "G2's LoCoMo bar under the every-reading rule (user, 2026-09-25): our number is the lowest of LightMem's prompt (what the paper cites, L122/Fig. 10) and MemPro's own repo judge (eval/locomo_test.py@834b1ce), both gpt-4o-mini. Their number is a mean of 3 runs at temperature 0.7; ours is one run. Avg. reproduces as (75.17*282 + 70.83*96 + 83.47*841 + 67.60*321)/1540 = 77.85.",
+      "caveat": "Was G2's LoCoMo bar until 2026-09-30, when the user adopted LeanMem (Qwen3-8B) 84.41 under SimpleMem's judge (locomo.judge_simplemem.leanmem.qwen3_8b); kept as a comparison. G2's LoCoMo bar under the every-reading rule (user, 2026-09-25): our number is the lowest of LightMem's prompt (what the paper cites, L122/Fig. 10) and MemPro's own repo judge (eval/locomo_test.py@834b1ce), both gpt-4o-mini. Their number is a mean of 3 runs at temperature 0.7; ours is one run. Avg. reproduces as (75.17*282 + 70.83*96 + 83.47*841 + 67.60*321)/1540 = 77.85.",
       "detail": "the lowest of every reading: locomo.judge_score_lightmem.n1540 78.64, locomo.judge_score_mempro.n1540 80.78",
       "candidates": [
         {
@@ -594,17 +593,694 @@
       ]
     },
     {
+      "registry_id": "locomo.judge_simplemem.leanmem.qwen3_8b",
+      "metric": "locomo.judge_score_simplemem.n1540",
+      "system": "LeanMem (Qwen3-8B)",
+      "theirs": 84.41,
+      "ours": 78.63636363636364,
+      "ours_n": 1540,
+      "gap": null,
+      "verdict": {
+        "verdict": "stale_config",
+        "detail": "artifact does not record tie_order; re-measure on this code before quoting it"
+      },
+      "claim_allowed": false,
+      "gate": true,
+      "arm": false,
+      "run": "runs/m84_locomo_base",
+      "source_doi": "10.48550/arXiv.2608.03463",
+      "caveat": "LoCoMo's bar since 2026-09-30 (user: 'Adopt 84.41 as the bar'), superseding MemPro-15 (Qwen3-30B) 77.85. Qwen3-8B is the scheduler, planner and answer model. Categories 1-4 (1,540). Judge: GPT-4.1-mini under 'the evaluation protocol of SimpleMem'; LeanMem's App. D (the printed prompt) and its code are in unpublished supplementary material, so our reading uses SimpleMem's own judge verbatim from aiming-lab/SimpleMem@9b12e8d MCP/reference/test_locomo10.py with its config (gpt-4.1-mini, temperature 0.3, no response_format). Their number is a mean of 5 runs with paired significance; ours is one run under one sampled grading. Same table: LightMem on Qwen3-8B 78.57 under the same judge.",
+      "detail": "protocol simplemem-locomo (openai/gpt-4.1-mini): 1211 of 1540 correct",
+      "candidates": [
+        {
+          "run": "runs/m84_locomo_base",
+          "value": 78.63636363636364
+        }
+      ]
+    },
+    {
+      "registry_id": "locomo.judge_simplemem.lightmem.qwen3_8b",
+      "metric": "locomo.judge_score_simplemem.n1540",
+      "system": "LightMem (Qwen3-8B, as run by LeanMem)",
+      "theirs": 78.57,
+      "ours": 78.63636363636364,
+      "ours_n": 1540,
+      "gap": null,
+      "verdict": {
+        "verdict": "stale_config",
+        "detail": "artifact does not record tie_order; re-measure on this code before quoting it"
+      },
+      "claim_allowed": false,
+      "gate": false,
+      "arm": false,
+      "run": "runs/m84_locomo_base",
+      "source_doi": "10.48550/arXiv.2608.03463",
+      "caveat": "The protocol's anchor: LeanMem's own run of LightMem under the same SimpleMem judge (GPT-4.1-mini), 5-run mean. Not a gate.",
+      "detail": "protocol simplemem-locomo (openai/gpt-4.1-mini): 1211 of 1540 correct",
+      "candidates": [
+        {
+          "run": "runs/m84_locomo_base",
+          "value": 78.63636363636364
+        }
+      ]
+    },
+    {
+      "registry_id": "locomo.judge_simplemem.leanmem.gpt41mini",
+      "metric": "locomo.judge_score_simplemem.n1540",
+      "system": "LeanMem (GPT-4.1-mini)",
+      "theirs": 84.87,
+      "ours": 78.63636363636364,
+      "ours_n": 1540,
+      "gap": null,
+      "verdict": {
+        "verdict": "stale_config",
+        "detail": "artifact does not record tie_order; re-measure on this code before quoting it"
+      },
+      "claim_allowed": false,
+      "gate": false,
+      "arm": false,
+      "run": "runs/m84_locomo_base",
+      "source_doi": "10.48550/arXiv.2608.03463",
+      "caveat": "Frontier backbone; same SimpleMem judge and 5-run mean as the Qwen3-8B row. Not a gate.",
+      "detail": "protocol simplemem-locomo (openai/gpt-4.1-mini): 1211 of 1540 correct",
+      "candidates": [
+        {
+          "run": "runs/m84_locomo_base",
+          "value": 78.63636363636364
+        }
+      ]
+    },
+    {
+      "registry_id": "longmemeval_s.judge.leanmem.qwen3_8b",
+      "metric": "longmemeval_s.judge_score.n500",
+      "system": "LeanMem (Qwen3-8B)",
+      "theirs": 77.4,
+      "ours": 81.2,
+      "ours_n": 500,
+      "gap": null,
+      "verdict": {
+        "verdict": "stale_config",
+        "detail": "artifact does not record tie_order; re-measure on this code before quoting it"
+      },
+      "claim_allowed": false,
+      "gate": false,
+      "arm": false,
+      "run": "runs/r5_nli_seeds",
+      "source_doi": "10.48550/arXiv.2608.03463",
+      "caveat": "GPT-4.1-mini judge; the paper names SimpleMem's protocol for LoCoMo only, so the LongMemEval_S prompt is unstated. 5-run mean. Below our shipped 81.53 official either way. Session-id exposure not checkable (code unpublished).",
+      "detail": "seed mean of 3 (80.80 / 81.60 / 81.20); judge qwen3.5-9b : 404 of 500 correct (34 declines scored 0)",
+      "candidates": [
+        {
+          "run": "runs/r5_nli_seeds",
+          "value": 81.2
+        },
+        {
+          "run": "runs/r5_bundle_seeds",
+          "value": 80.80000000000001
+        },
+        {
+          "run": "runs/r5_bundle_s2_m80",
+          "value": 82.0
+        },
+        {
+          "run": "runs/r5_bundle_s2_typed",
+          "value": 81.8
+        },
+        {
+          "run": "runs/r5b_bundle_s2_typed",
+          "value": 81.8
+        },
+        {
+          "run": "runs/r5b_bundle_s3_typed",
+          "value": 81.8
+        },
+        {
+          "run": "runs/r5_bundle_s2_m82",
+          "value": 81.6
+        },
+        {
+          "run": "runs/r5_bundle_s3_typed",
+          "value": 81.6
+        },
+        {
+          "run": "runs/r5_bundle_s1_m80",
+          "value": 81.39999999999999
+        },
+        {
+          "run": "runs/r5_bundle_s2_m81",
+          "value": 81.39999999999999
+        },
+        {
+          "run": "runs/r5_bundle_s2_m84",
+          "value": 81.39999999999999
+        },
+        {
+          "run": "runs/r5_bundle_s3_m80",
+          "value": 81.39999999999999
+        },
+        {
+          "run": "runs/r5_bundle_s2_grounded_c",
+          "value": 81.2
+        },
+        {
+          "run": "runs/r5_bundle_s3_m82",
+          "value": 81.2
+        },
+        {
+          "run": "runs/r5_bundle_s3_m84",
+          "value": 81.2
+        },
+        {
+          "run": "runs/r5_bundle_s1_typed",
+          "value": 81.0
+        },
+        {
+          "run": "runs/r5_bundle_s3_m81",
+          "value": 81.0
+        },
+        {
+          "run": "runs/r5b_bundle_s1_typed",
+          "value": 81.0
+        },
+        {
+          "run": "runs/r5_bundle_s1_m82",
+          "value": 80.80000000000001
+        },
+        {
+          "run": "runs/r4_bundle_s1_grounded",
+          "value": 80.60000000000001
+        },
+        {
+          "run": "runs/r5_bundle_s1_m84",
+          "value": 80.60000000000001
+        },
+        {
+          "run": "runs/r5_bundle_s3_grounded_c",
+          "value": 80.60000000000001
+        },
+        {
+          "run": "runs/m71_lme_grounded",
+          "value": 80.4
+        },
+        {
+          "run": "runs/r5_bundle_s1_grounded_c",
+          "value": 80.4
+        },
+        {
+          "run": "runs/r5_bundle_s1_m81",
+          "value": 80.4
+        },
+        {
+          "run": "runs/m72_lme_agg",
+          "value": 80.2
+        },
+        {
+          "run": "runs/m78c_answer_s3",
+          "value": 80.2
+        },
+        {
+          "run": "runs/m55_bonsai_s1",
+          "value": 80.0
+        },
+        {
+          "run": "runs/m80_base_s1",
+          "value": 80.0
+        },
+        {
+          "run": "runs/m71b_lme_grounded",
+          "value": 79.80000000000001
+        },
+        {
+          "run": "runs/m72b_lme_agg",
+          "value": 79.80000000000001
+        },
+        {
+          "run": "runs/m77c_clause_s2",
+          "value": 79.80000000000001
+        },
+        {
+          "run": "runs/m78_answer_s1",
+          "value": 79.80000000000001
+        },
+        {
+          "run": "runs/m78_answer_s3",
+          "value": 79.80000000000001
+        },
+        {
+          "run": "runs/m79_base_s1",
+          "value": 79.80000000000001
+        },
+        {
+          "run": "runs/m73b_events_s1",
+          "value": 79.60000000000001
+        },
+        {
+          "run": "runs/m77_words_clause_s2",
+          "value": 79.60000000000001
+        },
+        {
+          "run": "runs/m82_base_s1",
+          "value": 79.60000000000001
+        },
+        {
+          "run": "runs/m77c_clause_s1",
+          "value": 79.4
+        },
+        {
+          "run": "runs/m78b_picks_s1",
+          "value": 79.4
+        },
+        {
+          "run": "runs/m20b_profile_s1",
+          "value": 79.2
+        },
+        {
+          "run": "runs/m77_words_clause_s1",
+          "value": 79.2
+        },
+        {
+          "run": "runs/m77_words_clause_s3",
+          "value": 79.2
+        },
+        {
+          "run": "runs/m78b_picks_s3",
+          "value": 79.2
+        },
+        {
+          "run": "runs/m78c_answer_s1",
+          "value": 79.2
+        },
+        {
+          "run": "runs/m81_base_s1",
+          "value": 79.2
+        },
+        {
+          "run": "runs/m57_bonsai_premise_s1",
+          "value": 79.0
+        },
+        {
+          "run": "runs/m76_words_s1",
+          "value": 79.0
+        },
+        {
+          "run": "runs/m76b_words_nopremise_s1",
+          "value": 79.0
+        },
+        {
+          "run": "runs/m76c_nopremise_s1",
+          "value": 79.0
+        },
+        {
+          "run": "runs/m77c_clause_s3",
+          "value": 79.0
+        },
+        {
+          "run": "runs/m78b_picks_s2",
+          "value": 79.0
+        },
+        {
+          "run": "runs/m78c_answer_s2",
+          "value": 79.0
+        },
+        {
+          "run": "runs/m80_base_s2",
+          "value": 79.0
+        },
+        {
+          "run": "runs/m78_answer_s2",
+          "value": 78.8
+        },
+        {
+          "run": "runs/m79_base_s2",
+          "value": 78.8
+        },
+        {
+          "run": "runs/m80_base_s3",
+          "value": 78.8
+        },
+        {
+          "run": "runs/m57_pref_s2",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m57_pref_s3",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m79_base_s3",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m82_base_s2",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m82_base_s3",
+          "value": 78.60000000000001
+        },
+        {
+          "run": "runs/m81_base_s2",
+          "value": 78.2
+        },
+        {
+          "run": "runs/m81_base_s3",
+          "value": 78.0
+        },
+        {
+          "run": "runs/r5_base_s2",
+          "value": 78.0
+        },
+        {
+          "run": "runs/r5_base_s3",
+          "value": 77.8
+        },
+        {
+          "run": "runs/m44_r2b_s1",
+          "value": 77.2
+        },
+        {
+          "run": "runs/m44_r2b_s2",
+          "value": 76.0
+        },
+        {
+          "run": "runs/m44_r2_s1",
+          "value": 75.0
+        },
+        {
+          "run": "runs/m44_r2_s2",
+          "value": 74.8
+        },
+        {
+          "run": "runs/m44_r1",
+          "value": 66.4
+        },
+        {
+          "run": "runs/m43_dated",
+          "value": 66.2
+        },
+        {
+          "run": "runs/m45_consensus",
+          "value": 66.2
+        },
+        {
+          "run": "runs/m46_ago",
+          "value": 66.0
+        },
+        {
+          "run": "runs/m48_role",
+          "value": 65.60000000000001
+        },
+        {
+          "run": "runs/m40_digest",
+          "value": 64.4
+        },
+        {
+          "run": "runs/m42_commit",
+          "value": 64.2
+        },
+        {
+          "run": "runs/m43_filtered",
+          "value": 63.0
+        },
+        {
+          "run": "runs/m39_selfask",
+          "value": 62.8
+        },
+        {
+          "run": "runs/m32_inv_sel",
+          "value": 62.0
+        },
+        {
+          "run": "runs/m32_inv_sel_certified",
+          "value": 62.0
+        },
+        {
+          "run": "runs/m21_full_sel",
+          "value": 60.4
+        },
+        {
+          "run": "runs/m32_sel",
+          "value": 60.4
+        },
+        {
+          "run": "runs/m21_full_base",
+          "value": 56.599999999999994
+        },
+        {
+          "run": "runs/m32_base",
+          "value": 56.599999999999994
+        },
+        {
+          "run": "runs/m19_lme_s_full",
+          "value": 56.39999999999999
+        },
+        {
+          "run": "runs/m32_inv_base",
+          "value": 56.2
+        },
+        {
+          "run": "runs/m21_ms_sel",
+          "value": 45.86466165413533
+        },
+        {
+          "run": "runs/m21_tr_sel",
+          "value": 39.849624060150376
+        },
+        {
+          "run": "runs/m21_ms_base",
+          "value": 38.34586466165413
+        },
+        {
+          "run": "runs/m19_lme_t_armDW25",
+          "value": 37.59398496240601
+        },
+        {
+          "run": "runs/m21_inv_base",
+          "value": 36.84210526315789
+        },
+        {
+          "run": "runs/m21_inv_sel",
+          "value": 36.84210526315789
+        },
+        {
+          "run": "runs/m19_lme_t_armD",
+          "value": 33.83458646616541
+        },
+        {
+          "run": "runs/m21_tr_base",
+          "value": 33.83458646616541
+        },
+        {
+          "run": "runs/m21_ms_mmr",
+          "value": 33.08270676691729
+        },
+        {
+          "run": "runs/m19_lme_t_armW25",
+          "value": 30.82706766917293
+        },
+        {
+          "run": "runs/m19_lme_t_armWinv",
+          "value": 27.06766917293233
+        },
+        {
+          "run": "runs/m19_lme_t_base",
+          "value": 27.06766917293233
+        },
+        {
+          "run": "runs/m21_tr_mmr",
+          "value": 24.06015037593985
+        },
+        {
+          "run": "runs/m55_bonsai_pilot_s1",
+          "value": 77.0
+        },
+        {
+          "run": "runs/m50_pilot_base_s1",
+          "value": 69.0
+        },
+        {
+          "run": "runs/m50_pilot_s1",
+          "value": 69.0
+        },
+        {
+          "run": "runs/m20_pref_armAB",
+          "value": 36.666666666666664
+        },
+        {
+          "run": "runs/m20_pref_armB",
+          "value": 33.33333333333333
+        },
+        {
+          "run": "runs/m20_pref_armA",
+          "value": 30.0
+        },
+        {
+          "run": "runs/m20_pref_base",
+          "value": 30.0
+        },
+        {
+          "run": "runs/lme_s_recall",
+          "value": 52.0
+        }
+      ]
+    },
+    {
+      "registry_id": "locomo.judge.memchain.qwen3_14b",
+      "metric": "locomo.judge_score.n1540",
+      "system": "MemChain SFT+TMPO (Qwen3-4B policy, Qwen3-14B answers)",
+      "theirs": 80.26,
+      "ours": 70.84415584415584,
+      "ours_n": 1540,
+      "gap": null,
+      "verdict": {
+        "verdict": "stale_config",
+        "detail": "artifact does not record tie_order; re-measure on this code before quoting it"
+      },
+      "claim_allowed": false,
+      "gate": false,
+      "arm": false,
+      "run": "runs/m84_locomo_base",
+      "source_doi": "10.48550/arXiv.2607.24097",
+      "caveat": "Not matched: graded by the LoCoMo-Refined judge (mem-eval-suite/LoCoMo_refined@8870911, Qwen3-14B, stricter: list completeness, no unsupported additions, strict temporal granularity), a suite that also revises 337 gold answers (1,382 questions). The paper states 1,540 questions; which QA set was graded is not stated. Running that judge needs Qwen3-14B served locally. Found 2026-09-30.",
+      "detail": "judge qwen3.5-9b : 1091 of 1540 correct (102 declines scored 0)",
+      "candidates": [
+        {
+          "run": "runs/m84_locomo_base",
+          "value": 70.84415584415584
+        },
+        {
+          "run": "runs/m63_locomo_inline",
+          "value": 70.71428571428572
+        },
+        {
+          "run": "runs/m82_locomo_base",
+          "value": 70.64935064935065
+        },
+        {
+          "run": "runs/m81_locomo_base",
+          "value": 70.58441558441558
+        },
+        {
+          "run": "runs/m83_locomo_base",
+          "value": 70.58441558441558
+        },
+        {
+          "run": "runs/m83b_locomo_base",
+          "value": 70.58441558441558
+        },
+        {
+          "run": "runs/m63_locomo_base",
+          "value": 70.51948051948051
+        },
+        {
+          "run": "runs/m61_locomo_grounded",
+          "value": 70.06493506493506
+        },
+        {
+          "run": "runs/m83_locomo_m50c",
+          "value": 70.06493506493506
+        },
+        {
+          "run": "runs/m19_locomo_full",
+          "value": 69.87012987012987
+        },
+        {
+          "run": "runs/m50c_locomo_events",
+          "value": 69.87012987012987
+        },
+        {
+          "run": "runs/m50b_locomo_events",
+          "value": 69.74025974025973
+        },
+        {
+          "run": "runs/m83b_locomo_m50b",
+          "value": 69.74025974025973
+        },
+        {
+          "run": "runs/m59_locomo_bonsai_bestguess",
+          "value": 67.92207792207792
+        },
+        {
+          "run": "runs/m83b_locomo_m55b",
+          "value": 67.27272727272727
+        },
+        {
+          "run": "runs/m55b_locomo_bonsai",
+          "value": 66.68831168831169
+        },
+        {
+          "run": "runs/m83_locomo_m51",
+          "value": 65.25974025974025
+        },
+        {
+          "run": "runs/m83b_locomo_m51",
+          "value": 65.25974025974025
+        },
+        {
+          "run": "runs/m51_locomo_s1",
+          "value": 65.06493506493507
+        },
+        {
+          "run": "runs/m63_locomo_dedupe",
+          "value": 62.5974025974026
+        },
+        {
+          "run": "runs/m21_mh_base",
+          "value": 58.156028368794324
+        },
+        {
+          "run": "runs/m21_mh_sel",
+          "value": 54.96453900709219
+        },
+        {
+          "run": "runs/m51_locomo_s1.part10",
+          "value": 68.55345911949685
+        },
+        {
+          "run": "runs/m51_locomo_s1.part11",
+          "value": 66.66666666666666
+        },
+        {
+          "run": "runs/m51_locomo_s1.part5",
+          "value": 65.40880503144653
+        },
+        {
+          "run": "runs/m51_locomo_s1.part9",
+          "value": 63.52201257861635
+        },
+        {
+          "run": "runs/m51_locomo_s1.part6",
+          "value": 69.62025316455697
+        },
+        {
+          "run": "runs/m51_locomo_s1.part7",
+          "value": 66.45569620253164
+        },
+        {
+          "run": "runs/m51_locomo_s1.part4",
+          "value": 60.75949367088608
+        },
+        {
+          "run": "runs/m51_locomo_s1.part8",
+          "value": 63.69426751592356
+        },
+        {
+          "run": "runs/locomo_recall",
+          "value": 62.66233766233766
+        }
+      ]
+    },
+    {
       "registry_id": "longmemeval_s.judge.mempro15.gpt4omini",
       "metric": "longmemeval_s.judge_score.n500",
       "system": "MemPro-15",
       "theirs": 79.0,
       "ours": 81.2,
       "ours_n": 500,
-      "gap": 2.200000000000003,
+      "gap": null,
       "verdict": {
-        "verdict": "caveat_judge",
-        "ours": "open_weights_local",
-        "theirs": "frontier_api"
+        "verdict": "stale_config",
+        "detail": "artifact does not record tie_order; re-measure on this code before quoting it"
       },
       "claim_allowed": false,
       "gate": false,
@@ -1055,11 +1731,10 @@
       "theirs": 79.0,
       "ours": 81.53333333333335,
       "ours_n": 500,
-      "gap": 2.5333333333333456,
+      "gap": null,
       "verdict": {
-        "verdict": "caveat_backbone",
-        "ours": "open_weights",
-        "theirs": "frontier_api"
+        "verdict": "stale_config",
+        "detail": "artifact does not record tie_order; re-measure on this code before quoting it"
       },
       "claim_allowed": false,
       "gate": false,
@@ -1362,11 +2037,10 @@
       "theirs": 80.8,
       "ours": 81.2,
       "ours_n": 500,
-      "gap": 0.4000000000000057,
+      "gap": null,
       "verdict": {
-        "verdict": "caveat_judge",
-        "ours": "open_weights_local",
-        "theirs": "frontier_api"
+        "verdict": "stale_config",
+        "detail": "artifact does not record tie_order; re-measure on this code before quoting it"
       },
       "claim_allowed": false,
       "gate": false,
@@ -2271,11 +2945,12 @@
       "theirs": 80.8,
       "ours": 81.53333333333335,
       "ours_n": 500,
-      "gap": 0.7333333333333485,
+      "gap": null,
       "verdict": {
-        "verdict": "comparable"
+        "verdict": "stale_config",
+        "detail": "artifact does not record tie_order; re-measure on this code before quoting it"
       },
-      "claim_allowed": true,
+      "claim_allowed": false,
       "gate": true,
       "arm": false,
       "run": "runs/r5_nli_seeds",
@@ -2576,11 +3251,10 @@
       "theirs": 93.05,
       "ours": 70.84415584415584,
       "ours_n": 1540,
-      "gap": -22.20584415584416,
+      "gap": null,
       "verdict": {
-        "verdict": "caveat_judge",
-        "ours": "open_weights_local",
-        "theirs": "frontier_api"
+        "verdict": "stale_config",
+        "detail": "artifact does not record tie_order; re-measure on this code before quoting it"
       },
       "claim_allowed": false,
       "gate": false,
@@ -2723,11 +3397,10 @@
       "theirs": 83.0,
       "ours": 81.2,
       "ours_n": 500,
-      "gap": -1.7999999999999972,
+      "gap": null,
       "verdict": {
-        "verdict": "caveat_judge",
-        "ours": "open_weights_local",
-        "theirs": "frontier_api"
+        "verdict": "stale_config",
+        "detail": "artifact does not record tie_order; re-measure on this code before quoting it"
       },
       "claim_allowed": false,
       "gate": false,
@@ -3178,11 +3851,10 @@
       "theirs": 66.88,
       "ours": 70.84415584415584,
       "ours_n": 1540,
-      "gap": 3.96415584415584,
+      "gap": null,
       "verdict": {
-        "verdict": "caveat_judge",
-        "ours": "open_weights_local",
-        "theirs": "frontier_api"
+        "verdict": "stale_config",
+        "detail": "artifact does not record tie_order; re-measure on this code before quoting it"
       },
       "claim_allowed": false,
       "gate": false,
@@ -3928,7 +4600,7 @@
       "gap": null,
       "verdict": {
         "verdict": "stale_config",
-        "detail": "artifact does not record resolve_dates, timeline; re-measure on this code before quoting it"
+        "detail": "artifact does not record resolve_dates, timeline, tie_order; re-measure on this code before quoting it"
       },
       "claim_allowed": false,
       "gate": false,
@@ -3975,11 +4647,10 @@
       "theirs": 0.78,
       "ours": 0.6793721973094171,
       "ours_n": 446,
-      "gap": -0.10062780269058291,
+      "gap": null,
       "verdict": {
-        "verdict": "caveat_backbone",
-        "ours": "open_weights",
-        "theirs": "frontier_api"
+        "verdict": "stale_config",
+        "detail": "artifact does not record tie_order; re-measure on this code before quoting it"
       },
       "claim_allowed": false,
       "gate": false,
@@ -4282,11 +4953,10 @@
       "theirs": 71.2,
       "ours": 81.2,
       "ours_n": 500,
-      "gap": 10.0,
+      "gap": null,
       "verdict": {
-        "verdict": "caveat_judge",
-        "ours": "open_weights_local",
-        "theirs": "frontier_api"
+        "verdict": "stale_config",
+        "detail": "artifact does not record tie_order; re-measure on this code before quoting it"
       },
       "claim_allowed": false,
       "gate": false,
@@ -5041,11 +5711,10 @@
       "theirs": 74.6,
       "ours": 81.2,
       "ours_n": 500,
-      "gap": 6.6000000000000085,
+      "gap": null,
       "verdict": {
-        "verdict": "caveat_judge",
-        "ours": "open_weights_local",
-        "theirs": "frontier_api"
+        "verdict": "stale_config",
+        "detail": "artifact does not record tie_order; re-measure on this code before quoting it"
       },
       "claim_allowed": false,
       "gate": false,
@@ -5496,11 +6165,10 @@
       "theirs": 80.8,
       "ours": 70.84415584415584,
       "ours_n": 1540,
-      "gap": -9.955844155844161,
+      "gap": null,
       "verdict": {
-        "verdict": "caveat_judge",
-        "ours": "open_weights_local",
-        "theirs": "frontier_api"
+        "verdict": "stale_config",
+        "detail": "artifact does not record tie_order; re-measure on this code before quoting it"
       },
       "claim_allowed": false,
       "gate": false,
@@ -5765,11 +6433,10 @@
       "theirs": 89.8,
       "ours": 81.2,
       "ours_n": 500,
-      "gap": -8.599999999999994,
+      "gap": null,
       "verdict": {
-        "verdict": "caveat_judge",
-        "ours": "open_weights_local",
-        "theirs": "frontier_api"
+        "verdict": "stale_config",
+        "detail": "artifact does not record tie_order; re-measure on this code before quoting it"
       },
       "claim_allowed": false,
       "gate": false,
@@ -6220,11 +6887,10 @@
       "theirs": 87.1,
       "ours": 70.84415584415584,
       "ours_n": 1540,
-      "gap": -16.25584415584416,
+      "gap": null,
       "verdict": {
-        "verdict": "caveat_judge",
-        "ours": "open_weights_local",
-        "theirs": "frontier_api"
+        "verdict": "stale_config",
+        "detail": "artifact does not record tie_order; re-measure on this code before quoting it"
       },
       "claim_allowed": false,
       "gate": false,
@@ -6367,11 +7033,10 @@
       "theirs": 88.88,
       "ours": 70.84415584415584,
       "ours_n": 1540,
-      "gap": -18.03584415584416,
+      "gap": null,
       "verdict": {
-        "verdict": "caveat_judge",
-        "ours": "open_weights_local",
-        "theirs": "frontier_api"
+        "verdict": "stale_config",
+        "detail": "artifact does not record tie_order; re-measure on this code before quoting it"
       },
       "claim_allowed": false,
       "gate": false,
@@ -6514,11 +7179,10 @@
       "theirs": 86.2,
       "ours": 81.2,
       "ours_n": 500,
-      "gap": -5.0,
+      "gap": null,
       "verdict": {
-        "verdict": "caveat_judge",
-        "ours": "open_weights_local",
-        "theirs": "frontier_api"
+        "verdict": "stale_config",
+        "detail": "artifact does not record tie_order; re-measure on this code before quoting it"
       },
       "claim_allowed": false,
       "gate": false,
@@ -6969,11 +7633,10 @@
       "theirs": 95.6,
       "ours": 81.2,
       "ours_n": 500,
-      "gap": -14.399999999999991,
+      "gap": null,
       "verdict": {
-        "verdict": "caveat_judge",
-        "ours": "open_weights_local",
-        "theirs": "frontier_api"
+        "verdict": "stale_config",
+        "detail": "artifact does not record tie_order; re-measure on this code before quoting it"
       },
       "claim_allowed": false,
       "gate": false,
@@ -7419,6 +8082,8 @@
     }
   ],
   "gated_failures": [
+    "locomo.judge_simplemem.leanmem.qwen3_8b [locomo.judge_score_simplemem.n1540] artifact predates today's operating point (artifact does not record tie_order; re-measure on this code before quoting it)",
+    "longmemeval_s.judge_matched.mempro15.qwen3_30b [longmemeval_s.judge_score_matched.n500] artifact predates today's operating point (artifact does not record tie_order; re-measure on this code before quoting it)",
     "lme_v2_small.agentrunbook_c [lme_v2_small.overall_full_set.combined] ahead by 3.15 (ours 78.05, theirs 74.90), but caveat-judge(open_weights_local vs frontier_api); a gate closes only on a comparable row",
     "lme_v2_small.lafs_gain.frontier [lme_v2_small.lafs_gain.small] artifact predates today's operating point (artifact does not record mode, max_steps, prefetch_limit, rerank_depth, select, dated, pool_rerank, premise, typed_probes, decompose; re-measure on this code before quoting it)"
   ],
@@ -7854,7 +8519,9 @@
       "incomplete": null,
       "arm": false,
       "replicates": 1,
-      "unrecorded": [],
+      "unrecorded": [
+        "tie_order"
+      ],
       "candidates": [
         {
           "run": "runs/m84_locomo_base",
@@ -8154,7 +8821,9 @@
       "incomplete": null,
       "arm": false,
       "replicates": 1,
-      "unrecorded": [],
+      "unrecorded": [
+        "tie_order"
+      ],
       "candidates": [
         {
           "run": "runs/m84_locomo_base",
@@ -8294,7 +8963,9 @@
       "incomplete": null,
       "arm": false,
       "replicates": 1,
-      "unrecorded": [],
+      "unrecorded": [
+        "tie_order"
+      ],
       "candidates": [
         {
           "run": "runs/m84_locomo_base",
@@ -8330,7 +9001,9 @@
       "incomplete": null,
       "arm": false,
       "replicates": 1,
-      "unrecorded": [],
+      "unrecorded": [
+        "tie_order"
+      ],
       "candidates": [
         {
           "run": "runs/m84_locomo_base",
@@ -8358,7 +9031,9 @@
       "incomplete": null,
       "arm": false,
       "replicates": 1,
-      "unrecorded": [],
+      "unrecorded": [
+        "tie_order"
+      ],
       "candidates": [
         {
           "run": "runs/m84_locomo_base",
@@ -8375,6 +9050,28 @@
       ]
     },
     {
+      "metric": "locomo.judge_score_simplemem.n1540",
+      "value": 78.63636363636364,
+      "unit": "pct_0_100",
+      "n": 1540,
+      "judge_class": "frontier_api",
+      "backbone_class": "open_weights",
+      "run": "runs/m84_locomo_base",
+      "detail": "protocol simplemem-locomo (openai/gpt-4.1-mini): 1211 of 1540 correct",
+      "incomplete": null,
+      "arm": false,
+      "replicates": 1,
+      "unrecorded": [
+        "tie_order"
+      ],
+      "candidates": [
+        {
+          "run": "runs/m84_locomo_base",
+          "value": 78.63636363636364
+        }
+      ]
+    },
+    {
       "metric": "locomo.temporal.n1540",
       "value": 60.16407788234017,
       "unit": "pct_0_100",
@@ -8386,7 +9083,9 @@
       "incomplete": null,
       "arm": false,
       "replicates": 1,
-      "unrecorded": [],
+      "unrecorded": [
+        "tie_order"
+      ],
       "candidates": [
         {
           "run": "runs/m84_locomo_base",
@@ -8616,7 +9315,8 @@
       "replicates": 1,
       "unrecorded": [
         "resolve_dates",
-        "timeline"
+        "timeline",
+        "tie_order"
       ],
       "candidates": [
         {
@@ -8661,7 +9361,9 @@
       "incomplete": null,
       "arm": false,
       "replicates": 3,
-      "unrecorded": [],
+      "unrecorded": [
+        "tie_order"
+      ],
       "candidates": [
         {
           "run": "runs/r5_nli_seeds",
@@ -9109,7 +9811,9 @@
       "incomplete": null,
       "arm": false,
       "replicates": 3,
-      "unrecorded": [],
+      "unrecorded": [
+        "tie_order"
+      ],
       "candidates": [
         {
           "run": "runs/r5_nli_seeds",
@@ -9409,7 +10113,9 @@
       "incomplete": null,
       "arm": false,
       "replicates": 3,
-      "unrecorded": [],
+      "unrecorded": [
+        "tie_order"
+      ],
       "candidates": [
         {
           "run": "runs/r5_nli_seeds",
@@ -9699,18 +10405,26 @@
     },
     {
       "metric": "longmemeval_s.token_f1.n500",
-      "value": 60.484971494365276,
+      "value": 0.0,
       "unit": "pct_0_100",
-      "n": 470,
+      "n": 235,
       "judge_class": "deterministic",
       "backbone_class": "open_weights",
-      "run": "runs/r5_nli_seeds",
-      "detail": "seed mean of 3 (60.06 / 61.22 / 60.17); aggregated_metrics.json f1_answerable over the 470 answerable rows, mode=investigate k=6",
+      "run": "runs/det_ev_s1_p0",
+      "detail": "aggregated_metrics.json f1_answerable over the 235 answerable rows, mode=investigate k=6",
       "incomplete": null,
-      "arm": false,
-      "replicates": 3,
+      "arm": true,
+      "replicates": 1,
       "unrecorded": [],
       "candidates": [
+        {
+          "run": "runs/det_ev_s1_p0",
+          "value": 0.0
+        },
+        {
+          "run": "runs/det_ev_s1_p1",
+          "value": 0.0
+        },
         {
           "run": "runs/r5_nli_seeds",
           "value": 60.484971494365276
