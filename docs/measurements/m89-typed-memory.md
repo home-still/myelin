@@ -108,6 +108,38 @@ questions, M65's and M66's).
 no LLM calls. The sweep is 7 cells × 997 questions, reranker only. Together
 well under an hour on big.
 
+### Stage A, measured so far *(2026-09-30 evening; incomplete — big released by the user before the last cells)*
+
+**The build.** `myelin_locomo_topics` holds topic episodes of about 3.5 turns,
+against about 10.7 in the shipped store. For example:
+- conv-30: 369 turns, 98 episodes, 79 of them ended at a topic shift;
+- conv-41: 663 turns, 198 episodes, 166 at a shift.
+
+The pre-registered threshold (TextTiling's liberal `mean − σ/2`) cuts often
+on LoCoMo's dialogue.
+
+| cell (dev split, 997 questions) | `turn_all` | `recall` | evidence tokens |
+|---|---|---|---|
+| control: shipped store, episodes only, k = 6 | **0.8806** | 0.9204 | 3,000 |
+| control, k = 10 | 0.9097 | 0.9419 | 4,124 |
+| topic episodes, k = 6 | 0.8355 | 0.8780 | 1,063 |
+| topic episodes, k = 8 | 0.8516 | 0.8953 | 1,412 |
+| topic episodes, k = 10 | 0.8656 | 0.9073 | 1,757 |
+| topic episodes, k = 12 / 14 | *not run* | | |
+
+**Not yet decided:**
+- Every topic cell so far sits well under the control's 3,000 tokens, so K\*
+  is at least the largest cell pre-registered, k = 14. That cell has not run.
+- The go bar is 0.8806 + 0.03 = **0.9106**.
+- Extrapolated, not measured: the measured cells gain about 0.015 per +2 of k,
+  which puts k = 14 near 0.89, short of the bar.
+- The verdict waits for the k = 12 and k = 14 cells (minutes of reranker time
+  on big).
+
+**Already true either way:** at equal k, topic episodes hold less gold than
+whole episodes. At equal tokens, they hold about the same: topic k = 10 at
+1,757 tokens is 0.8656, and the control's k = 6 at 3,000 is 0.8806.
+
 ## Stage B — typed routing *(pre-registered 2026-09-30, before any row)*
 
 **Code:**

@@ -1,0 +1,37 @@
+{
+  "schema": 1,
+  "grid": [
+    {
+      "prefetch_limit": 50,
+      "rerank_depth": 25,
+      "k": 6,
+      "select": false,
+      "recall": 0.9203977010396271,
+      "all": 0.880641925777332,
+      "turn_all": 0.880641925777332,
+      "evidence_tokens": 3000.444332998997,
+      "agg_n": 18,
+      "agg_all": 0.4444444444444444,
+      "agg_turn_all": 0.4444444444444444,
+      "pool_recall": 0.9722628202066516,
+      "any": 0.9869608826479438,
+      "pool": 25.0,
+      "p50_ms": 730,
+      "p90_ms": 835,
+      "select_degraded": 0.0,
+      "budget_tokens": 4096,
+      "dropped_for_tokens": 0.0,
+      "mean_emitted_rank": 3.5,
+      "mean_emitted_tokens": 486.92410565028416
+    }
+  ],
+  "verdict": {
+    "verdict": "keep",
+    "base": 0.9203977010396271,
+    "best": 0.9203977010396271
+  },
+  "rule": {
+    "recall_margin": 0.02,
+    "latency_factor": 2.0
+  }
+}
