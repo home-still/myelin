@@ -243,12 +243,13 @@ pub fn resolve_when(when: &str, said: NaiveDate) -> EventTime {
     EventTime::Unresolved { phrase: phrase.to_string() }
 }
 
-/// The record text: the tuple, when it happened and when it was said, then
-/// the aliases — which ride in the text so the BM25 channel can match them,
-/// the use Chronos puts them to (§3.1, "robust keyword matching").
-pub fn event_text(e: &ExtractedEvent, time: &EventTime, said: NaiveDate) -> String {
-    let tuple = format!("{} {} {}", e.subject.trim(), e.verb.trim(), e.object.trim());
-    let when = match time {
+/// When an event happened and when it was said, as the bracket every event
+/// record carries: `[2023-05-07 — "yesterday", said 2023-05-08]`. Shared by
+/// M50's events and M89b's typed events
+/// ([`crate::pipeline::typed::typed_records`]); compose never resolves the
+/// quoted phrase a second time.
+pub fn when_bracket(time: &EventTime, said: NaiveDate) -> String {
+    match time {
         EventTime::Said => format!("[said {said}]"),
         EventTime::Stated { phrase, range } if range.lo == range.hi => {
             format!("[{} — \"{phrase}\", said {said}]", range.lo)
@@ -257,7 +258,15 @@ pub fn event_text(e: &ExtractedEvent, time: &EventTime, said: NaiveDate) -> Stri
             format!("[{} to {} — \"{phrase}\", said {said}]", range.lo, range.hi)
         }
         EventTime::Unresolved { phrase } => format!("[\"{phrase}\", said {said}]"),
-    };
+    }
+}
+
+/// The record text: the tuple, when it happened and when it was said, then
+/// the aliases — which ride in the text so the BM25 channel can match them,
+/// the use Chronos puts them to (§3.1, "robust keyword matching").
+pub fn event_text(e: &ExtractedEvent, time: &EventTime, said: NaiveDate) -> String {
+    let tuple = format!("{} {} {}", e.subject.trim(), e.verb.trim(), e.object.trim());
+    let when = when_bracket(time, said);
     let aliases: Vec<&str> = e
         .aliases
         .iter()

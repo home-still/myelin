@@ -37,14 +37,18 @@ use serde::{Deserialize, Serialize};
 use crate::error::{MyelinError, Result};
 use crate::llm::{complete_json, CompletionRequest, Llm, Message};
 use crate::model::record::{EntityRef, MemoryRecord, Provenance, RecordKind, Salience, SourceRef, Validity};
-use crate::pipeline::events::{resolve_when, EventTime};
+use crate::pipeline::events::{resolve_when, when_bracket, EventTime};
 use crate::pipeline::topic::key_utterances;
 use crate::pipeline::turn_windows::turn_spans;
 use crate::store::ids::record_id;
 
-/// Bumped whenever a prompt or schema below changes, so a cached extraction
-/// from another version is never mixed into a build.
-pub const TYPED_PROMPT_VERSION: &str = "m89b-1";
+/// Bumped whenever what the model is shown or asked changes, so a cached
+/// extraction from another version is never mixed into a build: a prompt or
+/// schema below, [`route`] (it decides which units get an event or a gist),
+/// or the key-utterance filter ([`key_utterances`]) that picks the turns the
+/// scheduler sees. `m89b-2` (2026-10-02, before any row): a unit's `cites`
+/// are constrained to the turns shown, and empty text fields are refused.
+pub const TYPED_PROMPT_VERSION: &str = "m89b-2";
 /// Units one scheduler call may return.
 pub const SCHEDULE_MAX_UNITS: u64 = 8;
 /// Turns one unit may cite.
@@ -63,6 +67,9 @@ const WHEN_MAX_CHARS: u64 = 60;
 const SPEAKER_MAX_CHARS: u64 = 60;
 const ATTRIBUTE_MAX_CHARS: u64 = 60;
 const VALUE_MAX_CHARS: u64 = 160;
+/// A stored text field is never empty: an empty gist, topic, state or pair
+/// field would be written as a record that says nothing.
+const TEXT_MIN_CHARS: u64 = 1;
 
 pub const SCHEDULE_SYSTEM: &str = r#"You organise one stretch of a conversation into units for a long-term memory.
 
@@ -141,9 +148,13 @@ pub fn route(u: &Unit) -> Route {
     }
 }
 
-/// The scheduler's schema. Field order is generation order: the cited turns,
-/// then the four judgements, then the pairs they license.
-pub fn schedule_schema() -> serde_json::Value {
+/// The scheduler's schema for one call that shows the turns numbered
+/// `shown`. Field order is generation order: the cited turns, then the four
+/// judgements, then the pairs they license. A cite is one of the shown
+/// numbers, so the grammar cannot name a turn the call never showed: at
+/// temperature 0 a rerun repeats the same request, so a refusal after the
+/// fact would refuse the episode on every run.
+pub fn schedule_schema(shown: &[usize]) -> serde_json::Value {
     serde_json::json!({
         "type": "object",
         "additionalProperties": false,
@@ -161,7 +172,7 @@ pub fn schedule_schema() -> serde_json::Value {
                             "type": "array",
                             "minItems": 1,
                             "maxItems": SCHEDULE_MAX_CITES,
-                            "items": {"type": "integer", "minimum": 0}
+                            "items": {"type": "integer", "enum": shown}
                         },
                         "salient": {"type": "boolean"},
                         "temporal": {"type": "boolean"},
@@ -175,9 +186,9 @@ pub fn schedule_schema() -> serde_json::Value {
                                 "additionalProperties": false,
                                 "required": ["speaker", "attribute", "value"],
                                 "properties": {
-                                    "speaker": {"type": "string", "maxLength": SPEAKER_MAX_CHARS},
-                                    "attribute": {"type": "string", "maxLength": ATTRIBUTE_MAX_CHARS},
-                                    "value": {"type": "string", "maxLength": VALUE_MAX_CHARS}
+                                    "speaker": {"type": "string", "minLength": TEXT_MIN_CHARS, "maxLength": SPEAKER_MAX_CHARS},
+                                    "attribute": {"type": "string", "minLength": TEXT_MIN_CHARS, "maxLength": ATTRIBUTE_MAX_CHARS},
+                                    "value": {"type": "string", "minLength": TEXT_MIN_CHARS, "maxLength": VALUE_MAX_CHARS}
                                 }
                             }
                         }
@@ -204,8 +215,8 @@ pub fn events_schema(n: usize) -> serde_json::Value {
                     "additionalProperties": false,
                     "required": ["topic", "state", "when"],
                     "properties": {
-                        "topic": {"type": "string", "maxLength": TOPIC_MAX_CHARS},
-                        "state": {"type": "string", "maxLength": STATE_MAX_CHARS},
+                        "topic": {"type": "string", "minLength": TEXT_MIN_CHARS, "maxLength": TOPIC_MAX_CHARS},
+                        "state": {"type": "string", "minLength": TEXT_MIN_CHARS, "maxLength": STATE_MAX_CHARS},
                         "when": {"type": "string", "maxLength": WHEN_MAX_CHARS}
                     }
                 }
@@ -225,7 +236,7 @@ pub fn gists_schema(n: usize) -> serde_json::Value {
                 "type": "array",
                 "minItems": n,
                 "maxItems": n,
-                "items": {"type": "string", "maxLength": GIST_MAX_CHARS}
+                "items": {"type": "string", "minLength": TEXT_MIN_CHARS, "maxLength": GIST_MAX_CHARS}
             }
         }
     })
@@ -291,9 +302,9 @@ fn numbered(items: &[(usize, String)]) -> String {
         .join("\n")
 }
 
-/// The scheduler's units for one episode's key turns. A unit citing a turn
-/// the call was not shown refuses the whole episode, which the caller
-/// retries on the next run rather than storing part of it.
+/// The scheduler's units for one episode's key turns. The schema lets a unit
+/// cite only the turns shown; a reply that cites none, or one it was not
+/// shown, refuses the whole episode rather than storing part of it.
 pub async fn schedule(llm: &dyn Llm, key_turns: &[(usize, String)]) -> Result<Vec<Unit>> {
     if key_turns.is_empty() {
         return Ok(Vec::new());
@@ -302,10 +313,15 @@ pub async fn schedule(llm: &dyn Llm, key_turns: &[(usize, String)]) -> Result<Ve
         Message::system(SCHEDULE_SYSTEM),
         Message::user(numbered(key_turns)),
     ])
-    .with_schema(schedule_schema())
+    .with_schema(schedule_schema(&key_turns.iter().map(|(i, _)| *i).collect::<Vec<_>>()))
     .with_max_tokens(SCHEDULE_MAX_TOKENS);
     let list: UnitList = complete_json(llm, &request).await?;
+    // The schema already says both; a server that does not enforce it is
+    // refused here, before anything is cached.
     for unit in &list.units {
+        if unit.cites.is_empty() {
+            return Err(MyelinError::Store("m89b schedule: a unit cites no turn".into()));
+        }
         if let Some(bad) = unit.cites.iter().find(|c| !key_turns.iter().any(|(i, _)| i == *c)) {
             return Err(MyelinError::Store(format!(
                 "m89b schedule: a unit cites turn {bad}, which was not shown"
@@ -381,23 +397,27 @@ pub async fn extract(llm: &dyn Llm, episode: &MemoryRecord) -> Result<Extraction
             gist_items.len()
         )));
     }
+    // The schemas ask for non-empty text; a server that does not enforce
+    // them is refused here, before anything is cached, so no record is
+    // written that says nothing. `when` may be empty: that is "said".
+    let blank = |s: &str| s.trim().is_empty();
+    let blank_pair = units
+        .iter()
+        .filter(|u| route(u) == Route::Profile)
+        .flat_map(|u| &u.pairs)
+        .any(|p| blank(&p.speaker) || blank(&p.attribute) || blank(&p.value));
+    if blank_pair || events.iter().any(|e| blank(&e.topic) || blank(&e.state)) || gists.iter().any(|g| blank(g)) {
+        return Err(MyelinError::Store(
+            "m89b materialize: an empty profile pair field, event topic or state, or gist".into(),
+        ));
+    }
     Ok(Extraction { units, events, gists })
 }
 
-/// The dated text of an event, M50's bracket form.
+/// The dated text of an event, M50's bracket form ([`when_bracket`]).
 fn event_text(fields: &EventFields, time: &EventTime, said: chrono::NaiveDate) -> String {
     let body = format!("{}: {}", fields.topic.trim(), fields.state.trim());
-    let when = match time {
-        EventTime::Said => format!("[said {said}]"),
-        EventTime::Stated { phrase, range } if range.lo == range.hi => {
-            format!("[{} — \"{phrase}\", said {said}]", range.lo)
-        }
-        EventTime::Stated { phrase, range } => {
-            format!("[{} to {} — \"{phrase}\", said {said}]", range.lo, range.hi)
-        }
-        EventTime::Unresolved { phrase } => format!("[\"{phrase}\", said {said}]"),
-    };
-    format!("{body} {when}")
+    format!("{body} {}", when_bracket(time, said))
 }
 
 /// The typed records for one episode from its extraction. Each carries the
@@ -539,12 +559,21 @@ mod tests {
 
     #[test]
     fn the_scheduler_states_its_judgements_before_the_pairs() {
-        let schema = schedule_schema();
+        let schema = schedule_schema(&[2, 4, 5]);
         let props = &schema["properties"]["units"]["items"]["properties"];
         let order: Vec<&str> = props.as_object().unwrap().keys().map(String::as_str).collect();
         assert_eq!(order, vec!["cites", "salient", "temporal", "stable", "exact", "pairs"]);
+        // Anchored on the property keys: `required` lists the same names
+        // first, so a bare `"cites"` would match there and prove nothing.
         let wire = serde_json::to_string(&schema).unwrap();
-        assert!(wire.find("\"cites\"").unwrap() < wire.find("\"pairs\"").unwrap());
+        assert!(wire.find("\"cites\":{").unwrap() < wire.find("\"pairs\":{").unwrap());
+    }
+
+    #[test]
+    fn a_unit_may_cite_only_the_turns_the_call_shows() {
+        let schema = schedule_schema(&[2, 4, 5]);
+        let cites = &schema["properties"]["units"]["items"]["properties"]["cites"]["items"];
+        assert_eq!(cites["enum"], serde_json::json!([2, 4, 5]));
     }
 
     fn episode(text: &str, speakers: &[&str]) -> MemoryRecord {
@@ -672,6 +701,26 @@ Caroline: My counsellor recommended three books: Becoming Nicole, Gender Outlaw 
                 {"cites":[2],"salient":true,"temporal":false,"stable":false,"exact":true,"pairs":[]}
             ]}"#,
             r#"{"gists":["only one"]}"#,
+        ]);
+        assert!(extract(&llm, &ep).await.is_err());
+    }
+
+    /// The schema's `minItems` and `minLength` are a server's to enforce; one
+    /// that does not is refused before anything is cached, never written as
+    /// a record with no turn or no text.
+    #[tokio::test]
+    async fn a_unit_citing_no_turn_refuses_the_episode() {
+        let ep = episode(EPISODE, &["Caroline", "Melanie"]);
+        let llm = scripted(&[r#"{"units":[{"cites":[],"salient":true,"temporal":false,"stable":false,"exact":true,"pairs":[]}]}"#]);
+        assert!(extract(&llm, &ep).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn an_empty_gist_refuses_the_episode() {
+        let ep = episode(EPISODE, &["Caroline", "Melanie"]);
+        let llm = scripted(&[
+            r#"{"units":[{"cites":[5],"salient":true,"temporal":false,"stable":false,"exact":true,"pairs":[]}]}"#,
+            r#"{"gists":["  "]}"#,
         ]);
         assert!(extract(&llm, &ep).await.is_err());
     }

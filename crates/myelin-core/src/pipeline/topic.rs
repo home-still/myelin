@@ -77,6 +77,22 @@ impl Default for TopicConfig {
     }
 }
 
+impl TopicConfig {
+    /// Refuse a configuration that cannot find a topic: a window of no
+    /// utterances has no depth (the build would embed every session and cut
+    /// none), a segment of no key utterances has no floor, and a non-finite
+    /// σ fraction has no threshold.
+    pub fn validate(&self) -> Result<()> {
+        if self.window == 0 || self.min_key_per_segment == 0 || !self.sigma_fraction.is_finite() {
+            return Err(MyelinError::Config(format!(
+                "m89a topics: {self:?} cannot find a topic; window and min_key_per_segment \
+                 must be at least 1, and sigma_fraction finite"
+            )));
+        }
+        Ok(())
+    }
+}
+
 fn words(text: &str) -> Vec<String> {
     text.to_lowercase()
         .split(|c: char| !(c.is_alphanumeric() || c == '\''))
@@ -137,22 +153,29 @@ pub fn depth_scores(sims: &[f32], w: usize) -> Vec<(usize, f32)> {
         .collect()
 }
 
-/// The gaps that are topic boundaries: strict local maxima of depth (deeper
-/// than each neighbouring gap that has a depth, so a flat run is never a
-/// valley) at or above `mean − sigma_fraction · σ`, deepest first, each at
-/// least
-/// `min_key` key utterances from every boundary already taken and from
-/// either end of the sequence (`n_key` utterances long).
-pub fn topic_boundaries(depths: &[(usize, f32)], sigma_fraction: f32, min_key: usize, n_key: usize) -> Vec<usize> {
+/// The gaps that are topic boundaries, in position order: strict local
+/// maxima of depth (deeper than each neighbouring gap that has a depth, so a
+/// flat run is never a valley) at or above `mean − sigma_fraction · σ`, taken
+/// deepest first, each at least `min_key` key utterances from every boundary
+/// already taken and from either end of the sequence (`n_key` utterances
+/// long). A depth at a gap the sequence does not have is refused: `n_key`
+/// then belongs to another sequence.
+pub fn topic_boundaries(depths: &[(usize, f32)], sigma_fraction: f32, min_key: usize, n_key: usize) -> Result<Vec<usize>> {
+    // Gap `g` lies between key utterances `g` and `g + 1`.
+    if let Some((gap, _)) = depths.iter().find(|(gap, _)| gap + 1 >= n_key) {
+        return Err(MyelinError::Config(format!(
+            "m89a topics: a depth at gap {gap}, outside a sequence of {n_key} key utterances"
+        )));
+    }
     if depths.is_empty() {
-        return Vec::new();
+        return Ok(Vec::new());
     }
     let n = depths.len() as f32;
     let mean = depths.iter().map(|(_, d)| d).sum::<f32>() / n;
     let sd = (depths.iter().map(|(_, d)| (d - mean).powi(2)).sum::<f32>() / n).sqrt();
     // A session whose depths do not vary has no valley to find.
     if sd == 0.0 {
-        return Vec::new();
+        return Ok(Vec::new());
     }
     let tau = mean - sigma_fraction * sd;
     let mut candidates: Vec<(usize, f32)> = depths
@@ -178,7 +201,7 @@ pub fn topic_boundaries(depths: &[(usize, f32)], sigma_fraction: f32, min_key: u
         }
     }
     taken.sort_unstable();
-    taken
+    Ok(taken)
 }
 
 /// Episodes for `turns`: [`segment_at`] with an episode also starting at every
@@ -191,6 +214,7 @@ pub async fn segment_topics(
     topics: &TopicConfig,
     cfg: &SegmentConfig,
 ) -> Result<Vec<EpisodeDraft>> {
+    topics.validate()?;
     let mut starts: BTreeSet<usize> = BTreeSet::new();
     let mut lo = 0usize;
     while lo < turns.len() {
@@ -216,7 +240,7 @@ pub async fn segment_topics(
             }
             let sims: Vec<f32> = vectors.windows(2).map(|p| cosine(&p[0], &p[1])).collect();
             let depths = depth_scores(&sims, topics.window);
-            for gap in topic_boundaries(&depths, topics.sigma_fraction, topics.min_key_per_segment, key.len()) {
+            for gap in topic_boundaries(&depths, topics.sigma_fraction, topics.min_key_per_segment, key.len())? {
                 starts.insert(key[gap + 1]);
             }
         }
@@ -258,13 +282,26 @@ mod tests {
         // One clear valley at gap 4 among ten key utterances.
         let sims = [0.8, 0.8, 0.8, 0.8, 0.1, 0.8, 0.8, 0.8, 0.8];
         let depths = depth_scores(&sims, 2);
-        assert_eq!(topic_boundaries(&depths, 0.5, 2, 10), vec![4]);
+        assert_eq!(topic_boundaries(&depths, 0.5, 2, 10).unwrap(), vec![4]);
         // Flat similarity has no valley.
         let flat = depth_scores(&[0.5; 9], 2);
-        assert!(topic_boundaries(&flat, 0.5, 2, 10).is_empty());
+        assert!(topic_boundaries(&flat, 0.5, 2, 10).unwrap().is_empty());
         // A valley one utterance from the end is too close to it.
         let near_end = [(5usize, 0.2f32), (6, 0.1), (7, 2.0)];
-        assert!(topic_boundaries(&near_end, 0.5, 2, 9).is_empty());
+        assert!(topic_boundaries(&near_end, 0.5, 2, 9).unwrap().is_empty());
+        // A sequence too short for its own depths is refused, never cut past
+        // its end.
+        assert!(topic_boundaries(&near_end, 0.5, 2, 3).is_err());
+    }
+
+    #[tokio::test]
+    async fn a_config_that_cannot_find_a_topic_is_refused() {
+        let turns: Vec<Turn> = (0..8)
+            .map(|i| turn("s1", "a substantive sentence about the weekend plans", i))
+            .collect();
+        let no_window = TopicConfig { window: 0, ..Default::default() };
+        let refused = segment_topics(&turns, &Unreachable, &no_window, &SegmentConfig::default()).await;
+        assert!(matches!(refused, Err(MyelinError::Config(_))));
     }
 
     /// An embedder that places each text on the axis of the topic word it
@@ -352,12 +389,33 @@ mod tests {
             .is_err());
     }
 
+    /// An embedder that fails if it is called at all.
+    struct Unreachable;
+    #[async_trait::async_trait]
+    impl Embedder for Unreachable {
+        fn dim(&self) -> u64 {
+            2
+        }
+        fn id(&self) -> &str {
+            "unreachable"
+        }
+        async fn embed(&self, _texts: &[String]) -> Result<Vec<Vec<f32>>> {
+            Err(MyelinError::Store("embedded a session too short to cut".into()))
+        }
+    }
+
     #[tokio::test]
     async fn a_short_session_gets_no_topic_boundary_and_needs_no_embedding() {
-        let turns: Vec<Turn> = (0..4)
-            .map(|i| turn("s1", "a substantive sentence about the weekend plans", i))
-            .collect();
-        let episodes = segment_topics(&turns, &Short, &TopicConfig::default(), &SegmentConfig::default())
+        // Four distinct key utterances: fewer than the two full windows a
+        // depth needs, so the session is never embedded.
+        let texts = [
+            "My sister started a pottery class downtown this spring.",
+            "The garden tomatoes finally ripened after all that rain.",
+            "Our basketball team won the regional tournament on Sunday.",
+            "I adopted a rescue puppy named Biscuit from the shelter.",
+        ];
+        let turns: Vec<Turn> = texts.iter().enumerate().map(|(i, t)| turn("s1", t, i)).collect();
+        let episodes = segment_topics(&turns, &Unreachable, &TopicConfig::default(), &SegmentConfig::default())
             .await
             .unwrap();
         assert_eq!(episodes.len(), 1);

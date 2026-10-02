@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 use crate::error::{MyelinError, Result};
 
-/// Five kinds, one table. `Working` is scratch state; `Episodic` is never
+/// Seven kinds, one table. `Working` is scratch state; `Episodic` is never
 /// evicted from the ledger (§8), only from the hot index. `Profile` is a
 /// durable disposition *of the user* — retrieved by scope rather than by
 /// relevance, because a preference is about the person, not the question.
