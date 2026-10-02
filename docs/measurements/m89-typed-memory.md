@@ -80,6 +80,12 @@ questions, M65's and M66's).
   LoCoMo tenant. It appears in no LoCoMo run's evidence
   (`det_locomo_m84`, `m84_locomo_base`, `m63_locomo_base`: 0 rows). It covers
   no gold turn and is reported by the instrument.
+- *Correction (2026-10-02 review):* the walk sees one of the two probe
+  records, not both. Coverage reads the `locomo` namespace only, which holds
+  551 episodic records (these 550 and the conv-26 one); the probe's other
+  record is in the `probe` namespace. The ignored test now checks both
+  directions: every `locomo` episode that starts at a dataset turn is one the
+  replay produced (passed on 2026-10-02).
 
 **Cells:**
 - **Control:** the shipped store, episodes only (`--episodes-only`; later
@@ -147,6 +153,13 @@ whole episodes. At equal tokens, they hold about the same: topic k = 10 at
   `typed_records` (#201).
 - `typed-extract` and `typed-build` (`crates/myelin-eval/src/typed.rs`).
 - Prompt version `m89b-1`. The cache is keyed by version, speakers and text.
+- *Amended 2026-10-02, before any row:* prompt version `m89b-2`. Under
+  `m89b-1` a unit could cite a turn the scheduler was not shown. That
+  refuses the episode, and at temperature 0 every rerun sends the same
+  request, so the refusal repeats and `typed-build` never starts (86 of the
+  shipped store's 550 episodes have an unshown turn between shown ones).
+  `m89b-2` limits `cites` to the shown turn numbers in the schema and
+  refuses empty text fields. One cache holds one reader's extractions.
 
 **Store:** a copy of the stage A store, or of the shipped store's episodes if
 A is a no-go, with the typed records written beside the episodes. The copy is
@@ -176,6 +189,10 @@ made by `ops/big/qdrant-copy.sh` and a ledger file copy.
 **Cost:** about 1,000–1,100 episodes, each one scheduler call plus at most
 one event call and one gist call, on the 9B at 2 slots. That is about
 2–3.5 h on big.
+- *Correction (2026-10-02 review, estimated):* the stage A store holds about
+  1,700 topic episodes (5,882 turns at about 3.5 turns each), so stage B on
+  its copy is about 1.6× this, roughly 3.3–5.6 h. On the no-go path (550
+  shipped episodes) it is about half.
 
 ## Result
 

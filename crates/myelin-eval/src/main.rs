@@ -968,7 +968,9 @@ enum Command {
         /// `rerank_depth` and report emitted recall beside the reranked
         /// pool's recall — the ceiling truncation is measured against
         /// (M25). Needs an embedder, a reranker and Qdrant; never a reader.
-        #[arg(long)]
+        /// Not with `--steps`, whose branch would silently drop every
+        /// width-only flag (`--kinds`, `--dedupe-lineage`, `--turn-windows`).
+        #[arg(long, conflicts_with = "steps")]
         width: bool,
         /// Which corpus the width sweep scores. `locomo` resolves record
         /// ids to `dia_id` turns through I4 lineage; `longmemeval-s`
@@ -1589,15 +1591,22 @@ async fn main() -> anyhow::Result<()> {
             ref cache,
             ref report,
         } => {
-            anyhow::ensure!(
-                collection.starts_with("myelin_") && collection != myelin_eval::bench::LOCOMO_COLLECTION,
-                "typed-build writes beside a copy of a store; {collection:?} must be myelin_*-prefixed and not the shipped one"
-            );
-            let map = myelin_eval::typed::load_cache(cache)?;
-            let r = myelin_eval::typed::build(Path::new(dataset), Path::new(ledger), collection, &map).await?;
+            // typed-build writes beside a COPY of a store: never into the
+            // shipped collection, and never into the shipped ledger.
+            refuse_shipped_store(Corpus::Locomo, collection, ledger, "typed records")?;
+            // The report is written after the build; a missing directory must
+            // not cost the gate report once every record is written.
+            if let Some(dir) = Path::new(report).parent() {
+                std::fs::create_dir_all(dir).with_context(|| format!("create {}", dir.display()))?;
+            }
+            let cache = myelin_eval::typed::load_cache(cache)?;
+            let r = myelin_eval::typed::build(Path::new(dataset), Path::new(ledger), collection, &cache).await?;
             std::fs::write(report, serde_json::to_string_pretty(&r.reach)?).with_context(|| format!("write {report}"))?;
             println!("{}", serde_json::to_string_pretty(&r.reach)?);
-            eprintln!("typed-build: written {:?}, {} already present, {:.0}s", r.written, r.existing, r.wall_secs);
+            eprintln!(
+                "typed-build: written {:?}, {} already present, reader {:?}, {:.0}s",
+                r.written, r.existing, r.reach.model, r.wall_secs
+            );
             Ok(())
         }
         Command::Shapes {
@@ -1791,6 +1800,43 @@ async fn events_extract_cmd(
     Ok(())
 }
 
+/// Whether two paths name the same file. When both exist they are compared
+/// canonicalised, so `./data/locomo.ledger` or an absolute spelling is still
+/// the shipped ledger; otherwise lexically, without `.` components.
+fn same_path(a: &str, b: &str) -> bool {
+    match (std::fs::canonicalize(a), std::fs::canonicalize(b)) {
+        (Ok(a), Ok(b)) => a == b,
+        _ => {
+            let lexical = |p: &str| {
+                Path::new(p)
+                    .components()
+                    .filter(|c| !matches!(c, std::path::Component::CurDir))
+                    .collect::<std::path::PathBuf>()
+            };
+            lexical(a) == lexical(b)
+        }
+    }
+}
+
+/// Refuse to write `what` into `corpus`'s shipped store. A command that
+/// builds a new store, or writes beside a copy, names its own myelin_*
+/// collection and its own ledger, so the shipped store and every base run
+/// measured on it stay unchanged. One guard for every such command: the
+/// copies of it drifted (typed-build once checked only the collection).
+fn refuse_shipped_store(corpus: Corpus, collection: &str, ledger: &str, what: &str) -> anyhow::Result<()> {
+    anyhow::ensure!(
+        collection.starts_with("myelin_") && collection != corpus.collection(),
+        "refusing to write {what} into {collection:?}: write them into a myelin_* COPY of \
+         {}, so the shipped store and its base runs stay unchanged",
+        corpus.collection()
+    );
+    anyhow::ensure!(
+        !same_path(ledger, &corpus.ledger()),
+        "refusing to write {what} into the shipped ledger {ledger}; copy it first"
+    );
+    Ok(())
+}
+
 async fn events_build_cmd(
     corpus: Corpus,
     cache: &[String],
@@ -1800,16 +1846,7 @@ async fn events_build_cmd(
     limit: Option<usize>,
     concurrency: usize,
 ) -> anyhow::Result<()> {
-    anyhow::ensure!(
-        collection.starts_with("myelin_") && collection != corpus.collection(),
-        "refusing to write events into {collection:?}: build them into a myelin_* COPY of \
-         {}, so the shipped store and its base runs stay unchanged",
-        corpus.collection()
-    );
-    anyhow::ensure!(
-        ledger != corpus.ledger(),
-        "refusing to write events into the shipped ledger {ledger}; copy it first"
-    );
+    refuse_shipped_store(corpus, collection, ledger, "events")?;
     let slots = event_slots(corpus, limit, questions)?;
     let map = myelin_eval::events::load_cache(cache)?;
     let r = myelin_eval::events::build(&slots, &map, collection, Path::new(ledger), concurrency).await?;
@@ -1865,13 +1902,10 @@ async fn build_cmd(
         "refusing to build into {collection:?}: collections must be myelin_*-prefixed \
          so a typo cannot touch the production collections on big"
     );
-    anyhow::ensure!(
-        !topics || (collection != corpus.collection() && ledger != corpus.ledger()),
-        "--topics builds a new store; name its own --collection and --ledger instead of \
-         the shipped {} / {}",
-        corpus.collection(),
-        corpus.ledger()
-    );
+    if topics {
+        // `--topics` builds a new store; it never touches the shipped one.
+        refuse_shipped_store(corpus, &collection, &ledger, "topic episodes")?;
+    }
     anyhow::ensure!(
         question_types.is_none() || corpus == Corpus::LongmemevalS,
         "--question-types is LongMemEval_S-only; no other corpus has question_type strata"
@@ -2021,6 +2055,15 @@ async fn ablate_cmd(
     let kinds: Option<Vec<myelin_core::model::record::RecordKind>> = kinds
         .map(|ks| ks.iter().map(|k| myelin_core::model::record::RecordKind::parse(k)).collect())
         .transpose()?;
+    // Only the shipped grid names its run directory after the kinds; every
+    // other grid writes `runs/{grid}_{corpus}`, where a kinds-filtered sweep
+    // would overwrite the full-store artifact with nothing in it to say so.
+    anyhow::ensure!(
+        kinds.is_none() || grid == GridName::Shipped,
+        "--kinds needs --grid shipped: runs/{}_{corpus}/width.json records no kinds and would \
+         be overwritten",
+        grid.slug()
+    );
     if let Some(steps) = steps {
         let points = myelin_eval::ablate::investigate_curve(
             Path::new(dataset),

@@ -372,7 +372,12 @@ fn label(record: &MemoryRecord, text: &str, cfg: &ComposeConfig) -> String {
     if cfg.label_untrusted && record.trust.tier == TrustTier::Untrusted {
         out.push_str("[untrusted source] ");
     }
-    let resolved = if cfg.resolve_relative && cfg.stamp_valid_time {
+    // An event's date was resolved once, when it was written (M50, M89b): its
+    // `t_valid` is the resolved day and its text quotes the phrase beside
+    // that day. Resolving the phrase again against the resolved day appends
+    // a second, contradicting date ("yesterday" one day further back), the
+    // defect `side_compose_config` fixed for M50's side block (#135).
+    let resolved = if cfg.resolve_relative && cfg.stamp_valid_time && record.kind != RecordKind::Event {
         crate::time::resolve_relative(text, record.validity.t_valid.date_naive())
     } else {
         Vec::new()
@@ -1606,6 +1611,42 @@ mod tests {
         let out = compose(ranked,&cfg);
         assert_eq!(out.items[0].value, format!("[2023-05-20] {text}"));
         assert!(!out.items[0].value.contains("2023-05-19"));
+    }
+
+    /// M89b's typed Event records sit beside the episodes, so they reach the
+    /// reader through the main compose path, not the side block. Their date
+    /// is resolved at write time too: neither the appended nor the inline
+    /// (M64) annotation may resolve the quoted phrase again. Any other kind
+    /// keeps its annotation.
+    #[test]
+    fn a_typed_event_reaches_the_reader_with_exactly_one_date_on_the_main_path() {
+        use chrono::TimeZone;
+        let text = "Caroline's support group: she went and found it powerful \
+                    [2023-05-07 — \"yesterday\", said 2023-05-08]";
+        let ranked_as = |kind: RecordKind| {
+            let mut r = record(text);
+            r.kind = kind;
+            r.validity.t_valid = Utc.with_ymd_and_hms(2023, 5, 7, 0, 0, 0).unwrap();
+            vec![Ranked {
+                record: r,
+                score: 1.0,
+                vector: None,
+                window: None,
+            }]
+        };
+        for cfg in [
+            ComposeConfig::default(),
+            ComposeConfig {
+                inline_dates: true,
+                ..Default::default()
+            },
+        ] {
+            let out = compose(ranked_as(RecordKind::Event), &cfg);
+            assert_eq!(out.items[0].value, format!("[2023-05-07] {text}"));
+            assert!(!out.items[0].value.contains("2023-05-06"));
+        }
+        let episodic = compose(ranked_as(RecordKind::Episodic), &ComposeConfig::default());
+        assert!(episodic.items[0].value.contains("(yesterday = 2023-05-06)"));
     }
 
     /// Arm D of M19: one synthetic dated index, at the tail, carrying the

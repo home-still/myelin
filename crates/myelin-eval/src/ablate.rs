@@ -784,6 +784,18 @@ pub async fn width_sweep(
 ) -> Result<Vec<WidthPoint>> {
     let cfg = MyelinConfig::load().context("load myelin config")?;
     let ledger = Ledger::open(ledger_path).await.context("open ledger")?;
+    // A kind the store does not hold retrieves nothing, and the sweep would
+    // write its all-zero cells as a measurement of a lane that never ran
+    // (the shipped store holds no gist or event record). Refused, as
+    // `bench` refuses a side ledger without its kind.
+    for kind in kinds.unwrap_or_default() {
+        anyhow::ensure!(
+            ledger.count_of_kind(*kind, None).await? > 0,
+            "{} holds no {} records; --kinds would score a lane that never ran",
+            ledger_path.display(),
+            kind.as_str()
+        );
+    }
 
     // Each gold turn's text as its episode renders it, for `turn_all`. On
     // LoCoMo it comes from the same `turns_for` the build ingested, so a
@@ -1662,11 +1674,12 @@ pub fn print_step_curve(points: &[StepPoint], k: usize) {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
 
     /// M89a: the coverage read from the store is exactly the map the old
-    /// segmenter replay produced, on the shipped LoCoMo store. Needs
-    /// `data/locomo10.json` and `data/locomo.ledger`, so it is ignored by
-    /// default; run with `--ignored` where the store is.
+    /// segmenter replay produced, on the shipped LoCoMo store, in both
+    /// directions. Needs `data/locomo10.json` and `data/locomo.ledger`, so it
+    /// is ignored by default; run with `--ignored` where the store is.
     #[tokio::test]
     #[ignore]
     async fn store_coverage_reproduces_the_segmenter_replay_on_the_shipped_store() {
@@ -1675,7 +1688,7 @@ mod tests {
         let conversations = locomo::load(Path::new("../../data/locomo10.json")).unwrap();
         let ledger = Ledger::open("../../data/locomo.ledger").await.unwrap();
         let from_store = Coverage::build(&conversations, &ledger).await.unwrap();
-        let mut replayed = 0usize;
+        let mut replayed: HashSet<Uuid> = HashSet::new();
         for conv in &conversations {
             let scope = myelin_core::model::record::Scope::new(
                 format!("locomo/{}", conv.sample_id),
@@ -1686,14 +1699,27 @@ mod tests {
                 let id = record_id(&scope, &draft.natural_key());
                 let docs: HashSet<String> = draft.turns.iter().map(|t| t.source.doc.clone()).collect();
                 assert_eq!(from_store.of(&id), Some(&docs), "episode {id}");
-                replayed += 1;
+                replayed.insert(id);
             }
         }
-        // 552 episodic records: these 550, plus the two the 2026-09-21
-        // usability probe wrote through `remember` (one of them in conv-26).
-        assert_eq!(replayed, 550);
+        assert_eq!(replayed.len(), 550);
+        // The other direction: every episode the store holds that starts at a
+        // dataset turn is one the replay produced. The namespace holds 551
+        // episodic records: these 550, plus the one the 2026-09-21 usability
+        // probe wrote through `remember` into conv-26 (its other record is in
+        // the `probe` namespace), which starts at no dataset turn.
+        let lines = conversation_lines(&conversations);
+        let mut from_dataset: HashSet<Uuid> = HashSet::new();
+        for r in ledger.records_in_namespace("locomo").await.unwrap().iter().filter(|r| r.kind == RecordKind::Episodic) {
+            let Some(turns) = lines.get(&r.scope.tenant) else {
+                continue;
+            };
+            if episode_turn_ids(turns, r).unwrap().is_some() {
+                from_dataset.insert(r.id);
+            }
+        }
+        assert_eq!(from_dataset, replayed);
     }
-    use super::*;
 
     fn cell(prefetch: u64, depth: usize, recall: f64, pool: f64, p50: u128) -> WidthPoint {
         WidthPoint {
