@@ -10,6 +10,7 @@ use clap::Parser;
 use rmcp::transport::streamable_http_server::session::local::LocalSessionManager;
 use rmcp::transport::streamable_http_server::{StreamableHttpServerConfig, StreamableHttpService};
 use rmcp::transport::stdio;
+use qdrant_client::qdrant::FieldType;
 use rmcp::ServiceExt;
 
 mod server;
@@ -56,6 +57,30 @@ struct Args {
     /// rather than select from a deeper one (M37).
     #[arg(long)]
     rerank_factor: Option<usize>,
+
+    /// Index a record `meta` key so `filter` conditions on it are served from
+    /// an index instead of a payload scan. `KEY:keyword` for strings and
+    /// string arrays (`eq`), `KEY:integer` for numbers (`range`). Repeatable.
+    /// Idempotent; an existing index is left as it is.
+    #[arg(long = "meta-index", value_name = "KEY:KIND", value_parser = parse_meta_index)]
+    meta_index: Vec<(String, FieldType)>,
+}
+
+/// `KEY:keyword` or `KEY:integer`. Anything else is a startup error rather
+/// than an index that is silently never created.
+fn parse_meta_index(raw: &str) -> Result<(String, FieldType), String> {
+    let (key, kind) = raw
+        .split_once(':')
+        .ok_or_else(|| format!("{raw:?}: expected KEY:keyword or KEY:integer"))?;
+    if !server::is_meta_key(key) {
+        return Err(format!("{raw:?}: key must match ^[a-z_][a-z0-9_]*$"));
+    }
+    let ty = match kind {
+        "keyword" => FieldType::Keyword,
+        "integer" => FieldType::Integer,
+        other => return Err(format!("{raw:?}: kind must be keyword or integer, got {other:?}")),
+    };
+    Ok((key.to_string(), ty))
 }
 
 #[tokio::main]
@@ -93,6 +118,16 @@ async fn main() -> anyhow::Result<()> {
         )
         .await?,
     );
+    // The collection and its `meta.*` indexes are this server's to create: a
+    // store that is written to through `observe` must exist before the first
+    // write, and a filter on an unindexed key would scan every payload.
+    backend
+        .store
+        .ensure_collection(cfg.embed.dim, false)
+        .await?;
+    for (key, ty) in &args.meta_index {
+        backend.store.ensure_meta_index(key, *ty).await?;
+    }
     check_pairing(&backend, &cfg.ledger, &collection).await?;
     // The pool size actually used, on stderr in both transports: an arm that
     // did not widen the candidate pool is a configuration bug, and this is
@@ -223,4 +258,25 @@ async fn check_pairing(backend: &Backend, ledger_path: &str, collection: &str) -
         );
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn meta_index_flag_accepts_only_keyword_and_integer_on_a_valid_key() {
+        assert_eq!(
+            parse_meta_index("year:integer").unwrap(),
+            ("year".to_string(), FieldType::Integer)
+        );
+        assert_eq!(
+            parse_meta_index("topics:keyword").unwrap(),
+            ("topics".to_string(), FieldType::Keyword)
+        );
+        assert!(parse_meta_index("year").is_err());
+        assert!(parse_meta_index("year:float").is_err());
+        assert!(parse_meta_index("Year:integer").is_err());
+        assert!(parse_meta_index(":integer").is_err());
+    }
 }

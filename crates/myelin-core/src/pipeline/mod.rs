@@ -15,6 +15,7 @@ pub mod consolidate;
 pub mod decompose;
 pub mod events;
 pub mod extract;
+pub mod forget;
 pub mod fuse;
 pub mod index;
 pub mod ingest;

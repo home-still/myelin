@@ -3416,6 +3416,7 @@ pub async fn bench_locomo(
                 // LoCoMo asks after the last session; that is the only
                 // "today" the corpus defines (M13's `<today>` uses it too).
                 as_of: today.map(|t| t.date_naive()),
+                meta_filter: Vec::new(),
             };
 
             let started = std::time::Instant::now();
@@ -3730,6 +3731,7 @@ pub async fn bench_longmemeval_s(
             // `<today>`; the two must agree or the anchor argues with the
             // prompt. Fails closed: an unparseable date is no anchor.
             as_of: crate::build::parse_session_time(&item.question_date).map(|t| t.date_naive()),
+            meta_filter: Vec::new(),
         };
 
         let started = std::time::Instant::now();

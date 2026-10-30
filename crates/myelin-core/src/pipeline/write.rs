@@ -88,6 +88,11 @@ pub struct WriteStats {
     /// M89a: episodes that ended at a topic shift, when topic boundaries were
     /// on ([`WritePath::topics`]).
     pub topic_shifts: usize,
+    /// Id of every episode record this call wrote or found already present,
+    /// in draft order. Lets a caller that wrote a document address what it
+    /// wrote without a second lookup.
+    #[serde(default)]
+    pub episode_ids: Vec<uuid::Uuid>,
     pub approx_tokens: usize,
     pub wall_ms: u128,
     /// Wall time in the injection adjudicator. Reported so the defence's
@@ -126,6 +131,7 @@ impl WriteStats {
         self.adjudicated_out += other.adjudicated_out;
         self.profiles += other.profiles;
         self.topic_shifts += other.topic_shifts;
+        self.episode_ids.extend_from_slice(&other.episode_ids);
         self.approx_tokens += other.approx_tokens;
         self.wall_ms += other.wall_ms;
         self.adjudicate_ms += other.adjudicate_ms;
@@ -292,6 +298,7 @@ impl<'a> WritePath<'a> {
 
         // 1. Episodes, losslessly, first.
         let episodes = self.write_episodes(scope, &drafts).await?;
+        stats.episode_ids = episodes.iter().map(|e| e.id).collect();
         let t_index = Instant::now();
         self.indexer().index(&episodes).await?;
         stats.index_ms += t_index.elapsed().as_millis();
@@ -407,6 +414,7 @@ impl<'a> WritePath<'a> {
         stats.episodes = drafts.len();
         stats.approx_tokens = drafts.iter().map(|d| d.approx_tokens).sum();
         let episodes = self.write_episodes(scope, &drafts).await?;
+        stats.episode_ids = episodes.iter().map(|e| e.id).collect();
         let t_index = Instant::now();
         self.indexer().index(&episodes).await?;
         stats.index_ms += t_index.elapsed().as_millis();
@@ -891,6 +899,7 @@ impl<'a> WritePath<'a> {
             trust: Trust::asserted(),
             salience: Salience::default(),
             links: Vec::new(),
+            meta: None,
         }
     }
 
@@ -1058,6 +1067,7 @@ mod tests {
             at: None,
             source: SourceRef::doc("d1"),
             unit: "u1".into(),
+            meta: None,
         }
     }
 
@@ -1240,6 +1250,7 @@ mod tests {
             at: None,
             source: SourceRef::doc("d1"),
             unit: "u1".into(),
+            meta: None,
         }
     }
 

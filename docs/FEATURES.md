@@ -1,12 +1,12 @@
 # Features
 
 This document is the complete feature reference for myelin, derived from the
-source code. It covers the 10 MCP tools, both read paths, the write path,
+source code. It covers the 13 MCP tools, both read paths, the write path,
 retrieval architecture, multi-tenancy, configuration, and the eval harness.
 
 ## MCP tool surface
 
-myelin exposes 10 tools through the Model Context Protocol. The server
+myelin exposes 13 tools through the Model Context Protocol. The server
 (`myelin-mcp`) supports both stdio and streamable-HTTP (`--serve HOST:PORT`)
 transports. Source of truth: `crates/myelin-mcp/src/server.rs`.
 
@@ -34,9 +34,10 @@ in the loop** — this is the fast path, pinned at "no LLM" by design (PLAN.md
 | `dated` | bool | no | true | Whether records carry real timestamps |
 | `as_of` | string | no | none | The day the question is asked, `YYYY-MM-DD`; anchors the `[timeline]` view when `timeline_ago` is on (M46). Malformed dates are refused |
 | `decompose` | usize | no | none | Split into N sub-queries, fuse into same RRF call |
+| `filter` | [MetaCondition] | no | `[]` | Conditions on record `meta`, ANDed, applied before ranking (see below) |
 
 **Returns:** `RecallResult` — `items` (R1 wire shape `{type, value}`),
-`record_ids`, `tokens`, and `trace` (retrieval diagnostics: hit counts,
+`record_ids`, `hits` (aligned 1:1 with `items`), `tokens`, and `trace` (retrieval diagnostics: hit counts,
 latencies, top score, abstained flag).
 
 **Example** (captured from a real run against `locomo/conv-26`):
@@ -55,6 +56,25 @@ latencies, top score, abstained flag).
   }
 }
 ```
+
+**Metadata filter and `hits`.** A record can carry caller metadata, a JSON
+object written by `observe` (`turns[].meta`) and returned per hit. `filter`
+narrows the candidate set in the same pre-ranking filter as the scope, so it
+returns up to `k` matches rather than trimming a ranked list:
+
+```json
+{"op": "eq",    "key": "category", "value": "a"}
+{"op": "range", "key": "year", "gte": 2021, "lt": 2024}
+```
+
+`eq` also matches when the field is an array containing the value. A `range`
+takes integer bounds `gt`, `gte`, `lt`, `lte` and needs at least one. Keys
+match `^[a-z_][a-z0-9_]*$`; a malformed filter is refused with
+`invalid_params`. Index the keys you filter on with `--meta-index KEY:KIND` at
+startup, or the filter scans payloads. `filter` is not supported while the
+graph channel is on. `hits` is `[{record_id, source, score, meta}]`, one per
+item; `meta` is `null` for records without any and for synthetic items such as
+`[timeline]`. `investigate` takes the same `filter` and returns the same `hits`.
 
 ### `investigate` — agentic search→reflect loop
 
@@ -197,11 +217,16 @@ is the server's job, not the caller's.
 | `agent` | string | no | `"myelin"` | Agent identifier |
 | `namespace` | string | no | `"default"` | Namespace |
 | `unit` | string | no | `"observe"` | Unit label |
+| `extract` | bool | no | true | `false` stores each episode verbatim and extracts no facts (no model call) |
 
 `ObserveTurn`: `speaker` (string), `text` (string), `at` (datetime, optional),
-`source` (string, optional).
+`source` (string, optional), `unit` (string, optional; defaults to the call's
+`unit`; a change of unit always ends an episode), `meta` (object, optional;
+stored with the episode this turn lands in, the first turn's when several
+share one).
 
-**Returns:** `WriteResult` (same shape as `remember`).
+**Returns:** `WriteResult` (same shape as `remember`) plus `record_ids`: one id
+per episode, in order, new and already-present alike.
 
 ### `search` — list record stubs
 
@@ -271,6 +296,37 @@ Hard deletion requires `confirm: true` and cannot be undone.
 `affected` includes all records in the descendant closure (C11 unlearning). Erasing a
 trajectory's goal record also erases the structured trajectory anchored on it
 (M62).
+
+### `namespaces` — inventory
+
+Live record count per namespace of one tenant, ordered by namespace.
+Soft-forgotten and quarantined records are not counted, and a namespace with
+none left is not listed.
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `tenant` | string | yes | — | Scope |
+| `namespace` | string | no | all | Report one namespace |
+
+**Returns:** `{ namespaces: [{ namespace, records }], total_records }`.
+
+### `forget_scope` — erase a namespace
+
+Hard-deletes every record of one tenant + namespace except the ids in `keep`,
+with everything derived from them (C11). The namespace is required so one call
+cannot erase a whole tenant. Replacing a document is `observe` the new
+generation, then `forget_scope` with `keep` set to the ids it returned.
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `tenant` | string | yes | — | Scope |
+| `namespace` | string | yes | — | Scope |
+| `keep` | [string] | no | `[]` | Record ids to leave in place |
+| `confirm` | bool | yes | — | Refused (`invalid_params`) unless `true` |
+| `reason` | string | no | `"forget_scope via mcp"` | Audit reason |
+| `actor` | string | no | `"mcp"` | Audit actor |
+
+**Returns:** `{ affected: count, ids: [uuid] }`.
 
 ### `review_quarantine` — staged writes
 
@@ -536,6 +592,7 @@ pattern — post-filtering wastes budget on inadmissible memories.
 | `--ledger PATH` | config | SQLite ledger path (must match collection) |
 | `--prefetch-limit N` | 50 | Candidates per channel before fusion |
 | `--rerank-depth N` | 25 | Min candidates the reranker scores |
+| `--meta-index KEY:KIND` | none | Index `meta.KEY` (`keyword` or `integer`); repeatable, idempotent. The collection itself is created at startup if absent |
 
 ### How to regenerate this table
 

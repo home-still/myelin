@@ -41,6 +41,9 @@ pub struct Turn {
     /// Corpus-level grouping (a LoCoMo session, an LME-V2 trajectory). A
     /// change here is always a boundary.
     pub unit: String,
+    /// Caller metadata for the episode this turn lands in. An episode takes
+    /// the **first** turn's `meta`, the same rule `provenance.source` follows.
+    pub meta: Option<serde_json::Map<String, serde_json::Value>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -183,6 +186,7 @@ impl EpisodeDraft {
             trust: Trust::asserted(),
             salience: Salience::default(),
             links: Vec::new(),
+            meta: self.turns.first().and_then(|t| t.meta.clone()),
         }
     }
 }
@@ -292,6 +296,7 @@ mod tests {
             at: Some(DateTime::from_timestamp(minute * 60, 0).unwrap()),
             source: SourceRef::doc(format!("{unit}:{minute}")),
             unit: unit.into(),
+            meta: None,
         }
     }
 

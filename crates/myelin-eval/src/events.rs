@@ -404,6 +404,7 @@ pub async fn build(
                 // One unit per event: the segmenter never merges across
                 // units, so each event is its own record.
                 unit: doc,
+                meta: None,
             });
         }
         let mut written = 0usize;

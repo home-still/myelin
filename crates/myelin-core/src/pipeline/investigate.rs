@@ -2468,6 +2468,7 @@ mod tests {
                     trust: Trust::asserted(),
                     salience: Salience::default(),
                     links: vec![],
+                    meta: None,
                 },
                 score: 1.0 - i as f32 * 0.1,
                 vector: None,

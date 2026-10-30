@@ -330,6 +330,7 @@ mod tests {
             at: None,
             source: SourceRef::doc(format!("D1:{i}")),
             unit: unit.into(),
+            meta: None,
         }
     }
 

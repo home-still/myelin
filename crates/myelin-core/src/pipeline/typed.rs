@@ -513,6 +513,7 @@ pub fn typed_records(episode: &MemoryRecord, extraction: &Extraction, now: DateT
                 trust: episode.trust.clone(),
                 salience: Salience::default(),
                 links: Vec::new(),
+                meta: None,
             });
         }
     }
@@ -598,6 +599,7 @@ mod tests {
             trust: Trust::asserted(),
             salience: Salience::default(),
             links: vec![],
+            meta: None,
         }
     }
 

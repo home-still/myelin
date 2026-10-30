@@ -459,6 +459,7 @@ mod tests {
                 trust: Trust::asserted(),
                 salience: Salience::default(),
                 links: vec![],
+                meta: None,
             },
         }
     }

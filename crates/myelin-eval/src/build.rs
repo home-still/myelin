@@ -103,6 +103,7 @@ pub fn turns_for(conv: &LocomoConversation) -> Vec<Turn> {
                 // provenance the harness will check answers against.
                 source: SourceRef::doc(t.dia_id.clone()),
                 unit: format!("{}#session{}", conv.sample_id, session.index),
+                meta: None,
             });
         }
     }
@@ -964,6 +965,7 @@ Rules:
                             at: None,
                             source: SourceRef::doc(format!("{}:events", traj.id)),
                             unit: format!("{}#events", traj.id),
+                            meta: None,
                         })
                         .collect();
                     let mut write = WritePath::new(&llm, &embedder, &store, &ledger);
@@ -1005,6 +1007,7 @@ Rules:
                             at: None,
                             source: SourceRef::doc(format!("{}:notes", traj.id)),
                             unit: format!("{}#notes", traj.id),
+                            meta: None,
                         })
                         .collect();
                     let mut write = WritePath::new(&llm, &embedder, &store, &ledger);
@@ -1195,6 +1198,7 @@ pub async fn build_longmemeval_s(
                     at,
                     source: SourceRef::doc(format!("{sid}#{ti}")),
                     unit: sid.clone(),
+                    meta: None,
                 });
             }
         }

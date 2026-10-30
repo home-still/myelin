@@ -50,6 +50,7 @@ fn record(key: &str, kind: RecordKind, text: &str, derived: Vec<uuid::Uuid>) -> 
         trust: Trust::asserted(),
         salience: Salience::default(),
         links: Vec::new(),
+        meta: None,
     }
 }
 
@@ -64,7 +65,11 @@ async fn build() -> Ledger {
     let ledger = Ledger::open_memory().await.unwrap();
     let actor = ActorId::new("builder");
 
-    let e0 = record("ep-0", RecordKind::Episodic, "the user moved to Berlin", vec![]);
+    let mut e0 = record("ep-0", RecordKind::Episodic, "the user moved to Berlin", vec![]);
+    // Caller metadata must survive the bundle like any other column.
+    e0.meta = serde_json::json!({"year": 2021, "topics": ["moving", "berlin"], "category": "a"})
+        .as_object()
+        .cloned();
     let e1 = record("ep-1", RecordKind::Episodic, "the user likes rye bread", vec![]);
     let (e0_id, e1_id) = (e0.id, e1.id);
     ledger
@@ -141,6 +146,14 @@ async fn build() -> Ledger {
     ledger
 }
 
+fn second_meta_year(bundle: &myelin_core::store::export::ExportBundle) -> Option<i64> {
+    bundle
+        .records
+        .iter()
+        .find_map(|r| r.meta.as_ref())
+        .and_then(|m| m["year"].as_i64())
+}
+
 #[tokio::test]
 async fn export_import_export_is_byte_identical() {
     let source = build().await;
@@ -166,6 +179,14 @@ async fn export_import_export_is_byte_identical() {
     // entered the projection.
     assert_eq!(first.records.len(), 4, "records: {:?}", first.records.len());
     assert!(!first.links.is_empty(), "supersede/lineage links missing");
+    let with_meta: Vec<_> = first.records.iter().filter(|r| r.meta.is_some()).collect();
+    assert_eq!(with_meta.len(), 1, "exactly ep-0 carries meta");
+    assert_eq!(with_meta[0].meta.as_ref().unwrap()["year"], 2021);
+    assert_eq!(
+        second_meta_year(&second),
+        Some(2021),
+        "meta lost across export -> import -> export"
+    );
     assert_eq!(first.incidence.len(), 2);
     assert_eq!(first.quarantine.len(), 1);
     assert_eq!(first.acl_ua.len(), 1);

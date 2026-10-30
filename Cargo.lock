@@ -1660,6 +1660,7 @@ dependencies = [
  "chrono",
  "clap",
  "myelin-core",
+ "qdrant-client",
  "rmcp",
  "schemars",
  "serde",

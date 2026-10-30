@@ -338,6 +338,11 @@ pub struct MemoryRecord {
     /// directly for the same reason.
     #[serde(default)]
     pub links: Vec<Link>,
+    /// Caller-supplied structured metadata (a JSON object), written with the
+    /// record, returned per hit and filterable in the pre-ranking scope
+    /// (`Recall::meta_filter`). Never interpreted by the pipeline.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub meta: Option<serde_json::Map<String, serde_json::Value>>,
 }
 
 impl MemoryRecord {

@@ -21,8 +21,9 @@ use myelin_core::embed::remote::RemoteEmbedder;
 use myelin_core::llm::openai::OpenAiLlm;
 use myelin_core::model::delta::Delta;
 use myelin_core::model::evidence::{EvidenceSet, WireItem};
-use myelin_core::model::query::{Budget, Mode, Recall, ScopeFilter};
+use myelin_core::model::query::{Budget, MetaCondition, Mode, Recall, ScopeFilter};
 use myelin_core::model::record::{ActorId, LinkKind, RecordKind, Scope, SourceRef};
+use myelin_core::model::evidence::EvidenceItem;
 use myelin_core::pipeline::extract::CandidateKind;
 use myelin_core::pipeline::ingest::Turn;
 use myelin_core::pipeline::compose::KindQuota;
@@ -171,6 +172,14 @@ pub struct RecallParams {
     /// every probe, which is one call per step.
     #[serde(default)]
     pub decompose: Option<usize>,
+    /// Conditions on the caller's record `meta`, all of which must hold. Applied
+    /// before ranking, so they narrow the candidate set rather than trim the
+    /// ranked list. `{"op":"eq","key":K,"value":"str"}` (also matches an array
+    /// field containing the value) or `{"op":"range","key":K,"gt"?,"gte"?,"lt"?,
+    /// "lte"?: i64}`. A key must match `^[a-z_][a-z0-9_]*$`; a range needs at
+    /// least one bound.
+    #[serde(default)]
+    pub filter: Vec<MetaCondition>,
 }
 
 /// The `recall` response.
@@ -184,8 +193,22 @@ pub struct RecallParams {
 pub struct RecallResult {
     pub items: Vec<WireItem>,
     pub record_ids: Vec<String>,
+    /// Aligned 1:1 with `items`.
+    pub hits: Vec<HitJson>,
     pub tokens: usize,
     pub trace: RecallTraceJson,
+}
+
+/// What a caller needs to address one hit without a second lookup. Sits beside
+/// `items`, never inside them: R1 keeps the wire item to `{type, value}`.
+#[derive(Debug, Serialize, schemars::JsonSchema)]
+pub struct HitJson {
+    pub record_id: String,
+    pub source: String,
+    pub score: f32,
+    /// The record's caller metadata. `None` for a record without any and for
+    /// synthetic items (`[timeline]`, `[notes]`), which have a nil record id.
+    pub meta: Option<serde_json::Map<String, serde_json::Value>>,
 }
 
 #[derive(Debug, Serialize, schemars::JsonSchema)]
@@ -290,6 +313,7 @@ impl MyelinServer {
             mode: Mode::Recall,
             kinds,
             as_of: parse_as_of(params.as_of.as_deref())?,
+            meta_filter: validated_filter(params.filter)?,
         };
 
         let mut retriever = self.retriever();
@@ -305,7 +329,8 @@ impl MyelinServer {
         retriever.config.decompose = params.decompose;
         let (evidence, trace) = retriever.recall(&query).await.map_err(mcp_err)?;
 
-        Ok(Json(to_result(evidence, trace)))
+        let hits = self.hits_of(&evidence.items).await?;
+        Ok(Json(to_result(evidence, hits, trace)))
     }
 
     #[tool(
@@ -337,6 +362,7 @@ impl MyelinServer {
             mode: Mode::Investigate,
             kinds: None,
             as_of: parse_as_of(params.as_of.as_deref())?,
+            meta_filter: validated_filter(params.filter)?,
         };
 
         // `select` reaches `InvestigateConfig`, never `RetrieveConfig`: this
@@ -407,6 +433,7 @@ impl MyelinServer {
             .await
             .map_err(mcp_err)?;
 
+        let hits = self.hits_of(&evidence.items).await?;
         Ok(Json(InvestigateResult {
             items: evidence.to_wire(),
             record_ids: evidence
@@ -414,6 +441,7 @@ impl MyelinServer {
                 .iter()
                 .map(|i| i.record_id.to_string())
                 .collect(),
+            hits,
             tokens: evidence.tokens,
             queries: evidence.trace.iter().map(|t| t.query.clone()).collect(),
             trace,
@@ -491,11 +519,12 @@ impl MyelinServer {
             at: params.t_valid,
             source: SourceRef::doc(params.source.unwrap_or_else(|| "remember".into())),
             unit: params.unit.unwrap_or_else(|| "remember".into()),
+            meta: None,
         };
         if params.as_profile {
             return self.assert_profile(&scope, turn).await;
         }
-        self.write(&scope, &[turn]).await
+        self.write(&self.write_path(), &scope, &[turn]).await
     }
 
     #[tool(
@@ -522,10 +551,15 @@ impl MyelinServer {
                 text: t.text,
                 at: t.at,
                 source: SourceRef::doc(t.source.unwrap_or_else(|| format!("{unit}:{i}"))),
-                unit: unit.clone(),
+                unit: t.unit.unwrap_or_else(|| unit.clone()),
+                meta: t.meta,
             })
             .collect();
-        self.write(&scope, &turns).await
+        let mut wp = self.write_path();
+        // `extract: false` stores each episode verbatim and stops: no model
+        // call, no derived facts. The default stays today's full path.
+        wp.extract_facts = params.extract.unwrap_or(true);
+        self.write(&wp, &scope, &turns).await
     }
 
     #[tool(
@@ -698,6 +732,78 @@ impl MyelinServer {
     }
 
     #[tool(
+        name = "namespaces",
+        description = "Live record count per namespace of one tenant, ordered by namespace; one \
+                       namespace when given. Soft-forgotten and quarantined records are not \
+                       counted, and a namespace with none left is not listed."
+    )]
+    async fn namespaces(
+        &self,
+        Parameters(params): Parameters<NamespacesParams>,
+    ) -> Result<Json<NamespacesResult>, ErrorData> {
+        let rows = self
+            .backend
+            .ledger
+            .namespace_inventory(&params.tenant, params.namespace.as_deref(), chrono::Utc::now())
+            .await
+            .map_err(mcp_err)?;
+        let total_records = rows.iter().map(|(_, n)| n).sum();
+        Ok(Json(NamespacesResult {
+            namespaces: rows
+                .into_iter()
+                .map(|(namespace, records)| NamespaceCount { namespace, records })
+                .collect(),
+            total_records,
+        }))
+    }
+
+    #[tool(
+        name = "forget_scope",
+        description = "Hard-delete every record of one tenant + namespace, except the record ids \
+                       in `keep`, with everything derived from them (C11). The namespace is \
+                       required so one call cannot erase a whole tenant. Requires confirm=true \
+                       and cannot be undone."
+    )]
+    async fn forget_scope(
+        &self,
+        Parameters(params): Parameters<ForgetScopeParams>,
+    ) -> Result<Json<ForgetScopeResult>, ErrorData> {
+        if !params.confirm {
+            return Err(ErrorData::invalid_params(
+                "forget_scope erases every record in the namespace except `keep`, and \
+                 everything derived from them; pass confirm=true"
+                    .to_string(),
+                None,
+            ));
+        }
+        let keep: std::collections::HashSet<uuid::Uuid> = params
+            .keep
+            .iter()
+            .map(|s| parse_uuid(s))
+            .collect::<Result<_, _>>()?;
+        let actor = ActorId::new(params.actor.as_deref().unwrap_or("mcp"));
+        let reason = params
+            .reason
+            .unwrap_or_else(|| "forget_scope via mcp".into());
+
+        let ids = myelin_core::pipeline::forget::forget_scope(
+            &self.backend.ledger,
+            &self.backend.store,
+            &params.tenant,
+            &params.namespace,
+            &keep,
+            &actor,
+            &reason,
+        )
+        .await
+        .map_err(mcp_err)?;
+        Ok(Json(ForgetScopeResult {
+            affected: ids.len(),
+            ids: ids.iter().map(|u| u.to_string()).collect(),
+        }))
+    }
+
+    #[tool(
         name = "review_quarantine",
         description = "Staged writes awaiting a decision, with the reason each was held."
     )]
@@ -766,12 +872,13 @@ impl MyelinServer {
 impl MyelinServer {
     /// One write path for `remember` and `observe`: the difference between
     /// them is how many turns the caller has, not what happens to them.
-    async fn write(&self, scope: &Scope, turns: &[Turn]) -> Result<Json<WriteResult>, ErrorData> {
-        let stats = self
-            .write_path()
-            .insert(scope, turns)
-            .await
-            .map_err(mcp_err)?;
+    async fn write(
+        &self,
+        wp: &WritePath<'_>,
+        scope: &Scope,
+        turns: &[Turn],
+    ) -> Result<Json<WriteResult>, ErrorData> {
+        let stats = wp.insert(scope, turns).await.map_err(mcp_err)?;
         Ok(Json(WriteResult::from_stats(&stats)))
     }
 
@@ -789,6 +896,32 @@ impl MyelinServer {
             .await
             .map_err(mcp_err)?;
         Ok(Json(WriteResult::from_stats(&stats)))
+    }
+
+    /// `hits` for an evidence set: per-item id, source, score and the record's
+    /// `meta`. One ledger read per item (`k` is small); a nil id is a synthetic
+    /// view with no record behind it.
+    async fn hits_of(&self, items: &[EvidenceItem]) -> Result<Vec<HitJson>, ErrorData> {
+        let mut hits = Vec::with_capacity(items.len());
+        for item in items {
+            let meta = if item.record_id.is_nil() {
+                None
+            } else {
+                self.backend
+                    .ledger
+                    .get(item.record_id)
+                    .await
+                    .map_err(mcp_err)?
+                    .and_then(|r| r.meta)
+            };
+            hits.push(HitJson {
+                record_id: item.record_id.to_string(),
+                source: item.source.doc.clone(),
+                score: item.score,
+                meta,
+            });
+        }
+        Ok(hits)
     }
 
     fn write_path(&self) -> WritePath<'_> {
@@ -830,6 +963,47 @@ fn parse_as_of(raw: Option<&str>) -> Result<Option<chrono::NaiveDate>, ErrorData
         })
     })
     .transpose()
+}
+
+/// The wire filter, or an `invalid_params` error naming what is wrong. Checked
+/// here, at the boundary, because a key reaches Qdrant as `meta.{key}` and a
+/// range with no bound would match everything while looking like a filter.
+fn validated_filter(filter: Vec<MetaCondition>) -> Result<Vec<MetaCondition>, ErrorData> {
+    for cond in &filter {
+        let (key, bounded) = match cond {
+            MetaCondition::Eq { key, .. } => (key, true),
+            MetaCondition::Range {
+                key,
+                gt,
+                gte,
+                lt,
+                lte,
+            } => (
+                key,
+                gt.is_some() || gte.is_some() || lt.is_some() || lte.is_some(),
+            ),
+        };
+        if !is_meta_key(key) {
+            return Err(ErrorData::invalid_params(
+                format!("filter key {key:?} must match ^[a-z_][a-z0-9_]*$"),
+                None,
+            ));
+        }
+        if !bounded {
+            return Err(ErrorData::invalid_params(
+                format!("range filter on {key:?} needs at least one of gt, gte, lt, lte"),
+                None,
+            ));
+        }
+    }
+    Ok(filter)
+}
+
+/// `^[a-z_][a-z0-9_]*$`
+pub(crate) fn is_meta_key(key: &str) -> bool {
+    let mut chars = key.chars();
+    matches!(chars.next(), Some(c) if c.is_ascii_lowercase() || c == '_')
+        && chars.all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
 }
 
 /// Apply the query-time operating-point overrides to a retrieval config.
@@ -1003,12 +1177,17 @@ pub struct InvestigateParams {
     /// (M24). One model call per step, on top of the reflect gate's.
     #[serde(default)]
     pub decompose: Option<usize>,
+    /// Conditions on record `meta`; see [`RecallParams::filter`].
+    #[serde(default)]
+    pub filter: Vec<MetaCondition>,
 }
 
 #[derive(Debug, Serialize, schemars::JsonSchema)]
 pub struct InvestigateResult {
     pub items: Vec<WireItem>,
     pub record_ids: Vec<String>,
+    /// Aligned 1:1 with `items`.
+    pub hits: Vec<HitJson>,
     pub tokens: usize,
     /// Every search the loop actually issued, in order — the agentic trace
     /// `EVALUATION.md` §9 requires.
@@ -1016,7 +1195,7 @@ pub struct InvestigateResult {
     pub trace: InvestigateTrace,
 }
 
-fn to_result(evidence: EvidenceSet, trace: RecallTrace) -> RecallResult {
+fn to_result(evidence: EvidenceSet, hits: Vec<HitJson>, trace: RecallTrace) -> RecallResult {
     RecallResult {
         items: evidence.to_wire(),
         record_ids: evidence
@@ -1024,6 +1203,7 @@ fn to_result(evidence: EvidenceSet, trace: RecallTrace) -> RecallResult {
             .iter()
             .map(|i| i.record_id.to_string())
             .collect(),
+        hits,
         tokens: evidence.tokens,
         trace: trace.into(),
     }
@@ -1139,6 +1319,16 @@ pub struct ObserveTurn {
     pub at: Option<chrono::DateTime<chrono::Utc>>,
     #[serde(default)]
     pub source: Option<String>,
+    /// This turn's corpus unit. A change of unit always ends an episode, so a
+    /// caller that wants one episode per turn gives each turn its own. Defaults
+    /// to the call's `unit`.
+    #[serde(default)]
+    pub unit: Option<String>,
+    /// Caller metadata (a JSON object) stored with the episode this turn lands
+    /// in — the first turn's `meta` when several share an episode — returned in
+    /// `recall`'s `hits` and filterable with `filter`.
+    #[serde(default)]
+    pub meta: Option<serde_json::Map<String, serde_json::Value>>,
 }
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
@@ -1151,10 +1341,16 @@ pub struct ObserveParams {
     pub namespace: Option<String>,
     #[serde(default)]
     pub unit: Option<String>,
+    /// Run fact extraction over the episodes (default `true`). `false` stores
+    /// each episode verbatim and writes nothing derived from it.
+    #[serde(default)]
+    pub extract: Option<bool>,
 }
 
 #[derive(Debug, Serialize, schemars::JsonSchema)]
 pub struct WriteResult {
+    /// One id per episode, in draft order — new and already-present alike.
+    pub record_ids: Vec<String>,
     pub episodes: usize,
     pub candidates: usize,
     pub added: usize,
@@ -1179,6 +1375,7 @@ pub struct WriteResult {
 impl WriteResult {
     fn from_stats(stats: &myelin_core::pipeline::write::WriteStats) -> Self {
         Self {
+            record_ids: stats.episode_ids.iter().map(|i| i.to_string()).collect(),
             episodes: stats.episodes,
             candidates: stats.candidates,
             added: stats.added,
@@ -1251,6 +1448,50 @@ pub struct ForgetParams {
 pub struct ForgetResult {
     pub mode: String,
     pub affected: Vec<String>,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub struct NamespacesParams {
+    pub tenant: String,
+    #[serde(default)]
+    pub namespace: Option<String>,
+}
+
+#[derive(Debug, Serialize, schemars::JsonSchema)]
+pub struct NamespaceCount {
+    pub namespace: String,
+    /// Live records.
+    pub records: i64,
+}
+
+#[derive(Debug, Serialize, schemars::JsonSchema)]
+pub struct NamespacesResult {
+    pub namespaces: Vec<NamespaceCount>,
+    pub total_records: i64,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub struct ForgetScopeParams {
+    pub tenant: String,
+    /// Required: a missing namespace must not mean "the whole tenant".
+    pub namespace: String,
+    /// Record ids (UUIDs) to leave in place.
+    #[serde(default)]
+    pub keep: Vec<String>,
+    /// Must be `true`; a call without it is refused.
+    #[serde(default)]
+    pub confirm: bool,
+    #[serde(default)]
+    pub reason: Option<String>,
+    #[serde(default)]
+    pub actor: Option<String>,
+}
+
+#[derive(Debug, Serialize, schemars::JsonSchema)]
+pub struct ForgetScopeResult {
+    pub affected: usize,
+    /// Every erased record id, descendants included.
+    pub ids: Vec<String>,
 }
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
@@ -1338,6 +1579,111 @@ pub struct QuarantineResult {
 
 #[cfg(test)]
 mod tests {
+    /// A filter key reaches Qdrant as `meta.{key}`, and a range with no bound
+    /// would match everything while looking like a filter. Both are refused at
+    /// the wire, as `invalid_params`, naming the problem.
+    #[test]
+    fn a_malformed_filter_is_refused_at_the_wire() {
+        use myelin_core::model::query::MetaCondition::{Eq, Range};
+        let eq = |key: &str| Eq {
+            key: key.into(),
+            value: "v".into(),
+        };
+        let range = |key: &str, gte: Option<i64>| Range {
+            key: key.into(),
+            gt: None,
+            gte,
+            lt: None,
+            lte: None,
+        };
+
+        let ok = vec![eq("category"), range("year", Some(2021)), eq("_x9")];
+        assert_eq!(super::validated_filter(ok.clone()).unwrap(), ok);
+        assert!(super::validated_filter(vec![]).unwrap().is_empty());
+
+        for bad in ["", "Year", "1year", "a-b", "a.b", "a b", "yeår"] {
+            let err = super::validated_filter(vec![eq(bad)]).unwrap_err();
+            assert!(err.message.contains("^[a-z_][a-z0-9_]*$"), "{bad:?}: {}", err.message);
+            assert!(super::validated_filter(vec![range(bad, Some(1))]).is_err(), "{bad:?}");
+        }
+
+        let err = super::validated_filter(vec![range("year", None)]).unwrap_err();
+        assert!(err.message.contains("at least one"), "{}", err.message);
+        assert_eq!(err.code, rmcp::model::ErrorCode::INVALID_PARAMS);
+    }
+
+    /// The wire shape the consumer sends, parsed as sent.
+    #[test]
+    fn the_filter_wire_shape_parses_as_documented() {
+        use myelin_core::model::query::MetaCondition;
+        let p: super::RecallParams = serde_json::from_value(serde_json::json!({
+            "query": "q", "tenant": "t",
+            "filter": [
+                {"op": "eq", "key": "category", "value": "a"},
+                {"op": "range", "key": "year", "gte": 2021, "lt": 2024}
+            ]
+        }))
+        .unwrap();
+        assert_eq!(
+            p.filter,
+            vec![
+                MetaCondition::Eq { key: "category".into(), value: "a".into() },
+                MetaCondition::Range {
+                    key: "year".into(),
+                    gt: None,
+                    gte: Some(2021),
+                    lt: Some(2024),
+                    lte: None
+                },
+            ]
+        );
+        let none: super::RecallParams =
+            serde_json::from_value(serde_json::json!({"query": "q", "tenant": "t"})).unwrap();
+        assert!(none.filter.is_empty());
+        // An unknown op is a parse error, not an ignored condition.
+        assert!(serde_json::from_value::<super::RecallParams>(serde_json::json!({
+            "query": "q", "tenant": "t", "filter": [{"op": "like", "key": "a", "value": "b"}]
+        }))
+        .is_err());
+    }
+
+    /// `observe` turns carry their own unit and meta; `extract` is optional.
+    #[test]
+    fn observe_params_accept_unit_meta_and_extract() {
+        let p: super::ObserveParams = serde_json::from_value(serde_json::json!({
+            "tenant": "t", "extract": false,
+            "turns": [{"speaker": "document", "text": "x", "source": "s", "unit": "u1",
+                       "meta": {"year": 2020}}]
+        }))
+        .unwrap();
+        assert_eq!(p.extract, Some(false));
+        assert_eq!(p.turns[0].unit.as_deref(), Some("u1"));
+        assert_eq!(p.turns[0].meta.as_ref().unwrap()["year"], 2020);
+        // Old callers: nothing new is required.
+        let old: super::ObserveParams = serde_json::from_value(serde_json::json!({
+            "tenant": "t", "turns": [{"speaker": "user", "text": "x"}]
+        }))
+        .unwrap();
+        assert_eq!(old.extract, None);
+        assert!(old.turns[0].meta.is_none());
+    }
+
+    /// `forget_scope` without `confirm` is a refusal, not a deserialization
+    /// accident, and `namespace` has no default.
+    #[test]
+    fn forget_scope_params_require_a_namespace_and_default_confirm_to_false() {
+        let p: super::ForgetScopeParams = serde_json::from_value(serde_json::json!({
+            "tenant": "t", "namespace": "d1"
+        }))
+        .unwrap();
+        assert!(!p.confirm);
+        assert!(p.keep.is_empty());
+        assert!(serde_json::from_value::<super::ForgetScopeParams>(serde_json::json!({
+            "tenant": "t", "confirm": true
+        }))
+        .is_err());
+    }
+
     /// M46. A date the backend cannot parse is refused with the error
     /// naming the format; it is never silently dropped, because a dropped
     /// anchor produces a timeline that reads as if the caller sent none.

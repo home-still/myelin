@@ -48,6 +48,7 @@ fn record(key: &str, kind: RecordKind, sc: &Scope, text: &str, derived: Vec<Uuid
         trust: Trust::asserted(),
         salience: Salience::default(),
         links: Vec::new(),
+        meta: None,
     }
 }
 

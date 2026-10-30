@@ -298,6 +298,7 @@ pub fn turns_for(traj: &Trajectory) -> Vec<Turn> {
         at: None,
         source: SourceRef::doc(format!("{}:goal", traj.id)),
         unit: format!("{}#goal", traj.id),
+        meta: None,
     });
 
     for state in &traj.states {
@@ -310,6 +311,7 @@ pub fn turns_for(traj: &Trajectory) -> Vec<Turn> {
                 at: None,
                 source: SourceRef::doc(format!("{}:{}", traj.id, state.state_index)),
                 unit: format!("{}#steps", traj.id),
+                meta: None,
             });
         }
     }
@@ -327,6 +329,7 @@ pub fn turns_for(traj: &Trajectory) -> Vec<Turn> {
                 at: None,
                 source: SourceRef::doc(format!("{}:{}:{i}", traj.id, state.state_index)),
                 unit: format!("{}#state{}", traj.id, state.state_index),
+                meta: None,
             });
         }
     }
