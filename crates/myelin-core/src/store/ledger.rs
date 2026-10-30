@@ -26,7 +26,9 @@ use std::str::FromStr;
 
 use chrono::{DateTime, SecondsFormat, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions, SqliteRow};
+use sqlx::sqlite::{
+    SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteRow, SqliteSynchronous,
+};
 use sqlx::{Connection, Row, SqliteConnection, SqlitePool};
 use uuid::Uuid;
 
@@ -174,11 +176,23 @@ pub struct Ledger {
 
 impl Ledger {
     /// Open (creating if absent) a file-backed ledger and apply the schema.
+    ///
+    /// WAL with `synchronous = NORMAL`, not SQLite's rollback journal with
+    /// `FULL`. Every record write is several transactions (`get`, the delta,
+    /// its audit event), and on btrfs a rollback-journal commit costs ~80 ms
+    /// of fsync against ~0.1 ms in WAL (measured on big, 2026-10-30): the
+    /// home-still prefill wrote 25 one-record episodes in 10 s, 6x slower
+    /// than embedding them. NORMAL keeps the database consistent across a
+    /// crash; a power loss can roll back the last commits, which leaves
+    /// Qdrant points with no ledger row — the harmless direction, because
+    /// recall re-checks the ledger and drops them.
     pub async fn open(path: impl AsRef<std::path::Path>) -> Result<Self> {
         let opts = SqliteConnectOptions::new()
             .filename(path.as_ref())
             .create_if_missing(true)
-            .foreign_keys(true);
+            .foreign_keys(true)
+            .journal_mode(SqliteJournalMode::Wal)
+            .synchronous(SqliteSynchronous::Normal);
         Self::from_options(opts, 5).await
     }
 
