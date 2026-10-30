@@ -39,16 +39,20 @@ URL = os.getenv("MYELIN_MCP_URL", "http://127.0.0.1:7446/mcp")
 TENANT = os.getenv("MYELIN_MCP_TENANT", "locomo/conv-30")
 NAMESPACE = os.getenv("MYELIN_MCP_NAMESPACE", "locomo")
 
-# `PLAN.md` §8: two write tools, five read tools, three admin tools.
+# `PLAN.md` §8 plus `trajectories` (M62) and the `namespaces` / `forget_scope`
+# pair a document store needs.
 EXPECTED_TOOLS = {
     "remember",
     "observe",
     "recall",
     "investigate",
+    "trajectories",
     "search",
     "profile",
     "neighbors",
     "forget",
+    "forget_scope",
+    "namespaces",
     "review_quarantine",
     "explain",
 }

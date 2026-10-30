@@ -290,6 +290,7 @@ mod tests {
                 at: None,
                 source: SourceRef::doc("d"),
                 unit: "u".into(),
+                meta: None,
             }],
             ended_by: BoundaryReason::EndOfStream,
             approx_tokens: 8,

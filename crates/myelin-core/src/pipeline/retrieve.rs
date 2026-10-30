@@ -492,6 +492,7 @@ impl<'a> Retriever<'a> {
             namespace: query.scope.namespace.as_deref(),
             agent: query.scope.agent.as_deref(),
             session: query.scope.session.as_deref(),
+            meta: &query.meta_filter,
         };
 
         let t1 = std::time::Instant::now();
@@ -548,6 +549,11 @@ impl<'a> Retriever<'a> {
         // With the switch off, or with no `GraphIndex` wired, this block is a
         // no-op and the code path is byte-identical to the two-channel one.
         if self.config.graph {
+            if !query.meta_filter.is_empty() {
+                return Err(MyelinError::Config(
+                    "meta filters are not supported with the graph channel".into(),
+                ));
+            }
             if let Some(index) = self.graph {
                 let t = std::time::Instant::now();
                 let seeds = phrases(&query.text);

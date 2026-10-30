@@ -65,6 +65,7 @@ async fn the_graph_channel_surfaces_a_record_bm25_cannot_reach() {
         mode: Mode::Recall,
         kinds: None,
         as_of: None,
+        meta_filter: Vec::new(),
     };
     let lex_only = RetrieveConfig {
         channels: Channels::Lex,

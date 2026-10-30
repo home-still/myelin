@@ -40,6 +40,7 @@ fn ask(tenant: &str, namespace: Option<&str>, text: &str) -> Recall {
         mode: Mode::Recall,
         kinds: None,
         as_of: None,
+        meta_filter: Vec::new(),
     }
 }
 

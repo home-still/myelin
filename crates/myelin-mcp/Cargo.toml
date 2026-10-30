@@ -12,6 +12,7 @@ path = "src/main.rs"
 [dependencies]
 chrono = { workspace = true }
 myelin-core = { workspace = true }
+qdrant-client = { workspace = true }
 uuid = { workspace = true }
 anyhow = { workspace = true }
 axum = { workspace = true }

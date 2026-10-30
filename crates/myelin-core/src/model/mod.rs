@@ -9,7 +9,7 @@ pub mod trajectory;
 
 pub use delta::{AppliedDelta, Delta};
 pub use evidence::{EvidenceItem, EvidenceKind, EvidenceSet, TraceStep, WireItem};
-pub use query::{Budget, Mode, Recall, ScopeFilter};
+pub use query::{Budget, MetaCondition, Mode, Recall, ScopeFilter};
 pub use record::{
     ActorId, EntityRef, Link, LinkKind, MemoryRecord, Provenance, RecordKind, Salience, Scope,
     SourceRef, Span, Trust, TrustTier, Validity,

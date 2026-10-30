@@ -28,6 +28,10 @@ BEGIN
     SELECT RAISE(ABORT, 'C9: event log is append-only');
 END;
 
+-- `meta` is the caller's JSON object, added after the first release:
+-- `Ledger::open` adds the column to a ledger created before it existed. It is
+-- deliberately not in the record_immutable trigger below: written once, at
+-- insert, and nothing updates it.
 CREATE TABLE IF NOT EXISTS record (
     id                  TEXT PRIMARY KEY,
     kind                TEXT NOT NULL,
@@ -51,7 +55,8 @@ CREATE TABLE IF NOT EXISTS record (
     prov_contributed_by TEXT NOT NULL,
     prov_written_by     TEXT NOT NULL,
     prov_derived_from   TEXT NOT NULL,
-    salience            TEXT NOT NULL
+    salience            TEXT NOT NULL,
+    meta                TEXT
 );
 CREATE INDEX IF NOT EXISTS record_scope ON record (tenant, namespace, agent);
 CREATE INDEX IF NOT EXISTS record_live ON record (tenant, namespace, t_invalid, t_expired);

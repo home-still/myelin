@@ -33,6 +33,7 @@ use uuid::Uuid;
 
 use crate::config::QdrantConfig;
 use crate::error::{MyelinError, Result};
+use crate::model::query::MetaCondition;
 use crate::model::record::MemoryRecord;
 
 /// Named dense channel.
@@ -173,6 +174,25 @@ pub fn client(cfg: &QdrantConfig) -> Result<Qdrant> {
         .build()?)
 }
 
+/// One `must` condition for a caller-metadata filter. `Eq` goes through
+/// `Condition::matches`, which also matches an array field that contains the
+/// value; the integer bounds of `Range` are widened to Qdrant's `f64`.
+fn meta_condition(cond: &MetaCondition) -> qdrant_client::qdrant::Condition {
+    use qdrant_client::qdrant::{Condition, Range};
+    match cond {
+        MetaCondition::Eq { key, value } => Condition::matches(format!("meta.{key}"), value.clone()),
+        MetaCondition::Range { key, gt, gte, lt, lte } => Condition::range(
+            format!("meta.{key}"),
+            Range {
+                gt: gt.map(|v| v as f64),
+                gte: gte.map(|v| v as f64),
+                lt: lt.map(|v| v as f64),
+                lte: lte.map(|v| v as f64),
+            },
+        ),
+    }
+}
+
 fn epoch(t: DateTime<Utc>) -> i64 {
     t.timestamp()
 }
@@ -221,6 +241,8 @@ pub struct SearchScope<'a> {
     pub namespace: Option<&'a str>,
     pub agent: Option<&'a str>,
     pub session: Option<&'a str>,
+    /// Conditions on the caller's `meta`, ANDed into the same filter.
+    pub meta: &'a [MetaCondition],
 }
 
 /// The two channels, each ranked by its own scorer. Deliberately NOT fused
@@ -341,6 +363,20 @@ impl QdrantStore {
         Ok(())
     }
 
+    /// Index `meta.{key}` so a [`MetaCondition`] on it is served from an index
+    /// rather than a payload scan. Idempotent: Qdrant accepts re-creating an
+    /// index of the same type.
+    pub async fn ensure_meta_index(&self, key: &str, ty: FieldType) -> Result<()> {
+        self.client
+            .create_field_index(CreateFieldIndexCollectionBuilder::new(
+                &self.collection,
+                format!("meta.{key}"),
+                ty,
+            ))
+            .await?;
+        Ok(())
+    }
+
     /// Payload mirrors the ledger's filterable columns. `text` rides along so
     /// the fast path (§7.1, p95 < 100 ms) never needs a SQLite round trip.
     pub fn payload_of(record: &MemoryRecord) -> Payload {
@@ -379,6 +415,12 @@ impl QdrantStore {
                 .collect::<Vec<_>>()
                 .into(),
         );
+        if let Some(meta) = &record.meta {
+            map.insert(
+                "meta".into(),
+                Value::from(serde_json::Value::Object(meta.clone())),
+            );
+        }
         Payload::from(map)
     }
 
@@ -627,6 +669,9 @@ impl QdrantStore {
         }
         if let Some(session) = scope.session {
             must.push(Condition::matches("session", session.to_string()));
+        }
+        for cond in scope.meta {
+            must.push(meta_condition(cond));
         }
         if !kinds.is_empty() {
             must.push(Condition::matches(

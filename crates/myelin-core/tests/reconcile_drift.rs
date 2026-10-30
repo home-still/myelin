@@ -126,6 +126,7 @@ fn record(key: &str, text: &str) -> MemoryRecord {
         trust: Trust::asserted(),
         salience: Salience::default(),
         links: Vec::new(),
+        meta: None,
     }
 }
 

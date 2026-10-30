@@ -27,7 +27,7 @@ use std::str::FromStr;
 use chrono::{DateTime, SecondsFormat, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions, SqliteRow};
-use sqlx::{Row, SqlitePool};
+use sqlx::{Connection, Row, SqliteConnection, SqlitePool};
 use uuid::Uuid;
 
 use crate::error::{MyelinError, Result};
@@ -192,13 +192,52 @@ impl Ledger {
     }
 
     async fn from_options(opts: SqliteConnectOptions, max_conn: u32) -> Result<Self> {
+        // A file ledger is brought to the current schema on a private
+        // connection *before* the pool exists. `ALTER TABLE` changes the
+        // column count of `SELECT *`, and a pool connection that loaded the
+        // old schema first prepares that statement with the old count, then
+        // SQLite re-prepares it at step time and sqlx indexes out of bounds
+        // (sqlx-sqlite 0.9.0, row.rs `SqliteRow::current`). No pool
+        // connection can have seen the old schema if none exists yet.
+        //
+        // An in-memory ledger is a single connection that is both the pool
+        // and the database, so it migrates through the pool; it is always
+        // created fresh, so the `ALTER` never runs there.
+        if max_conn > 1 {
+            let mut conn = SqliteConnection::connect_with(&opts).await.map_err(sql)?;
+            Self::migrate(&mut conn).await?;
+            conn.close().await.map_err(sql)?;
+        }
         let pool = SqlitePoolOptions::new()
             .max_connections(max_conn)
             .connect_with(opts)
             .await
             .map_err(sql)?;
-        sqlx::raw_sql(SCHEMA).execute(&pool).await.map_err(sql)?;
+        if max_conn <= 1 {
+            let mut conn = pool.acquire().await.map_err(sql)?;
+            Self::migrate(&mut conn).await?;
+        }
         Ok(Self { pool })
+    }
+
+    /// Create what is missing, and add what a ledger from before it lacks.
+    async fn migrate(conn: &mut SqliteConnection) -> Result<()> {
+        sqlx::raw_sql(SCHEMA).execute(&mut *conn).await.map_err(sql)?;
+        // `CREATE TABLE IF NOT EXISTS` never alters a table that already
+        // exists, so a ledger created before `meta` gets the column here.
+        let has_meta: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM pragma_table_info('record') WHERE name = 'meta'",
+        )
+        .fetch_one(&mut *conn)
+        .await
+        .map_err(sql)?;
+        if has_meta == 0 {
+            sqlx::query("ALTER TABLE record ADD COLUMN meta TEXT")
+                .execute(&mut *conn)
+                .await
+                .map_err(sql)?;
+        }
+        Ok(())
     }
 
     pub fn pool(&self) -> &SqlitePool {
@@ -338,8 +377,8 @@ impl Ledger {
                 t_valid, t_invalid, t_ingested, t_expired,
                 trust_tier, trust_score, trust_checks,
                 prov_source, prov_contributed_by, prov_written_by, prov_derived_from,
-                salience
-             ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                salience, meta
+             ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         )
         .bind(r.id.to_string())
         .bind(r.kind.as_str())
@@ -361,6 +400,11 @@ impl Ledger {
         .bind(r.provenance.written_by.as_str())
         .bind(serde_json::to_string(&r.provenance.derived_from)?)
         .bind(serde_json::to_string(&r.salience)?)
+        .bind(
+            r.meta
+                .as_ref()
+                .map(|m| serde_json::Value::Object(m.clone()).to_string()),
+        )
         .execute(&mut **tx)
         .await
         .map_err(sql)?;
@@ -553,6 +597,59 @@ impl Ledger {
         .await
         .map_err(sql)?;
         Ok(row.get::<i64, _>("n"))
+    }
+
+    /// `(namespace, live record count)` for one tenant, ordered by namespace;
+    /// one namespace when `namespace` is `Some`. Live means the predicate
+    /// [`Ledger::count_live`] uses, so a soft-forgotten or quarantined record
+    /// is not counted and a namespace with none left is not listed.
+    pub async fn namespace_inventory(
+        &self,
+        tenant: &str,
+        namespace: Option<&str>,
+        now: DateTime<Utc>,
+    ) -> Result<Vec<(String, i64)>> {
+        let now_s = fmt_time(now);
+        let rows = sqlx::query(
+            "SELECT namespace, COUNT(*) AS n FROM record
+             WHERE tenant = ?
+               AND (? IS NULL OR namespace = ?)
+               AND prov_source IS NOT NULL
+               AND trust_tier <> 'quarantined'
+               AND t_valid <= ?
+               AND (t_invalid IS NULL OR t_invalid > ?)
+               AND (t_expired IS NULL OR t_expired > ?)
+             GROUP BY namespace
+             ORDER BY namespace",
+        )
+        .bind(tenant)
+        .bind(namespace)
+        .bind(namespace)
+        .bind(&now_s)
+        .bind(&now_s)
+        .bind(&now_s)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(sql)?;
+        Ok(rows
+            .iter()
+            .map(|r| (r.get::<String, _>("namespace"), r.get::<i64, _>("n")))
+            .collect())
+    }
+
+    /// Every record id in one tenant + namespace, live or not. For deleting a
+    /// scope: a record that was soft-forgotten is still stored and still has
+    /// to go.
+    pub async fn ids_in_scope(&self, tenant: &str, namespace: &str) -> Result<Vec<Uuid>> {
+        let rows = sqlx::query("SELECT id FROM record WHERE tenant = ? AND namespace = ? ORDER BY id")
+            .bind(tenant)
+            .bind(namespace)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(sql)?;
+        rows.iter()
+            .map(|r| parse_uuid(r.get::<String, _>("id").as_str()))
+            .collect()
     }
 
     /// One page of live records, for rebuilding the vector index.
@@ -1777,5 +1874,18 @@ fn row_to_record(row: &SqliteRow) -> Result<MemoryRecord> {
         },
         salience: serde_json::from_str::<Salience>(row.get::<String, _>("salience").as_str())?,
         links: Vec::<Link>::new(),
+        meta: parse_meta(row)?,
     })
+}
+
+fn parse_meta(row: &SqliteRow) -> Result<Option<serde_json::Map<String, serde_json::Value>>> {
+    let raw: Option<String> = row.get("meta");
+    let Some(raw) = raw else { return Ok(None) };
+    match serde_json::from_str::<serde_json::Value>(&raw)? {
+        serde_json::Value::Object(m) => Ok(Some(m)),
+        _ => Err(MyelinError::Store(format!(
+            "record {}: meta is not a JSON object",
+            row.get::<String, _>("id")
+        ))),
+    }
 }

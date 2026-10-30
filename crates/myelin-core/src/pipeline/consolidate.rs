@@ -650,6 +650,7 @@ mod tests {
             },
             salience: Salience::default(),
             links: vec![],
+            meta: None,
         }
     }
 

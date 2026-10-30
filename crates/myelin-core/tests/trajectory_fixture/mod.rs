@@ -47,6 +47,7 @@ pub fn goal_record(sc: &Scope, traj: &str) -> MemoryRecord {
         trust: Trust::asserted(),
         salience: Salience::default(),
         links: Vec::new(),
+        meta: None,
     }
 }
 

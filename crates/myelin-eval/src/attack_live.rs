@@ -731,6 +731,7 @@ async fn measure(
                     at: None,
                     source: SourceRef::doc(format!("legit:{i}")),
                     unit: format!("legit-{i}"),
+                    meta: None,
                 })
                 .collect();
             let mut write = WritePath::new(llm, embedder, &store, &ledger);
@@ -755,6 +756,7 @@ async fn measure(
                 at: None,
                 source: SourceRef::doc(format!("attack:{i}")),
                 unit: format!("attack-{i}"),
+                meta: None,
             }];
             let mut write = WritePath::new(llm, embedder, &store, &ledger);
             write.source_tier = tier;
@@ -799,6 +801,7 @@ async fn measure(
                         mode: Mode::Recall,
                         kinds: None,
                         as_of: None,
+                        meta_filter: Vec::new(),
                     })
                     .await
                     .context("victim recall")?;

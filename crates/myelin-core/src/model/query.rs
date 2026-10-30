@@ -76,6 +76,32 @@ impl ScopeFilter {
     }
 }
 
+/// A condition on a record's caller-supplied `meta`, applied in the same
+/// pre-ranking filter as the scope (so it narrows the candidate set rather
+/// than trimming a ranked list). Keys name top-level fields of `meta`.
+///
+/// `Eq` also matches when the field is an array containing `value`. `Range`
+/// bounds are integers; a bound left `None` is unbounded on that side.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(tag = "op", rename_all = "snake_case")]
+pub enum MetaCondition {
+    Eq {
+        key: String,
+        value: String,
+    },
+    Range {
+        key: String,
+        #[serde(default)]
+        gt: Option<i64>,
+        #[serde(default)]
+        gte: Option<i64>,
+        #[serde(default)]
+        lt: Option<i64>,
+        #[serde(default)]
+        lte: Option<i64>,
+    },
+}
+
 /// Evidence-set bloat destroys precision: HiGMem retrieves 8.09 vs 99.84
 /// turns/query at P@K 0.1909 vs 0.0101 (§2 finding 4). `k` is small on purpose,
 /// and it is a *security* parameter too — MINJA ASR climbs 6% → 20% → 38% as
@@ -122,6 +148,10 @@ pub struct Recall {
     /// timeline then carries only its own internal offsets.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub as_of: Option<chrono::NaiveDate>,
+    /// Conditions on record `meta`, all of which must hold (AND). Applied
+    /// before ranking. Not supported together with the graph channel.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub meta_filter: Vec<MetaCondition>,
 }
 
 impl Recall {
@@ -133,6 +163,7 @@ impl Recall {
             mode: Mode::Recall,
             kinds: None,
             as_of: None,
+            meta_filter: Vec::new(),
         }
     }
 }

@@ -530,6 +530,7 @@ pub async fn ablate_locomo(
                 mode: Mode::Recall,
                 kinds: None,
                 as_of: None,
+                meta_filter: Vec::new(),
             };
             let (evidence, trace) = retriever
                 .recall(&query)
@@ -910,6 +911,7 @@ pub async fn width_sweep(
                 // for topic episodes, the gist lane for typed records).
                 kinds: kinds.map(<[RecordKind]>::to_vec),
                 as_of: None,
+                meta_filter: Vec::new(),
             };
             let (evidence, trace) = retriever
                 .recall(&query)
@@ -1577,6 +1579,7 @@ pub async fn investigate_curve(
                 mode: Mode::Investigate,
                 kinds: None,
                 as_of: None,
+                meta_filter: Vec::new(),
             };
             let (evidence, trace) = Investigator::new(&llm, &retriever)
                 .with_config(InvestigateConfig {

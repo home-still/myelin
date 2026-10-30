@@ -59,6 +59,7 @@ fn ask(text: &str, asked_on: Option<NaiveDate>) -> Recall {
         mode: Mode::Recall,
         kinds: None,
         as_of: asked_on,
+        meta_filter: Vec::new(),
     }
 }
 
