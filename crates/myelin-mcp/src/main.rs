@@ -222,10 +222,7 @@ async fn main() -> anyhow::Result<()> {
 /// One listener's router: the MCP service at `/mcp`, behind the bearer check
 /// when `bearer` is given.
 fn http_router(backend: Arc<Backend>, surface: Surface, bearer: Option<&str>) -> axum::Router {
-    // `with_json_response(true)`: the benchmark adapter is a plain
-    // request/response client with no use for SSE streaming, and a single
-    // JSON body is far easier to debug from Python.
-    let config = StreamableHttpServerConfig::default().with_json_response(true);
+    let config = transport_config(bearer.is_some());
     let service: StreamableHttpService<MyelinServer, LocalSessionManager> =
         StreamableHttpService::new(
             move || Ok(MyelinServer::new(backend.clone(), surface)),
@@ -255,6 +252,26 @@ fn http_router(backend: Arc<Backend>, surface: Surface, bearer: Option<&str>) ->
             }
         },
     ))
+}
+
+/// The transport settings of one listener.
+///
+/// rmcp's `Host` allow-list (loopback names by default) is the defence
+/// against DNS rebinding for a listener a browser on this machine can reach
+/// anonymously, so an anonymous listener keeps it. A listener that checks the
+/// bearer on every request does not need it and cannot use it: the name a LAN
+/// client or a reverse proxy reaches this address by is not knowable here, and
+/// with the list in place every such request is a 403.
+fn transport_config(authenticated: bool) -> StreamableHttpServerConfig {
+    // `with_json_response(true)`: the benchmark adapter is a plain
+    // request/response client with no use for SSE streaming, and a single
+    // JSON body is far easier to debug from Python.
+    let config = StreamableHttpServerConfig::default().with_json_response(true);
+    if authenticated {
+        config.disable_allowed_hosts()
+    } else {
+        config
+    }
 }
 
 /// Compare two byte strings without an early exit.
@@ -320,5 +337,14 @@ mod tests {
         assert!(parse_meta_index("year:float").is_err());
         assert!(parse_meta_index("Year:integer").is_err());
         assert!(parse_meta_index(":integer").is_err());
+    }
+
+    #[test]
+    fn a_bearer_listener_accepts_any_host_and_an_anonymous_one_only_loopback_names() {
+        // An empty list is rmcp's "do not validate `Host`".
+        assert!(transport_config(true).allowed_hosts.is_empty());
+        let anonymous = transport_config(false).allowed_hosts;
+        assert!(anonymous.iter().any(|h| h == "127.0.0.1"), "{anonymous:?}");
+        assert!(anonymous.iter().all(|h| h != "0.0.0.0"), "{anonymous:?}");
     }
 }
