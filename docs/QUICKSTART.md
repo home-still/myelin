@@ -141,6 +141,10 @@ The server is now accepting MCP requests at `http://127.0.0.1:7462/mcp`.
 > address, set `MYELIN_MCP_TOKEN` to a bearer token. Every tool that listener
 > serves, including hard `forget`, is otherwise anonymous. The token is
 > checked on non-loopback listeners only; a loopback listener stays anonymous.
+> The two kinds also differ in the `Host` header they accept: a loopback
+> listener answers only to `localhost`, `127.0.0.1` and `::1` (anything else
+> is a 403, the defence against DNS rebinding), and a listener that checks the
+> bearer answers under whatever name a client or a proxy reaches it by.
 
 > **Agents get their own listener:** `--serve-agents HOST:PORT` serves the
 > agent surface, which addresses memory by store name and offers no bulk
