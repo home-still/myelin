@@ -11,6 +11,7 @@
 
 use std::sync::Arc;
 
+use futures_util::future::try_join_all;
 use rmcp::handler::server::wrapper::{Json, Parameters};
 use rmcp::model::{Implementation, ServerCapabilities, ServerInfo};
 use rmcp::{tool, tool_router, ErrorData, ServerHandler};
@@ -35,6 +36,11 @@ use myelin_core::pipeline::write::WritePath;
 use myelin_core::rerank::cross::CrossEncoder;
 use myelin_core::store::ledger::Ledger;
 use myelin_core::store::qdrant::QdrantStore;
+use myelin_core::embed::Embedder;
+use myelin_core::llm::Llm;
+use myelin_core::model::store::StoreDef;
+use myelin_core::pipeline::merge::{merge_scopes, MergedEvidence};
+use myelin_core::rerank::Reranker;
 
 /// Everything a read needs, built once and shared across connections.
 ///
@@ -45,14 +51,16 @@ use myelin_core::store::qdrant::QdrantStore;
 pub struct Backend {
     pub store: QdrantStore,
     pub ledger: Ledger,
-    pub embedder: RemoteEmbedder,
+    /// The embedder, the model and the reranker are trait objects so a test
+    /// can serve this backend with stand-ins that need no model server.
+    pub embedder: Box<dyn Embedder>,
     /// The controller for `investigate`'s reflect step. Same model as the
     /// writer's judge: R4 wants one store AND one model behind both modes,
     /// so an operating point is a parameter change, not a redeployment.
-    pub llm: OpenAiLlm,
+    pub llm: Box<dyn Llm>,
     /// `None` when no reranker is configured. That is a legitimate operating
     /// point (the `hybrid_no_rerank` ablation arm), not a degraded mode.
-    pub reranker: Option<CrossEncoder>,
+    pub reranker: Option<Box<dyn Reranker>>,
     pub config: RetrieveConfig,
 }
 
@@ -75,9 +83,15 @@ impl Backend {
         Ok(Self {
             store: QdrantStore::new(&qdrant_cfg)?,
             ledger: Ledger::open(&cfg.ledger).await?,
-            embedder: RemoteEmbedder::new(&cfg.embed.url, &cfg.embed.model, cfg.embed.dim)?,
-            llm: OpenAiLlm::new(&cfg.llm.url, &cfg.llm.model)?,
-            reranker: CrossEncoder::new(&cfg.rerank.url, &cfg.rerank.model).ok(),
+            embedder: Box::new(RemoteEmbedder::new(
+                &cfg.embed.url,
+                &cfg.embed.model,
+                cfg.embed.dim,
+            )?),
+            llm: Box::new(OpenAiLlm::new(&cfg.llm.url, &cfg.llm.model)?),
+            reranker: CrossEncoder::new(&cfg.rerank.url, &cfg.rerank.model)
+                .ok()
+                .map(|r| Box::new(r) as Box<dyn Reranker>),
             config: RetrieveConfig {
                 prefetch_limit: prefetch_limit.unwrap_or(defaults.prefetch_limit),
                 rerank_depth: rerank_depth.unwrap_or(defaults.rerank_depth),
@@ -93,10 +107,92 @@ impl Backend {
     }
 }
 
+/// Which tools a listener offers, and how a caller addresses a scope on it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Surface {
+    /// Every tool; a scope is a tenant or a store. For operators, pipelines
+    /// and benchmarks.
+    Full,
+    /// For agents. A scope is a store, by name: a tenant string is refused,
+    /// because it would reach past the stores the agent was shown. The four
+    /// tools of [`AGENT_REMOVED_TOOLS`] are not registered, `remember` writes
+    /// only where a store accepts agent writes, and `forget` is soft only.
+    Agent,
+}
+
+impl Surface {
+    fn instructions(self) -> &'static str {
+        match self {
+            Self::Full => {
+                "Agentic memory. `recall` is the fast read path; it never returns more than k \
+                 items and every item is individually addressable by record id. A scope is a \
+                 tenant or a store: `stores` lists the stores, `define_store` names one."
+            }
+            Self::Agent => {
+                "Agentic memory, addressed by store. Call `stores` first: it lists each store, \
+                 what it holds and whether you may write to it. `recall` and `investigate` read \
+                 the default stores unless you name others in `stores`. Every hit carries \
+                 `store`, the store it came from, and `meta`, the record's own metadata."
+            }
+        }
+    }
+}
+
+impl std::fmt::Display for Surface {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::Full => "full",
+            Self::Agent => "agent",
+        })
+    }
+}
+
+/// Not registered on [`Surface::Agent`]: bulk ingest, bulk erasure, the
+/// registry's write side and the quarantine queue are an operator's.
+pub const AGENT_REMOVED_TOOLS: [&str; 4] =
+    ["observe", "forget_scope", "define_store", "review_quarantine"];
+
+/// The most stores one read may name. Every store named is one more
+/// retrieval and adds its `k` items to the one cross-encoder pass.
+pub const MAX_STORES_PER_READ: usize = 8;
+
 #[derive(Clone)]
 pub struct MyelinServer {
     backend: Arc<Backend>,
+    surface: Surface,
     tool_router: rmcp::handler::server::tool::ToolRouter<Self>,
+}
+
+/// What one retrieval is scoped to: a tenant, and the store that named it
+/// when the caller addressed a store.
+struct ReadScope {
+    tenant: String,
+    store: Option<StoreDef>,
+}
+
+impl ReadScope {
+    fn of_tenant(tenant: String) -> Self {
+        Self {
+            tenant,
+            store: None,
+        }
+    }
+
+    fn of_store(store: StoreDef) -> Self {
+        Self {
+            tenant: store.tenant.clone(),
+            store: Some(store),
+        }
+    }
+
+    fn store_name(&self) -> Option<String> {
+        self.store.as_ref().map(|s| s.name.clone())
+    }
+
+    /// The caller's `dated` when it gave one, else the store's own.
+    fn dated(&self, requested: Option<bool>) -> Option<bool> {
+        requested.or(self.store.as_ref().map(|s| s.dated))
+    }
 }
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
@@ -106,8 +202,15 @@ pub struct RecallParams {
     /// benchmark's metadata is disqualified, so there is deliberately no
     /// field here for a question id, a category, or a gold answer.
     pub query: String,
-    /// Mandatory. There is no read path that can span tenants (C12).
-    pub tenant: String,
+    /// A tenant; the full surface only. Name a tenant or `stores`, not both.
+    /// There is no read path that can span tenants (C12): a read of several
+    /// stores is one retrieval per store.
+    #[serde(default)]
+    pub tenant: Option<String>,
+    /// Stores to read, by name; the `stores` tool lists them. Empty with no
+    /// `tenant` reads every default store.
+    #[serde(default)]
+    pub stores: Vec<String>,
     #[serde(default)]
     pub namespace: Option<String>,
     #[serde(default)]
@@ -196,7 +299,24 @@ pub struct RecallResult {
     /// Aligned 1:1 with `items`.
     pub hits: Vec<HitJson>,
     pub tokens: usize,
+    /// One per scope read, in the order the scopes were read.
+    pub traces: Vec<StoreRecallTrace>,
+}
+
+/// One scope's `recall` trace.
+#[derive(Debug, Serialize, schemars::JsonSchema)]
+pub struct StoreRecallTrace {
+    /// `None` on a tenant-addressed read.
+    pub store: Option<String>,
     pub trace: RecallTraceJson,
+}
+
+/// One scope's `investigate` trace.
+#[derive(Debug, Serialize, schemars::JsonSchema)]
+pub struct StoreInvestigateTrace {
+    /// `None` on a tenant-addressed read.
+    pub store: Option<String>,
+    pub trace: InvestigateTrace,
 }
 
 /// What a caller needs to address one hit without a second lookup. Sits beside
@@ -209,6 +329,8 @@ pub struct HitJson {
     /// The record's caller metadata. `None` for a record without any and for
     /// synthetic items (`[timeline]`, `[notes]`), which have a nil record id.
     pub meta: Option<serde_json::Map<String, serde_json::Value>>,
+    /// The store the hit came from. `None` on a tenant-addressed read.
+    pub store: Option<String>,
 }
 
 #[derive(Debug, Serialize, schemars::JsonSchema)]
@@ -268,18 +390,26 @@ impl From<RecallTrace> for RecallTraceJson {
 
 #[tool_router]
 impl MyelinServer {
-    pub fn new(backend: Arc<Backend>) -> Self {
+    pub fn new(backend: Arc<Backend>, surface: Surface) -> Self {
+        let mut tool_router = Self::tool_router();
+        if surface == Surface::Agent {
+            for name in AGENT_REMOVED_TOOLS {
+                tool_router.remove_route(name);
+            }
+        }
         Self {
             backend,
-            tool_router: Self::tool_router(),
+            surface,
+            tool_router,
         }
     }
 
     #[tool(
         name = "recall",
-        description = "Fast hybrid retrieval over one tenant's memory. BM25 + dense in one \
-                       round trip, RRF-fused, cross-encoder reranked, budgeted and \
-                       deduplicated. No LLM in the loop."
+        description = "Fast hybrid retrieval over the stores named in `stores`, or the default \
+                       stores when none is named. BM25 + dense in one round trip, RRF-fused, \
+                       cross-encoder reranked, budgeted and deduplicated. No LLM in the loop. \
+                       Each hit names the store it came from."
     )]
     async fn recall(
         &self,
@@ -296,41 +426,66 @@ impl MyelinServer {
             None => None,
         };
 
-        let mut scope = ScopeFilter::tenant(&params.tenant);
-        scope.namespace = params.namespace.clone();
-        scope.agent = params.agent.clone();
-        scope.session = params.session.clone();
+        let scopes = self.read_scopes(params.tenant.clone(), &params.stores).await?;
+        let merge_reranker = self.merge_reranker(&scopes)?;
 
         let defaults = Budget::default();
-        let query = Recall {
-            scope,
-            text: params.query,
-            budget: Budget {
-                k: params.k.unwrap_or(defaults.k),
-                tokens: params.budget_tokens.unwrap_or(defaults.tokens),
-                max_steps: defaults.max_steps,
-            },
-            mode: Mode::Recall,
-            kinds,
-            as_of: parse_as_of(params.as_of.as_deref())?,
-            meta_filter: validated_filter(params.filter)?,
+        let budget = Budget {
+            k: params.k.unwrap_or(defaults.k),
+            tokens: params.budget_tokens.unwrap_or(defaults.tokens),
+            max_steps: defaults.max_steps,
         };
+        let as_of = parse_as_of(params.as_of.as_deref())?;
+        let meta_filter = validated_filter(params.filter.clone())?;
 
-        let mut retriever = self.retriever();
-        if params.tau_abstain.is_some() {
-            retriever.config.tau_abstain = params.tau_abstain;
+        // One retrieval per scope, each over its own tenant (C12).
+        let runs = try_join_all(scopes.iter().map(|scope| {
+            let mut filter = ScopeFilter::tenant(&scope.tenant);
+            filter.namespace = params.namespace.clone();
+            filter.agent = params.agent.clone();
+            filter.session = params.session.clone();
+            let query = Recall {
+                scope: filter,
+                text: params.query.clone(),
+                budget,
+                mode: Mode::Recall,
+                kinds: kinds.clone(),
+                as_of,
+                meta_filter: meta_filter.clone(),
+            };
+            let mut retriever = self.retriever();
+            if params.tau_abstain.is_some() {
+                retriever.config.tau_abstain = params.tau_abstain;
+            }
+            apply_operating_point(
+                &mut retriever.config,
+                params.select,
+                scope.dated(params.dated),
+                params.kind_quota,
+            );
+            retriever.config.decompose = params.decompose;
+            async move { retriever.recall(&query).await.map_err(mcp_err) }
+        }))
+        .await?;
+
+        let mut sets = Vec::with_capacity(runs.len());
+        let mut traces = Vec::with_capacity(runs.len());
+        for (scope, (evidence, trace)) in scopes.iter().zip(runs) {
+            traces.push(StoreRecallTrace {
+                store: scope.store_name(),
+                trace: trace.into(),
+            });
+            sets.push(evidence);
         }
-        apply_operating_point(
-            &mut retriever.config,
-            params.select,
-            params.dated,
-            params.kind_quota,
-        );
-        retriever.config.decompose = params.decompose;
-        let (evidence, trace) = retriever.recall(&query).await.map_err(mcp_err)?;
-
-        let hits = self.hits_of(&evidence.items).await?;
-        Ok(Json(to_result(evidence, hits, trace)))
+        let merged = merge_read(merge_reranker, &params.query, sets, &budget).await?;
+        let hits = self.hits_of(&scopes, &merged).await?;
+        Ok(Json(RecallResult {
+            items: wire_items(&merged.items),
+            record_ids: record_ids(&merged.items),
+            hits,
+            tokens: merged.tokens,
+            traces,
+        }))
     }
 
     #[tool(
@@ -343,39 +498,21 @@ impl MyelinServer {
         &self,
         Parameters(params): Parameters<InvestigateParams>,
     ) -> Result<Json<InvestigateResult>, ErrorData> {
+        let scopes = self.read_scopes(params.tenant.clone(), &params.stores).await?;
+        let merge_reranker = self.merge_reranker(&scopes)?;
+
         let defaults = Budget::default();
-        let mut scope = ScopeFilter::tenant(&params.tenant);
-        scope.namespace = params.namespace.clone();
-
-        let query = Recall {
-            scope,
-            text: params.question,
-            budget: Budget {
-                k: params.k.unwrap_or(defaults.k),
-                tokens: params.budget_tokens.unwrap_or(defaults.tokens),
-                // One source of truth: the measured default lives on
-                // `InvestigateConfig` with the curve that justifies it.
-                max_steps: params
-                    .max_steps
-                    .unwrap_or(InvestigateConfig::default().max_steps),
-            },
-            mode: Mode::Investigate,
-            kinds: None,
-            as_of: parse_as_of(params.as_of.as_deref())?,
-            meta_filter: validated_filter(params.filter)?,
+        let budget = Budget {
+            k: params.k.unwrap_or(defaults.k),
+            tokens: params.budget_tokens.unwrap_or(defaults.tokens),
+            // One source of truth: the measured default lives on
+            // `InvestigateConfig` with the curve that justifies it.
+            max_steps: params
+                .max_steps
+                .unwrap_or(InvestigateConfig::default().max_steps),
         };
-
-        // `select` reaches `InvestigateConfig`, never `RetrieveConfig`: this
-        // loop selects once over its accumulated pool, and a per-probe
-        // selection underneath it is the arrangement M21 measured at +0.0.
-        let mut retriever = self.retriever();
-        apply_operating_point(
-            &mut retriever.config,
-            None,
-            params.dated,
-            params.kind_quota,
-        );
-        retriever.config.decompose = params.decompose;
+        let as_of = parse_as_of(params.as_of.as_deref())?;
+        let meta_filter = validated_filter(params.filter.clone())?;
         // `--premise` implies the gate: the analysis rewrites the statement
         // the gate emits, so one without the other is a silently inert
         // switch — the exact class of failure M12, M14 and M20 each lost a
@@ -427,24 +564,61 @@ impl MyelinServer {
             typed_probes: params.typed_probes.unwrap_or(false),
             ..InvestigateConfig::default()
         };
-        let (evidence, trace) = Investigator::new(&self.backend.llm, &retriever)
-            .with_config(cfg)
-            .investigate(&query)
-            .await
-            .map_err(mcp_err)?;
 
-        let hits = self.hits_of(&evidence.items).await?;
+        // One investigation per scope, each over its own tenant (C12).
+        // `select` reaches `InvestigateConfig`, never `RetrieveConfig`: this
+        // loop selects once over its accumulated pool, and a per-probe
+        // selection underneath it is the arrangement M21 measured at +0.0.
+        let runs = try_join_all(scopes.iter().map(|scope| {
+            let mut filter = ScopeFilter::tenant(&scope.tenant);
+            filter.namespace = params.namespace.clone();
+            let query = Recall {
+                scope: filter,
+                text: params.question.clone(),
+                budget,
+                mode: Mode::Investigate,
+                kinds: None,
+                as_of,
+                meta_filter: meta_filter.clone(),
+            };
+            let mut retriever = self.retriever();
+            apply_operating_point(
+                &mut retriever.config,
+                None,
+                scope.dated(params.dated),
+                params.kind_quota,
+            );
+            retriever.config.decompose = params.decompose;
+            async move {
+                Investigator::new(self.backend.llm.as_ref(), &retriever)
+                    .with_config(cfg)
+                    .investigate(&query)
+                    .await
+                    .map_err(mcp_err)
+            }
+        }))
+        .await?;
+
+        let mut sets = Vec::with_capacity(runs.len());
+        let mut traces = Vec::with_capacity(runs.len());
+        let mut queries = Vec::new();
+        for (scope, (evidence, trace)) in scopes.iter().zip(runs) {
+            queries.extend(evidence.trace.iter().map(|t| t.query.clone()));
+            traces.push(StoreInvestigateTrace {
+                store: scope.store_name(),
+                trace,
+            });
+            sets.push(evidence);
+        }
+        let merged = merge_read(merge_reranker, &params.question, sets, &budget).await?;
+        let hits = self.hits_of(&scopes, &merged).await?;
         Ok(Json(InvestigateResult {
-            items: evidence.to_wire(),
-            record_ids: evidence
-                .items
-                .iter()
-                .map(|i| i.record_id.to_string())
-                .collect(),
+            items: wire_items(&merged.items),
+            record_ids: record_ids(&merged.items),
             hits,
-            tokens: evidence.tokens,
-            queries: evidence.trace.iter().map(|t| t.query.clone()).collect(),
-            trace,
+            tokens: merged.tokens,
+            queries,
+            traces,
         }))
     }
 
@@ -460,7 +634,8 @@ impl MyelinServer {
         Parameters(params): Parameters<TrajectoriesParams>,
     ) -> Result<Json<TrajectoriesResult>, ErrorData> {
         let started = std::time::Instant::now();
-        let mut scope = ScopeFilter::tenant(&params.tenant);
+        let target = self.one_scope(params.tenant, params.store).await?;
+        let mut scope = ScopeFilter::tenant(&target.tenant);
         scope.namespace = params.namespace.clone();
         let config = TrajectoryAgentConfig {
             max_steps: params
@@ -469,7 +644,7 @@ impl MyelinServer {
             ..TrajectoryAgentConfig::default()
         };
         let tools = TrajectoryTools::new(&self.backend.ledger, scope);
-        let run = TrajectoryAgent::new(&self.backend.llm, tools, config)
+        let run = TrajectoryAgent::new(self.backend.llm.as_ref(), tools, config)
             .run(&params.question)
             .await
             .map_err(mcp_err)?;
@@ -508,8 +683,10 @@ impl MyelinServer {
         &self,
         Parameters(params): Parameters<RememberParams>,
     ) -> Result<Json<WriteResult>, ErrorData> {
+        let target = self.one_scope(params.tenant, params.store).await?;
+        self.require_writable(&target)?;
         let scope = Scope::new(
-            &params.tenant,
+            &target.tenant,
             params.agent.as_deref().unwrap_or("myelin"),
             params.namespace.as_deref().unwrap_or("default"),
         );
@@ -536,8 +713,9 @@ impl MyelinServer {
         &self,
         Parameters(params): Parameters<ObserveParams>,
     ) -> Result<Json<WriteResult>, ErrorData> {
+        let target = self.one_scope(params.tenant, params.store).await?;
         let scope = Scope::new(
-            &params.tenant,
+            &target.tenant,
             params.agent.as_deref().unwrap_or("myelin"),
             params.namespace.as_deref().unwrap_or("default"),
         );
@@ -571,7 +749,8 @@ impl MyelinServer {
         &self,
         Parameters(params): Parameters<SearchParams>,
     ) -> Result<Json<SearchResult>, ErrorData> {
-        let mut scope = ScopeFilter::tenant(&params.tenant);
+        let target = self.one_scope(params.tenant, params.store).await?;
+        let mut scope = ScopeFilter::tenant(&target.tenant);
         scope.namespace = params.namespace.clone();
         scope.agent = params.agent.clone();
         let limit = params.limit.unwrap_or(20).min(200) as i64;
@@ -596,7 +775,8 @@ impl MyelinServer {
         &self,
         Parameters(params): Parameters<ProfileParams>,
     ) -> Result<Json<ProfileResult>, ErrorData> {
-        let mut scope = ScopeFilter::tenant(&params.tenant);
+        let target = self.one_scope(params.tenant, params.store).await?;
+        let mut scope = ScopeFilter::tenant(&target.tenant);
         scope.namespace = params.namespace.clone();
         scope.agent = params.agent.clone();
         let limit = params.limit.unwrap_or(20).min(200) as i64;
@@ -669,6 +849,9 @@ impl MyelinServer {
         Parameters(params): Parameters<ForgetParams>,
     ) -> Result<Json<ForgetResult>, ErrorData> {
         let id = parse_uuid(&params.record_id)?;
+        if self.surface == Surface::Agent {
+            self.require_agent_forgettable(id, &params.mode).await?;
+        }
         let actor = ActorId::new(params.actor.as_deref().unwrap_or("mcp"));
         let reason = params.reason.unwrap_or_else(|| "forget via mcp".into());
 
@@ -741,10 +924,11 @@ impl MyelinServer {
         &self,
         Parameters(params): Parameters<NamespacesParams>,
     ) -> Result<Json<NamespacesResult>, ErrorData> {
+        let target = self.one_scope(params.tenant, params.store).await?;
         let rows = self
             .backend
             .ledger
-            .namespace_inventory(&params.tenant, params.namespace.as_deref(), chrono::Utc::now())
+            .namespace_inventory(&target.tenant, params.namespace.as_deref(), chrono::Utc::now())
             .await
             .map_err(mcp_err)?;
         let total_records = rows.iter().map(|(_, n)| n).sum();
@@ -786,10 +970,11 @@ impl MyelinServer {
             .reason
             .unwrap_or_else(|| "forget_scope via mcp".into());
 
+        let target = self.one_scope(params.tenant, params.store).await?;
         let ids = myelin_core::pipeline::forget::forget_scope(
             &self.backend.ledger,
             &self.backend.store,
-            &params.tenant,
+            &target.tenant,
             &params.namespace,
             &keep,
             &actor,
@@ -867,6 +1052,60 @@ impl MyelinServer {
                 .collect(),
         }))
     }
+
+    #[tool(
+        name = "stores",
+        description = "The stores this memory holds: each one's name, what it holds, whether a \
+                       read covers it when no store is named, whether `remember` may write to \
+                       it, whether its records are dated, and how many records and namespaces \
+                       it has. Call this first."
+    )]
+    async fn stores(&self) -> Result<Json<StoresResult>, ErrorData> {
+        let defs = self.backend.ledger.stores().await.map_err(mcp_err)?;
+        let now = chrono::Utc::now();
+        let mut stores = Vec::with_capacity(defs.len());
+        for def in defs {
+            let rows = self
+                .backend
+                .ledger
+                .namespace_inventory(&def.tenant, None, now)
+                .await
+                .map_err(mcp_err)?;
+            stores.push(StoreInfo {
+                records: rows.iter().map(|(_, n)| n).sum(),
+                namespaces: rows.len(),
+                name: def.name,
+                description: def.description,
+                default: def.default_read,
+                writable: def.agent_writes,
+                dated: def.dated,
+            });
+        }
+        Ok(Json(StoresResult { stores }))
+    }
+
+    #[tool(
+        name = "define_store",
+        description = "Name a tenant as a store, or restate a store's description and flags. \
+                       Idempotent. A name already bound to another tenant is refused, and so is \
+                       a tenant already bound to another name."
+    )]
+    async fn define_store(
+        &self,
+        Parameters(def): Parameters<StoreDef>,
+    ) -> Result<Json<StoreDef>, ErrorData> {
+        self.backend
+            .ledger
+            .define_store(&def)
+            .await
+            .map_err(|e| match e {
+                // The one core error whose text is the caller's to read: it
+                // names only what the caller sent and the binding it hit.
+                myelin_core::MyelinError::StoreDefinition(msg) => invalid(msg),
+                other => mcp_err(other),
+            })?;
+        Ok(Json(def))
+    }
 }
 
 impl MyelinServer {
@@ -898,12 +1137,16 @@ impl MyelinServer {
         Ok(Json(WriteResult::from_stats(&stats)))
     }
 
-    /// `hits` for an evidence set: per-item id, source, score and the record's
-    /// `meta`. One ledger read per item (`k` is small); a nil id is a synthetic
-    /// view with no record behind it.
-    async fn hits_of(&self, items: &[EvidenceItem]) -> Result<Vec<HitJson>, ErrorData> {
-        let mut hits = Vec::with_capacity(items.len());
-        for item in items {
+    /// `hits` for a read: per-item id, source, score, the record's `meta` and
+    /// the store the item came from. One ledger read per item (`k` is small);
+    /// a nil id is a synthetic view with no record behind it.
+    async fn hits_of(
+        &self,
+        scopes: &[ReadScope],
+        merged: &MergedEvidence,
+    ) -> Result<Vec<HitJson>, ErrorData> {
+        let mut hits = Vec::with_capacity(merged.items.len());
+        for (item, origin) in merged.items.iter().zip(&merged.origins) {
             let meta = if item.record_id.is_nil() {
                 None
             } else {
@@ -919,6 +1162,7 @@ impl MyelinServer {
                 source: item.source.doc.clone(),
                 score: item.score,
                 meta,
+                store: scopes.get(*origin).and_then(ReadScope::store_name),
             });
         }
         Ok(hits)
@@ -926,8 +1170,8 @@ impl MyelinServer {
 
     fn write_path(&self) -> WritePath<'_> {
         WritePath::new(
-            &self.backend.llm,
-            &self.backend.embedder,
+            self.backend.llm.as_ref(),
+            self.backend.embedder.as_ref(),
             &self.backend.store,
             &self.backend.ledger,
         )
@@ -936,20 +1180,165 @@ impl MyelinServer {
     /// Both modes drive the same retriever over the same store (R4).
     fn retriever(&self) -> Retriever<'_> {
         let mut r = Retriever::new(
-            &self.backend.embedder,
+            self.backend.embedder.as_ref(),
             &self.backend.store,
             &self.backend.ledger,
         )
         .with_config(self.backend.config.clone());
-        if let Some(reranker) = &self.backend.reranker {
+        if let Some(reranker) = self.backend.reranker.as_deref() {
             r = r.with_reranker(reranker);
         }
         // Unconditional, like `with_reranker`: `RetrieveConfig::select_sufficient`
         // defaults false, so a wired client is inert until an operating point asks
         // for it — and wiring it only under the switch is the exact class of failure
         // M12, M14 and M20 each lost a run to.
-        r = r.with_llm(&self.backend.llm);
+        r = r.with_llm(self.backend.llm.as_ref());
         r
+    }
+
+    /// The scopes a read covers: a tenant (full surface only), the stores
+    /// named, or, with neither, every default store.
+    async fn read_scopes(
+        &self,
+        tenant: Option<String>,
+        stores: &[String],
+    ) -> Result<Vec<ReadScope>, ErrorData> {
+        if let Some(tenant) = tenant {
+            self.admit_tenant()?;
+            if !stores.is_empty() {
+                return Err(invalid("name a tenant or stores, not both"));
+            }
+            return Ok(vec![ReadScope::of_tenant(tenant)]);
+        }
+
+        let mut scopes: Vec<ReadScope> = Vec::with_capacity(stores.len());
+        if stores.is_empty() {
+            let defined = self.backend.ledger.stores().await.map_err(mcp_err)?;
+            scopes.extend(
+                defined
+                    .into_iter()
+                    .filter(|s| s.default_read)
+                    .map(ReadScope::of_store),
+            );
+            if scopes.is_empty() {
+                return Err(invalid(match self.surface {
+                    Surface::Full => "name a tenant or a store; no default store is defined",
+                    Surface::Agent => "name a store; no default store is defined",
+                }));
+            }
+        } else {
+            for name in stores {
+                if scopes.iter().any(|s| s.store_name().as_deref() == Some(name)) {
+                    return Err(invalid(format!("store {name:?} is named twice")));
+                }
+                scopes.push(ReadScope::of_store(self.store_named(name).await?));
+            }
+        }
+        if scopes.len() > MAX_STORES_PER_READ {
+            return Err(invalid(format!(
+                "a read covers at most {MAX_STORES_PER_READ} stores, not {}; name the ones to read",
+                scopes.len()
+            )));
+        }
+        Ok(scopes)
+    }
+
+    /// The scope of a tool that addresses exactly one: a tenant (full surface
+    /// only) or a store, never both and never neither.
+    async fn one_scope(
+        &self,
+        tenant: Option<String>,
+        store: Option<String>,
+    ) -> Result<ReadScope, ErrorData> {
+        match (tenant, store) {
+            (Some(tenant), store) => {
+                self.admit_tenant()?;
+                if store.is_some() {
+                    return Err(invalid("name a tenant or a store, not both"));
+                }
+                Ok(ReadScope::of_tenant(tenant))
+            }
+            (None, Some(name)) => Ok(ReadScope::of_store(self.store_named(&name).await?)),
+            (None, None) => Err(invalid(match self.surface {
+                Surface::Full => "name a tenant or a store",
+                Surface::Agent => "name a store; `stores` lists them",
+            })),
+        }
+    }
+
+    fn admit_tenant(&self) -> Result<(), ErrorData> {
+        match self.surface {
+            Surface::Full => Ok(()),
+            Surface::Agent => Err(invalid(
+                "this surface addresses stores by name; call stores",
+            )),
+        }
+    }
+
+    async fn store_named(&self, name: &str) -> Result<StoreDef, ErrorData> {
+        self.backend
+            .ledger
+            .store(name)
+            .await
+            .map_err(mcp_err)?
+            .ok_or_else(|| invalid(format!("no store named {name:?}; `stores` lists them")))
+    }
+
+    /// The reranker that merges a read of several scopes; `None` for a read
+    /// of one, which merges nothing. Asked before any retrieval runs, so a
+    /// read that cannot be merged is refused before it is paid for.
+    fn merge_reranker(&self, scopes: &[ReadScope]) -> Result<Option<&dyn Reranker>, ErrorData> {
+        if scopes.len() < 2 {
+            return Ok(None);
+        }
+        match self.backend.reranker.as_deref() {
+            Some(reranker) => Ok(Some(reranker)),
+            None => Err(invalid("reading more than one store needs the reranker")),
+        }
+    }
+
+    /// The agent surface writes only where a store accepts agent writes.
+    fn require_writable(&self, target: &ReadScope) -> Result<(), ErrorData> {
+        if self.surface == Surface::Full {
+            return Ok(());
+        }
+        match &target.store {
+            Some(store) if store.agent_writes => Ok(()),
+            Some(store) => Err(invalid(format!(
+                "store {:?} does not accept writes from this surface; `stores` marks the ones \
+                 that do",
+                store.name
+            ))),
+            None => self.admit_tenant(),
+        }
+    }
+
+    /// The agent surface's `forget`: soft only, and only a record of a store
+    /// that accepts agent writes.
+    async fn require_agent_forgettable(&self, id: uuid::Uuid, mode: &str) -> Result<(), ErrorData> {
+        if mode != "soft" {
+            return Err(invalid(
+                "this surface invalidates and keeps history: mode must be \"soft\"",
+            ));
+        }
+        let record = self
+            .backend
+            .ledger
+            .get(id)
+            .await
+            .map_err(mcp_err)?
+            .ok_or_else(|| invalid(format!("no record {id}")))?;
+        let stores = self.backend.ledger.stores().await.map_err(mcp_err)?;
+        if stores
+            .iter()
+            .any(|s| s.agent_writes && s.tenant == record.scope.tenant)
+        {
+            Ok(())
+        } else {
+            Err(invalid(format!(
+                "record {id} is not in a store that accepts writes from this surface"
+            )))
+        }
     }
 }
 
@@ -1000,7 +1389,7 @@ fn validated_filter(filter: Vec<MetaCondition>) -> Result<Vec<MetaCondition>, Er
 }
 
 /// `^[a-z_][a-z0-9_]*$`
-pub(crate) fn is_meta_key(key: &str) -> bool {
+pub fn is_meta_key(key: &str) -> bool {
     let mut chars = key.chars();
     matches!(chars.next(), Some(c) if c.is_ascii_lowercase() || c == '_')
         && chars.all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
@@ -1045,7 +1434,12 @@ fn apply_operating_point(
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 pub struct TrajectoriesParams {
     pub question: String,
-    pub tenant: String,
+    /// A tenant; the full surface only. Exactly one of `tenant` and `store`.
+    #[serde(default)]
+    pub tenant: Option<String>,
+    /// A store, by name; the `stores` tool lists them.
+    #[serde(default)]
+    pub store: Option<String>,
     #[serde(default)]
     pub namespace: Option<String>,
     /// Tool calls before the answer is forced.
@@ -1076,7 +1470,14 @@ pub struct TrajectoriesTrace {
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 pub struct InvestigateParams {
     pub question: String,
-    pub tenant: String,
+    /// A tenant; the full surface only. Name a tenant or `stores`, not both.
+    #[serde(default)]
+    pub tenant: Option<String>,
+    /// Stores to investigate, by name; the `stores` tool lists them. Empty
+    /// with no `tenant` investigates every default store. One investigation
+    /// runs per store.
+    #[serde(default)]
+    pub stores: Vec<String>,
     #[serde(default)]
     pub namespace: Option<String>,
     #[serde(default)]
@@ -1192,21 +1593,59 @@ pub struct InvestigateResult {
     /// Every search the loop actually issued, in order — the agentic trace
     /// `EVALUATION.md` §9 requires.
     pub queries: Vec<String>,
-    pub trace: InvestigateTrace,
+    /// One per scope investigated, in the order the scopes were read.
+    pub traces: Vec<StoreInvestigateTrace>,
 }
 
-fn to_result(evidence: EvidenceSet, hits: Vec<HitJson>, trace: RecallTrace) -> RecallResult {
-    RecallResult {
-        items: evidence.to_wire(),
-        record_ids: evidence
-            .items
-            .iter()
-            .map(|i| i.record_id.to_string())
-            .collect(),
-        hits,
-        tokens: evidence.tokens,
-        trace: trace.into(),
+/// The R1 wire form of a read's items: `{type, value}` and nothing else.
+fn wire_items(items: &[EvidenceItem]) -> Vec<WireItem> {
+    items
+        .iter()
+        .map(|i| WireItem {
+            kind: i.kind,
+            value: i.value.clone(),
+        })
+        .collect()
+}
+
+fn record_ids(items: &[EvidenceItem]) -> Vec<String> {
+    items.iter().map(|i| i.record_id.to_string()).collect()
+}
+
+/// One evidence set for a read. One scope's evidence is returned as its
+/// retrieval composed it; several are pooled and ordered by one cross-encoder
+/// pass, because fused rank scores from separate retrievals do not compare
+/// ([`merge_scopes`]). `reranker` is [`MyelinServer::merge_reranker`]'s
+/// answer for the same scopes.
+async fn merge_read(
+    reranker: Option<&dyn Reranker>,
+    query: &str,
+    mut sets: Vec<EvidenceSet>,
+    budget: &Budget,
+) -> Result<MergedEvidence, ErrorData> {
+    match reranker {
+        Some(reranker) => merge_scopes(
+            reranker,
+            query,
+            sets.into_iter().map(|set| set.items).collect(),
+            budget.k,
+            budget.tokens,
+        )
+        .await
+        .map_err(mcp_err),
+        None => {
+            let only = sets.pop().unwrap_or_default();
+            Ok(MergedEvidence {
+                origins: vec![0; only.items.len()],
+                tokens: only.tokens,
+                items: only.items,
+            })
+        }
     }
+}
+
+fn invalid(message: impl Into<String>) -> ErrorData {
+    ErrorData::invalid_params(message.into(), None)
 }
 
 // `router = self.tool_router` rather than the default: the default form
@@ -1217,10 +1656,7 @@ impl ServerHandler for MyelinServer {
     fn get_info(&self) -> ServerInfo {
         ServerInfo::new(ServerCapabilities::builder().enable_tools().build())
             .with_server_info(Implementation::new("myelin-mcp", env!("CARGO_PKG_VERSION")))
-            .with_instructions(
-                "Agentic memory. `recall` is the fast read path; it never returns more than k \
-                 items and every item is individually addressable by record id.",
-            )
+            .with_instructions(self.surface.instructions())
     }
 }
 
@@ -1289,7 +1725,13 @@ impl RecordStub {
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 pub struct RememberParams {
     pub text: String,
-    pub tenant: String,
+    /// A tenant; the full surface only. Exactly one of `tenant` and `store`.
+    #[serde(default)]
+    pub tenant: Option<String>,
+    /// A store, by name; the `stores` tool lists them and marks the ones
+    /// that accept writes.
+    #[serde(default)]
+    pub store: Option<String>,
     #[serde(default)]
     pub agent: Option<String>,
     #[serde(default)]
@@ -1334,7 +1776,12 @@ pub struct ObserveTurn {
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 pub struct ObserveParams {
     pub turns: Vec<ObserveTurn>,
-    pub tenant: String,
+    /// Exactly one of `tenant` and `store`.
+    #[serde(default)]
+    pub tenant: Option<String>,
+    /// A store, by name.
+    #[serde(default)]
+    pub store: Option<String>,
     #[serde(default)]
     pub agent: Option<String>,
     #[serde(default)]
@@ -1394,7 +1841,12 @@ impl WriteResult {
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 pub struct SearchParams {
-    pub tenant: String,
+    /// A tenant; the full surface only. Exactly one of `tenant` and `store`.
+    #[serde(default)]
+    pub tenant: Option<String>,
+    /// A store, by name; the `stores` tool lists them.
+    #[serde(default)]
+    pub store: Option<String>,
     #[serde(default)]
     pub namespace: Option<String>,
     #[serde(default)]
@@ -1405,7 +1857,12 @@ pub struct SearchParams {
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 pub struct ProfileParams {
-    pub tenant: String,
+    /// A tenant; the full surface only. Exactly one of `tenant` and `store`.
+    #[serde(default)]
+    pub tenant: Option<String>,
+    /// A store, by name; the `stores` tool lists them.
+    #[serde(default)]
+    pub store: Option<String>,
     #[serde(default)]
     pub namespace: Option<String>,
     #[serde(default)]
@@ -1452,7 +1909,12 @@ pub struct ForgetResult {
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 pub struct NamespacesParams {
-    pub tenant: String,
+    /// A tenant; the full surface only. Exactly one of `tenant` and `store`.
+    #[serde(default)]
+    pub tenant: Option<String>,
+    /// A store, by name; the `stores` tool lists them.
+    #[serde(default)]
+    pub store: Option<String>,
     #[serde(default)]
     pub namespace: Option<String>,
 }
@@ -1472,7 +1934,12 @@ pub struct NamespacesResult {
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 pub struct ForgetScopeParams {
-    pub tenant: String,
+    /// Exactly one of `tenant` and `store`.
+    #[serde(default)]
+    pub tenant: Option<String>,
+    /// A store, by name.
+    #[serde(default)]
+    pub store: Option<String>,
     /// Required: a missing namespace must not mean "the whole tenant".
     pub namespace: String,
     /// Record ids (UUIDs) to leave in place.
@@ -1575,6 +2042,29 @@ pub struct NeighborsResult {
 #[derive(Debug, Serialize, schemars::JsonSchema)]
 pub struct QuarantineResult {
     pub staged: Vec<QuarantineStub>,
+}
+
+/// One store, as the `stores` tool reports it.
+#[derive(Debug, Serialize, schemars::JsonSchema)]
+pub struct StoreInfo {
+    pub name: String,
+    /// What the store holds.
+    pub description: String,
+    /// Read when a read names no store.
+    pub default: bool,
+    /// Whether `remember` may write to it from the agent surface.
+    pub writable: bool,
+    /// Whether its records carry real event dates.
+    pub dated: bool,
+    /// Live records.
+    pub records: i64,
+    /// Namespaces with at least one live record.
+    pub namespaces: usize,
+}
+
+#[derive(Debug, Serialize, schemars::JsonSchema)]
+pub struct StoresResult {
+    pub stores: Vec<StoreInfo>,
 }
 
 #[cfg(test)]

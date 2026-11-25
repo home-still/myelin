@@ -1,10 +1,13 @@
 //! `myelin-mcp` — the MCP surface over `myelin-core` (`PLAN.md` §3.2).
 //!
-//! stdio by default, streamable HTTP behind `--serve`, selected by clap
-//! exactly as `hs-mcp` does (`docs/research/09-house-conventions.md` §8).
-//! The binary contains no memory logic; see `server.rs`.
+//! stdio by default, streamable HTTP behind `--serve` (the full surface) and
+//! `--serve-agents` (the agent surface), selected by clap exactly as `hs-mcp`
+//! does (`docs/research/09-house-conventions.md` §8). The binary contains no
+//! memory logic; see `server.rs`.
 
 use std::sync::Arc;
+
+use anyhow::Context;
 
 use clap::Parser;
 use rmcp::transport::streamable_http_server::session::local::LocalSessionManager;
@@ -13,21 +16,27 @@ use rmcp::transport::stdio;
 use qdrant_client::qdrant::FieldType;
 use rmcp::ServiceExt;
 
-mod server;
+use myelin_mcp::server::{self, Backend, MyelinServer, Surface};
 
-use server::{Backend, MyelinServer};
-
-/// The bearer token `--serve` requires on a non-loopback bind.
+/// The bearer token every non-loopback listener requires and checks.
 const TOKEN_ENV: &str = "MYELIN_MCP_TOKEN";
 
 /// myelin-mcp — MCP server over the myelin memory backend
 #[derive(Parser)]
 #[command(name = "myelin-mcp")]
 struct Args {
-    /// Run as a streamable-HTTP server on this address (default: stdio mode).
-    /// Example: --serve 127.0.0.1:7446
-    #[arg(long)]
-    serve: Option<String>,
+    /// Serve the full surface over streamable HTTP on this address.
+    /// Repeatable. With neither this nor `--serve-agents`, the transport is
+    /// stdio. Example: --serve 127.0.0.1:7462
+    #[arg(long, value_name = "ADDR")]
+    serve: Vec<String>,
+
+    /// Serve the agent surface over streamable HTTP on this address: scopes
+    /// are addressed by store name, and bulk ingest, bulk erasure, store
+    /// definition and the quarantine queue are not offered. Repeatable.
+    /// Example: --serve-agents 127.0.0.1:7463
+    #[arg(long = "serve-agents", value_name = "ADDR")]
+    serve_agents: Vec<String>,
 
     /// Qdrant collection to read. Overrides the configured default so one
     /// build can serve LoCoMo and another LME-V2 without editing config.
@@ -137,82 +146,115 @@ async fn main() -> anyhow::Result<()> {
         backend.config.prefetch_limit, backend.config.rerank_depth, backend.config.rerank_factor
     );
 
-    match args.serve.as_deref() {
-        Some(addr) => {
-            let listener = tokio::net::TcpListener::bind(addr).await?;
-            let bound = listener.local_addr()?;
-            let token = std::env::var(TOKEN_ENV).ok().filter(|t| !t.is_empty());
+    // Every address is bound before any of them serves: a port that is taken
+    // fails the start instead of leaving half the listeners up.
+    let mut listeners = Vec::with_capacity(args.serve.len() + args.serve_agents.len());
+    for (surface, addrs) in [
+        (Surface::Full, &args.serve),
+        (Surface::Agent, &args.serve_agents),
+    ] {
+        for addr in addrs {
+            let listener = tokio::net::TcpListener::bind(addr)
+                .await
+                .with_context(|| format!("bind {addr}"))?;
+            listeners.push((surface, listener));
+        }
+    }
 
-            // An anonymous bind is only defensible when the kernel already
-            // restricts who can reach it. `forget` with `mode: "hard"` and
-            // `confirm: true` erases a record and its whole descendant
-            // closure, and there is no other authentication anywhere in this
-            // binary.
-            if !bound.ip().is_loopback() && token.is_none() {
+    if listeners.is_empty() {
+        // stdio carries the protocol, so diagnostics must go to stderr.
+        eprintln!("myelin-mcp: transport=stdio collection={collection}");
+        let service = MyelinServer::new(backend, Surface::Full)
+            .serve(stdio())
+            .await?;
+        service.waiting().await?;
+        return Ok(());
+    }
+
+    let token = std::env::var(TOKEN_ENV).ok().filter(|t| !t.is_empty());
+    let mut routed = Vec::with_capacity(listeners.len());
+    for (surface, listener) in listeners {
+        let bound = listener.local_addr()?;
+        // An anonymous listener is only defensible when the kernel already
+        // restricts who can reach it. `forget` with `mode: "hard"` and
+        // `confirm: true` erases a record and its whole descendant closure,
+        // and there is no other authentication anywhere in this binary. So a
+        // loopback listener is anonymous, and any other requires the token
+        // and checks it on every request.
+        let bearer = if bound.ip().is_loopback() {
+            None
+        } else {
+            let Some(token) = token.as_deref() else {
                 anyhow::bail!(
-                    "--serve {bound} is not loopback; set {TOKEN_ENV} to a bearer token \
-                     (every tool, including hard forget, is otherwise anonymous)"
+                    "{bound} is not loopback; set {TOKEN_ENV} to a bearer token \
+                     (every tool it serves is otherwise anonymous)"
                 );
-            }
+            };
+            Some(token)
+        };
+        let router = http_router(backend.clone(), surface, bearer);
+        routed.push((surface, listener, bound, bearer.is_some(), router));
+    }
 
-            // `with_json_response(true)`: the benchmark adapter is a plain
-            // request/response client with no use for SSE streaming, and a
-            // single JSON body is far easier to debug from Python.
-            let config = StreamableHttpServerConfig::default().with_json_response(true);
-            let service: StreamableHttpService<MyelinServer, LocalSessionManager> =
-                StreamableHttpService::new(
-                    {
-                        let backend = backend.clone();
-                        move || Ok(MyelinServer::new(backend.clone()))
-                    },
-                    Default::default(),
-                    config,
-                );
-            let mut router = axum::Router::new().nest_service("/mcp", service);
-            if let Some(token) = token.clone() {
-                let expected: Arc<str> = Arc::from(format!("Bearer {token}"));
-                router = router.layer(axum::middleware::from_fn(
-                    move |req: axum::extract::Request, next: axum::middleware::Next| {
-                        let expected = expected.clone();
-                        async move {
-                            let presented = req
-                                .headers()
-                                .get(axum::http::header::AUTHORIZATION)
-                                .and_then(|v| v.to_str().ok())
-                                .unwrap_or_default();
-                            if constant_time_eq(presented.as_bytes(), expected.as_bytes()) {
-                                next.run(req).await
-                            } else {
-                                use axum::response::IntoResponse;
-                                axum::http::StatusCode::UNAUTHORIZED.into_response()
-                            }
-                        }
-                    },
-                ));
-            }
-            // Printed before serving and flushed: a supervisor waits on this
-            // line to know the port is accepting.
-            println!(
-                "myelin-mcp: transport=streamable-http addr={bound} collection={collection} \
-                 ledger={} auth={}",
-                cfg.ledger,
-                if token.is_some() { "bearer" } else { "none" }
-            );
+    let mut servers = Vec::with_capacity(routed.len());
+    for (surface, listener, bound, authenticated, router) in routed {
+        // Printed before serving and flushed: a supervisor waits on this
+        // line to know the port is accepting.
+        println!(
+            "myelin-mcp: transport=streamable-http addr={bound} collection={collection} \
+             ledger={} auth={} surface={surface}",
+            cfg.ledger,
+            if authenticated { "bearer" } else { "none" }
+        );
+        servers.push(async move {
             axum::serve(listener, router)
                 .with_graceful_shutdown(async {
                     tokio::signal::ctrl_c().await.ok();
                 })
-                .await?;
-        }
-        None => {
-            // stdio carries the protocol, so diagnostics must go to stderr.
-            eprintln!("myelin-mcp: transport=stdio collection={collection}");
-            let service = MyelinServer::new(backend).serve(stdio()).await?;
-            service.waiting().await?;
-        }
+                .await
+        });
     }
+    futures_util::future::try_join_all(servers).await?;
 
     Ok(())
+}
+
+/// One listener's router: the MCP service at `/mcp`, behind the bearer check
+/// when `bearer` is given.
+fn http_router(backend: Arc<Backend>, surface: Surface, bearer: Option<&str>) -> axum::Router {
+    // `with_json_response(true)`: the benchmark adapter is a plain
+    // request/response client with no use for SSE streaming, and a single
+    // JSON body is far easier to debug from Python.
+    let config = StreamableHttpServerConfig::default().with_json_response(true);
+    let service: StreamableHttpService<MyelinServer, LocalSessionManager> =
+        StreamableHttpService::new(
+            move || Ok(MyelinServer::new(backend.clone(), surface)),
+            Default::default(),
+            config,
+        );
+    let router = axum::Router::new().nest_service("/mcp", service);
+    let Some(token) = bearer else {
+        return router;
+    };
+    let expected: Arc<str> = Arc::from(format!("Bearer {token}"));
+    router.layer(axum::middleware::from_fn(
+        move |req: axum::extract::Request, next: axum::middleware::Next| {
+            let expected = expected.clone();
+            async move {
+                let presented = req
+                    .headers()
+                    .get(axum::http::header::AUTHORIZATION)
+                    .and_then(|v| v.to_str().ok())
+                    .unwrap_or_default();
+                if constant_time_eq(presented.as_bytes(), expected.as_bytes()) {
+                    next.run(req).await
+                } else {
+                    use axum::response::IntoResponse;
+                    axum::http::StatusCode::UNAUTHORIZED.into_response()
+                }
+            }
+        },
+    ))
 }
 
 /// Compare two byte strings without an early exit.

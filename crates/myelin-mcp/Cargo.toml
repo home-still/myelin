@@ -5,6 +5,15 @@ edition = "2021"
 rust-version = "1.88"
 license.workspace = true
 
+[features]
+# Opts in the tests that talk to a live Qdrant. Off by default so
+# `cargo test --workspace` stays hermetic.
+integration = []
+
+[lib]
+name = "myelin_mcp"
+path = "src/lib.rs"
+
 [[bin]]
 name = "myelin-mcp"
 path = "src/main.rs"
@@ -17,6 +26,7 @@ uuid = { workspace = true }
 anyhow = { workspace = true }
 axum = { workspace = true }
 clap = { workspace = true }
+futures-util = { workspace = true }
 rmcp = { workspace = true }
 schemars = { workspace = true }
 serde = { workspace = true }
@@ -24,3 +34,8 @@ serde_json = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
+
+[dev-dependencies]
+async-trait = { workspace = true }
+# The integration tests speak MCP to the server in-process, as a client does.
+rmcp = { workspace = true, features = ["client"] }
