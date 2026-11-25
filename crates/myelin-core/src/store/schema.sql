@@ -177,3 +177,18 @@ CREATE TRIGGER IF NOT EXISTS trajectory_state_no_update BEFORE UPDATE ON traject
 BEGIN
     SELECT RAISE(ABORT, 'M62: a stored trajectory state is never mutated');
 END;
+
+-- Named stores: the address an agent reads and writes by. A store is one
+-- tenant under a stable name with the rules of its use, so C12 is untouched:
+-- every retrieval is still scoped to exactly one tenant, and a read that
+-- names several stores is several retrievals. `name` and `tenant` are each
+-- unique: a tenant reachable under two names would have two sets of rules.
+CREATE TABLE IF NOT EXISTS store (
+    name         TEXT PRIMARY KEY,
+    tenant       TEXT NOT NULL UNIQUE,
+    description  TEXT NOT NULL,
+    default_read INTEGER NOT NULL CHECK (default_read IN (0, 1)),
+    agent_writes INTEGER NOT NULL CHECK (agent_writes IN (0, 1)),
+    dated        INTEGER NOT NULL CHECK (dated IN (0, 1)),
+    defined_at   TEXT NOT NULL
+);
