@@ -40,6 +40,7 @@ use crate::model::record::{
     ActorId, EntityRef, Link, LinkKind, MemoryRecord, Provenance, RecordKind, Salience, Scope,
     SourceRef, Trust, TrustTier, Validity,
 };
+use crate::model::store::StoreDef;
 
 const SCHEMA: &str = include_str!("schema.sql");
 
@@ -116,6 +117,17 @@ fn row_to_trajectory_state(row: &SqliteRow) -> Result<TrajectoryState> {
         thought: row.get("thought"),
         accessibility_tree: row.get("accessibility_tree"),
     })
+}
+
+fn row_to_store(row: &SqliteRow) -> StoreDef {
+    StoreDef {
+        name: row.get("name"),
+        tenant: row.get("tenant"),
+        description: row.get("description"),
+        default_read: row.get("default_read"),
+        agent_writes: row.get("agent_writes"),
+        dated: row.get("dated"),
+    }
 }
 
 /// One row of the append-only decision log (C10).
@@ -1742,6 +1754,88 @@ impl Ledger {
         .await
         .map_err(sql)?;
         rows.iter().map(row_to_record).collect()
+    }
+
+    // ── Stores ──────────────────────────────────────────────────
+
+    /// Define a store, or restate one.
+    ///
+    /// Idempotent: the same name and tenant again updates the description and
+    /// the three flags and leaves `defined_at` alone. A name already bound to
+    /// another tenant, or a tenant already bound to another name, is refused:
+    /// re-pointing a name would silently change what every caller of it reads,
+    /// and one tenant under two names would have two sets of rules.
+    pub async fn define_store(&self, def: &StoreDef) -> Result<()> {
+        def.validate()?;
+        let mut tx = self.pool.begin().await.map_err(sql)?;
+        let bound = sqlx::query("SELECT name, tenant FROM store WHERE name = ? OR tenant = ?")
+            .bind(&def.name)
+            .bind(&def.tenant)
+            .fetch_all(&mut *tx)
+            .await
+            .map_err(sql)?;
+        for row in &bound {
+            let name: String = row.get("name");
+            let tenant: String = row.get("tenant");
+            if name == def.name && tenant != def.tenant {
+                return Err(MyelinError::StoreDefinition(format!(
+                    "store {name:?} is bound to tenant {tenant:?}, not {:?}",
+                    def.tenant
+                )));
+            }
+            if tenant == def.tenant && name != def.name {
+                return Err(MyelinError::StoreDefinition(format!(
+                    "tenant {tenant:?} is already store {name:?}; it cannot also be {:?}",
+                    def.name
+                )));
+            }
+        }
+        sqlx::query(
+            "INSERT INTO store
+                 (name, tenant, description, default_read, agent_writes, dated, defined_at)
+             VALUES (?,?,?,?,?,?,?)
+             ON CONFLICT (name) DO UPDATE SET
+                 description  = excluded.description,
+                 default_read = excluded.default_read,
+                 agent_writes = excluded.agent_writes,
+                 dated        = excluded.dated",
+        )
+        .bind(&def.name)
+        .bind(&def.tenant)
+        .bind(&def.description)
+        .bind(def.default_read)
+        .bind(def.agent_writes)
+        .bind(def.dated)
+        .bind(fmt_time(Utc::now()))
+        .execute(&mut *tx)
+        .await
+        .map_err(sql)?;
+        tx.commit().await.map_err(sql)
+    }
+
+    /// Every defined store, ordered by name.
+    pub async fn stores(&self) -> Result<Vec<StoreDef>> {
+        let rows = sqlx::query(
+            "SELECT name, tenant, description, default_read, agent_writes, dated
+             FROM store ORDER BY name",
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(sql)?;
+        Ok(rows.iter().map(row_to_store).collect())
+    }
+
+    /// One store by name; `None` when no store has that name.
+    pub async fn store(&self, name: &str) -> Result<Option<StoreDef>> {
+        let row = sqlx::query(
+            "SELECT name, tenant, description, default_read, agent_writes, dated
+             FROM store WHERE name = ?",
+        )
+        .bind(name)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(sql)?;
+        Ok(row.as_ref().map(row_to_store))
     }
 
     /// Restore a bundle verbatim (R3).

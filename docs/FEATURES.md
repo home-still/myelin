@@ -1,18 +1,22 @@
 # Features
 
 This document is the complete feature reference for myelin, derived from the
-source code. It covers the 13 MCP tools, both read paths, the write path,
+source code. It covers the 15 MCP tools, both read paths, the write path,
 retrieval architecture, multi-tenancy, configuration, and the eval harness.
 
 ## MCP tool surface
 
-myelin exposes 13 tools through the Model Context Protocol. The server
-(`myelin-mcp`) supports both stdio and streamable-HTTP (`--serve HOST:PORT`)
-transports. Source of truth: `crates/myelin-mcp/src/server.rs`.
+myelin exposes 15 tools through the Model Context Protocol. The server
+(`myelin-mcp`) supports both stdio and streamable-HTTP transports, and serves
+two surfaces: the **full** surface (`--serve HOST:PORT`, and stdio) with every
+tool, and the **agent** surface (`--serve-agents HOST:PORT`), described under
+[Stores and the agent surface](#stores-and-the-agent-surface). Source of
+truth: `crates/myelin-mcp/src/server.rs`.
 
 ### `recall` — fast hybrid retrieval
 
-Fast hybrid retrieval over one tenant's memory. BM25 + dense in one round
+Fast hybrid retrieval over one tenant, or over the stores named in `stores`
+(the default stores when neither is given). BM25 + dense in one round
 trip, RRF-fused, cross-encoder reranked, budgeted and deduplicated. **No LLM
 in the loop** — this is the fast path, pinned at "no LLM" by design (PLAN.md
 §7.1).
@@ -22,7 +26,8 @@ in the loop** — this is the fast path, pinned at "no LLM" by design (PLAN.md
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
 | `query` | string | yes | — | The question, verbatim |
-| `tenant` | string | yes | — | Mandatory; no read path spans tenants (C12) |
+| `tenant` | string | no | — | A tenant; full surface only. Name a tenant or `stores`, not both |
+| `stores` | [string] | no | `[]` | Stores to read, by name; at most 8. Empty with no `tenant` reads every default store. No read path spans tenants (C12): several stores are one retrieval each, merged by one cross-encoder pass |
 | `namespace` | string | no | none | Scope filter |
 | `agent` | string | no | none | Scope filter |
 | `session` | string | no | none | Scope filter |
@@ -31,16 +36,19 @@ in the loop** — this is the fast path, pinned at "no LLM" by design (PLAN.md
 | `kinds` | [string] | no | none | Filter: `episodic`, `semantic`, `procedural`, `working` |
 | `tau_abstain` | f32 | no | none | Withhold evidence when top score below this |
 | `select` | bool | no | false | LLM selects jointly-answering candidates (operating point, never a `recall` default) |
-| `dated` | bool | no | true | Whether records carry real timestamps |
+| `dated` | bool | no | true, or the store's `dated` | Whether records carry real timestamps |
 | `as_of` | string | no | none | The day the question is asked, `YYYY-MM-DD`; anchors the `[timeline]` view when `timeline_ago` is on (M46). Malformed dates are refused |
 | `decompose` | usize | no | none | Split into N sub-queries, fuse into same RRF call |
 | `filter` | [MetaCondition] | no | `[]` | Conditions on record `meta`, ANDed, applied before ranking (see below) |
 
 **Returns:** `RecallResult` — `items` (R1 wire shape `{type, value}`),
-`record_ids`, `hits` (aligned 1:1 with `items`), `tokens`, and `trace` (retrieval diagnostics: hit counts,
-latencies, top score, abstained flag).
+`record_ids`, `hits` (aligned 1:1 with `items`), `tokens`, and `traces`: one
+`{store, trace}` per scope read, where `trace` is that retrieval's diagnostics
+(hit counts, latencies, top score, abstained flag) and `store` is `null` on a
+tenant-addressed read.
 
-**Example** (captured from a real run against `locomo/conv-26`):
+**Example** (a tenant-addressed read of `locomo/conv-26`; the trace values are
+from a real run):
 ```json
 {
   "items": [
@@ -48,12 +56,15 @@ latencies, top score, abstained flag).
   ],
   "record_ids": ["8e0d200c-8eec-547f-a304-fab868c559b8"],
   "tokens": 1664,
-  "trace": {
-    "abstained": false, "admitted": 25, "dense_hits": 50,
-    "embed_ms": 45, "fused": 54, "lex_hits": 5,
-    "rerank_ms": 579, "reranked": 25, "search_ms": 58,
-    "top_score": -6.42, "total_ms": 686
-  }
+  "traces": [{
+    "store": null,
+    "trace": {
+      "abstained": false, "admitted": 25, "dense_hits": 50,
+      "embed_ms": 45, "fused": 54, "lex_hits": 5,
+      "rerank_ms": 579, "reranked": 25, "search_ms": 58,
+      "top_score": -6.42, "total_ms": 686
+    }
+  }]
 }
 ```
 
@@ -74,14 +85,17 @@ match `^[a-z_][a-z0-9_]*$`; a malformed filter is refused with
 startup, or the filter scans payloads. `filter` is not supported while the
 graph channel is on. `hits` is `[{record_id, source, score, meta}]`, one per
 item; `meta` is `null` for records without any and for synthetic items such as
-`[timeline]`. `investigate` takes the same `filter` and returns the same `hits`.
+`[timeline]`. Each hit also carries `store`, the name of the store it came from
+(`null` on a tenant-addressed read). `investigate` takes the same `filter` and
+returns the same `hits`.
 
 ### `investigate` — agentic search→reflect loop
 
 Agentic retrieval: search, reflect, search again, until the evidence is
 sufficient and self-consistent or the step budget runs out. Slower and more
 accurate than `recall`; returns the same evidence shape with additional
-`queries` and `trace` fields.
+`queries` and `traces` fields. Over several stores it runs one investigation
+per store and merges their evidence as `recall` does.
 
 **`select_sufficient` default is ON for `investigate`** (M32): the LLM
 selects which of the accumulated pool's records jointly answer the question,
@@ -104,7 +118,8 @@ negation filter `digest_relevance` measured −4.4 and stays off.
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
 | `question` | string | yes | — | The question |
-| `tenant` | string | yes | — | Mandatory |
+| `tenant` | string | no | — | A tenant; full surface only. Name a tenant or `stores`, not both |
+| `stores` | [string] | no | `[]` | Stores to investigate, by name; empty with no `tenant` means every default store |
 | `namespace` | string | no | none | Scope filter |
 | `k` | usize | no | 6 | Final evidence-set size |
 | `budget_tokens` | usize | no | 2048 | Token ceiling |
@@ -160,7 +175,8 @@ evidence, in the layout of the LME-V2 authors' own AgentRunbook-C.
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
 | `question` | string | yes | — | The question to gather evidence for |
-| `tenant` | string | yes | — | Tenant id |
+| `tenant` | string | one of | — | A tenant; full surface only |
+| `store` | string | one of | — | A store, by name |
 | `namespace` | string | no | — | Namespace filter |
 | `max_steps` | int | no | 16 | Tool calls before the answer is forced |
 
@@ -182,7 +198,8 @@ neighbours, apply a four-op delta, index. Idempotent by content. Set
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
 | `text` | string | yes | — | The statement to remember |
-| `tenant` | string | yes | — | Scope |
+| `tenant` | string | one of | — | A tenant; full surface only |
+| `store` | string | one of | — | A store, by name. On the agent surface it must accept agent writes |
 | `agent` | string | no | `"myelin"` | Agent identifier |
 | `namespace` | string | no | `"default"` | Namespace |
 | `speaker` | string | no | `"user"` | Who said it |
@@ -213,7 +230,8 @@ is the server's job, not the caller's.
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
 | `turns` | [ObserveTurn] | yes | — | Array of turns |
-| `tenant` | string | yes | — | Scope |
+| `tenant` | string | one of | — | A tenant |
+| `store` | string | one of | — | A store, by name |
 | `agent` | string | no | `"myelin"` | Agent identifier |
 | `namespace` | string | no | `"default"` | Namespace |
 | `unit` | string | no | `"observe"` | Unit label |
@@ -237,7 +255,8 @@ iteration: identifiers and previews, never full records.
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
-| `tenant` | string | yes | — | Scope |
+| `tenant` | string | one of | — | A tenant; full surface only |
+| `store` | string | one of | — | A store, by name |
 | `namespace` | string | no | none | Scope filter |
 | `agent` | string | no | none | Scope filter |
 | `limit` | usize | no | 20 | Max records (capped at 200) |
@@ -255,7 +274,8 @@ about the question.
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
-| `tenant` | string | yes | — | Scope |
+| `tenant` | string | one of | — | A tenant; full surface only |
+| `store` | string | one of | — | A store, by name |
 | `namespace` | string | no | none | Scope filter |
 | `agent` | string | no | none | Scope filter |
 | `limit` | usize | no | 20 | Max records (capped at 200) |
@@ -305,7 +325,8 @@ none left is not listed.
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
-| `tenant` | string | yes | — | Scope |
+| `tenant` | string | one of | — | A tenant; full surface only |
+| `store` | string | one of | — | A store, by name |
 | `namespace` | string | no | all | Report one namespace |
 
 **Returns:** `{ namespaces: [{ namespace, records }], total_records }`.
@@ -319,7 +340,8 @@ generation, then `forget_scope` with `keep` set to the ids it returned.
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
-| `tenant` | string | yes | — | Scope |
+| `tenant` | string | one of | — | A tenant |
+| `store` | string | one of | — | A store, by name |
 | `namespace` | string | yes | — | Scope |
 | `keep` | [string] | no | `[]` | Record ids to leave in place |
 | `confirm` | bool | yes | — | Refused (`invalid_params`) unless `true` |
@@ -353,6 +375,34 @@ event that touched it.
 
 **Returns:** `Explanation` — `{ lineage: { id, kind, preview, ancestors: [...] },
 events: [{ seq, at, kind, actor, reason }] }`.
+
+### `stores` — what this memory holds
+
+The stores, each with what an agent needs to choose one. No parameters.
+
+**Returns:** `{ stores: [{ name, description, default, writable, dated,
+records, namespaces }] }`. `default` is whether a read that names nothing
+covers the store; `writable` is whether `remember` may write to it from the
+agent surface; `records` and `namespaces` count what is live. The tenant
+behind a store is not reported.
+
+### `define_store` — name a tenant as a store
+
+Binds a store name to a tenant, or restates a store's description and flags.
+Idempotent. Full surface only.
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `name` | string | yes | — | `^[a-z][a-z0-9_]{0,31}$` |
+| `tenant` | string | yes | — | The tenant the store names |
+| `description` | string | yes | — | What the store holds; shown by `stores` |
+| `default_read` | bool | yes | — | Read when a read names no store |
+| `agent_writes` | bool | yes | — | `remember` and soft `forget` are allowed from the agent surface |
+| `dated` | bool | yes | — | The store's records carry real event dates; a read's `dated` defaults to this |
+
+**Returns:** the definition as stored. A name already bound to another tenant
+is refused (`invalid_params`), and so is a tenant already bound to another
+name.
 
 ---
 
@@ -538,7 +588,8 @@ spans tenants (C12: scope-before-ranking). The scope filter is:
 tenant / namespace / agent / session
 ```
 
-- `tenant` is mandatory on every tool that reads or writes.
+- every tool that reads or writes names one scope: a `tenant`, or a store that
+  names one. `recall` and `investigate` may name several stores.
 - `namespace` segments a tenant's memory (e.g., `work` vs `personal`).
 - `agent` identifies which agent wrote the record.
 - `session` further scopes within an agent.
@@ -550,6 +601,30 @@ pattern — post-filtering wastes budget on inadmissible memories.
 > **Known usability gap:** a wrong `tenant` returns 0 items with no error. See
 > [Quickstart](QUICKSTART.md#known-usability-pitfalls) for how to list valid
 > tenants.
+
+### Stores and the agent surface
+
+A **store** is a name for a tenant, kept in the ledger (`define_store`) with a
+description and three flags. Stores are how an agent addresses memory without
+knowing tenant strings: `stores` lists them, a read with no scope covers the
+ones marked `default_read`, and every hit says which store it came from.
+
+A read of several stores does not span tenants. Each store is retrieved on its
+own, under its own tenant filter, and the per-store evidence is then pooled
+and ordered by one cross-encoder pass over `(query, item text)`: fused rank
+scores from separate retrievals are not comparable. The pool is cut to `k` and
+then to `budget_tokens`. Without a reranker a read of more than one store is
+refused.
+
+`--serve-agents` serves the **agent surface**, which differs from the full
+surface in four ways:
+
+- `observe`, `forget_scope`, `define_store` and `review_quarantine` are not
+  registered: they do not appear in `tools/list`.
+- A `tenant` argument is refused on every tool; scopes are stores, by name.
+- `remember` writes only to a store with `agent_writes`.
+- `forget` is `soft` only, and only on a record of a store with
+  `agent_writes`.
 
 ---
 
@@ -576,7 +651,7 @@ pattern — post-filtering wastes budget on inadmissible memories.
 | `MYELIN_RERANK__URL` | `http://127.0.0.1:5813` | Reranker endpoint (server root, not `/v1`) |
 | `MYELIN_RERANK__MODEL` | `bge-reranker-v2-m3` | Reranker model name |
 | `MYELIN_LEDGER` | `data/myelin.ledger` | SQLite ledger path (admissibility authority) |
-| `MYELIN_MCP_TOKEN` | (none) | Bearer token for non-loopback `--serve` binds |
+| `MYELIN_MCP_TOKEN` | (none) | Bearer token. Required by, and checked on, every non-loopback listener; a loopback listener is anonymous |
 
 > **The Qdrant, embed, and rerank defaults point at the author's LAN
 > (`192.168.1.110`).** Override them for your environment. The reader LLM
@@ -587,7 +662,8 @@ pattern — post-filtering wastes budget on inadmissible memories.
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--serve HOST:PORT` | (stdio) | Run as streamable-HTTP server |
+| `--serve HOST:PORT` | (stdio) | Serve the full surface over streamable HTTP; repeatable |
+| `--serve-agents HOST:PORT` | none | Serve the agent surface over streamable HTTP; repeatable |
 | `--collection NAME` | config | Qdrant collection to read |
 | `--ledger PATH` | config | SQLite ledger path (must match collection) |
 | `--prefetch-limit N` | 50 | Candidates per channel before fusion |

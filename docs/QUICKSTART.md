@@ -128,7 +128,7 @@ myelin-mcp --serve 127.0.0.1:7462 --collection myelin_locomo --ledger data/locom
 Output (captured from a real run):
 ```
 retrieval: prefetch=50 rerank_depth=25
-myelin-mcp: transport=streamable-http addr=127.0.0.1:7462 collection=myelin_locomo ledger=data/locomo.ledger auth=none
+myelin-mcp: transport=streamable-http addr=127.0.0.1:7462 collection=myelin_locomo ledger=data/locomo.ledger auth=none surface=full
 ```
 
 The server is now accepting MCP requests at `http://127.0.0.1:7462/mcp`.
@@ -138,8 +138,18 @@ The server is now accepting MCP requests at `http://127.0.0.1:7462/mcp`.
 > `--help` text warns: *"a mismatched pair silently returns nothing."*
 
 > **Non-loopback bind requires a token:** if you bind to a non-loopback
-> address, set `MYELIN_MCP_TOKEN` to a bearer token. Every tool, including
-> hard `forget`, is otherwise anonymous.
+> address, set `MYELIN_MCP_TOKEN` to a bearer token. Every tool that listener
+> serves, including hard `forget`, is otherwise anonymous. The token is
+> checked on non-loopback listeners only; a loopback listener stays anonymous.
+> The two kinds also differ in the `Host` header they accept: a loopback
+> listener answers only to `localhost`, `127.0.0.1` and `::1` (anything else
+> is a 403, the defence against DNS rebinding), and a listener that checks the
+> bearer answers under whatever name a client or a proxy reaches it by.
+
+> **Agents get their own listener:** `--serve-agents HOST:PORT` serves the
+> agent surface, which addresses memory by store name and offers no bulk
+> ingest, bulk erasure or store definition. See
+> [Features](FEATURES.md#stores-and-the-agent-surface).
 
 ## Step 5: First `remember`
 
@@ -206,20 +216,24 @@ Response (captured from a real run against the `locomo/conv-26` tenant):
       ],
       "record_ids": ["8e0d200c-8eec-547f-a304-fab868c559b8"],
       "tokens": 1664,
-      "trace": {
-        "abstained": false, "admitted": 25, "dense_hits": 50,
-        "embed_ms": 45, "fused": 54, "lex_hits": 5,
-        "rerank_ms": 579, "reranked": 25, "search_ms": 58,
-        "top_score": -6.42, "total_ms": 686
-      }
+      "traces": [{
+        "store": null,
+        "trace": {
+          "abstained": false, "admitted": 25, "dense_hits": 50,
+          "embed_ms": 45, "fused": 54, "lex_hits": 5,
+          "rerank_ms": 579, "reranked": 25, "search_ms": 58,
+          "top_score": -6.42, "total_ms": 686
+        }
+      }]
     },
     "isError": false
   }
 }
 ```
 
-The `trace` field shows the retrieval pipeline: 50 dense hits + 5 lexical hits
-→ 54 fused → 25 reranked → 25 admitted, in 686 ms total.
+`traces` has one entry per scope read; a tenant is one scope. Its `trace` shows
+the retrieval pipeline: 50 dense hits + 5 lexical hits → 54 fused → 25 reranked
+→ 25 admitted, in 686 ms total.
 ![Live MCP session: initialize, tools/list, recall, remember](docs/images/mcp-session.png)
 
 *Figure 2: A live MCP session against `myelin_locomo` showing the `initialize` handshake (protocol 2025-06-18), `tools/list` (10 tools), `recall` on tenant `locomo/conv-26` (3 items, 686 ms), and `remember` with `as_profile: true` (1 added, 1 profile, 237 ms).*

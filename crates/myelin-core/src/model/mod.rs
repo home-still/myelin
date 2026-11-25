@@ -5,6 +5,7 @@ pub mod delta;
 pub mod evidence;
 pub mod query;
 pub mod record;
+pub mod store;
 pub mod trajectory;
 
 pub use delta::{AppliedDelta, Delta};
@@ -14,4 +15,5 @@ pub use record::{
     ActorId, EntityRef, Link, LinkKind, MemoryRecord, Provenance, RecordKind, Salience, Scope,
     SourceRef, Span, Trust, TrustTier, Validity,
 };
+pub use store::StoreDef;
 pub use trajectory::{AgentTrajectory, TrajectoryHeader, TrajectoryState, TrajectoryStep};

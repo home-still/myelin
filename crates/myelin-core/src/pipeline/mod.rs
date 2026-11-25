@@ -20,6 +20,7 @@ pub mod fuse;
 pub mod index;
 pub mod ingest;
 pub mod investigate;
+pub mod merge;
 pub mod phrases;
 pub mod query_shape;
 pub mod retrieve;

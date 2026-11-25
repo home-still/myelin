@@ -14,6 +14,12 @@ pub enum MyelinError {
     #[error("store: {0}")]
     Store(String),
 
+    /// A store definition the registry refuses: a malformed name, or a name
+    /// or tenant already bound elsewhere. The message names only what the
+    /// caller sent and the binding it collides with, so it is safe to return.
+    #[error("store definition: {0}")]
+    StoreDefinition(String),
+
     /// llama-swap answers `200` with a zero-byte body when the upstream model
     /// fails to load (`docs/research/00-verified-environment.md` §7.2). An empty
     /// completion is a failure, never a null answer — `PLAN.md` §4.1 R7.
@@ -52,6 +58,7 @@ impl MyelinError {
             Self::Qdrant(_) => "qdrant",
             Self::Config(_) => "config",
             Self::Store(_) => "store",
+            Self::StoreDefinition(_) => "store-definition",
             Self::EmptyCompletion { .. } => "llm-empty-completion",
             Self::BudgetExhausted { .. } => "llm-budget-exhausted",
             Self::Io(_) => "io",

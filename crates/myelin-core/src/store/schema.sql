@@ -60,6 +60,12 @@ CREATE TABLE IF NOT EXISTS record (
 );
 CREATE INDEX IF NOT EXISTS record_scope ON record (tenant, namespace, agent);
 CREATE INDEX IF NOT EXISTS record_live ON record (tenant, namespace, t_invalid, t_expired);
+-- Covers `Ledger::namespace_inventory`, which `stores` and `namespaces` call:
+-- every column that query reads, so counting a tenant never visits a row.
+-- Measured on a 5.3 GB ledger (364,303 records, 14,805 namespaces): 9.5 s cold
+-- and 0.8 s warm through `record_scope`, 56 ms through this index.
+CREATE INDEX IF NOT EXISTS record_inventory
+    ON record (tenant, namespace, t_invalid, t_expired, t_valid, trust_tier, prov_source);
 
 -- I1: a record is never mutated in place. Content, scope, provenance and the
 -- two creation timestamps are frozen at insert. Only the retraction columns
@@ -177,3 +183,18 @@ CREATE TRIGGER IF NOT EXISTS trajectory_state_no_update BEFORE UPDATE ON traject
 BEGIN
     SELECT RAISE(ABORT, 'M62: a stored trajectory state is never mutated');
 END;
+
+-- Named stores: the address an agent reads and writes by. A store is one
+-- tenant under a stable name with the rules of its use, so C12 is untouched:
+-- every retrieval is still scoped to exactly one tenant, and a read that
+-- names several stores is several retrievals. `name` and `tenant` are each
+-- unique: a tenant reachable under two names would have two sets of rules.
+CREATE TABLE IF NOT EXISTS store (
+    name         TEXT PRIMARY KEY,
+    tenant       TEXT NOT NULL UNIQUE,
+    description  TEXT NOT NULL,
+    default_read INTEGER NOT NULL CHECK (default_read IN (0, 1)),
+    agent_writes INTEGER NOT NULL CHECK (agent_writes IN (0, 1)),
+    dated        INTEGER NOT NULL CHECK (dated IN (0, 1)),
+    defined_at   TEXT NOT NULL
+);
