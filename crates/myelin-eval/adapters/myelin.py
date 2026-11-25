@@ -113,6 +113,21 @@ class McpError(RuntimeError):
     """A transport or tool-level failure talking to `myelin-mcp`."""
 
 
+def tenant_trace(result: dict[str, Any]) -> dict[str, Any]:
+    """The trace of a tenant-addressed `recall` or `investigate`.
+
+    The server returns `traces`, one entry per scope it read. A tenant is one
+    scope, so anything but one entry is a server this adapter does not know.
+    """
+    traces = result.get("traces")
+    if not isinstance(traces, list) or len(traces) != 1:
+        raise McpError(f"a tenant-addressed read returns exactly one trace, got: {traces!r}")
+    trace = traces[0].get("trace")
+    if not isinstance(trace, dict):
+        raise McpError(f"a trace entry carries a `trace` object, got: {traces[0]!r}")
+    return trace
+
+
 class _McpSession:
     """Minimal streamable-HTTP MCP client.
 
@@ -530,7 +545,7 @@ class MyelinMemory(Memory):
         # would be a lie in the trace. 29 of 451 questions carry one; they are
         # answered from text evidence like any other.
         result = self._session.call_tool(self.mode, arguments)
-        self._trace_local.trace = result.get("trace") or {}
+        self._trace_local.trace = tenant_trace(result)
         items = result.get("items", [])
         require(isinstance(items, list), f"recall returned non-list items: {items!r}")
         return items

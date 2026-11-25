@@ -30,7 +30,7 @@ import unicodedata
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from myelin import _McpSession  # type: ignore[attr-defined]
+from myelin import _McpSession, tenant_trace  # type: ignore[attr-defined]
 
 
 def sessions_by_record(ledger: str, tenant_prefix: str) -> dict[str, str]:
@@ -190,7 +190,7 @@ def main() -> None:
         else:
             arguments["query"] = row["question"]
         result = session.call_tool(args.mode, arguments)
-        meta = result.get("trace") or {}
+        meta = tenant_trace(result)
         ids = [str(i) for i in (result.get("record_ids") or [])]
         gold_total = gold_hit = 0
         if args.score == "session":

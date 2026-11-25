@@ -97,17 +97,23 @@ class RecordingSession:
             "record_ids": ["00000000-0000-0000-0000-000000000001"],
             "tokens": 7,
             # The trace `post_query_hook` reports. A real server always sends
-            # one; `model_declined` is the benign fallback cause M32 split out
-            # of `CallFailed`, and it is the value a healthy run mostly shows.
-            "trace": {
-                "selected": 3,
-                "select_ms": 412,
-                "select_degraded": "model_declined",
-                "pool": 41,
-                "steps": 2,
-                "stopped_because": "sufficient",
-                "abstained": False,
-            },
+            # one per scope read, and a tenant is one scope; `model_declined`
+            # is the benign fallback cause M32 split out of `CallFailed`, and
+            # it is the value a healthy run mostly shows.
+            "traces": [
+                {
+                    "store": None,
+                    "trace": {
+                        "selected": 3,
+                        "select_ms": 412,
+                        "select_degraded": "model_declined",
+                        "pool": 41,
+                        "steps": 2,
+                        "stopped_because": "sufficient",
+                        "abstained": False,
+                    },
+                }
+            ],
         }
 
 
@@ -257,7 +263,7 @@ class MyelinTraceReportingTest(unittest.TestCase):
                 "items": [{"type": "text", "value": f"answer {i}"}],
                 "record_ids": [],
                 "tokens": 1,
-                "trace": {"selected": i, "pool": 100 + i},
+                "traces": [{"store": None, "trace": {"selected": i, "pool": 100 + i}}],
             }
 
         recorder.call_tool = call_tool  # type: ignore[method-assign]
