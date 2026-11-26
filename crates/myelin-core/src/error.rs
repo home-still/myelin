@@ -44,9 +44,69 @@ pub enum MyelinError {
 
     #[error("serde: {0}")]
     Serde(#[from] serde_json::Error),
+
+    /// A write failed in one of its legs and left nothing behind: the ledger
+    /// and the vector index hold what they held before the call.
+    ///
+    /// `cause` is the failing leg's own message (the embedder's HTTP status
+    /// and body, the index's gRPC status), so a caller can tell an
+    /// over-long input from a dead index. It is what an MCP caller reads.
+    #[error("write failed in the {leg} leg, nothing was kept: {cause}")]
+    WriteFailed { leg: WriteLeg, cause: String },
+
+    /// A write failed in one of its legs and state was, or may have been,
+    /// left behind. `left_behind` says exactly what: the rollback itself
+    /// failed, or the leg is one that does not roll back.
+    #[error("write failed in the {leg} leg: {cause}; {left_behind}")]
+    WriteNotRolledBack {
+        leg: WriteLeg,
+        cause: String,
+        left_behind: String,
+    },
+}
+
+/// The leg of a write that failed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WriteLeg {
+    /// Embedding the text. Runs before anything is written.
+    Embed,
+    /// Writing ledger rows.
+    Ledger,
+    /// Upserting points, or the incidence rows derived with them.
+    Index,
+}
+
+impl WriteLeg {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Embed => "embed",
+            Self::Ledger => "ledger",
+            Self::Index => "index",
+        }
+    }
+}
+
+impl std::fmt::Display for WriteLeg {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
 }
 
 impl MyelinError {
+    /// A write that failed in `leg` and was rolled back.
+    pub fn write_failed(leg: WriteLeg, cause: &MyelinError) -> Self {
+        Self::WriteFailed {
+            leg,
+            cause: cause.to_string(),
+        }
+    }
+
+    /// True for the two variants a write failure surfaces as: their text
+    /// names the failing leg and its cause, and a caller is meant to read it.
+    pub fn is_write_failure(&self) -> bool {
+        matches!(self, Self::WriteFailed { .. } | Self::WriteNotRolledBack { .. })
+    }
+
     /// A stable slug naming the failure domain and nothing else.
     ///
     /// `Display` on the [`MyelinError::Qdrant`] and [`MyelinError::Io`]
@@ -63,6 +123,8 @@ impl MyelinError {
             Self::BudgetExhausted { .. } => "llm-budget-exhausted",
             Self::Io(_) => "io",
             Self::Serde(_) => "serde",
+            Self::WriteFailed { .. } => "write-failed",
+            Self::WriteNotRolledBack { .. } => "write-not-rolled-back",
         }
     }
 }

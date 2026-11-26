@@ -18,6 +18,7 @@
 use std::collections::HashMap;
 use std::time::Duration;
 
+use async_trait::async_trait;
 use chrono::{DateTime, SecondsFormat, Utc};
 use qdrant_client::qdrant::{
     CreateCollectionBuilder, CreateFieldIndexCollectionBuilder, DeleteCollectionBuilder,
@@ -210,6 +211,30 @@ pub struct IndexItem<'a> {
     /// Optional ColBERT-style multivector. Left empty until M3 settles whether
     /// `fastembed` exposes bge-m3's ColBERT head at all (§5.1 risk i).
     pub late: Option<Vec<Vec<f32>>>,
+}
+
+/// The two operations the write path needs of a vector index: put points in,
+/// and take them out again when a write has to be undone.
+///
+/// [`QdrantStore`] is the implementation. The seam exists so the write path's
+/// failure handling can be tested against an index that fails on demand
+/// without a Qdrant to break.
+#[async_trait]
+pub trait VectorIndex: Send + Sync {
+    async fn upsert(&self, items: &[IndexItem<'_>]) -> Result<()>;
+
+    async fn delete_points(&self, ids: &[Uuid]) -> Result<()>;
+}
+
+#[async_trait]
+impl VectorIndex for QdrantStore {
+    async fn upsert(&self, items: &[IndexItem<'_>]) -> Result<()> {
+        QdrantStore::upsert(self, items).await
+    }
+
+    async fn delete_points(&self, ids: &[Uuid]) -> Result<()> {
+        QdrantStore::delete_points(self, ids).await
+    }
 }
 
 /// One hit from a single retrieval channel, with the channel's own score.
