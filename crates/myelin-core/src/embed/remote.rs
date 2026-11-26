@@ -273,10 +273,11 @@ fn fit_dim(v: Vec<f32>, target: usize) -> Result<Vec<f32>> {
 ///
 /// Measured later (ollama 0.40.3, 2026-11-26): the limit a stock ollama
 /// `bge-m3` enforces is its 2,048-token batch, not the 8,192 context. A
-/// piece between 2,048 and about 2,070 tokens is embedded from its first
-/// 2,048 tokens with HTTP 200, and a longer one is refused with HTTP 413.
-/// An ollama model created with `num_batch 8192` takes the whole context,
-/// and that is the embedder a larger cap is for.
+/// piece over 2,048 tokens is either embedded from its first 2,048 tokens
+/// with HTTP 200 (pieces of 2,364, 4,502 and 8,002 tokens were) or refused
+/// with HTTP 413 (a piece of 2,078 tokens was); length did not say which.
+/// An ollama model created with `num_batch 8192` embedded every one of
+/// them whole, and that is the embedder a larger cap is for.
 pub const DEFAULT_MAX_EMBED_CHARS: usize = 4000;
 
 /// Split on line boundaries where possible, hard-cutting only when a single
