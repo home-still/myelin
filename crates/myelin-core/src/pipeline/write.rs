@@ -1212,6 +1212,7 @@ mod tests {
         QdrantStore::new(&QdrantConfig {
             url: "http://127.0.0.1:1".into(),
             collection: "myelin_test_unreachable".into(),
+            ..QdrantConfig::default()
         })
         .expect("qdrant client construction is offline")
     }
