@@ -5,6 +5,8 @@
 //! `split("__")` makes nesting addressable from the environment, so the Qdrant
 //! endpoint is `MYELIN_QDRANT__URL`.
 
+use std::num::NonZeroU64;
+
 use figment::{
     providers::{Env, Format, Serialized, Yaml},
     Figment,
@@ -140,6 +142,13 @@ impl Default for EmbedConfig {
     }
 }
 
+/// Default [`QdrantConfig::dense_hnsw_ef`]: the smallest beam measured there
+/// that returns at least 99 of every 100 exact neighbours.
+pub const DEFAULT_DENSE_HNSW_EF: NonZeroU64 = match NonZeroU64::new(512) {
+    Some(beam) => beam,
+    None => panic!("DEFAULT_DENSE_HNSW_EF is zero"),
+};
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct QdrantConfig {
@@ -149,6 +158,29 @@ pub struct QdrantConfig {
     /// and any other host through `ssh -L 6434:127.0.0.1:6434 big`.
     pub url: String,
     pub collection: String,
+    /// Beam width of every dense search (Qdrant's `hnsw_ef`).
+    ///
+    /// Left unset, Qdrant searches with the collection's `ef_construct`
+    /// (100), and on a large collection that loses real neighbours. Measured
+    /// on 483,193 points (bge-m3, cosine, `m` 16, a tenant filter keeping 78%
+    /// of them), top 50 of 100 queries against exact search (home-still,
+    /// 2026-11-26):
+    ///
+    /// | `hnsw_ef` | recall@50 | exact first hit returned | median |
+    /// |---|---|---|---|
+    /// | unset | 0.942 | 95/100 | 3 ms |
+    /// | 128 | 0.958 | 95/100 | 4 ms |
+    /// | 256 | 0.984 | 98/100 | 6 ms |
+    /// | 512 | 0.995 | 100/100 | 10 ms |
+    /// | 1024 | 0.999 | 100/100 | 15 ms |
+    ///
+    /// A missing neighbour is not a small loss here: fusion at `k = 1` hands
+    /// the reranker about the first 12 of each channel, so a chunk the dense
+    /// channel should have ranked 2nd and did not return is never scored.
+    ///
+    /// A segment Qdrant has built no HNSW graph for is scanned exactly,
+    /// whatever this says. Zero is refused when the config is read.
+    pub dense_hnsw_ef: NonZeroU64,
 }
 
 impl Default for QdrantConfig {
@@ -156,6 +188,7 @@ impl Default for QdrantConfig {
         Self {
             url: "http://127.0.0.1:6434".into(),
             collection: "myelin_memory".into(),
+            dense_hnsw_ef: DEFAULT_DENSE_HNSW_EF,
         }
     }
 }

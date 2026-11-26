@@ -24,8 +24,8 @@ use qdrant_client::qdrant::{
     CreateCollectionBuilder, CreateFieldIndexCollectionBuilder, DeleteCollectionBuilder,
     DeletePointsBuilder, Distance, Document, FieldType, Filter, GetPointsBuilder, Modifier,
     MultiVectorComparator, MultiVectorConfigBuilder, NamedVectors, PointId, PointStruct,
-    PointsIdsList, Query, QueryPointsBuilder, ScrollPointsBuilder, SetPayloadPointsBuilder,
-    SparseVectorParamsBuilder,
+    PointsIdsList, Query, QueryPointsBuilder, ScrollPointsBuilder, SearchParamsBuilder,
+    SetPayloadPointsBuilder, SparseVectorParamsBuilder,
     SparseVectorsConfigBuilder, UpdateStatus, UpsertPointsBuilder, Value, Vector, VectorInput,
     VectorParamsBuilder, VectorsConfigBuilder,
 };
@@ -301,20 +301,20 @@ pub struct PayloadSnapshot {
 pub struct QdrantStore {
     client: Qdrant,
     collection: String,
+    /// Beam width of every dense search ([`QdrantConfig::dense_hnsw_ef`]).
+    dense_hnsw_ef: u64,
 }
 
 impl QdrantStore {
     pub fn new(cfg: &QdrantConfig) -> Result<Self> {
-        Ok(Self {
-            client: client(cfg)?,
-            collection: cfg.collection.clone(),
-        })
+        Self::with_collection(cfg, cfg.collection.clone())
     }
 
     pub fn with_collection(cfg: &QdrantConfig, collection: impl Into<String>) -> Result<Self> {
         Ok(Self {
             client: client(cfg)?,
             collection: collection.into(),
+            dense_hnsw_ef: cfg.dense_hnsw_ef.get(),
         })
     }
 
@@ -594,6 +594,7 @@ impl QdrantStore {
             .using(DENSE)
             .filter(filter)
             .limit(limit + TIE_PROBE_EXTRA)
+            .params(SearchParamsBuilder::default().hnsw_ef(self.dense_hnsw_ef))
             .into();
         let response = read_retrying("query", QDRANT_RETRY_FIRST_BACKOFF, || {
             self.client.query(request.clone())
@@ -724,6 +725,7 @@ impl QdrantStore {
                 .using(DENSE)
                 .filter(filter.clone())
                 .limit(limit + TIE_PROBE_EXTRA)
+                .params(SearchParamsBuilder::default().hnsw_ef(self.dense_hnsw_ef))
                 .with_payload(true);
             if with_vectors {
                 // Name the dense vector explicitly: `with_vectors(true)`

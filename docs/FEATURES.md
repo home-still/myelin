@@ -643,6 +643,7 @@ surface in four ways:
 |----------|---------|-------------|
 | `MYELIN_QDRANT__URL` | `http://127.0.0.1:6434` | Qdrant gRPC endpoint, never REST: myelin's own instance on big (loopback only; tunnel from other hosts) |
 | `MYELIN_QDRANT__COLLECTION` | `myelin_memory` | Qdrant collection name |
+| `MYELIN_QDRANT__DENSE_HNSW_EF` | `512` | Beam width of every dense search (Qdrant's `hnsw_ef`). Unset, Qdrant uses the collection's `ef_construct` (100), which on a 483,193-point collection returned 94 of every 100 exact neighbours and missed the exact first hit for 5 of 100 queries; 512 returned 99.5 and missed none. Zero is refused |
 | `MYELIN_LLM__URL` | `http://127.0.0.1:5810/v1` | Reader LLM endpoint (OpenAI-compatible `/v1`) |
 | `MYELIN_LLM__MODEL` | `qwen3.5-9b` | Reader LLM model name |
 | `MYELIN_EMBED__URL` | `http://192.168.1.110:11434/v1` | Embedder endpoint (OpenAI-compatible `/v1`) |
