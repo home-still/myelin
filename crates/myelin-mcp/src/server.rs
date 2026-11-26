@@ -1680,8 +1680,18 @@ fn parse_uuid(s: &str) -> Result<uuid::Uuid, ErrorData> {
 /// forward their inner error verbatim, and that text carries the Qdrant URL
 /// or a ledger path. An MCP caller is untrusted by construction (C12), so it
 /// gets the variant slug; the operator gets the whole error in the log.
+///
+/// The one exception is a failed write ([`myelin_core::MyelinError::is_write_failure`]):
+/// its message is the failing leg's own cause (the embedder's HTTP status,
+/// the index's gRPC status) and says whether anything was left behind. A
+/// caller told only `write-failed` cannot tell an over-long input, which it
+/// can fix, from a dead index, which it can only retry, and would resend the
+/// same document unchanged.
 fn mcp_err(e: myelin_core::MyelinError) -> ErrorData {
     tracing::error!(error = %e, "core error");
+    if e.is_write_failure() {
+        return ErrorData::internal_error(e.to_string(), None);
+    }
     ErrorData::internal_error(e.kind_str().to_string(), None)
 }
 
@@ -2156,6 +2166,34 @@ mod tests {
         .unwrap();
         assert_eq!(old.extract, None);
         assert!(old.turns[0].meta.is_none());
+    }
+
+    /// Issue 216. A failed `observe` reports the failing leg's own cause to
+    /// the caller: an embedder's `413` must not arrive as the bare slug
+    /// `write-failed`. Every other core error still reaches a caller as its
+    /// slug alone.
+    #[test]
+    fn a_failed_write_reaches_the_caller_with_its_cause() {
+        use myelin_core::error::WriteLeg;
+        use myelin_core::MyelinError;
+
+        let embedder = MyelinError::Store("bge-m3: HTTP 413 Payload Too Large: input too long".into());
+
+        let rolled_back = super::mcp_err(MyelinError::write_failed(WriteLeg::Embed, &embedder));
+        assert!(rolled_back.message.contains("HTTP 413"), "{}", rolled_back.message);
+        assert!(rolled_back.message.contains("embed"), "{}", rolled_back.message);
+        assert!(rolled_back.message.contains("nothing was kept"), "{}", rolled_back.message);
+
+        let stuck = super::mcp_err(MyelinError::WriteNotRolledBack {
+            leg: WriteLeg::Index,
+            cause: "qdrant: unavailable".into(),
+            left_behind: "taking back 3 ledger rows failed".into(),
+        });
+        assert!(stuck.message.contains("unavailable"), "{}", stuck.message);
+        assert!(stuck.message.contains("taking back 3 ledger rows failed"), "{}", stuck.message);
+
+        let other = super::mcp_err(MyelinError::Store("sqlite said something about a path".into()));
+        assert_eq!(other.message, "store");
     }
 
     /// `forget_scope` without `confirm` is a refusal, not a deserialization

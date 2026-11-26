@@ -118,6 +118,41 @@ first arm to question the measurement apparatus rather than the mechanism.
 
 ---
 
+## Issue 216 — a failed `observe` leaves nothing behind *(2026-11-26, branch `observe-atomic`)*
+
+**The defect:** `WritePath::insert` wrote the ledger rows, then embedded and
+upserted. When the embedder answered HTTP 413 for one over-long input the call
+returned the error with the rows still in the ledger and no points: two
+documents ended with 90 and 111 rows and zero points, every ledger-backed
+listing counted them, and the same content observed again was skipped as
+already present. The MCP answered the bare slug `store`, so the caller never
+saw the 413.
+
+**The fix (one path, no flag):**
+- Episodes are embedded for the whole call **before** any ledger row is
+  written, so the embedder's refusal has nothing to undo.
+- A failure after rows were written (a ledger error, the upsert, the incidence
+  rows) takes back this call's new rows through `Ledger::hard_delete` (its
+  invariants and `hard_delete` audit event hold), then their points. Rows and
+  points that existed before the call are never in that set. No ledger
+  transaction is held across a network call.
+- The error is `WriteFailed { leg, cause }` (nothing kept) or
+  `WriteNotRolledBack { leg, cause, left_behind }` (a rollback failed, or the
+  derived-record leg, which cannot roll back: a consolidation can supersede
+  or delete older records). `mcp_err` passes the text of both to the caller.
+- Same for `assert_one` (`remember` with `as_profile`).
+
+**Not covered:** a failure after the episodes are committed (extraction and
+consolidation) keeps the episodes, which are complete and indexed, and any
+derived records already applied. A failed embed or index of the derived
+records says so in its error; a failed model call there is still returned
+as before.
+
+Tests: `pipeline::write::tests::*` (batch-failure and pre-existing-row cases)
+and `a_failed_write_reaches_the_caller_with_its_cause` in `myelin-mcp`.
+
+---
+
 ## myelin's own Qdrant, and retrieval that no longer depends on Qdrant's tie order *(2026-09-30, user: "isolate myelin's Qdrant")*
 
 **The instance:**
