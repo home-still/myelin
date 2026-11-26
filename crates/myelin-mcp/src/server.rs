@@ -83,11 +83,10 @@ impl Backend {
         Ok(Self {
             store: QdrantStore::new(&qdrant_cfg)?,
             ledger: Ledger::open(&cfg.ledger).await?,
-            embedder: Box::new(RemoteEmbedder::new(
-                &cfg.embed.url,
-                &cfg.embed.model,
-                cfg.embed.dim,
-            )?),
+            embedder: Box::new(
+                RemoteEmbedder::new(&cfg.embed.url, &cfg.embed.model, cfg.embed.dim)?
+                    .with_max_chars(cfg.embed.max_chars)?,
+            ),
             llm: Box::new(OpenAiLlm::new(&cfg.llm.url, &cfg.llm.model)?),
             reranker: CrossEncoder::new(&cfg.rerank.url, &cfg.rerank.model)
                 .ok()

@@ -118,6 +118,44 @@ first arm to question the measurement apparatus rather than the mechanism.
 
 ---
 
+## A split record's vector is weighted by piece length, and the split cap is configurable *(2026-11-26, branch `embed-whole-records`)*
+
+**The defect:** `RemoteEmbedder` splits an input over 4,000 characters on line
+boundaries and pools the pieces' vectors. The split is greedy, so the last
+piece is a remainder, and the pool was an equal mean: a 4,045-character record
+with pieces of 3,954 and 91 characters became half its 91-character tail.
+Measured on the `home_still` collection (476,000 records, 2026-11-26):
+- 285 of 1,500 sampled records (19 %) were split, always in two; the smaller
+  piece had a median of 260 characters (25th percentile 119).
+- The stored vector of each split record equals the equal mean of its pieces'
+  vectors (cosine 1.0), and is 0.90 from the same text embedded whole.
+- Against two unrelated queries the top 12 dense hits scored 0.551 and 0.558
+  on average as stored, and 0.481 and 0.506 embedded whole. Split records were
+  17 and 23 of the top 25 dense hits.
+
+**The fix:**
+- `mean_pool` weights each piece's vector by the piece's length in characters
+  (OpenAI Cookbook, "Embedding texts that are longer than the model's maximum
+  context length").
+- `embed.max_chars` (`MYELIN_EMBED__MAX_CHARS`, default 4,000) is the split
+  cap. A deployment whose embedder takes more in one input raises it, and a
+  record under the cap is embedded as itself. A cap other than the default
+  shows in the embedder id (`bge-m3@1024+c8000`).
+
+**Not changed:** the default cap, and so every memory built with it whose
+records are under 4,000 characters. A memory with longer records has to be
+re-indexed to get the new vectors.
+
+**Not shown:** that this is what made two of the 25 home-still gate queries
+miss at rerank depth 25. The passages those queries expect are not split
+records; the split records are what filled the dense list above them.
+
+Tests: `embed::remote::tests::a_short_remainder_does_not_count_as_much_as_the_text_before_it`,
+`a_cap_that_holds_the_text_leaves_it_in_one_piece`,
+`a_raised_cap_is_named_in_the_id_and_zero_is_refused`.
+
+---
+
 ## Issue 216 — a failed `observe` leaves nothing behind *(2026-11-26, branch `observe-atomic`)*
 
 **The defect:** `WritePath::insert` wrote the ledger rows, then embedded and
