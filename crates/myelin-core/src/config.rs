@@ -102,6 +102,11 @@ pub struct EmbedConfig {
     /// storage per record. Changing this changes the embedder id and so
     /// invalidates a built memory (R3), which is the point.
     pub dim: u64,
+    /// Largest input sent to the embedder in one piece, in characters; a
+    /// longer record is split and its pieces' vectors pooled. Raise it only
+    /// for an embedder that takes that many characters in one input. See
+    /// [`crate::embed::remote::DEFAULT_MAX_EMBED_CHARS`].
+    pub max_chars: usize,
 }
 
 impl Default for EmbedConfig {
@@ -130,6 +135,7 @@ impl Default for EmbedConfig {
             url: "http://192.168.1.110:11434/v1".into(),
             model: "bge-m3".into(),
             dim: 1024,
+            max_chars: crate::embed::remote::DEFAULT_MAX_EMBED_CHARS,
         }
     }
 }

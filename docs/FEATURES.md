@@ -648,6 +648,7 @@ surface in four ways:
 | `MYELIN_EMBED__URL` | `http://192.168.1.110:11434/v1` | Embedder endpoint (OpenAI-compatible `/v1`) |
 | `MYELIN_EMBED__MODEL` | `bge-m3` | Embedding model name |
 | `MYELIN_EMBED__DIM` | `1024` | Output dimension after Matryoshka truncation |
+| `MYELIN_EMBED__MAX_CHARS` | `4000` | Largest input sent to the embedder in one piece, in characters. A longer record is split and its pieces' vectors are pooled by length. Raise it only for an embedder that takes that many characters in one input (a stock ollama `bge-m3` takes 2,048 tokens; one created with `num_batch 8192` takes 8,192, so `8000`) |
 | `MYELIN_RERANK__URL` | `http://127.0.0.1:5813` | Reranker endpoint (server root, not `/v1`) |
 | `MYELIN_RERANK__MODEL` | `bge-reranker-v2-m3` | Reranker model name |
 | `MYELIN_LEDGER` | `data/myelin.ledger` | SQLite ledger path (admissibility authority) |

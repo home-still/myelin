@@ -40,9 +40,13 @@ pub struct RemoteEmbedder {
     base_url: String,
     model: String,
     target_dim: u64,
+    /// Largest input sent to the embedder in one piece, in characters. See
+    /// [`DEFAULT_MAX_EMBED_CHARS`].
+    max_chars: usize,
     /// Stable id written into `MemoryConfigJson`. Must change when
     /// `target_dim` changes — a different dimension is a different memory
-    /// (R3, `PLAN.md` §4.1).
+    /// (R3, `PLAN.md` §4.1). It also names a `max_chars` other than the
+    /// default, because that changes the vector of every longer record.
     id: String,
 }
 
@@ -66,15 +70,42 @@ impl RemoteEmbedder {
             .build()
             .map_err(|e| MyelinError::Store(format!("http client: {e}")))?;
 
-        let id = format!("{model}@{target_dim}");
+        let id = embedder_id(&model, target_dim, DEFAULT_MAX_EMBED_CHARS);
 
         Ok(Self {
             client,
             base_url,
             model,
             target_dim,
+            max_chars: DEFAULT_MAX_EMBED_CHARS,
             id,
         })
+    }
+
+    /// Send inputs of up to `max_chars` characters to the embedder whole.
+    ///
+    /// Raise it above [`DEFAULT_MAX_EMBED_CHARS`] only for an embedder that
+    /// takes that many characters in one input: a record under the cap is
+    /// embedded as itself, a record over it as the weighted mean of its
+    /// pieces, which is an approximation. Zero is refused: no text fits it.
+    pub fn with_max_chars(mut self, max_chars: usize) -> Result<Self> {
+        if max_chars == 0 {
+            return Err(MyelinError::Config(
+                "embed.max_chars is 0: no input could be sent to the embedder".into(),
+            ));
+        }
+        self.max_chars = max_chars;
+        self.id = embedder_id(&self.model, self.target_dim, max_chars);
+        Ok(self)
+    }
+}
+
+/// `model@dim`, with `+c<max_chars>` when the cap is not the default.
+fn embedder_id(model: &str, target_dim: u64, max_chars: usize) -> String {
+    if max_chars == DEFAULT_MAX_EMBED_CHARS {
+        format!("{model}@{target_dim}")
+    } else {
+        format!("{model}@{target_dim}+c{max_chars}")
     }
 }
 
@@ -94,8 +125,8 @@ impl Embedder for RemoteEmbedder {
         }
 
         // Long inputs are split, embedded separately, and mean-pooled rather
-        // than sent whole — see `MAX_EMBED_CHARS`.
-        if texts.iter().any(|t| t.chars().count() > MAX_EMBED_CHARS) {
+        // than sent whole — see `DEFAULT_MAX_EMBED_CHARS`.
+        if texts.iter().any(|t| t.chars().count() > self.max_chars) {
             return self.embed_chunked(texts).await;
         }
         self.embed_batch(texts).await
@@ -115,17 +146,22 @@ impl RemoteEmbedder {
         let mut spans: Vec<(usize, usize)> = Vec::with_capacity(texts.len());
         for text in texts {
             let start = flat.len();
-            for chunk in split_for_embedding(text) {
+            for chunk in split_for_embedding(text, self.max_chars) {
                 flat.push(chunk);
             }
             spans.push((start, flat.len()));
         }
+        let weights: Vec<usize> = flat.iter().map(|piece| piece.chars().count()).collect();
 
         let vectors = self.embed_batch(&flat).await?;
 
         let mut out = Vec::with_capacity(texts.len());
         for (start, end) in spans {
-            out.push(mean_pool(&vectors[start..end], self.target_dim as usize));
+            out.push(mean_pool(
+                &vectors[start..end],
+                &weights[start..end],
+                self.target_dim as usize,
+            ));
         }
         Ok(out)
     }
@@ -221,7 +257,8 @@ fn fit_dim(v: Vec<f32>, target: usize) -> Result<Vec<f32>> {
 // Response types
 // ---------------------------------------------------------------------------
 
-/// Largest text sent to the embedder in one piece, in characters.
+/// Largest text sent to the embedder in one piece, in characters, unless
+/// [`RemoteEmbedder::with_max_chars`] says otherwise.
 ///
 /// bge-m3's context is 8192 tokens and ollama returns HTTP 400 — not a
 /// truncation — once an input exceeds it. Our `approx_tokens` estimate of
@@ -233,7 +270,14 @@ fn fit_dim(v: Vec<f32>, target: usize) -> Result<Vec<f32>> {
 /// 4,000 characters is therefore ~2,700 tokens even at that worst observed
 /// density, leaving room for a tokenizer denser still. Chosen for the failure
 /// mode rather than the average, because the average never fails.
-const MAX_EMBED_CHARS: usize = 4000;
+///
+/// Measured later (ollama 0.40.3, 2026-11-26): the limit a stock ollama
+/// `bge-m3` enforces is its 2,048-token batch, not the 8,192 context. A
+/// piece between 2,048 and about 2,070 tokens is embedded from its first
+/// 2,048 tokens with HTTP 200, and a longer one is refused with HTTP 413.
+/// An ollama model created with `num_batch 8192` takes the whole context,
+/// and that is the embedder a larger cap is for.
+pub const DEFAULT_MAX_EMBED_CHARS: usize = 4000;
 
 /// Split on line boundaries where possible, hard-cutting only when a single
 /// line is itself over the cap.
@@ -241,18 +285,18 @@ const MAX_EMBED_CHARS: usize = 4000;
 /// Cutting mid-sentence produces a chunk that embeds to neither neighbour's
 /// meaning — the same reasoning as `lmev2::chunk_tree` splitting on element
 /// boundaries rather than every N bytes.
-fn split_for_embedding(text: &str) -> Vec<String> {
+fn split_for_embedding(text: &str, max_chars: usize) -> Vec<String> {
     let mut chunks = Vec::new();
     let mut cur = String::new();
     for line in text.split_inclusive('\n') {
-        if !cur.is_empty() && cur.chars().count() + line.chars().count() > MAX_EMBED_CHARS {
+        if !cur.is_empty() && cur.chars().count() + line.chars().count() > max_chars {
             chunks.push(std::mem::take(&mut cur));
         }
-        if line.chars().count() > MAX_EMBED_CHARS {
+        if line.chars().count() > max_chars {
             let mut buf = String::new();
             for c in line.chars() {
                 buf.push(c);
-                if buf.chars().count() >= MAX_EMBED_CHARS {
+                if buf.chars().count() >= max_chars {
                     chunks.push(std::mem::take(&mut buf));
                 }
             }
@@ -270,19 +314,35 @@ fn split_for_embedding(text: &str) -> Vec<String> {
     chunks
 }
 
-/// Mean of unit vectors, re-normalized.
+/// Mean of unit vectors, each weighted by the length of the piece it
+/// embeds, re-normalized.
+///
+/// The weights are what make the result stand for the text. The split is
+/// greedy, so its last piece is whatever was left over, and an equal mean
+/// let that remainder count as much as everything before it: a 4,045-character
+/// record became half a 91-character tail. In a store of 476,000 such records
+/// 19 % were split, the smaller piece had a median of 260 characters, and
+/// those vectors scored 0.05-0.17 higher against unrelated queries than the
+/// same text embedded whole (two unit vectors that are not parallel sum to
+/// less than 2, so normalizing the sum raises every cosine). They filled 17
+/// and 23 of the top 25 dense hits of two queries. Weighting by length is
+/// the usual form of this pooling: OpenAI Cookbook, "Embedding texts that are
+/// longer than the model's maximum context length"
+/// (`np.average(chunk_embeddings, axis=0, weights=chunk_lens)`, then
+/// normalize).
 ///
 /// Re-normalization is not optional: the Qdrant `Cosine` comparator assumes
 /// unit vectors and the mean of several unit vectors is not one. Same reason
 /// `fit_dim` re-normalizes after Matryoshka truncation.
-fn mean_pool(vectors: &[Vec<f32>], dim: usize) -> Vec<f32> {
+fn mean_pool(vectors: &[Vec<f32>], weights: &[usize], dim: usize) -> Vec<f32> {
     if vectors.len() == 1 {
         return vectors[0].clone();
     }
     let mut acc = vec![0.0f32; dim];
-    for v in vectors {
+    for (v, weight) in vectors.iter().zip(weights) {
+        let weight = *weight as f32;
         for (a, x) in acc.iter_mut().zip(v.iter()) {
-            *a += *x;
+            *a += *x * weight;
         }
     }
     let norm = acc.iter().map(|x| x * x).sum::<f32>().sqrt();
@@ -314,7 +374,11 @@ struct EmbeddingData {
 
 #[cfg(test)]
 mod tests {
-    use super::{fit_dim, mean_pool, split_for_embedding, MAX_EMBED_CHARS};
+    use super::{
+        fit_dim, mean_pool, split_for_embedding, RemoteEmbedder, DEFAULT_MAX_EMBED_CHARS,
+    };
+
+    const MAX_EMBED_CHARS: usize = DEFAULT_MAX_EMBED_CHARS;
 
     fn l2_norm(v: &[f32]) -> f32 {
         v.iter().map(|x| x * x).sum::<f32>().sqrt()
@@ -393,7 +457,7 @@ mod tests {
         let lines = "short line\n".repeat(2000);
         let mixed = format!("{lines}{unbroken}\n{lines}");
         for text in [&unbroken, &lines, &mixed] {
-            for chunk in split_for_embedding(text) {
+            for chunk in split_for_embedding(text, MAX_EMBED_CHARS) {
                 assert!(
                     chunk.chars().count() <= MAX_EMBED_CHARS,
                     "chunk of {} chars exceeds cap {MAX_EMBED_CHARS}",
@@ -410,12 +474,15 @@ mod tests {
     fn splitting_preserves_every_character() {
         let unbroken = "y".repeat(MAX_EMBED_CHARS * 2 + 13);
         let text = format!("alpha\nbeta\n{unbroken}\ngamma\n{}", "z".repeat(9000));
-        assert_eq!(split_for_embedding(&text).concat(), text);
+        assert_eq!(split_for_embedding(&text, MAX_EMBED_CHARS).concat(), text);
     }
 
     #[test]
     fn short_text_is_one_chunk() {
-        assert_eq!(split_for_embedding("hello\nworld"), vec!["hello\nworld"]);
+        assert_eq!(
+            split_for_embedding("hello\nworld", MAX_EMBED_CHARS),
+            vec!["hello\nworld"]
+        );
     }
 
     /// Cosine in Qdrant assumes unit vectors; the mean of unit vectors is not
@@ -424,10 +491,10 @@ mod tests {
     fn mean_pool_returns_a_unit_vector() {
         let a = vec![1.0f32, 0.0, 0.0, 0.0];
         let b = vec![0.0f32, 1.0, 0.0, 0.0];
-        let pooled = mean_pool(&[a, b], 4);
+        let pooled = mean_pool(&[a, b], &[10, 10], 4);
         let norm = pooled.iter().map(|x| x * x).sum::<f32>().sqrt();
         assert!((norm - 1.0).abs() < 1e-6, "norm was {norm}");
-        // Equidistant between the two inputs.
+        // Two pieces of one length: equidistant between the two inputs.
         assert!((pooled[0] - pooled[1]).abs() < 1e-6);
     }
 
@@ -437,6 +504,65 @@ mod tests {
     #[test]
     fn mean_pool_of_one_is_the_identity() {
         let v = vec![0.6f32, 0.8, 0.0, 0.0];
-        assert_eq!(mean_pool(std::slice::from_ref(&v), 4), v);
+        assert_eq!(mean_pool(std::slice::from_ref(&v), &[7], 4), v);
+    }
+
+    /// The split is greedy, so its last piece is a remainder of any size.
+    /// The piece sizes here are a real record's: 3,954 characters and a
+    /// 91-character tail. The pooled vector has to stay the long piece's,
+    /// not land halfway to the tail's.
+    #[test]
+    fn a_short_remainder_does_not_count_as_much_as_the_text_before_it() {
+        const LONG_PIECE_CHARS: usize = 3954;
+        const TAIL_CHARS: usize = 91;
+        let long_piece = vec![1.0f32, 0.0, 0.0, 0.0];
+        let tail = vec![0.0f32, 1.0, 0.0, 0.0];
+        let pooled = mean_pool(&[long_piece, tail], &[LONG_PIECE_CHARS, TAIL_CHARS], 4);
+        let norm = pooled.iter().map(|x| x * x).sum::<f32>().sqrt();
+        assert!((norm - 1.0).abs() < 1e-6, "norm was {norm}");
+        // Cosine with the long piece. An equal mean gives 0.707.
+        assert!(pooled[0] > 0.999, "cosine with the long piece was {}", pooled[0]);
+        let expected_ratio = TAIL_CHARS as f32 / LONG_PIECE_CHARS as f32;
+        assert!(
+            (pooled[1] / pooled[0] - expected_ratio).abs() < 1e-5,
+            "tail to long-piece ratio was {}",
+            pooled[1] / pooled[0]
+        );
+    }
+
+    /// A record a little over the default cap is two pieces at the default
+    /// and itself under a cap that holds it, so an embedder that can take it
+    /// whole is given it whole.
+    #[test]
+    fn a_cap_that_holds_the_text_leaves_it_in_one_piece() {
+        const RAISED_CAP_CHARS: usize = 8000;
+        let line = "a line of a record, forty-one chars long\n";
+        let text = line.repeat(MAX_EMBED_CHARS / line.len() + 2);
+        assert!(text.chars().count() > MAX_EMBED_CHARS);
+        assert!(text.chars().count() < RAISED_CAP_CHARS);
+
+        assert_eq!(split_for_embedding(&text, MAX_EMBED_CHARS).len(), 2);
+        assert_eq!(split_for_embedding(&text, RAISED_CAP_CHARS), vec![text]);
+    }
+
+    /// The cap is part of what a vector is, so a non-default one shows in
+    /// the embedder id, and a cap nothing fits under is refused.
+    #[test]
+    fn a_raised_cap_is_named_in_the_id_and_zero_is_refused() {
+        const RAISED_CAP_CHARS: usize = 8000;
+        let new = || RemoteEmbedder::new("http://127.0.0.1:1/v1", "bge-m3", 1024);
+        let stock = new().expect("client");
+        assert_eq!(super::Embedder::id(&stock), "bge-m3@1024");
+
+        let same = new().and_then(|e| e.with_max_chars(MAX_EMBED_CHARS)).expect("default cap");
+        assert_eq!(super::Embedder::id(&same), "bge-m3@1024");
+
+        let raised = new().and_then(|e| e.with_max_chars(RAISED_CAP_CHARS)).expect("raised cap");
+        assert_eq!(super::Embedder::id(&raised), "bge-m3@1024+c8000");
+
+        let Err(refused) = new().and_then(|e| e.with_max_chars(0)) else {
+            panic!("a cap of zero was accepted");
+        };
+        assert!(refused.to_string().contains("max_chars"), "{refused}");
     }
 }
