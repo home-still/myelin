@@ -24,15 +24,17 @@
 //! quarantine and counted in [`WriteStats::adjudicated_out`], never dropped
 //! silently.
 
+use std::collections::HashSet;
 use std::time::Instant;
 
 use futures_util::{stream, StreamExt};
 
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 use crate::embed::Embedder;
-use crate::error::{MyelinError, Result};
+use crate::error::{MyelinError, Result, WriteLeg};
 use crate::llm::Llm;
 use crate::model::delta::Delta;
 use crate::model::record::{
@@ -40,12 +42,12 @@ use crate::model::record::{
 };
 use crate::store::ids::record_id;
 use crate::store::ledger::Ledger;
-use crate::store::qdrant::QdrantStore;
+use crate::store::qdrant::{QdrantStore, VectorIndex};
 
 use super::adjudicate::{Adjudicator, InjectionVerdict};
 use super::consolidate::{Consolidator, Outcome, SourceTier};
 use super::extract::{Candidate, CandidateKind, ExtractOutcome, Extractor};
-use super::index::Indexer;
+use super::index::{Indexer, DEFAULT_BATCH};
 use super::ingest::{segment, BoundaryReason, EpisodeDraft, SegmentConfig, Turn};
 use super::topic::{segment_topics, TopicConfig};
 
@@ -57,6 +59,31 @@ use super::topic::{segment_topics, TopicConfig};
 /// budget. The prefix `"<speaker>: "` is counted, so this is ~25 characters
 /// of actual content.
 const PROFILE_MIN_CHARS: usize = 32;
+
+/// The reason on the audit event of a row a failed write takes back out.
+const ROLLBACK_REASON: &str = "write rolled back: a later leg of the same call failed";
+
+/// What a failed embed of derived records leaves: the call's episodes are in
+/// and indexed, and nothing derived was written yet.
+const DERIVED_EMBED_LEFT_BEHIND: &str = "this call's episodes are committed and indexed; \
+     no derived record was written";
+
+/// What a failed index of derived records leaves. Not rolled back: applying a
+/// consolidation outcome can supersede or delete older records, which no
+/// rollback can restore, so the records already applied stay in the ledger
+/// with no vector until a reconcile finds them (`missing_vectors`).
+const DERIVED_INDEX_LEFT_BEHIND: &str = "this call's episodes are committed and indexed, but the \
+     derived records already applied to the ledger have no vector and were not rolled back (a \
+     consolidation can supersede or delete older records, which a rollback cannot restore)";
+
+/// A failure in the derived-record legs, which do not roll back.
+fn derived_not_rolled_back(leg: WriteLeg, cause: &MyelinError, left_behind: &str) -> MyelinError {
+    MyelinError::WriteNotRolledBack {
+        leg,
+        cause: cause.to_string(),
+        left_behind: left_behind.to_string(),
+    }
+}
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct WriteStats {
@@ -146,6 +173,13 @@ pub struct WritePath<'a> {
     pub llm: &'a dyn Llm,
     pub embedder: &'a dyn Embedder,
     pub store: &'a QdrantStore,
+    /// Where this path writes points, and removes them again when a write is
+    /// rolled back. [`WritePath::new`] points it at `store`; the seam is for
+    /// a test that needs an index which fails on demand.
+    pub index: &'a dyn VectorIndex,
+    /// Records per embedder call and per upsert. A smaller batch bounds how
+    /// much one refused input can take with it.
+    pub index_batch: usize,
     pub ledger: &'a Ledger,
     pub segment: SegmentConfig,
     pub source_tier: SourceTier,
@@ -258,6 +292,8 @@ impl<'a> WritePath<'a> {
             llm,
             embedder,
             store,
+            index: store,
+            index_batch: DEFAULT_BATCH,
             ledger,
             segment: SegmentConfig::default(),
             source_tier: SourceTier::Asserted,
@@ -296,12 +332,11 @@ impl<'a> WritePath<'a> {
         stats.approx_tokens = drafts.iter().map(|d| d.approx_tokens).sum();
         let drafts = self.adjudicate_drafts(scope, drafts, &mut stats).await?;
 
-        // 1. Episodes, losslessly, first.
-        let episodes = self.write_episodes(scope, &drafts).await?;
+        // 1. Episodes, losslessly, first. A failure leaves nothing behind.
+        let episodes = self
+            .write_and_index_episodes(scope, &drafts, &mut stats)
+            .await?;
         stats.episode_ids = episodes.iter().map(|e| e.id).collect();
-        let t_index = Instant::now();
-        self.indexer().index(&episodes).await?;
-        stats.index_ms += t_index.elapsed().as_millis();
 
         // 1b. Dispositions, before the early return below — an episodic-only
         // corpus is exactly where the profile pass earns its keep. Same
@@ -413,11 +448,10 @@ impl<'a> WritePath<'a> {
         let drafts = segment(std::slice::from_ref(&turn), &self.segment);
         stats.episodes = drafts.len();
         stats.approx_tokens = drafts.iter().map(|d| d.approx_tokens).sum();
-        let episodes = self.write_episodes(scope, &drafts).await?;
+        let episodes = self
+            .write_and_index_episodes(scope, &drafts, &mut stats)
+            .await?;
         stats.episode_ids = episodes.iter().map(|e| e.id).collect();
-        let t_index = Instant::now();
-        self.indexer().index(&episodes).await?;
-        stats.index_ms += t_index.elapsed().as_millis();
 
         // An empty turn segments to no episode, and a candidate with no
         // lineage would be refused by I4 at the SQLite boundary anyway.
@@ -554,7 +588,11 @@ impl<'a> WritePath<'a> {
         // One embedding round trip for the whole episode.
         let texts: Vec<String> = candidates.iter().map(|c| c.text.clone()).collect();
         let t_embed = Instant::now();
-        let vectors = self.embedder.embed(&texts).await?;
+        let vectors = self
+            .embedder
+            .embed(&texts)
+            .await
+            .map_err(|e| derived_not_rolled_back(WriteLeg::Embed, &e, DERIVED_EMBED_LEFT_BEHIND))?;
         stats.index_ms += t_embed.elapsed().as_millis();
 
         let mut derived: Vec<MemoryRecord> = Vec::new();
@@ -615,7 +653,10 @@ impl<'a> WritePath<'a> {
 
         if !derived.is_empty() {
             let t2 = Instant::now();
-            self.indexer().index(&derived).await?;
+            self.indexer()
+                .index(&derived)
+                .await
+                .map_err(|e| derived_not_rolled_back(WriteLeg::Index, &e, DERIVED_INDEX_LEFT_BEHIND))?;
             stats.index_ms += t2.elapsed().as_millis();
         }
 
@@ -697,15 +738,83 @@ impl<'a> WritePath<'a> {
     }
 
     fn indexer(&self) -> Indexer<'_> {
-        Indexer::new(self.embedder, self.store, self.ledger)
+        Indexer::new(self.embedder, self.index, self.ledger).with_batch(self.index_batch)
     }
 
-    async fn write_episodes(
+    /// Write the episodes of one call to the ledger and the vector index, or
+    /// to neither.
+    ///
+    /// Three legs, in the order that keeps the commonest failure free:
+    ///
+    /// 1. **Embed** every episode. It needs no ledger state and is the leg
+    ///    that fails in practice (an embedder answering `413` for one
+    ///    over-long input), so it runs before anything is written and a
+    ///    failure here has nothing to undo.
+    /// 2. **Ledger rows** for the episodes that are new. A row that already
+    ///    exists is left exactly as it is (re-ingesting hits the same v5
+    ///    id).
+    /// 3. **Upsert** the points and incidence.
+    ///
+    /// A failure in leg 2 or 3 removes the rows this call added, through
+    /// [`Ledger::hard_delete`] (so its invariants and audit event apply), and
+    /// then their points. Rows and points that existed before the call are
+    /// never in the set it removes. No ledger transaction is held across the
+    /// network calls: each row is its own transaction.
+    ///
+    /// Before this, a failure in leg 3 returned with the rows still in the
+    /// ledger and no points: two documents ended with 90 and 111 rows and
+    /// nothing in the index, every ledger-backed listing counted them, and
+    /// the same content, observed again, was skipped as already present
+    /// (issue 216).
+    async fn write_and_index_episodes(
         &self,
         scope: &Scope,
         drafts: &[EpisodeDraft],
+        stats: &mut WriteStats,
     ) -> Result<Vec<MemoryRecord>> {
-        let mut out = Vec::with_capacity(drafts.len());
+        let (records, is_new) = self.plan_episodes(scope, drafts).await?;
+        let indexer = self.indexer();
+
+        let t_embed = Instant::now();
+        let vectors = indexer
+            .embed_all(&records)
+            .await
+            .map_err(|e| MyelinError::write_failed(WriteLeg::Embed, &e))?;
+        stats.index_ms += t_embed.elapsed().as_millis();
+
+        let mut added: Vec<Uuid> = Vec::new();
+        for (record, _) in records.iter().zip(&is_new).filter(|(_, new)| **new) {
+            let delta = Delta::Add {
+                record: Box::new(record.clone()),
+            };
+            if let Err(e) = self.ledger.apply(&delta, &self.actor).await {
+                return Err(self.fail_and_roll_back(WriteLeg::Ledger, e, &added).await);
+            }
+            added.push(record.id);
+        }
+
+        let t_upsert = Instant::now();
+        if let Err(e) = indexer.upsert_embedded(&records, vectors).await {
+            return Err(self.fail_and_roll_back(WriteLeg::Index, e, &added).await);
+        }
+        stats.index_ms += t_upsert.elapsed().as_millis();
+        Ok(records)
+    }
+
+    /// The record each draft stands for, and whether this call has to add it
+    /// to the ledger. Writes nothing.
+    ///
+    /// A draft whose id is already in the ledger yields the ledger's own row:
+    /// it is re-indexed as it is stored, not as this call would have built
+    /// it. A draft repeated within the call is added once.
+    async fn plan_episodes(
+        &self,
+        scope: &Scope,
+        drafts: &[EpisodeDraft],
+    ) -> Result<(Vec<MemoryRecord>, Vec<bool>)> {
+        let mut records = Vec::with_capacity(drafts.len());
+        let mut is_new = Vec::with_capacity(drafts.len());
+        let mut planned: HashSet<Uuid> = HashSet::with_capacity(drafts.len());
         for draft in drafts {
             let mut record = draft.to_record(scope, &self.actor, &self.actor);
             // The pool pass (M23 D1) mints Semantic/Procedural records
@@ -722,19 +831,66 @@ impl<'a> WritePath<'a> {
             // Re-ingesting the same corpus hits the same v5 id. An existing
             // episode is not an error; it is the idempotence the id scheme
             // exists to provide.
-            if self.ledger.get(record.id).await?.is_none() {
-                self.ledger
-                    .apply(
-                        &Delta::Add {
-                            record: Box::new(record.clone()),
-                        },
-                        &self.actor,
-                    )
-                    .await?;
+            if let Some(existing) = self.ledger.get(record.id).await? {
+                records.push(existing);
+                is_new.push(false);
+                continue;
             }
-            out.push(record);
+            is_new.push(planned.insert(record.id));
+            records.push(record);
         }
-        Ok(out)
+        Ok((records, is_new))
+    }
+
+    /// Turn a failure in `leg` into the error the caller sees, after taking
+    /// back what this call wrote. A rollback that itself fails is reported
+    /// next to the cause, never instead of it.
+    async fn fail_and_roll_back(
+        &self,
+        leg: WriteLeg,
+        cause: MyelinError,
+        added: &[Uuid],
+    ) -> MyelinError {
+        match self.roll_back(added).await {
+            Ok(()) => MyelinError::write_failed(leg, &cause),
+            Err(rollback) => MyelinError::WriteNotRolledBack {
+                leg,
+                cause: cause.to_string(),
+                left_behind: format!(
+                    "taking back the {} ledger rows this call wrote failed, so the ledger and \
+                     the index may disagree: {rollback}",
+                    added.len()
+                ),
+            },
+        }
+    }
+
+    /// Remove the rows a failed call added and every point for them.
+    ///
+    /// Ledger first, then the index, as [`super::forget::forget_scope`] does:
+    /// the other order, interrupted, leaves ledger rows with no points, which
+    /// is the very state this exists to prevent. Points are deleted for the
+    /// rows that were erased, whether or not the failing upsert reached them.
+    async fn roll_back(&self, ids: &[Uuid]) -> Result<()> {
+        if ids.is_empty() {
+            return Ok(());
+        }
+        let mut erased: Vec<Uuid> = Vec::with_capacity(ids.len());
+        let mut failures: Vec<String> = Vec::new();
+        for id in ids {
+            match self.ledger.hard_delete(*id, &self.actor, ROLLBACK_REASON).await {
+                Ok(gone) => erased.extend(gone),
+                Err(e) => failures.push(format!("ledger row {id}: {e}")),
+            }
+        }
+        if let Err(e) = self.index.delete_points(&erased).await {
+            failures.push(format!("index points: {e}"));
+        }
+        if failures.is_empty() {
+            Ok(())
+        } else {
+            Err(MyelinError::Store(failures.join("; ")))
+        }
     }
 
     /// Read-only half: decide what should happen to one candidate.
@@ -1328,5 +1484,451 @@ mod tests {
             "the profile pass must not read the other speaker: {rendered}"
         );
         assert!(drafts[0].render().contains("ASSISTANT-ONLY-MARKER"));
+    }
+
+    // ── Issue 216: a failed write leaves nothing behind ──────────────────
+    //
+    // Both legs are doubles that fail on a chosen call, so a failure at the
+    // first batch, at a later batch, and with older rows already in the
+    // store is a plain assertion on what the ledger and the index hold
+    // afterwards. The Qdrant client in `WritePath::store` is the unreachable
+    // one: these paths never search.
+
+    use std::collections::{BTreeMap, BTreeSet};
+    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+    use std::sync::Mutex;
+
+    use crate::error::WriteLeg;
+    use crate::store::qdrant::IndexItem;
+
+    /// A call number no test reaches: the double that never fails.
+    const NEVER_FAILS: usize = usize::MAX;
+    /// Records per embedder call and per upsert in the rollback tests. With
+    /// five episodes that is three batches, so "first" and "later" differ.
+    const TEST_BATCH: usize = 2;
+    const TEST_EPISODES: usize = 5;
+    const EMBEDDER_REFUSAL: &str = "scripted-embedder: HTTP 413 Payload Too Large: input too long";
+    const INDEX_REFUSAL: &str = "scripted-index: HTTP 503 unavailable";
+
+    static NEVER: Never = Never;
+
+    /// Embeds deterministically; call number `fail_on` (from zero) is refused
+    /// the way the real embedder refuses an over-long input.
+    struct ScriptedEmbedder {
+        fail_on: AtomicUsize,
+        calls: AtomicUsize,
+    }
+
+    impl ScriptedEmbedder {
+        fn failing_on(call: usize) -> Self {
+            Self {
+                fail_on: AtomicUsize::new(call),
+                calls: AtomicUsize::new(0),
+            }
+        }
+
+        /// Fail the `n`th call from now, counting the next one as zero.
+        fn fail_in(&self, n: usize) {
+            self.fail_on
+                .store(self.calls.load(Ordering::SeqCst) + n, Ordering::SeqCst);
+        }
+
+        fn heal(&self) {
+            self.fail_on.store(NEVER_FAILS, Ordering::SeqCst);
+        }
+    }
+
+    #[async_trait]
+    impl Embedder for ScriptedEmbedder {
+        fn dim(&self) -> u64 {
+            8
+        }
+        fn id(&self) -> &str {
+            "scripted-embedder"
+        }
+        async fn embed(&self, texts: &[String]) -> Result<Vec<Vec<f32>>> {
+            let call = self.calls.fetch_add(1, Ordering::SeqCst);
+            if call == self.fail_on.load(Ordering::SeqCst) {
+                return Err(MyelinError::Store(EMBEDDER_REFUSAL.into()));
+            }
+            Ok(texts
+                .iter()
+                .map(|t| vec![t.bytes().map(f32::from).sum::<f32>(); 8])
+                .collect())
+        }
+    }
+
+    /// An index in a map. Upsert call number `fail_on` (from zero) applies
+    /// its points and *then* reports failure — the worst case for a caller
+    /// that rolls back, because the failed batch is partly in.
+    struct FakeIndex {
+        points: Mutex<BTreeMap<Uuid, Vec<f32>>>,
+        upserts: AtomicUsize,
+        fail_on: AtomicUsize,
+        delete_fails: AtomicBool,
+    }
+
+    impl FakeIndex {
+        fn failing_on(call: usize) -> Self {
+            Self {
+                points: Mutex::new(BTreeMap::new()),
+                upserts: AtomicUsize::new(0),
+                fail_on: AtomicUsize::new(call),
+                delete_fails: AtomicBool::new(false),
+            }
+        }
+
+        /// Fail the `n`th upsert from now, counting the next one as zero.
+        fn fail_in(&self, n: usize) {
+            self.fail_on
+                .store(self.upserts.load(Ordering::SeqCst) + n, Ordering::SeqCst);
+        }
+
+        fn heal(&self) {
+            self.fail_on.store(NEVER_FAILS, Ordering::SeqCst);
+        }
+
+        fn points(&self) -> BTreeMap<Uuid, Vec<f32>> {
+            self.points.lock().unwrap_or_else(|p| p.into_inner()).clone()
+        }
+
+        fn ids(&self) -> BTreeSet<Uuid> {
+            self.points().keys().copied().collect()
+        }
+    }
+
+    #[async_trait]
+    impl VectorIndex for FakeIndex {
+        async fn upsert(&self, items: &[IndexItem<'_>]) -> Result<()> {
+            let call = self.upserts.fetch_add(1, Ordering::SeqCst);
+            let mut points = self.points.lock().unwrap_or_else(|p| p.into_inner());
+            for item in items {
+                points.insert(item.record.id, item.dense.clone());
+            }
+            if call == self.fail_on.load(Ordering::SeqCst) {
+                return Err(MyelinError::Store(INDEX_REFUSAL.into()));
+            }
+            Ok(())
+        }
+
+        async fn delete_points(&self, ids: &[Uuid]) -> Result<()> {
+            if self.delete_fails.load(Ordering::SeqCst) {
+                return Err(MyelinError::Store("scripted-index: delete refused".into()));
+            }
+            let mut points = self.points.lock().unwrap_or_else(|p| p.into_inner());
+            for id in ids {
+                points.remove(id);
+            }
+            Ok(())
+        }
+    }
+
+    /// One episode per turn: each has its own unit, and `respect_units` never
+    /// merges across units.
+    fn episode_turns(n: usize) -> Vec<Turn> {
+        (0..n)
+            .map(|i| Turn {
+                speaker: "user".into(),
+                text: format!("episode number {i} says something of its own"),
+                at: None,
+                source: SourceRef::doc(format!("d{i}")),
+                unit: format!("u{i}"),
+                meta: None,
+            })
+            .collect()
+    }
+
+    fn rollback_scope() -> Scope {
+        Scope::new("t216", "a216", "ns216")
+    }
+
+    fn rollback_write_path<'a>(
+        embedder: &'a ScriptedEmbedder,
+        store: &'a QdrantStore,
+        index: &'a FakeIndex,
+        ledger: &'a Ledger,
+    ) -> WritePath<'a> {
+        let mut wp = WritePath::new(&NEVER, embedder, store, ledger);
+        wp.index = index;
+        wp.index_batch = TEST_BATCH;
+        wp.extract_facts = false;
+        wp
+    }
+
+    async fn ledger_ids(ledger: &Ledger) -> BTreeSet<Uuid> {
+        let scope = rollback_scope();
+        ledger
+            .ids_in_scope(&scope.tenant, &scope.namespace)
+            .await
+            .expect("ids in scope")
+            .into_iter()
+            .collect()
+    }
+
+    /// Everything the ledger holds about the call's scope: every row in full,
+    /// and the audit trail.
+    async fn ledger_state(ledger: &Ledger) -> (Vec<MemoryRecord>, Vec<(String, Option<Uuid>)>) {
+        let mut rows = Vec::new();
+        for id in ledger_ids(ledger).await {
+            rows.push(ledger.get(id).await.expect("get").expect("row"));
+        }
+        let events = ledger
+            .events(None)
+            .await
+            .expect("events")
+            .into_iter()
+            .map(|e| (e.kind, e.record_id))
+            .collect();
+        (rows, events)
+    }
+
+    fn assert_embed_refusal(err: &MyelinError) {
+        assert!(
+            matches!(err, MyelinError::WriteFailed { leg: WriteLeg::Embed, .. }),
+            "an embedder failure is a clean embed-leg failure: {err:?}"
+        );
+        assert!(err.to_string().contains("HTTP 413"), "the cause is named: {err}");
+    }
+
+    fn assert_index_refusal(err: &MyelinError) {
+        assert!(
+            matches!(err, MyelinError::WriteFailed { leg: WriteLeg::Index, .. }),
+            "an index failure is a clean index-leg failure: {err:?}"
+        );
+        assert!(err.to_string().contains("HTTP 503"), "the cause is named: {err}");
+    }
+
+    /// After a successful call the index and the ledger hold the same ids, and
+    /// every episode is in both.
+    async fn assert_fully_indexed(ledger: &Ledger, index: &FakeIndex, episodes: usize) {
+        let rows = ledger_ids(ledger).await;
+        assert_eq!(rows.len(), episodes, "every episode is in the ledger");
+        assert_eq!(index.ids(), rows, "every ledger row has its point, and no other point exists");
+    }
+
+    #[tokio::test]
+    async fn an_embed_failure_on_the_first_batch_leaves_nothing_and_a_retry_indexes_everything() {
+        let (ledger, _dir) = ledger().await;
+        let store = unreachable_store();
+        let embedder = ScriptedEmbedder::failing_on(0);
+        let index = FakeIndex::failing_on(NEVER_FAILS);
+        let wp = rollback_write_path(&embedder, &store, &index, &ledger);
+
+        let err = wp
+            .insert(&rollback_scope(), &episode_turns(TEST_EPISODES))
+            .await
+            .expect_err("the embedder refuses the first batch");
+        assert_embed_refusal(&err);
+
+        let (rows, events) = ledger_state(&ledger).await;
+        assert!(rows.is_empty(), "no ledger row: {rows:?}");
+        assert!(events.is_empty(), "nothing was written, so nothing was audited: {events:?}");
+        assert!(index.points().is_empty(), "no point");
+
+        embedder.heal();
+        let stats = wp
+            .insert(&rollback_scope(), &episode_turns(TEST_EPISODES))
+            .await
+            .expect("the retry succeeds");
+        assert_eq!(stats.episode_ids.len(), TEST_EPISODES);
+        assert_fully_indexed(&ledger, &index, TEST_EPISODES).await;
+    }
+
+    #[tokio::test]
+    async fn an_embed_failure_on_a_later_batch_leaves_nothing_and_a_retry_indexes_everything() {
+        let (ledger, _dir) = ledger().await;
+        let store = unreachable_store();
+        // Call 0 embeds the first batch; call 1 is the second batch.
+        let embedder = ScriptedEmbedder::failing_on(1);
+        let index = FakeIndex::failing_on(NEVER_FAILS);
+        let wp = rollback_write_path(&embedder, &store, &index, &ledger);
+
+        let err = wp
+            .insert(&rollback_scope(), &episode_turns(TEST_EPISODES))
+            .await
+            .expect_err("the embedder refuses the second batch");
+        assert_embed_refusal(&err);
+
+        let (rows, events) = ledger_state(&ledger).await;
+        assert!(rows.is_empty(), "no ledger row: {rows:?}");
+        assert!(events.is_empty(), "nothing was written, so nothing was audited: {events:?}");
+        assert!(index.points().is_empty(), "no point");
+
+        embedder.heal();
+        wp.insert(&rollback_scope(), &episode_turns(TEST_EPISODES))
+            .await
+            .expect("the retry succeeds");
+        assert_fully_indexed(&ledger, &index, TEST_EPISODES).await;
+    }
+
+    #[tokio::test]
+    async fn an_upsert_failure_on_the_first_batch_takes_back_every_row_and_point() {
+        let (ledger, _dir) = ledger().await;
+        let store = unreachable_store();
+        let embedder = ScriptedEmbedder::failing_on(NEVER_FAILS);
+        let index = FakeIndex::failing_on(0);
+        let wp = rollback_write_path(&embedder, &store, &index, &ledger);
+
+        let err = wp
+            .insert(&rollback_scope(), &episode_turns(TEST_EPISODES))
+            .await
+            .expect_err("the index refuses the first batch");
+        assert_index_refusal(&err);
+
+        let (rows, events) = ledger_state(&ledger).await;
+        assert!(rows.is_empty(), "no ledger row survives: {rows:?}");
+        assert!(index.points().is_empty(), "the failed batch was partly in; it is out again");
+        let erased = events.iter().filter(|(kind, _)| kind == "hard_delete").count();
+        assert_eq!(erased, TEST_EPISODES, "each row was taken back through the ledger's own erase: {events:?}");
+
+        index.heal();
+        let stats = wp
+            .insert(&rollback_scope(), &episode_turns(TEST_EPISODES))
+            .await
+            .expect("the retry succeeds");
+        assert_eq!(stats.episode_ids.len(), TEST_EPISODES);
+        assert_fully_indexed(&ledger, &index, TEST_EPISODES).await;
+    }
+
+    #[tokio::test]
+    async fn an_upsert_failure_on_a_later_batch_takes_back_the_earlier_batches_too() {
+        let (ledger, _dir) = ledger().await;
+        let store = unreachable_store();
+        let embedder = ScriptedEmbedder::failing_on(NEVER_FAILS);
+        // Upsert 0 succeeds and puts two points in; upsert 1 fails.
+        let index = FakeIndex::failing_on(1);
+        let wp = rollback_write_path(&embedder, &store, &index, &ledger);
+
+        let err = wp
+            .insert(&rollback_scope(), &episode_turns(TEST_EPISODES))
+            .await
+            .expect_err("the index refuses the second batch");
+        assert_index_refusal(&err);
+
+        let (rows, _) = ledger_state(&ledger).await;
+        assert!(rows.is_empty(), "no ledger row survives: {rows:?}");
+        assert!(
+            index.points().is_empty(),
+            "the batch that succeeded is out again: {:?}",
+            index.ids()
+        );
+
+        index.heal();
+        wp.insert(&rollback_scope(), &episode_turns(TEST_EPISODES))
+            .await
+            .expect("the retry succeeds");
+        assert_fully_indexed(&ledger, &index, TEST_EPISODES).await;
+    }
+
+    #[tokio::test]
+    async fn a_failed_call_leaves_a_record_that_was_already_there_untouched() {
+        let (ledger, _dir) = ledger().await;
+        let store = unreachable_store();
+        let embedder = ScriptedEmbedder::failing_on(NEVER_FAILS);
+        let index = FakeIndex::failing_on(NEVER_FAILS);
+        let wp = rollback_write_path(&embedder, &store, &index, &ledger);
+
+        // Two episodes are in, indexed, before the call under test.
+        const OLDER: usize = 2;
+        wp.insert(&rollback_scope(), &episode_turns(OLDER))
+            .await
+            .expect("the first observe succeeds");
+        assert_fully_indexed(&ledger, &index, OLDER).await;
+        let rows_before = ledger_state(&ledger).await;
+        let points_before = index.points();
+
+        // The same two episodes plus three new ones, with the embedder
+        // refusing the second batch (the first holds only older episodes).
+        embedder.fail_in(1);
+        let err = wp
+            .insert(&rollback_scope(), &episode_turns(TEST_EPISODES))
+            .await
+            .expect_err("the embedder refuses a batch");
+        assert_embed_refusal(&err);
+        assert_eq!(ledger_state(&ledger).await, rows_before, "rows, and the audit trail, as they were");
+        assert_eq!(index.points(), points_before, "points as they were");
+
+        // Then the index refusing the second upsert, which is after the
+        // older episodes' batch was upserted again and after the new rows
+        // were written.
+        embedder.heal();
+        index.fail_in(1);
+        let err = wp
+            .insert(&rollback_scope(), &episode_turns(TEST_EPISODES))
+            .await
+            .expect_err("the index refuses a batch");
+        assert_index_refusal(&err);
+        let (rows_after, events_after) = ledger_state(&ledger).await;
+        assert_eq!(rows_after, rows_before.0, "the older rows are exactly as they were");
+        assert_eq!(index.points(), points_before, "the older points are exactly as they were");
+        let older: BTreeSet<Uuid> = rows_before.0.iter().map(|r| r.id).collect();
+        assert!(
+            events_after
+                .iter()
+                .filter(|(kind, _)| kind == "hard_delete")
+                .all(|(_, id)| id.is_some_and(|id| !older.contains(&id))),
+            "only rows this call wrote were taken back: {events_after:?}"
+        );
+
+        // And a later observe of the same content indexes all five.
+        index.heal();
+        wp.insert(&rollback_scope(), &episode_turns(TEST_EPISODES))
+            .await
+            .expect("the retry succeeds");
+        assert_fully_indexed(&ledger, &index, TEST_EPISODES).await;
+        for (id, vector) in &points_before {
+            assert_eq!(index.points().get(id), Some(vector), "an older point keeps its vector");
+        }
+    }
+
+    #[tokio::test]
+    async fn a_rollback_that_fails_is_reported_beside_the_cause() {
+        let (ledger, _dir) = ledger().await;
+        let store = unreachable_store();
+        let embedder = ScriptedEmbedder::failing_on(NEVER_FAILS);
+        let index = FakeIndex::failing_on(0);
+        index.delete_fails.store(true, Ordering::SeqCst);
+        let wp = rollback_write_path(&embedder, &store, &index, &ledger);
+
+        let err = wp
+            .insert(&rollback_scope(), &episode_turns(TEST_EPISODES))
+            .await
+            .expect_err("the index refuses, and so does the delete");
+        assert!(
+            matches!(err, MyelinError::WriteNotRolledBack { leg: WriteLeg::Index, .. }),
+            "{err:?}"
+        );
+        let text = err.to_string();
+        assert!(text.contains("HTTP 503"), "the cause is named: {text}");
+        assert!(text.contains("delete refused"), "the rollback failure is named: {text}");
+        assert!(text.contains("may disagree"), "{text}");
+        assert!(ledger_ids(&ledger).await.is_empty(), "the ledger half of the rollback still ran");
+    }
+
+    #[tokio::test]
+    async fn a_failed_derived_embed_is_reported_and_leaves_the_committed_episode() {
+        let (ledger, _dir) = ledger().await;
+        let store = unreachable_store();
+        // Call 0 embeds the episode; call 1 is the candidate's embedding.
+        let embedder = ScriptedEmbedder::failing_on(1);
+        let index = FakeIndex::failing_on(NEVER_FAILS);
+        let wp = rollback_write_path(&embedder, &store, &index, &ledger);
+
+        let err = wp
+            .assert_one(
+                &rollback_scope(),
+                episode_turns(1).remove(0),
+                CandidateKind::Profile,
+            )
+            .await
+            .expect_err("the candidate's embedding is refused");
+        assert!(
+            matches!(err, MyelinError::WriteNotRolledBack { leg: WriteLeg::Embed, .. }),
+            "{err:?}"
+        );
+        let text = err.to_string();
+        assert!(text.contains("HTTP 413"), "the cause is named: {text}");
+        assert!(text.contains("episodes are committed and indexed"), "{text}");
+        assert_fully_indexed(&ledger, &index, 1).await;
     }
 }
